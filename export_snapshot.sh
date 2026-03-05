@@ -55,6 +55,14 @@ find . -type f \
 ! -path "*/data/*" \
 ! -path "*/__pycache__/*" \
 ! -path "*/.pytest_cache/*" \
+! -path "*/.venv/*" \
+! -path "*/venv/*" \
+! -path "*/.mypy_cache/*" \
+! -path "*/.ruff_cache/*" \
+! -path "*/.cache/*" \
+! -path "*/node_modules/*" \
+! -name "*.pyc" \
+! -name ".DS_Store" \
 ! -name "project_snapshot.txt" \
 ! -name "project_knowledge_snapshot.txt" \
 | sort | while read file
