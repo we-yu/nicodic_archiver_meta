@@ -1,0 +1,764 @@
+
+==================================================
+REVIEW SNAPSHOT
+==================================================
+generated: Sat Mar  7 08:52:32 UTC 2026
+root: /home/manage/product/nicodic_archiver
+output: review_snapshot.txt
+
+This file is review-oriented and may include uncommitted changes.
+Use project_snapshot.txt as the authoritative source-of-truth snapshot.
+
+==================================================
+REPO: copilot
+==================================================
+PATH: /home/manage/product/nicodic_archiver/copilot
+BRANCH: task003-copilot
+HEAD: 28e810974cafcd8155a93c261e9cad17555ba5fd
+
+--- RECENT COMMITS (git log --oneline -n 5) ---
+28e8109 .md files commit first
+71c07ac TASK002: extract orchestration from main.py (#8)
+0746194 test scraper tool update (#7)
+3506a27 TASK001 Copilot implementation (#5)
+0a975b8 Ignore utility files. (#4)
+
+--- STATUS (git status --short --branch) ---
+## task003-copilot...origin/task003-copilot
+ D tests/test_basic.py
+?? tests/conftest.py
+?? tests/test_main.py
+?? tests/test_orchestrator.py
+
+--- DIFF STAT (git diff --stat) ---
+ tests/test_basic.py | 2 --
+ 1 file changed, 2 deletions(-)
+
+--- DIFF (git diff) ---
+diff --git a/tests/test_basic.py b/tests/test_basic.py
+deleted file mode 100644
+index f4f5361..0000000
+--- a/tests/test_basic.py
++++ /dev/null
+@@ -1,2 +0,0 @@
+-def test_dummy():
+-    assert True
+
+--- CACHED DIFF STAT (git diff --cached --stat) ---
+
+--- CACHED DIFF (git diff --cached) ---
+
+--- UNTRACKED FILES (git ls-files --others --exclude-standard) ---
+tests/conftest.py
+tests/test_main.py
+tests/test_orchestrator.py
+
+--- UNTRACKED FILE DIFFS (synthetic unified diffs) ---
+
+------------------------------
+UNTRACKED DIFF: tests/conftest.py
+------------------------------
+diff --git a/tests/conftest.py b/tests/conftest.py
+new file mode 100644
+index 0000000..79dddab
+--- /dev/null
++++ b/tests/conftest.py
+@@ -0,0 +1,8 @@
++import os
++import sys
++
++
++ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
++
++if ROOT_DIR not in sys.path:
++    sys.path.insert(0, ROOT_DIR)
+
+
+------------------------------
+UNTRACKED DIFF: tests/test_main.py
+------------------------------
+diff --git a/tests/test_main.py b/tests/test_main.py
+new file mode 100644
+index 0000000..6b27a63
+--- /dev/null
++++ b/tests/test_main.py
+@@ -0,0 +1,47 @@
++import main
++
++
++def test_main_dispatches_to_inspect(monkeypatch):
++    calls = {}
++
++    def fake_inspect_article(article_id, article_type, last_n=None):
++        calls["inspect"] = (article_id, article_type, last_n)
++
++    def fake_run_scrape(article_url):
++        calls["run_scrape"] = article_url
++
++    monkeypatch.setattr(main, "inspect_article", fake_inspect_article)
++    monkeypatch.setattr(main, "run_scrape", fake_run_scrape)
++    monkeypatch.setattr(
++        main.sys,
++        "argv",
++        ["main.py", "inspect", "4470620", "a", "--last", "10"],
++    )
++
++    main.main()
++
++    assert calls["inspect"] == ("4470620", "a", 10)
++    assert "run_scrape" not in calls
++
++
++def test_main_dispatches_to_run_scrape(monkeypatch):
++    calls = {}
++
++    def fake_inspect_article(article_id, article_type, last_n=None):
++        calls["inspect"] = (article_id, article_type, last_n)
++
++    def fake_run_scrape(article_url):
++        calls["run_scrape"] = article_url
++
++    monkeypatch.setattr(main, "inspect_article", fake_inspect_article)
++    monkeypatch.setattr(main, "run_scrape", fake_run_scrape)
++    monkeypatch.setattr(
++        main.sys,
++        "argv",
++        ["main.py", "https://dic.nicovideo.jp/a/4470620"],
++    )
++
++    main.main()
++
++    assert calls["run_scrape"] == "https://dic.nicovideo.jp/a/4470620"
++    assert "inspect" not in calls
+
+
+------------------------------
+UNTRACKED DIFF: tests/test_orchestrator.py
+------------------------------
+diff --git a/tests/test_orchestrator.py b/tests/test_orchestrator.py
+new file mode 100644
+index 0000000..77389fe
+--- /dev/null
++++ b/tests/test_orchestrator.py
+@@ -0,0 +1,73 @@
++from bs4 import BeautifulSoup
++
++import orchestrator
++
++
++def test_build_bbs_base_url():
++    article_url = "https://dic.nicovideo.jp/a/プロイセン(APヘタリア)"
++
++    result = orchestrator.build_bbs_base_url(article_url)
++
++    assert result == "https://dic.nicovideo.jp/b/a/プロイセン(APヘタリア)/"
++
++
++def test_fetch_article_metadata_uses_fetch_page(monkeypatch):
++    called = {}
++    html = """
++    <html>
++      <head>
++        <meta property="og:title" content="テスト記事とは (単語記事)" />
++        <meta property="og:url" content="https://dic.nicovideo.jp/a/4470620" />
++      </head>
++    </html>
++    """
++
++    def fake_fetch_page(url):
++        called["url"] = url
++        return BeautifulSoup(html, "lxml")
++
++    monkeypatch.setattr(orchestrator, "fetch_page", fake_fetch_page)
++
++    result = orchestrator.fetch_article_metadata(
++        "https://dic.nicovideo.jp/a/4470620"
++    )
++
++    assert called["url"] == "https://dic.nicovideo.jp/a/4470620"
++    assert result == ("4470620", "a", "テスト記事")
++
++
++def test_collect_all_responses_paginates(monkeypatch):
++    fetched_urls = []
++    sleep_calls = []
++    page_responses = {
++        "page1": [{"res_no": 1}, {"res_no": 2}],
++        "page2": [{"res_no": 3}],
++        "page3": [],
++    }
++    page_order = iter(["page1", "page2", "page3"])
++
++    def fake_fetch_page(url):
++        fetched_urls.append(url)
++        return next(page_order)
++
++    def fake_parse_responses(page):
++        return page_responses[page]
++
++    def fake_sleep(seconds):
++        sleep_calls.append(seconds)
++
++    monkeypatch.setattr(orchestrator, "fetch_page", fake_fetch_page)
++    monkeypatch.setattr(orchestrator, "parse_responses", fake_parse_responses)
++    monkeypatch.setattr(orchestrator.time, "sleep", fake_sleep)
++
++    result = orchestrator.collect_all_responses(
++        "https://dic.nicovideo.jp/b/a/4470620/"
++    )
++
++    assert fetched_urls == [
++        "https://dic.nicovideo.jp/b/a/4470620/1-",
++        "https://dic.nicovideo.jp/b/a/4470620/3-",
++        "https://dic.nicovideo.jp/b/a/4470620/4-",
++    ]
++    assert sleep_calls == [1, 1]
++    assert result == [{"res_no": 1}, {"res_no": 2}, {"res_no": 3}]
+
+--- REVIEW TARGET FILE CONTENTS ---
+
+------------------------------
+FILE: tests/conftest.py
+------------------------------
+import os
+import sys
+
+
+ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
+
+if ROOT_DIR not in sys.path:
+    sys.path.insert(0, ROOT_DIR)
+
+
+------------------------------
+FILE: tests/test_main.py
+------------------------------
+import main
+
+
+def test_main_dispatches_to_inspect(monkeypatch):
+    calls = {}
+
+    def fake_inspect_article(article_id, article_type, last_n=None):
+        calls["inspect"] = (article_id, article_type, last_n)
+
+    def fake_run_scrape(article_url):
+        calls["run_scrape"] = article_url
+
+    monkeypatch.setattr(main, "inspect_article", fake_inspect_article)
+    monkeypatch.setattr(main, "run_scrape", fake_run_scrape)
+    monkeypatch.setattr(
+        main.sys,
+        "argv",
+        ["main.py", "inspect", "4470620", "a", "--last", "10"],
+    )
+
+    main.main()
+
+    assert calls["inspect"] == ("4470620", "a", 10)
+    assert "run_scrape" not in calls
+
+
+def test_main_dispatches_to_run_scrape(monkeypatch):
+    calls = {}
+
+    def fake_inspect_article(article_id, article_type, last_n=None):
+        calls["inspect"] = (article_id, article_type, last_n)
+
+    def fake_run_scrape(article_url):
+        calls["run_scrape"] = article_url
+
+    monkeypatch.setattr(main, "inspect_article", fake_inspect_article)
+    monkeypatch.setattr(main, "run_scrape", fake_run_scrape)
+    monkeypatch.setattr(
+        main.sys,
+        "argv",
+        ["main.py", "https://dic.nicovideo.jp/a/4470620"],
+    )
+
+    main.main()
+
+    assert calls["run_scrape"] == "https://dic.nicovideo.jp/a/4470620"
+    assert "inspect" not in calls
+
+
+------------------------------
+FILE: tests/test_orchestrator.py
+------------------------------
+from bs4 import BeautifulSoup
+
+import orchestrator
+
+
+def test_build_bbs_base_url():
+    article_url = "https://dic.nicovideo.jp/a/プロイセン(APヘタリア)"
+
+    result = orchestrator.build_bbs_base_url(article_url)
+
+    assert result == "https://dic.nicovideo.jp/b/a/プロイセン(APヘタリア)/"
+
+
+def test_fetch_article_metadata_uses_fetch_page(monkeypatch):
+    called = {}
+    html = """
+    <html>
+      <head>
+        <meta property="og:title" content="テスト記事とは (単語記事)" />
+        <meta property="og:url" content="https://dic.nicovideo.jp/a/4470620" />
+      </head>
+    </html>
+    """
+
+    def fake_fetch_page(url):
+        called["url"] = url
+        return BeautifulSoup(html, "lxml")
+
+    monkeypatch.setattr(orchestrator, "fetch_page", fake_fetch_page)
+
+    result = orchestrator.fetch_article_metadata(
+        "https://dic.nicovideo.jp/a/4470620"
+    )
+
+    assert called["url"] == "https://dic.nicovideo.jp/a/4470620"
+    assert result == ("4470620", "a", "テスト記事")
+
+
+def test_collect_all_responses_paginates(monkeypatch):
+    fetched_urls = []
+    sleep_calls = []
+    page_responses = {
+        "page1": [{"res_no": 1}, {"res_no": 2}],
+        "page2": [{"res_no": 3}],
+        "page3": [],
+    }
+    page_order = iter(["page1", "page2", "page3"])
+
+    def fake_fetch_page(url):
+        fetched_urls.append(url)
+        return next(page_order)
+
+    def fake_parse_responses(page):
+        return page_responses[page]
+
+    def fake_sleep(seconds):
+        sleep_calls.append(seconds)
+
+    monkeypatch.setattr(orchestrator, "fetch_page", fake_fetch_page)
+    monkeypatch.setattr(orchestrator, "parse_responses", fake_parse_responses)
+    monkeypatch.setattr(orchestrator.time, "sleep", fake_sleep)
+
+    result = orchestrator.collect_all_responses(
+        "https://dic.nicovideo.jp/b/a/4470620/"
+    )
+
+    assert fetched_urls == [
+        "https://dic.nicovideo.jp/b/a/4470620/1-",
+        "https://dic.nicovideo.jp/b/a/4470620/3-",
+        "https://dic.nicovideo.jp/b/a/4470620/4-",
+    ]
+    assert sleep_calls == [1, 1]
+    assert result == [{"res_no": 1}, {"res_no": 2}, {"res_no": 3}]
+
+
+==================================================
+REPO: cursor
+==================================================
+PATH: /home/manage/product/nicodic_archiver/cursor
+BRANCH: task003-cursor
+HEAD: 58b74503632adec0d0e77c0b0a5a275636c9abfd
+
+--- RECENT COMMITS (git log --oneline -n 5) ---
+58b7450 .md files commit first
+71c07ac TASK002: extract orchestration from main.py (#8)
+0746194 test scraper tool update (#7)
+3506a27 TASK001 Copilot implementation (#5)
+0a975b8 Ignore utility files. (#4)
+
+--- STATUS (git status --short --branch) ---
+## task003-cursor...origin/task003-cursor
+?? tests/conftest.py
+?? tests/test_main.py
+?? tests/test_orchestrator.py
+
+--- DIFF STAT (git diff --stat) ---
+
+--- DIFF (git diff) ---
+
+--- CACHED DIFF STAT (git diff --cached --stat) ---
+
+--- CACHED DIFF (git diff --cached) ---
+
+--- UNTRACKED FILES (git ls-files --others --exclude-standard) ---
+tests/conftest.py
+tests/test_main.py
+tests/test_orchestrator.py
+
+--- UNTRACKED FILE DIFFS (synthetic unified diffs) ---
+
+------------------------------
+UNTRACKED DIFF: tests/conftest.py
+------------------------------
+diff --git a/tests/conftest.py b/tests/conftest.py
+new file mode 100644
+index 0000000..8bc06c6
+--- /dev/null
++++ b/tests/conftest.py
+@@ -0,0 +1,7 @@
++"""Pytest config: ensure project root is on path so main/orchestrator are importable."""
++import sys
++from pathlib import Path
++
++_root = Path(__file__).resolve().parent.parent
++if str(_root) not in sys.path:
++    sys.path.insert(0, str(_root))
+
+
+------------------------------
+UNTRACKED DIFF: tests/test_main.py
+------------------------------
+diff --git a/tests/test_main.py b/tests/test_main.py
+new file mode 100644
+index 0000000..7f5bc65
+--- /dev/null
++++ b/tests/test_main.py
+@@ -0,0 +1,46 @@
++"""Unit tests for main.py: CLI dispatch (inspect vs scrape, usage/exit)."""
++from unittest.mock import patch
++
++import pytest
++
++import main as main_module
++
++
++@patch("main.run_scrape")
++def test_main_scrape_mode_calls_run_scrape(mock_run_scrape):
++    with patch("sys.argv", ["main.py", "https://dic.nicovideo.jp/a/12345"]):
++        main_module.main()
++    mock_run_scrape.assert_called_once_with("https://dic.nicovideo.jp/a/12345")
++
++
++@patch("main.inspect_article")
++def test_main_inspect_mode_calls_inspect_article(mock_inspect):
++    with patch("sys.argv", ["main.py", "inspect", "12345", "a"]):
++        main_module.main()
++    mock_inspect.assert_called_once_with("12345", "a", None)
++
++
++@patch("main.inspect_article")
++def test_main_inspect_mode_with_last_n(mock_inspect):
++    with patch("sys.argv", ["main.py", "inspect", "12345", "a", "--last", "10"]):
++        main_module.main()
++    mock_inspect.assert_called_once_with("12345", "a", 10)
++
++
++def test_main_too_few_args_exits_with_usage(capsys):
++    with patch("sys.argv", ["main.py"]):
++        with pytest.raises(SystemExit) as exc_info:
++            main_module.main()
++    assert exc_info.value.code == 1
++    out = capsys.readouterr().out
++    assert "python main.py <article_url>" in out
++    assert "inspect" in out
++
++
++def test_main_inspect_without_id_type_exits_with_usage(capsys):
++    with patch("sys.argv", ["main.py", "inspect"]):
++        with pytest.raises(SystemExit) as exc_info:
++            main_module.main()
++    assert exc_info.value.code == 1
++    out = capsys.readouterr().out
++    assert "inspect <article_id> <article_type>" in out
+
+
+------------------------------
+UNTRACKED DIFF: tests/test_orchestrator.py
+------------------------------
+diff --git a/tests/test_orchestrator.py b/tests/test_orchestrator.py
+new file mode 100644
+index 0000000..a261096
+--- /dev/null
++++ b/tests/test_orchestrator.py
+@@ -0,0 +1,104 @@
++"""Unit tests for orchestrator: URL building, metadata fetch, pagination."""
++from unittest.mock import patch, MagicMock
++
++from bs4 import BeautifulSoup
++
++from orchestrator import (
++    build_bbs_base_url,
++    fetch_article_metadata,
++    collect_all_responses,
++)
++
++
++# ----- build_bbs_base_url -----
++
++
++def test_build_bbs_base_url_normal():
++    url = "https://dic.nicovideo.jp/a/12345"
++    assert build_bbs_base_url(url) == "https://dic.nicovideo.jp/b/a/12345/"
++
++
++def test_build_bbs_base_url_with_trailing_slash():
++    url = "https://dic.nicovideo.jp/a/12345/"
++    assert build_bbs_base_url(url) == "https://dic.nicovideo.jp/b/a/12345/"
++
++
++# ----- fetch_article_metadata (mocked fetch) -----
++
++
++def test_fetch_article_metadata_mocked():
++    html = """
++    <html><head>
++    <meta property="og:title" content="Fooとは">
++    <meta property="og:url" content="https://dic.nicovideo.jp/a/12345">
++    </head></html>
++    """
++    soup = BeautifulSoup(html, "lxml")
++    with patch("orchestrator.fetch_page", return_value=soup):
++        article_id, article_type, title = fetch_article_metadata(
++            "https://dic.nicovideo.jp/a/12345"
++        )
++    assert article_id == "12345"
++    assert article_type == "a"
++    assert title == "Foo"
++
++
++def test_fetch_article_metadata_missing_meta():
++    soup = BeautifulSoup("<html><body></body></html>", "lxml")
++    with patch("orchestrator.fetch_page", return_value=soup):
++        article_id, article_type, title = fetch_article_metadata(
++            "https://dic.nicovideo.jp/a/999"
++        )
++    assert article_id == "unknown"
++    assert article_type == "a"
++    assert title == "unknown"
++
++
++# ----- collect_all_responses: pagination and stopping -----
++
++
++@patch("orchestrator.time.sleep")
++@patch("orchestrator.parse_responses")
++@patch("orchestrator.fetch_page")
++def test_collect_all_responses_stops_on_empty_page(
++    mock_fetch, mock_parse, mock_sleep
++):
++    mock_fetch.return_value = MagicMock()
++    mock_parse.side_effect = [
++        [{"res_no": 1}, {"res_no": 2}],
++        [],
++    ]
++    result = collect_all_responses("https://dic.nicovideo.jp/b/a/12345/")
++    assert result == [{"res_no": 1}, {"res_no": 2}]
++    assert mock_fetch.call_count == 2
++    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/1-")
++    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/3-")
++    mock_sleep.assert_called_once_with(1)
++
++
++@patch("orchestrator.time.sleep")
++@patch("orchestrator.parse_responses")
++@patch("orchestrator.fetch_page")
++def test_collect_all_responses_stops_on_fetch_error(
++    mock_fetch, mock_parse, mock_sleep
++):
++    mock_fetch.side_effect = RuntimeError("Failed to fetch (status=404)")
++    result = collect_all_responses("https://dic.nicovideo.jp/b/a/12345/")
++    assert result == []
++    mock_fetch.assert_called_once()
++    mock_parse.assert_not_called()
++    mock_sleep.assert_not_called()
++
++
++@patch("orchestrator.time.sleep")
++@patch("orchestrator.parse_responses")
++@patch("orchestrator.fetch_page")
++def test_collect_all_responses_single_page(
++    mock_fetch, mock_parse, mock_sleep
++):
++    mock_fetch.return_value = MagicMock()
++    mock_parse.return_value = []
++    result = collect_all_responses("https://dic.nicovideo.jp/b/a/12345/")
++    assert result == []
++    mock_fetch.assert_called_once_with("https://dic.nicovideo.jp/b/a/12345/1-")
++    mock_sleep.assert_not_called()
+
+--- REVIEW TARGET FILE CONTENTS ---
+
+------------------------------
+FILE: tests/conftest.py
+------------------------------
+"""Pytest config: ensure project root is on path so main/orchestrator are importable."""
+import sys
+from pathlib import Path
+
+_root = Path(__file__).resolve().parent.parent
+if str(_root) not in sys.path:
+    sys.path.insert(0, str(_root))
+
+
+------------------------------
+FILE: tests/test_main.py
+------------------------------
+"""Unit tests for main.py: CLI dispatch (inspect vs scrape, usage/exit)."""
+from unittest.mock import patch
+
+import pytest
+
+import main as main_module
+
+
+@patch("main.run_scrape")
+def test_main_scrape_mode_calls_run_scrape(mock_run_scrape):
+    with patch("sys.argv", ["main.py", "https://dic.nicovideo.jp/a/12345"]):
+        main_module.main()
+    mock_run_scrape.assert_called_once_with("https://dic.nicovideo.jp/a/12345")
+
+
+@patch("main.inspect_article")
+def test_main_inspect_mode_calls_inspect_article(mock_inspect):
+    with patch("sys.argv", ["main.py", "inspect", "12345", "a"]):
+        main_module.main()
+    mock_inspect.assert_called_once_with("12345", "a", None)
+
+
+@patch("main.inspect_article")
+def test_main_inspect_mode_with_last_n(mock_inspect):
+    with patch("sys.argv", ["main.py", "inspect", "12345", "a", "--last", "10"]):
+        main_module.main()
+    mock_inspect.assert_called_once_with("12345", "a", 10)
+
+
+def test_main_too_few_args_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "python main.py <article_url>" in out
+    assert "inspect" in out
+
+
+def test_main_inspect_without_id_type_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "inspect"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "inspect <article_id> <article_type>" in out
+
+
+------------------------------
+FILE: tests/test_orchestrator.py
+------------------------------
+"""Unit tests for orchestrator: URL building, metadata fetch, pagination."""
+from unittest.mock import patch, MagicMock
+
+from bs4 import BeautifulSoup
+
+from orchestrator import (
+    build_bbs_base_url,
+    fetch_article_metadata,
+    collect_all_responses,
+)
+
+
+# ----- build_bbs_base_url -----
+
+
+def test_build_bbs_base_url_normal():
+    url = "https://dic.nicovideo.jp/a/12345"
+    assert build_bbs_base_url(url) == "https://dic.nicovideo.jp/b/a/12345/"
+
+
+def test_build_bbs_base_url_with_trailing_slash():
+    url = "https://dic.nicovideo.jp/a/12345/"
+    assert build_bbs_base_url(url) == "https://dic.nicovideo.jp/b/a/12345/"
+
+
+# ----- fetch_article_metadata (mocked fetch) -----
+
+
+def test_fetch_article_metadata_mocked():
+    html = """
+    <html><head>
+    <meta property="og:title" content="Fooとは">
+    <meta property="og:url" content="https://dic.nicovideo.jp/a/12345">
+    </head></html>
+    """
+    soup = BeautifulSoup(html, "lxml")
+    with patch("orchestrator.fetch_page", return_value=soup):
+        article_id, article_type, title = fetch_article_metadata(
+            "https://dic.nicovideo.jp/a/12345"
+        )
+    assert article_id == "12345"
+    assert article_type == "a"
+    assert title == "Foo"
+
+
+def test_fetch_article_metadata_missing_meta():
+    soup = BeautifulSoup("<html><body></body></html>", "lxml")
+    with patch("orchestrator.fetch_page", return_value=soup):
+        article_id, article_type, title = fetch_article_metadata(
+            "https://dic.nicovideo.jp/a/999"
+        )
+    assert article_id == "unknown"
+    assert article_type == "a"
+    assert title == "unknown"
+
+
+# ----- collect_all_responses: pagination and stopping -----
+
+
+@patch("orchestrator.time.sleep")
+@patch("orchestrator.parse_responses")
+@patch("orchestrator.fetch_page")
+def test_collect_all_responses_stops_on_empty_page(
+    mock_fetch, mock_parse, mock_sleep
+):
+    mock_fetch.return_value = MagicMock()
+    mock_parse.side_effect = [
+        [{"res_no": 1}, {"res_no": 2}],
+        [],
+    ]
+    result = collect_all_responses("https://dic.nicovideo.jp/b/a/12345/")
+    assert result == [{"res_no": 1}, {"res_no": 2}]
+    assert mock_fetch.call_count == 2
+    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/1-")
+    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/3-")
+    mock_sleep.assert_called_once_with(1)
+
+
+@patch("orchestrator.time.sleep")
+@patch("orchestrator.parse_responses")
+@patch("orchestrator.fetch_page")
+def test_collect_all_responses_stops_on_fetch_error(
+    mock_fetch, mock_parse, mock_sleep
+):
+    mock_fetch.side_effect = RuntimeError("Failed to fetch (status=404)")
+    result = collect_all_responses("https://dic.nicovideo.jp/b/a/12345/")
+    assert result == []
+    mock_fetch.assert_called_once()
+    mock_parse.assert_not_called()
+    mock_sleep.assert_not_called()
+
+
+@patch("orchestrator.time.sleep")
+@patch("orchestrator.parse_responses")
+@patch("orchestrator.fetch_page")
+def test_collect_all_responses_single_page(
+    mock_fetch, mock_parse, mock_sleep
+):
+    mock_fetch.return_value = MagicMock()
+    mock_parse.return_value = []
+    result = collect_all_responses("https://dic.nicovideo.jp/b/a/12345/")
+    assert result == []
+    mock_fetch.assert_called_once_with("https://dic.nicovideo.jp/b/a/12345/1-")
+    mock_sleep.assert_not_called()
+
+
+==================================================
+END
+==================================================
+Review snapshot generated successfully.
