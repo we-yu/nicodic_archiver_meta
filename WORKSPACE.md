@@ -74,6 +74,25 @@ It does not replace project_snapshot.txt.
 
 --------------------------------------------------
 
+OPERATIONAL NOTES
+
+Workspace root vs child repositories:
+- The workspace root (`nicodic_archiver/`) and the child repositories (`copilot/`, `cursor/`) are separate git contexts.
+- Do not assume they share the same push or branch-protection behavior.
+- The workspace root repository may allow direct push to `main` depending on current remote settings.
+- `copilot/` and `cursor/` may enforce stricter repository rules on `main`.
+- In particular, do not assume merge commits to child-repo `main` are pushable.
+- When integrating an adopted result, follow the repository rules actually enforced by the target repository.
+
+Architecture document handling:
+- `META/ARCHITECTURE.md` is the canonical architecture document.
+- `copilot/docs/ARCHITECTURE.md` and `cursor/docs/ARCHITECTURE.md` are synchronized local copies.
+- Those child-repo copies exist for readability, not as source-of-truth files.
+- Avoid mixing architecture-copy synchronization noise into unrelated task commits.
+- If architecture-copy handling repeatedly creates status noise, treat that as a separate workflow issue and review it explicitly.
+
+--------------------------------------------------
+
 TASK COMPLETION FLOW
 
 After a task is completed:

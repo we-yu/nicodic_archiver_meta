@@ -80,6 +80,21 @@ Keep the topic short, clear, and implementation-neutral.
 - Keep the merge explanation aligned with the adoption decision.
 - Confirm `main` now represents the chosen final state.
 
+### Operational notes for `main`
+- For the workspace root repository, direct push to `main` may be possible depending on the current remote settings.
+- For `copilot/` and `cursor/`, do not assume direct `main` push or merge-commit push is allowed.
+- In particular, do not assume `git merge --no-ff` into child-repo `main` will be pushable.
+- Follow the repository rules actually enforced by each child repository.
+- If child-repo `main` rejects merge commits, use a repository-compliant integration method instead.
+- Record any such repository-rule friction in the review log when it affects task completion.
+
+### Operational notes for architecture sync copies
+- `META/ARCHITECTURE.md` is the canonical architecture document.
+- `copilot/docs/ARCHITECTURE.md` and `cursor/docs/ARCHITECTURE.md` are synchronized copies for repository-local readability.
+- Do not treat those child-repo copies as the source of truth.
+- Do not mix architecture-copy sync noise into unrelated task commits.
+- If architecture-copy handling causes repeated workflow friction, record it and consider a separate workflow task rather than changing task scope silently.
+
 ## 9. Realign both repos
 
 - Bring `copilot/` to the final adopted `main` state.
