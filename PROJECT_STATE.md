@@ -50,9 +50,20 @@ TASK001 result:
 • Cursor implementation was retained for comparison
 • Both repositories were later aligned again at the same code state
 
+TASK002 has been completed.
+
+TASK002 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison
+• Both repositories were later aligned again at the same code state
+• main.py was reduced to a CLI-focused entrypoint
+• orchestration logic was moved to orchestrator.py
+
 Current application structure:
 
 main.py
+orchestrator.py
 cli.py
 http_client.py
 parser.py
@@ -65,24 +76,21 @@ compare_helix.sh
 This script is used to compare copilot/ and cursor/
 after convergence at the end of a task.
 
+Additional review memory exists:
+
+review_log/
+
+This directory stores AI-readable adoption / review logs
+for completed tasks.
+
 --------------------------------------------------
 
 NEXT TASK
 
-TASK002
+TBD
 
-Refactor orchestration logic out of main.py.
-
-Suggested new module:
-
-core/archiver.py
-
-Goal:
-
-• keep behaviour unchanged
-• move orchestration logic from main.py
-• make main.py thinner
-• preserve CLI compatibility
+TASK002 is complete.
+The next task has not yet been fixed in this file.
 
 --------------------------------------------------
 
@@ -92,5 +100,11 @@ When starting a new AI session:
 
 1 read AI_CONTEXT.md
 2 read PROJECT_STATE.md
-3 read project_snapshot.txt
+3 read WORKSPACE.md
+4 read project_snapshot.txt
+
+If relevant review history exists, the AI may also read:
+
+review_log/*.md
+
 
