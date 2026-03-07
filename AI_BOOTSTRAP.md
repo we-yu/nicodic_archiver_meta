@@ -17,6 +17,14 @@ Read the following files in order:
 
 These files define the authoritative project context.
 
+If relevant supplementary memory exists, the AI may also read:
+
+• META/review_log/*.md
+• META/TASK_CYCLE_CHECKLIST.md
+
+Review logs are supplementary memory.
+TASK_CYCLE_CHECKLIST.md is workflow guidance.
+
 --------------------------------------------------
 
 STEP 2
@@ -84,9 +92,14 @@ AI may suggest updates to:
 
 AI_CONTEXT.md
 PROJECT_STATE.md
-export_snapshot.sh
+WORKSPACE.md
+META/TASK_CYCLE_CHECKLIST.md
+META/scripts/export_snapshot.sh
 
 But only when necessary.
+
+If the workflow changes, suggesting an update to
+TASK_CYCLE_CHECKLIST.md is allowed.
 
 --------------------------------------------------
 
@@ -99,4 +112,6 @@ AI should suggest improving export_snapshot.sh.
 
 END
 --------------------------------------------------
+
+
 
