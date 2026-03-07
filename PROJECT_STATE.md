@@ -42,24 +42,47 @@ Docker build works.
 pytest works.
 flake8 works.
 
-Both Copilot and Cursor environments are identical.
+TASK001 has been completed.
+
+TASK001 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison
+• Both repositories were later aligned again at the same code state
+
+Current application structure:
+
+main.py
+cli.py
+http_client.py
+parser.py
+storage.py
+
+Additional helper script exists:
+
+compare_helix.sh
+
+This script is used to compare copilot/ and cursor/
+after convergence at the end of a task.
 
 --------------------------------------------------
 
 NEXT TASK
 
-TASK001
+TASK002
 
-Refactor main.py into modules.
+Refactor orchestration logic out of main.py.
 
-Suggested modules:
+Suggested new module:
 
-scraper.py
-parser.py
-storage.py
-cli.py
+core/archiver.py
 
-main.py should become a thin entrypoint.
+Goal:
+
+• keep behaviour unchanged
+• move orchestration logic from main.py
+• make main.py thinner
+• preserve CLI compatibility
 
 --------------------------------------------------
 
