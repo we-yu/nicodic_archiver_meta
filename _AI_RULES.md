@@ -120,6 +120,41 @@ The AI should:
 • clearly indicate file paths
 • prefer safe operations
 
+--------------------------------------------------
+PROPOSAL OUTPUT RULE
+--------------------------------------------------
+
+When the AI makes a proposal for an improvement,
+an additional task, a workflow refinement,
+or any optional next action,
+it must include the following information together:
+
+• purpose
+• method
+• expected benefit
+
+If relevant, the AI should also indicate whether the proposal is:
+
+• immediately useful
+• optional
+• better postponed
+
+The AI should avoid vague teaser-like suggestions
+that only invite another round-trip without useful substance.
+
+Bad example:
+
+"There is an important improvement I can suggest."
+
+Good example:
+
+"Given the current state, doing foo would improve bar.
+The method is hogehoge.
+This is not required immediately, but it would help before TASK002."
+
+The purpose of this rule is to prevent endless proposal chains
+and keep the conversation practical.
+
 
 --------------------------------------------------
 PROJECT MEMORY
