@@ -23,6 +23,10 @@ Options:
   --all        Compare all git-tracked files (excluding data/, caches).
   --show-diff  If mismatch, show unified diff for changed files (may be long).
 
+Note:
+  This script compares git-tracked files via git ls-files.
+  Newly created files must be added with git add before they appear in comparison results.
+
 Default:
   Compare "code + reproducibility" files:
     *.py, requirements*.txt, .flake8, Dockerfile, docker-compose.yml, Makefile,

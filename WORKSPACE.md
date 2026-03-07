@@ -43,6 +43,13 @@ The workspace root mainly stores:
 • AI memory files
 • snapshot generation scripts
 • comparison utilities
+• review logs for adoption decisions
+
+Example:
+
+review_log/
+  TASK002_adoption.md
+
 
 --------------------------------------------------
 
@@ -56,4 +63,6 @@ After a task is completed:
 4. realign copilot/ and cursor/ to the same final state
 5. confirm convergence using compare_helix.sh
 
+After adoption, a short AI-readable review log may be stored
+under review_log/ for future sessions.
 
