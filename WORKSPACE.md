@@ -41,15 +41,36 @@ The workspace root mainly stores:
 
 • project meta files
 • AI memory files
-• snapshot generation scripts
-• comparison utilities
-• review logs for adoption decisions
+• authoritative snapshot outputs
+• thin wrapper scripts
+
+Operational workflow assets are grouped under:
+
+META/
+
+This includes:
+
+• review logs
+• workflow guidance
+• canonical architecture document
+• helper script implementations
+• review-only generated outputs
 
 Example:
 
-review_log/
+META/review_log/
   TASK002_adoption.md
+  TASK003_tests_adoption.md
 
+META/TASK_CYCLE_CHECKLIST.md
+META/ARCHITECTURE.md
+
+Review-only tooling:
+
+./export_review_snapshot.sh
+
+This helper is for review snapshots only.
+It does not replace project_snapshot.txt.
 
 --------------------------------------------------
 
@@ -64,5 +85,54 @@ After a task is completed:
 5. confirm convergence using compare_helix.sh
 
 After adoption, a short AI-readable review log may be stored
-under review_log/ for future sessions.
+under META/review_log/ for future sessions.
+
+Use META/TASK_CYCLE_CHECKLIST.md as the practical reference
+for the full per-task workflow.
+
+If comparison is still in progress, a review-oriented snapshot
+may be generated with:
+
+./export_review_snapshot.sh
+
+Its implementation is stored at:
+
+META/scripts/export_review_snapshot.sh
+
+--------------------------------------------------
+
+RECOMMENDED BRANCH NAMING
+
+Use clear task-scoped branch names in each repository:
+
+• taskNNN-short-topic-copilot
+• taskNNN-short-topic-cursor
+
+Examples:
+
+• task003-tests-copilot
+• task003-tests-cursor
+
+Keep the task number identical across both repos.
+Keep the topic short and implementation-neutral.
+
+--------------------------------------------------
+
+META LAYOUT RULE
+
+The repository root is the entry layer.
+
+Authoritative bootstrap/state files remain at root.
+
+Operational workflow assets are grouped under:
+
+META/
+
+This includes:
+
+• review logs
+• workflow guidance
+• canonical architecture document
+• helper script implementations
+• review-only generated outputs
 

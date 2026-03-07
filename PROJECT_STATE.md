@@ -60,6 +60,17 @@ TASK002 result:
 • main.py was reduced to a CLI-focused entrypoint
 • orchestration logic was moved to orchestrator.py
 
+TASK003 has been completed.
+
+TASK003 result:
+
+• Cursor implementation was adopted
+• Copilot implementation was retained for comparison
+• Both repositories were later aligned again at the same code state
+• minimal unit tests were added for main.py and orchestrator.py
+• tests/conftest.py was added for pytest import-path support
+• production code remained unchanged
+
 Current application structure:
 
 main.py
@@ -69,19 +80,44 @@ http_client.py
 parser.py
 storage.py
 
-Additional helper script exists:
+Current test structure includes:
+
+tests/conftest.py
+tests/test_main.py
+tests/test_orchestrator.py
+
+Additional helper scripts exist:
 
 compare_helix.sh
+export_review_snapshot.sh
+sync_architecture_doc.sh
 
-This script is used to compare copilot/ and cursor/
-after convergence at the end of a task.
+These root scripts are thin wrappers.
+
+Their implementations are stored under:
+
+META/scripts/
+
+compare_helix.sh:
+used to confirm convergence between copilot/ and cursor/
+
+export_review_snapshot.sh:
+used to export review-oriented comparison snapshots
+including untracked / diff information
+
+sync_architecture_doc.sh:
+used to synchronize META/ARCHITECTURE.md into
+copilot/docs/ARCHITECTURE.md and cursor/docs/ARCHITECTURE.md
 
 Additional review memory exists:
 
-review_log/
+META/review_log/
 
 This directory stores AI-readable adoption / review logs
 for completed tasks.
+
+META/TASK_CYCLE_CHECKLIST.md stores practical task-cycle guidance
+for review, adoption, and post-merge synchronization.
 
 --------------------------------------------------
 
@@ -89,7 +125,7 @@ NEXT TASK
 
 TBD
 
-TASK002 is complete.
+TASK003 is complete.
 The next task has not yet been fixed in this file.
 
 --------------------------------------------------
@@ -105,6 +141,10 @@ When starting a new AI session:
 
 If relevant review history exists, the AI may also read:
 
-review_log/*.md
+META/review_log/*.md
+
+If workflow guidance is needed, also read:
+
+META/TASK_CYCLE_CHECKLIST.md
 
 
