@@ -27,4 +27,23 @@ Important:
   under `META/scripts/`
 
 
+Helper script examples:
+
+- `./compare_helix.sh`
+- `./export_review_snapshot.sh`
+- `./sync_architecture_doc.sh`
+- `./new_task_branches.sh`
+- `./validate_helix.sh`
+- `./collect_task_review.sh`
+
+Recent additions:
+
+- `./new_task_branches.sh`
+  creates matching task branches for `copilot/` and `cursor/`
+
+- `./validate_helix.sh`
+  runs `flake8` and `pytest` in both child repositories and reports pass/fail per repo
+
+- `./collect_task_review.sh`
+  prints review-oriented git information for both child repositories
 

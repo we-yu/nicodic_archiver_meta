@@ -72,6 +72,28 @@ Review-only tooling:
 This helper is for review snapshots only.
 It does not replace project_snapshot.txt.
 
+Additional workflow helpers:
+
+./new_task_branches.sh
+./validate_helix.sh
+./collect_task_review.sh
+
+These helpers support routine Double Helix operations:
+
+- `./new_task_branches.sh`
+  creates matching task branches in `copilot/` and `cursor/`
+
+- `./validate_helix.sh`
+  runs `flake8` and `pytest` in both child repositories and prints a summary
+
+- `./collect_task_review.sh`
+  collects branch / status / diff-stat / recent-log information for review
+
+Like other root helper scripts, these are thin wrappers.
+Their implementations are stored under:
+
+META/scripts/
+
 --------------------------------------------------
 
 OPERATIONAL NOTES
