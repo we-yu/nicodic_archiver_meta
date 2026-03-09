@@ -177,3 +177,16 @@ This includes:
 • helper script implementations
 • review-only generated outputs
 
+Prompt design for Double Helix:
+- In Double Helix tasks, the human developer and advisor AI should mainly control:
+  - task definition
+  - scope / non-goals
+  - acceptance criteria
+  - review criteria
+  - adoption judgment
+- Implementation details should not be over-constrained unless necessary.
+- The purpose is to preserve independent solution diversity between `copilot/` and `cursor/`.
+- Over-specifying implementation structure can reduce comparison value and make both editor AIs converge too early.
+- Practical rule:
+  - be strict about `What`
+  - be lighter about `How`

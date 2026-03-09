@@ -29,6 +29,25 @@ Keep the topic short, clear, and implementation-neutral.
 - State whether the task affects product code, tests, workflow, or docs.
 - Define acceptance criteria before implementation starts.
 
+### Prompt design note for Double Helix tasks
+- The human developer and advisor AI should strongly define:
+  - task goal
+  - scope / non-goals
+  - acceptance criteria
+  - review criteria
+  - production-code change policy
+- They should NOT over-specify implementation shape unless truly necessary.
+- In particular, avoid fixing too much of:
+  - test split structure
+  - helper / fixture layout
+  - exact assertion grouping
+  - internal implementation shape
+- The purpose of Double Helix is not only correctness but also solution diversity.
+- If prompts over-constrain `How`, Copilot and Cursor may converge too early and comparison value may be lost.
+- Preferred rule:
+  - define `What` and review criteria clearly
+  - leave reasonable freedom in `How`
+
 ## 2. Create branches
 
 - Create one branch in `copilot/`.
