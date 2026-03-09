@@ -71,6 +71,21 @@ TASK003 result:
 • tests/conftest.py was added for pytest import-path support
 • production code remained unchanged
 
+TASK004 has been completed.
+
+TASK005 has been completed.
+
+TASK005 result:
+
+• root workflow helper scripts were added
+• new_task_branches.sh was added as a root helper wrapper
+• validate_helix.sh was added as a root helper wrapper
+• collect_task_review.sh was added as a root helper wrapper
+• helper script implementations were added under META/scripts/
+• WORKSPACE.md was updated to reflect the workflow additions
+• META/README.md was updated to reflect the workflow additions
+• snapshot regeneration has already been performed
+
 Current application structure:
 
 main.py
@@ -91,6 +106,9 @@ Additional helper scripts exist:
 compare_helix.sh
 export_review_snapshot.sh
 sync_architecture_doc.sh
+new_task_branches.sh
+validate_helix.sh
+collect_task_review.sh
 
 These root scripts are thin wrappers.
 
@@ -109,6 +127,15 @@ sync_architecture_doc.sh:
 used to synchronize META/ARCHITECTURE.md into
 copilot/docs/ARCHITECTURE.md and cursor/docs/ARCHITECTURE.md
 
+new_task_branches.sh:
+used to create matching task branches for copilot/ and cursor/
+
+validate_helix.sh:
+used to run validation in both child repositories
+
+collect_task_review.sh:
+used to print review-oriented task information for both child repositories
+
 Additional review memory exists:
 
 META/review_log/
@@ -123,10 +150,16 @@ for review, adoption, and post-merge synchronization.
 
 NEXT TASK
 
-TBD
+TASK006 — storage.py unit tests
 
-TASK003 is complete.
-The next task has not yet been fixed in this file.
+TASK005 is complete.
+
+TASK006 direction:
+
+• preserve current production behavior
+• add focused tests around existing storage behavior
+• avoid cross-layer refactor
+• keep scope mainly in storage-layer tests unless a very small correction is clearly required
 
 --------------------------------------------------
 
