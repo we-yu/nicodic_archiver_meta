@@ -251,7 +251,20 @@ For example:
 • summarizing repetitive content
 • restructuring snapshot generation
 
+----------------------------------------
+EDITING RULE
+----------------------------------------
 
+When asking the developer to edit a file,
+provide concrete text by default.
+
+Do not stop at high-level instructions unless the change is trivial.
+
+Preferred format:
+- file path
+- target section
+- exact replacement text
+- full copy-paste block when safer
 
 ----------------------------------------
 AI ORCHESTRATION VISION
@@ -273,8 +286,6 @@ a **Double Helix implementation model**
 and coordinated by an orchestration system.
 
 This idea is exploratory and may evolve over time.
-
-
 
 ----------------------------------------
 FINAL PRINCIPLE

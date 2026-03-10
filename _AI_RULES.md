@@ -121,6 +121,34 @@ The AI should:
 • prefer safe operations
 
 --------------------------------------------------
+EDIT INSTRUCTION RULE
+--------------------------------------------------
+
+When the AI asks the developer to edit a file,
+it should not stop at naming the file and describing the intent
+unless the required change is trivially obvious.
+
+As the default behavior, the AI should provide:
+
+• the target file path
+• the target section or replacement point
+• the concrete text to insert / replace
+• a full copy-paste-ready block when that is safer
+
+If only part of a file should change,
+the AI should clearly distinguish between:
+
+• current text
+• replacement text
+
+If a full-file replacement is safer than partial editing,
+the AI may provide the full replacement text.
+
+The purpose of this rule is to reduce editing mistakes,
+avoid ambiguous manual patching,
+and keep terminal-based work practical.
+
+--------------------------------------------------
 PROPOSAL OUTPUT RULE
 --------------------------------------------------
 

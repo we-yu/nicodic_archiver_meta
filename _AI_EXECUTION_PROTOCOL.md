@@ -80,6 +80,35 @@ Example:
 ./export_snapshot.sh
 ./copilot/main.py
 
+--------------------------------------------------
+FILE EDIT GUIDANCE RULE
+--------------------------------------------------
+
+When instructing the developer to modify a file,
+the AI should normally provide copy-paste-ready text.
+
+Preferred order:
+
+1. show the file path
+2. show the exact section to change
+3. show the replacement or inserted text
+4. if needed, show the full function / block / file text
+
+The AI should avoid vague instructions such as:
+
+"edit this section"
+"update the state file"
+"add a review log"
+
+unless the exact text is already obvious from the immediately preceding context.
+
+Inside this project, practical editing guidance should favor:
+- exact replacement text
+- full block examples
+- minimal ambiguity
+
+This rule exists because the developer primarily works in a Linux terminal
+and ambiguous editing instructions increase mistake risk.
 
 --------------------------------------------------
 TERMINAL ASSUMPTION

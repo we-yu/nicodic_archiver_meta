@@ -86,6 +86,17 @@ TASK005 result:
 • META/README.md was updated to reflect the workflow additions
 • snapshot regeneration has already been performed
 
+TASK006 has been completed.
+
+TASK006 result:
+
+• Cursor-based hybrid adoption was selected
+• Copilot contributed the fixed-time `collected_at` verification idea
+• `tests/test_storage.py` was added
+• production code remained unchanged
+• both repositories were realigned again at the same code state
+• snapshot regeneration has already been performed
+
 Current application structure:
 
 main.py
@@ -100,6 +111,8 @@ Current test structure includes:
 tests/conftest.py
 tests/test_main.py
 tests/test_orchestrator.py
+tests/test_parser.py
+tests/test_storage.py
 
 Additional helper scripts exist:
 
@@ -109,6 +122,7 @@ sync_architecture_doc.sh
 new_task_branches.sh
 validate_helix.sh
 collect_task_review.sh
+
 
 These root scripts are thin wrappers.
 
@@ -150,16 +164,15 @@ for review, adoption, and post-merge synchronization.
 
 NEXT TASK
 
-TASK006 — storage.py unit tests
+TASK006 is complete.
 
-TASK005 is complete.
+Next task is not yet fixed.
 
-TASK006 direction:
+Preferred immediate direction:
 
-• preserve current production behavior
-• add focused tests around existing storage behavior
-• avoid cross-layer refactor
-• keep scope mainly in storage-layer tests unless a very small correction is clearly required
+• perform TASK006 incident review and guardrail analysis
+• update operational rules for repo-boundary safety
+• keep future task selection separate from the incident-analysis task
 
 --------------------------------------------------
 
