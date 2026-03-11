@@ -184,15 +184,21 @@ PROJECT STATE MEMORY
 
 The AI does not retain memory between sessions.
 
-To restore project state, the following files exist:
+To restore project state, the primary files are:
 
 AI_CONTEXT.md
 PROJECT_STATE.md
+WORKSPACE.md
 project_snapshot.txt
+project_knowledge_snapshot.txt
 
 These files together form an **external AI memory system**.
 
+Additional supporting context may exist in:
 
+META/review_log/*.md
+META/TASK_CYCLE_CHECKLIST.md
+META/REPO_BOUNDARY_GUARDRAILS.md
 
 ----------------------------------------
 SNAPSHOT SYSTEM
@@ -265,6 +271,32 @@ Preferred format:
 - target section
 - exact replacement text
 - full copy-paste block when safer
+
+----------------------------------------
+REPO BOUNDARY RULE
+----------------------------------------
+
+This workspace contains multiple git contexts.
+
+Root workspace:
+- meta repository only
+
+Child workspaces:
+- copilot/ = product repository
+- cursor/ = product repository
+
+Hard rule:
+
+- product code and tests must be committed only inside child repositories
+- meta files, review logs, snapshots, and workflow wrappers belong to the root workspace
+- "merge into main" must be interpreted in the context of the target repository
+- before giving integration instructions, always confirm:
+  - target file ownership
+  - target repository
+  - target branch
+  - remote destination
+
+If repo ownership is unclear, stop and resolve it before suggesting commit, merge, or push steps.
 
 ----------------------------------------
 AI ORCHESTRATION VISION

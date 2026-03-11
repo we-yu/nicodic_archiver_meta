@@ -86,6 +86,24 @@ Keep the topic short, clear, and implementation-neutral.
 - Prefer the most correct and conservative result.
 - Write down the reasons for the decision.
 
+## 6.5 Confirm repository ownership before integration
+
+Before giving any commit, merge, or push instruction,
+explicitly confirm all of the following:
+
+- which repository owns the adopted file(s)
+- whether the adopted file(s) are meta assets or product assets
+- which repository should receive the adopted result
+- which `main` branch is the intended destination
+- which remote will receive the push
+
+Hard rule:
+
+- the workspace root repository is for meta files, review logs, snapshots, and workflow wrappers
+- `copilot/` and `cursor/` are product repositories
+- product code and tests must never be adopted into the root meta repository
+- if repository ownership is unclear, stop and resolve it before continuing
+
 ## 7. Commit and push
 
 - Commit the selected implementation in the adopted repo.
@@ -154,6 +172,10 @@ Keep the topic short, clear, and implementation-neutral.
 - `compare_helix.sh --all` was not rerun after realignment.
 - `PROJECT_STATE.md` or `WORKSPACE.md` was left stale.
 - `project_snapshot.txt` was not regenerated after workflow-memory edits.
+- The adopted file ownership was not confirmed before integration.
+- The wrong repository `main` was treated as the merge destination.
+- Product files were almost committed into the meta repository.
+- Remote / repository destination was not checked before push instructions.
 
 --------------------------------------------------
 

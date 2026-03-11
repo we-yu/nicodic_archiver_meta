@@ -73,6 +73,12 @@ TASK003 result:
 
 TASK004 has been completed.
 
+TASK004 result:
+
+• focused parser tests were added
+• parser behavior protection was strengthened without changing production code
+• both repositories were later aligned again at the same code state
+
 TASK005 has been completed.
 
 TASK005 result:
@@ -184,6 +190,7 @@ When starting a new AI session:
 2 read PROJECT_STATE.md
 3 read WORKSPACE.md
 4 read project_snapshot.txt
+5 read project_knowledge_snapshot.txt (From project 'Knowledge')
 
 If relevant review history exists, the AI may also read:
 
@@ -192,5 +199,4 @@ META/review_log/*.md
 If workflow guidance is needed, also read:
 
 META/TASK_CYCLE_CHECKLIST.md
-
-
+META/REPO_BOUNDARY_GUARDRAILS.md
