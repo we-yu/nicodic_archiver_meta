@@ -3,13 +3,13 @@ cursor/
 
 # project_knowledge_snapshot.txt
 # project_snapshot.txt
-# review_snapshot.txt
-# review_snapshot_*.txt
+review_snapshot.txt
+review_snapshot_*.txt
 # git_snapshot.txt
 # git_snapshot_*.txt
 
-# META/out/review_snapshot.txt
-# META/out/review_snapshot_*.txt
+META/out/review_snapshot.txt
+META/out/review_snapshot_*.txt
 # META/out/git_snapshot.txt
 # META/out/git_snapshot_*.txt
 

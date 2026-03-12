@@ -87,6 +87,22 @@ Keep the topic short, clear, and implementation-neutral.
 - Editor AIs working inside child repos should not be prompted to create or manage environments.
 - Avoid relying on ad-hoc shell execution proposed by editor AIs unless explicitly requested by the human.
 
+### Review note on validation failures
+
+- A validation failure should not automatically end comparison review.
+- First distinguish:
+  - implementation-quality issues
+  - submission-quality issues such as lint, formatting, or minor test-expression mistakes
+  - manual-fix mistakes that do not reflect the underlying implementation quality
+- If a failure appears small, localized, and easy to correct without changing task scope,
+  review the implementation substance before rejecting the branch.
+- Immediate rejection is more appropriate when the failure indicates:
+  - task-scope violation
+  - architecture-boundary break
+  - unstable production behavior
+  - broad or unclear rework requirement
+- In Double Helix review, preserve comparison value when a branch is still substantively useful.
+
 ## 5. Export a review snapshot
 
 - Run `./export_review_snapshot.sh` from the workspace root.
@@ -103,6 +119,16 @@ Keep the topic short, clear, and implementation-neutral.
   - adopt a hybrid result
 - Prefer the most correct and conservative result.
 - Write down the reasons for the decision.
+
+### Minimal hybrid note
+
+- A hybrid result does not always require a branch-to-branch merge.
+- A valid low-friction option is:
+  - adopt one side as the base result
+  - manually incorporate a very small, reviewable improvement from the other side
+- Use this only when the borrowed change is narrow, explainable, and does not widen task scope.
+- Prefer this over a heavier merge when the practical difference is only one or a few lines.
+- Record the borrowed adjustment explicitly in the review log.
 
 ## 6.5 Confirm repository ownership before integration
 
@@ -149,6 +175,17 @@ Hard rule:
 - Do not treat those child-repo copies as the source of truth.
 - Do not mix architecture-copy sync noise into unrelated task commits.
 - If architecture-copy handling causes repeated workflow friction, record it and consider a separate workflow task rather than changing task scope silently.
+
+### Optional adoption marker branch
+
+- After the adoption decision, an additional clearly named branch may be pushed for review clarity.
+- Recommended format:
+  - `adopted/taskNNN-topic`
+- This branch is only a marker for the selected result.
+- Do not use it to replace the normal Double Helix implementation branches:
+  - `taskNNN-topic-copilot`
+  - `taskNNN-topic-cursor`
+- Keep the original implementation branches for comparison evidence.
 
 ## 9. Realign both repos
 

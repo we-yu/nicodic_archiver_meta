@@ -1111,6 +1111,19 @@ TASK007 result:
 • both repositories were realigned again at the same code state
 • snapshot regeneration has already been performed
 
+TASK008 has been completed.
+
+TASK008 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• `http_client.py` was hardened within the HTTP fetch layer
+• minimal timeout-centered request-boundary protection was added
+• `tests/test_http_client.py` was added
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -1123,6 +1136,8 @@ storage.py
 Current test structure includes:
 
 tests/conftest.py
+tests/test_basic.py
+tests/test_http_client.py
 tests/test_main.py
 tests/test_orchestrator.py
 tests/test_parser.py
@@ -1132,11 +1147,11 @@ Additional helper scripts exist:
 
 compare_helix.sh
 export_review_snapshot.sh
+export_snapshot.sh
 sync_architecture_doc.sh
 new_task_branches.sh
 validate_helix.sh
 collect_task_review.sh
-
 
 These root scripts are thin wrappers.
 
@@ -1150,6 +1165,9 @@ used to confirm convergence between copilot/ and cursor/
 export_review_snapshot.sh:
 used to export review-oriented comparison snapshots
 including untracked / diff information
+
+export_snapshot.sh:
+used to regenerate authoritative AI-readable project snapshots
 
 sync_architecture_doc.sh:
 used to synchronize META/ARCHITECTURE.md into
@@ -1206,7 +1224,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK007 is complete.
+TASK008 is complete.
 
 Next task is not yet fixed.
 
@@ -1521,6 +1539,21 @@ Keep the topic short, clear, and implementation-neutral.
 - Editor AIs working inside child repos should not be prompted to create or manage environments.
 - Avoid relying on ad-hoc shell execution proposed by editor AIs unless explicitly requested by the human.
 
+### Review note on validation failures
+
+- A validation failure should not automatically end comparison review.
+- First distinguish:
+  - implementation-quality issues
+  - submission-quality issues such as lint, formatting, or minor test-expression mistakes
+- If a failure appears small, localized, and easy to correct without changing task scope,
+  review the implementation substance before rejecting the branch.
+- Immediate rejection is more appropriate when the failure indicates:
+  - task-scope violation
+  - architecture-boundary break
+  - unstable production behavior
+  - broad or unclear rework requirement
+- In Double Helix review, preserve comparison value when a branch is still substantively useful.
+
 ## 5. Export a review snapshot
 
 - Run `./export_review_snapshot.sh` from the workspace root.
@@ -1583,6 +1616,17 @@ Hard rule:
 - Do not treat those child-repo copies as the source of truth.
 - Do not mix architecture-copy sync noise into unrelated task commits.
 - If architecture-copy handling causes repeated workflow friction, record it and consider a separate workflow task rather than changing task scope silently.
+
+### Optional adoption marker branch
+
+- After the adoption decision, an additional clearly named branch may be pushed for review clarity.
+- Recommended format:
+  - `adopted/taskNNN-topic`
+- This branch is only a marker for the selected result.
+- Do not use it to replace the normal Double Helix implementation branches:
+  - `taskNNN-topic-copilot`
+  - `taskNNN-topic-cursor`
+- Keep the original implementation branches for comparison evidence.
 
 ## 9. Realign both repos
 
@@ -2594,8 +2638,87 @@ Authoritative context should still be restored from:
 
 
 
+===== REVIEW LOG: META/review_log/task008_review.md =====
+# TASK008 Review
+
+## Task
+Harden `http_client.py` by clarifying fetch failure boundaries, adding minimal timeout-centered request-boundary protection, and protecting the behavior with focused tests.
+
+## Scope
+- `http_client.py`
+- `tests/test_http_client.py`
+
+## Non-goals
+- parser redesign
+- orchestrator redesign
+- storage redesign
+- cross-layer refactor
+- system-wide failure classification design
+- scheduler / batch scrape / future workflow work
+
+## Compared implementations
+
+### Copilot
+- Added `REQUEST_TIMEOUT_SECONDS = 10`
+- Added `requests.get(..., timeout=REQUEST_TIMEOUT_SECONDS)`
+- Wrapped `requests.Timeout` as `RuntimeError` with a stable timeout message
+- Wrapped other `requests.RequestException` failures as `RuntimeError` while preserving exception class/name details
+- Added focused tests for:
+  - success path with timeout assertion
+  - non-200 status
+  - timeout wrapping
+  - request-exception wrapping
+
+### Cursor
+- Added `DEFAULT_TIMEOUT = 10`
+- Added `requests.get(..., timeout=DEFAULT_TIMEOUT)`
+- Wrapped `requests.Timeout` as `RuntimeError("... (timeout)")`
+- Wrapped other `requests.RequestException` failures as `RuntimeError("... (request error)")`
+- Added focused tests for the same boundary areas with more conservative message assertions
+
+## Adoption decision
+Adopted: **Copilot**
+
+## Why Copilot was adopted
+- Stayed fully within the bounded `http_client.py` fetch-layer scope
+- Added minimal timeout-centered request-boundary protection
+- Preserved more failure-detail information for request exceptions
+- Produced a slightly stronger production hardening result while still remaining conservative
+- Final validated result passed all normal checks
+
+## Why Cursor was not adopted
+- Cursor was valid, bounded, and conservative
+- However, its request-exception handling was more abstract (`request error`) and preserved less immediate diagnostic detail
+- For TASK008, Copilot provided the more informative hardening while still staying within scope
+
+## Why hybrid was not selected
+- Both implementations were already close in scope and shape
+- A hybrid merge would add unnecessary integration work without clear additional benefit
+- Copilot alone was sufficient as the adopted final result
+
+## Validation result
+- `./validate_helix.sh` passed for both `copilot/` and `cursor/`
+- Final post-adoption validation also passed for both child repositories on `main`
+
+## Convergence result
+- `./compare_helix.sh --all` passed after realignment
+- `copilot/` and `cursor/` were confirmed to match on the post-adoption baseline
+
+## Review notes
+- Initial Copilot validation failure was due to minor submission-quality issues in the new test file
+- During manual correction, a temporary file-target mistake caused test code to be pasted into `http_client.py`
+- That temporary accident was corrected before final review
+- The adoption decision was made based on the corrected implementation substance, not on the temporary manual-fix accident
+
+## Final state
+- TASK008 complete
+- Both child repositories converged to the adopted final state
+- Next task not yet fixed
+
+
+
 ===== PROJECT SNAPSHOT =====
-generated: Thu Mar 12 05:52:23 UTC 2026
+generated: Thu Mar 12 16:18:06 UTC 2026
 mode: full
 
 
@@ -4403,14 +4526,25 @@ from bs4 import BeautifulSoup
 # シンプルなUA指定（現状は固定値）
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
+# HTTP層の境界として最低限の保護を行う
+REQUEST_TIMEOUT_SECONDS = 10
+
 
 def fetch_page(url: str) -> BeautifulSoup:
     """
     指定URLを取得し BeautifulSoup を返す。
-    200以外は例外送出。
-    ※ 現状ロジック変更なし
+    200以外、timeout、request error は RuntimeError を送出する。
     """
-    res = requests.get(url, headers=HEADERS)
+    try:
+        res = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT_SECONDS)
+    except requests.Timeout as e:
+        raise RuntimeError(
+            f"Failed to fetch {url} (timeout={REQUEST_TIMEOUT_SECONDS}s)"
+        ) from e
+    except requests.RequestException as e:
+        raise RuntimeError(
+            f"Failed to fetch {url} ({type(e).__name__}: {e})"
+        ) from e
 
     if res.status_code != 200:
         raise RuntimeError(f"Failed to fetch {url} (status={res.status_code})")
@@ -4863,6 +4997,67 @@ FILE: ./copilot/tests/test_basic.py
 =============================
 def test_dummy():
     assert True
+
+=============================
+FILE: ./copilot/tests/test_http_client.py
+=============================
+from unittest.mock import Mock, patch
+
+import pytest
+import requests
+
+from http_client import HEADERS, REQUEST_TIMEOUT_SECONDS, fetch_page
+
+
+def test_fetch_page_returns_soup_and_sets_timeout():
+    response = Mock(status_code=200, text="<html><title>ok</title></html>")
+
+    with patch("http_client.requests.get", return_value=response) as mock_get:
+        soup = fetch_page("https://example.com/page")
+
+    assert soup.title.string == "ok"
+    mock_get.assert_called_once_with(
+        "https://example.com/page",
+        headers=HEADERS,
+        timeout=REQUEST_TIMEOUT_SECONDS,
+    )
+
+
+def test_fetch_page_raises_runtime_error_for_non_200_status():
+    response = Mock(status_code=404, text="not found")
+
+    with patch("http_client.requests.get", return_value=response):
+        with pytest.raises(
+            RuntimeError,
+            match=r"Failed to fetch https://example.com/page \(status=404\)",
+        ):
+            fetch_page("https://example.com/page")
+
+
+def test_fetch_page_wraps_timeout_error_with_stable_message():
+    with patch("http_client.requests.get", side_effect=requests.Timeout("timed out")):
+        with pytest.raises(
+            RuntimeError,
+            match=r"Failed to fetch https://example.com/page \(timeout=10s\)",
+        ) as exc_info:
+            fetch_page("https://example.com/page")
+
+    assert isinstance(exc_info.value.__cause__, requests.Timeout)
+
+
+def test_fetch_page_wraps_request_exception_with_runtime_error():
+    with patch(
+        "http_client.requests.get",
+        side_effect=requests.ConnectionError("connection dropped"),
+    ):
+        with pytest.raises(RuntimeError) as exc_info:
+            fetch_page("https://example.com/page")
+
+    message = str(exc_info.value)
+    assert "Failed to fetch https://example.com/page" in message
+    assert "ConnectionError" in message
+    assert "connection dropped" in message
+    assert isinstance(exc_info.value.__cause__, requests.ConnectionError)
 
 =============================
 FILE: ./copilot/tests/test_main.py
@@ -5752,14 +5947,25 @@ from bs4 import BeautifulSoup
 # シンプルなUA指定（現状は固定値）
 HEADERS = {"User-Agent": "Mozilla/5.0"}
 
+# HTTP層の境界として最低限の保護を行う
+REQUEST_TIMEOUT_SECONDS = 10
+
 
 def fetch_page(url: str) -> BeautifulSoup:
     """
     指定URLを取得し BeautifulSoup を返す。
-    200以外は例外送出。
-    ※ 現状ロジック変更なし
+    200以外、timeout、request error は RuntimeError を送出する。
     """
-    res = requests.get(url, headers=HEADERS)
+    try:
+        res = requests.get(url, headers=HEADERS, timeout=REQUEST_TIMEOUT_SECONDS)
+    except requests.Timeout as e:
+        raise RuntimeError(
+            f"Failed to fetch {url} (timeout={REQUEST_TIMEOUT_SECONDS}s)"
+        ) from e
+    except requests.RequestException as e:
+        raise RuntimeError(
+            f"Failed to fetch {url} ({type(e).__name__}: {e})"
+        ) from e
 
     if res.status_code != 200:
         raise RuntimeError(f"Failed to fetch {url} (status={res.status_code})")
@@ -6212,6 +6418,67 @@ FILE: ./cursor/tests/test_basic.py
 =============================
 def test_dummy():
     assert True
+
+=============================
+FILE: ./cursor/tests/test_http_client.py
+=============================
+from unittest.mock import Mock, patch
+
+import pytest
+import requests
+
+from http_client import HEADERS, REQUEST_TIMEOUT_SECONDS, fetch_page
+
+
+def test_fetch_page_returns_soup_and_sets_timeout():
+    response = Mock(status_code=200, text="<html><title>ok</title></html>")
+
+    with patch("http_client.requests.get", return_value=response) as mock_get:
+        soup = fetch_page("https://example.com/page")
+
+    assert soup.title.string == "ok"
+    mock_get.assert_called_once_with(
+        "https://example.com/page",
+        headers=HEADERS,
+        timeout=REQUEST_TIMEOUT_SECONDS,
+    )
+
+
+def test_fetch_page_raises_runtime_error_for_non_200_status():
+    response = Mock(status_code=404, text="not found")
+
+    with patch("http_client.requests.get", return_value=response):
+        with pytest.raises(
+            RuntimeError,
+            match=r"Failed to fetch https://example.com/page \(status=404\)",
+        ):
+            fetch_page("https://example.com/page")
+
+
+def test_fetch_page_wraps_timeout_error_with_stable_message():
+    with patch("http_client.requests.get", side_effect=requests.Timeout("timed out")):
+        with pytest.raises(
+            RuntimeError,
+            match=r"Failed to fetch https://example.com/page \(timeout=10s\)",
+        ) as exc_info:
+            fetch_page("https://example.com/page")
+
+    assert isinstance(exc_info.value.__cause__, requests.Timeout)
+
+
+def test_fetch_page_wraps_request_exception_with_runtime_error():
+    with patch(
+        "http_client.requests.get",
+        side_effect=requests.ConnectionError("connection dropped"),
+    ):
+        with pytest.raises(RuntimeError) as exc_info:
+            fetch_page("https://example.com/page")
+
+    message = str(exc_info.value)
+    assert "Failed to fetch https://example.com/page" in message
+    assert "ConnectionError" in message
+    assert "connection dropped" in message
+    assert isinstance(exc_info.value.__cause__, requests.ConnectionError)
 
 =============================
 FILE: ./cursor/tests/test_main.py

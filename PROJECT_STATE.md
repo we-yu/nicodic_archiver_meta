@@ -114,6 +114,19 @@ TASK007 result:
 • both repositories were realigned again at the same code state
 • snapshot regeneration has already been performed
 
+TASK008 has been completed.
+
+TASK008 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• `http_client.py` was hardened within the HTTP fetch layer
+• minimal timeout-centered request-boundary protection was added
+• `tests/test_http_client.py` was added
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -126,6 +139,8 @@ storage.py
 Current test structure includes:
 
 tests/conftest.py
+tests/test_basic.py
+tests/test_http_client.py
 tests/test_main.py
 tests/test_orchestrator.py
 tests/test_parser.py
@@ -135,11 +150,11 @@ Additional helper scripts exist:
 
 compare_helix.sh
 export_review_snapshot.sh
+export_snapshot.sh
 sync_architecture_doc.sh
 new_task_branches.sh
 validate_helix.sh
 collect_task_review.sh
-
 
 These root scripts are thin wrappers.
 
@@ -153,6 +168,9 @@ used to confirm convergence between copilot/ and cursor/
 export_review_snapshot.sh:
 used to export review-oriented comparison snapshots
 including untracked / diff information
+
+export_snapshot.sh:
+used to regenerate authoritative AI-readable project snapshots
 
 sync_architecture_doc.sh:
 used to synchronize META/ARCHITECTURE.md into
@@ -209,7 +227,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK007 is complete.
+TASK008 is complete.
 
 Next task is not yet fixed.
 
