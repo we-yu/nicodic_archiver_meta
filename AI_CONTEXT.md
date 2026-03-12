@@ -299,6 +299,41 @@ Hard rule:
 If repo ownership is unclear, stop and resolve it before suggesting commit, merge, or push steps.
 
 ----------------------------------------
+EDITOR AI EXECUTION BOUNDARY RULE
+----------------------------------------
+
+When preparing prompts for editor AIs working inside `copilot/` or `cursor/`:
+
+- Do NOT instruct them to create a new virtual environment.
+- Do NOT instruct them to run ad-hoc shell commands such as:
+  - `python3 -m pytest ...`
+  - direct `pytest ...`
+  - direct `python ...`
+  unless the human explicitly requests it.
+
+Default policy:
+
+- Editor AIs should focus on file reading and file editing inside the child repo.
+- Validation is primarily controlled by the human developer from the workspace root.
+- Prefer existing project workflow helpers and established project commands over ad-hoc execution.
+
+Practical interpretation:
+
+- Root-level workflow helpers such as `./validate_helix.sh`, `./new_task_branches.sh`, and `./collect_task_review.sh` belong to the human/reviewer side.
+- Child-repo editor AIs should not be asked to invent or switch execution paths on their own.
+- If repo-local validation is mentioned in a prompt, phrase it as:
+  - "confirm within this repo if already available"
+  rather than
+  - "run these shell commands now"
+
+Reason:
+
+This project uses a Docker-based development workflow.
+Ad-hoc execution proposed by editor AIs may run in the wrong environment,
+cause unnecessary environment prompts,
+or reduce workflow consistency.
+
+----------------------------------------
 AI ORCHESTRATION VISION
 ----------------------------------------
 

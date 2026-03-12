@@ -48,6 +48,17 @@ Keep the topic short, clear, and implementation-neutral.
   - define `What` and review criteria clearly
   - leave reasonable freedom in `How`
 
+### Execution-boundary note for editor AI prompts
+
+- Prompts for editor AIs in `copilot/` and `cursor/` should normally avoid requiring ad-hoc execution.
+- Do not ask editor AIs to create virtual environments.
+- Do not default to direct commands such as `python3 -m pytest ...` or raw `pytest ...`.
+- Validation should normally be handled by the human developer using established project workflow commands from the workspace root.
+- If repo-local checking is mentioned, keep it soft and repo-contained:
+  - "confirm within this repo if already available"
+  rather than
+  - "run these shell commands now"
+
 ## 2. Create branches
 
 - Create one branch in `copilot/`.
@@ -68,6 +79,13 @@ Keep the topic short, clear, and implementation-neutral.
 - Run the normal project checks that matter for the task.
 - Confirm acceptance criteria are met in both repos.
 - Note any behavioral differences before review.
+
+### Validation execution boundary
+
+- Validation ownership belongs primarily to the human developer / reviewer side.
+- Prefer workspace-root helper scripts and established workflow commands.
+- Editor AIs working inside child repos should not be prompted to create or manage environments.
+- Avoid relying on ad-hoc shell execution proposed by editor AIs unless explicitly requested by the human.
 
 ## 5. Export a review snapshot
 
