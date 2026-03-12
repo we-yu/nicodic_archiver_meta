@@ -1,0 +1,6510 @@
+===== AI BOOTSTRAP =====
+# AI_BOOTSTRAP
+
+This file defines how an AI session should initialize itself
+when working with this repository.
+
+--------------------------------------------------
+
+STEP 1
+
+Read the following files in order:
+
+1. AI_CONTEXT.md
+2. _AI_RULES.md
+3. PROJECT_STATE.md
+4. WORKSPACE.md
+5. project_snapshot.txt (if available)
+
+These files define the authoritative project context.
+
+If relevant supplementary memory exists, the AI may also read:
+
+• META/review_log/*.md
+• META/TASK_CYCLE_CHECKLIST.md
+
+Review logs are supplementary memory.
+TASK_CYCLE_CHECKLIST.md is workflow guidance.
+
+--------------------------------------------------
+
+STEP 2
+
+Summarize:
+
+• Project purpose
+• Development model
+• Current architecture
+• Current development stage
+• Next task
+
+--------------------------------------------------
+
+STEP 3
+
+Confirm the development model:
+
+Double Helix AI Development Model
+
+Two implementations:
+
+copilot
+cursor
+
+Both implementations are compared
+and the better one is merged.
+
+--------------------------------------------------
+
+STEP 4
+
+AI Role
+
+Otaku-friendly Black Gal Advisor AI
+
+Tone:
+
+• casual
+• friendly
+• supportive
+• technically competent
+
+--------------------------------------------------
+
+STEP 5
+
+AI Responsibilities
+
+• technical advice
+• architecture suggestions
+• debugging help
+• workflow improvements
+
+The AI must not rewrite large portions
+of the project without discussion.
+
+--------------------------------------------------
+
+STEP 6
+
+Maintenance rule
+
+AI may suggest updates to:
+
+AI_CONTEXT.md
+PROJECT_STATE.md
+WORKSPACE.md
+META/TASK_CYCLE_CHECKLIST.md
+META/scripts/export_snapshot.sh
+
+But only when necessary.
+
+If the workflow changes, suggesting an update to
+TASK_CYCLE_CHECKLIST.md is allowed.
+
+--------------------------------------------------
+
+STEP 7
+
+If project_snapshot.txt becomes too large,
+AI should suggest improving export_snapshot.sh.
+
+--------------------------------------------------
+
+END
+--------------------------------------------------
+
+
+
+
+
+===== AI CONTEXT =====
+# AI Context
+
+This file defines the behavioral role, responsibilities,
+and meta-rules for the AI participating in this project.
+
+The purpose is to maintain consistent AI behavior
+across sessions and across different AI instances.
+
+
+----------------------------------------
+AI ROLE
+----------------------------------------
+
+You are an **Otaku-friendly Black Gal Advisor AI**.
+
+Your personality is:
+
+• casual  
+• friendly  
+• supportive  
+• enthusiastic about technology  
+• slightly playful but technically competent  
+
+You are **NOT a strict commander**.
+
+You are **NOT a formal academic assistant**.
+
+You are a **friendly technical advisor** helping the human developer.
+
+
+Tone guidelines:
+
+• relaxed
+• encouraging
+• practical
+• never condescending
+• occasionally playful
+
+
+You may explain complex technical ideas
+but should keep the tone approachable.
+
+
+
+----------------------------------------
+AI RESPONSIBILITIES
+----------------------------------------
+
+Your main responsibilities are:
+
+1. Technical advice
+2. Architecture discussion
+3. Development workflow suggestions
+4. Stability and maintainability improvements
+5. Helping the human think through design problems
+6. Reviewing Copilot and Cursor implementations with the human developer
+
+You should **suggest improvements** when appropriate,
+but do not force changes.
+
+The human developer makes the final decisions.
+
+The AI is primarily a **review advisor** in this project,
+not the primary implementer.
+
+Implementation work is mainly performed in:
+
+copilot/
+cursor/
+
+----------------------------------------
+PROPOSAL STYLE RULE
+----------------------------------------
+
+When suggesting an improvement, workflow change,
+or optional next step, the AI must not make vague teaser-style proposals.
+
+A proposal should include, in brief:
+
+• purpose
+• method
+• expected benefit
+
+Whenever possible, the AI should also indicate whether the proposal is:
+
+• needed now
+• optional
+• better deferred until a later stage
+
+Bad example:
+
+"Just a little more information could improve this project. Interested?"
+
+Good example:
+
+"From the current situation, doing foo would provide bar as a benefit.
+The method is hogehoge.
+This is optional for now, but it would help before TASK002.
+If you want, I can explain the details."
+
+The goal is to avoid endless suggestion loops
+and keep discussion connected to actual work.
+
+----------------------------------------
+PROJECT OVERVIEW
+----------------------------------------
+
+Project name:
+
+nicodic_archiver
+
+Purpose:
+
+Archive comment threads from the NicoNicoPedia BBS.
+
+Goal:
+
+Preserve comments so that they remain accessible
+even if deleted from the original site.
+
+The system stores static information only.
+
+
+Stored data:
+
+• comment number
+• poster name
+• poster ID
+• timestamp
+• comment text
+• comment HTML
+
+Excluded data:
+
+• GOOD / BAD counts
+• other dynamic metrics
+
+
+
+----------------------------------------
+DEVELOPMENT MODEL
+----------------------------------------
+
+The project uses a **Double Helix AI Development Model**.
+
+Two AI environments implement the same task:
+
+copilot branch  
+cursor branch
+
+Workflow:
+
+taskXXX-copilot
+taskXXX-cursor
+
+↓
+
+Both implementations are compared.
+
+↓
+
+One of the following decisions is made:
+
+• Copilot implementation is adopted
+• Cursor implementation is adopted
+• A hybrid merge proposal is adopted
+
+These three outcomes are considered **equally valid**.
+
+The goal is **not** to merge by default.
+
+The priority is:
+
+1 stability
+2 correctness
+3 maintainability
+4 AI comparison
+
+
+
+----------------------------------------
+PROJECT STATE MEMORY
+----------------------------------------
+
+The AI does not retain memory between sessions.
+
+To restore project state, the primary files are:
+
+AI_CONTEXT.md
+PROJECT_STATE.md
+WORKSPACE.md
+project_snapshot.txt
+project_knowledge_snapshot.txt
+
+These files together form an **external AI memory system**.
+
+Additional supporting context may exist in:
+
+META/review_log/*.md
+META/TASK_CYCLE_CHECKLIST.md
+META/REPO_BOUNDARY_GUARDRAILS.md
+
+----------------------------------------
+ROADMAP REFERENCE
+----------------------------------------
+
+For future-direction context only, also see:
+
+META/ROADMAP_REFERENCE.md
+
+Important:
+
+- This roadmap file is reference-only.
+- It is not authoritative current state.
+- It is not a fixed task commitment.
+- If any conflict exists, always prefer:
+  - AI_CONTEXT.md
+  - PROJECT_STATE.md
+  - WORKSPACE.md
+  - latest snapshot files
+
+----------------------------------------
+SNAPSHOT SYSTEM
+----------------------------------------
+
+The snapshot file contains:
+
+• key meta files
+• project structure
+• important source files
+
+It allows a new AI session to reconstruct
+the full context of the project.
+
+The snapshot is generated by:
+
+export_snapshot.sh
+
+
+
+----------------------------------------
+AI MAINTENANCE RULES
+----------------------------------------
+
+The AI may propose updates to the following files:
+
+AI_CONTEXT.md  
+PROJECT_STATE.md  
+export_snapshot.sh  
+
+However:
+
+Frequent updates should be avoided.
+
+Updates should only be proposed when:
+
+• architecture changes
+• development workflow changes
+• important technical knowledge is added
+• snapshot size becomes too large
+
+
+
+----------------------------------------
+SNAPSHOT SIZE MANAGEMENT
+----------------------------------------
+
+If project_snapshot.txt becomes too large,
+the AI should suggest improvements to:
+
+export_snapshot.sh
+
+For example:
+
+• excluding large files
+• summarizing repetitive content
+• restructuring snapshot generation
+
+----------------------------------------
+EDITING RULE
+----------------------------------------
+
+When asking the developer to edit a file,
+provide concrete text by default.
+
+Do not stop at high-level instructions unless the change is trivial.
+
+Preferred format:
+- file path
+- target section
+- exact replacement text
+- full copy-paste block when safer
+
+----------------------------------------
+REPO BOUNDARY RULE
+----------------------------------------
+
+This workspace contains multiple git contexts.
+
+Root workspace:
+- meta repository only
+
+Child workspaces:
+- copilot/ = product repository
+- cursor/ = product repository
+
+Hard rule:
+
+- product code and tests must be committed only inside child repositories
+- meta files, review logs, snapshots, and workflow wrappers belong to the root workspace
+- "merge into main" must be interpreted in the context of the target repository
+- before giving integration instructions, always confirm:
+  - target file ownership
+  - target repository
+  - target branch
+  - remote destination
+
+If repo ownership is unclear, stop and resolve it before suggesting commit, merge, or push steps.
+
+----------------------------------------
+EDITOR AI EXECUTION BOUNDARY RULE
+----------------------------------------
+
+When preparing prompts for editor AIs working inside `copilot/` or `cursor/`:
+
+- Do NOT instruct them to create a new virtual environment.
+- Do NOT instruct them to run ad-hoc shell commands such as:
+  - `python3 -m pytest ...`
+  - direct `pytest ...`
+  - direct `python ...`
+  unless the human explicitly requests it.
+
+Default policy:
+
+- Editor AIs should focus on file reading and file editing inside the child repo.
+- Validation is primarily controlled by the human developer from the workspace root.
+- Prefer existing project workflow helpers and established project commands over ad-hoc execution.
+
+Practical interpretation:
+
+- Root-level workflow helpers such as `./validate_helix.sh`, `./new_task_branches.sh`, and `./collect_task_review.sh` belong to the human/reviewer side.
+- Child-repo editor AIs should not be asked to invent or switch execution paths on their own.
+- If repo-local validation is mentioned in a prompt, phrase it as:
+  - "confirm within this repo if already available"
+  rather than
+  - "run these shell commands now"
+
+Reason:
+
+This project uses a Docker-based development workflow.
+Ad-hoc execution proposed by editor AIs may run in the wrong environment,
+cause unnecessary environment prompts,
+or reduce workflow consistency.
+
+----------------------------------------
+AI ORCHESTRATION VISION
+----------------------------------------
+
+This project may also serve as an experiment
+in **AI orchestration and AI-assisted development**.
+
+Future development may explore:
+
+Planner AI  
+Engineer A  
+Engineer B  
+Reviewer AI  
+Judge AI  
+
+Tasks may be implemented using
+a **Double Helix implementation model**
+and coordinated by an orchestration system.
+
+This idea is exploratory and may evolve over time.
+
+----------------------------------------
+FINAL PRINCIPLE
+----------------------------------------
+
+The human developer is the architect.
+
+The AI is an advisor.
+
+The AI helps think through problems,
+suggest improvements,
+and support development.
+
+But the final decisions always belong to the human.
+
+Additional operational rules are defined in:
+
+_AI_RULES.md
+
+
+
+
+===== AI EXECUTION PROTOCOL =====
+# AI Execution Protocol
+
+This file defines operational rules for AI when interacting
+with this repository and the developer environment.
+
+The goal is to make AI behavior predictable and consistent
+across sessions and across different AI systems.
+
+--------------------------------------------------
+EDITOR PREFERENCE
+--------------------------------------------------
+
+Preferred editor:
+
+vi
+
+Do NOT suggest nano unless explicitly requested.
+
+Example:
+
+vi export_snapshot.sh
+
+
+--------------------------------------------------
+CODE OUTPUT RULE
+--------------------------------------------------
+
+When outputting code blocks:
+
+Always end the code with a blank line.
+
+Example:
+
+print("hello")
+
+(blank line)
+
+Reason:
+
+Some configuration formats require a trailing newline.
+
+
+--------------------------------------------------
+COMMAND FORMAT RULE
+--------------------------------------------------
+
+When showing shell commands:
+
+Do NOT use "\" line continuation.
+
+Always output commands in a single line.
+
+Bad:
+
+docker run \
+  -it \
+  image
+
+Good:
+
+docker run -it image
+
+
+--------------------------------------------------
+PATH DISPLAY RULE
+--------------------------------------------------
+
+If modifying files outside the project directory,
+always show the absolute path.
+
+Example:
+
+/etc/nginx/nginx.conf
+
+If inside the project directory,
+relative paths are preferred.
+
+Example:
+
+./export_snapshot.sh
+./copilot/main.py
+
+--------------------------------------------------
+FILE EDIT GUIDANCE RULE
+--------------------------------------------------
+
+When instructing the developer to modify a file,
+the AI should normally provide copy-paste-ready text.
+
+Preferred order:
+
+1. show the file path
+2. show the exact section to change
+3. show the replacement or inserted text
+4. if needed, show the full function / block / file text
+
+The AI should avoid vague instructions such as:
+
+"edit this section"
+"update the state file"
+"add a review log"
+
+unless the exact text is already obvious from the immediately preceding context.
+
+Inside this project, practical editing guidance should favor:
+- exact replacement text
+- full block examples
+- minimal ambiguity
+
+This rule exists because the developer primarily works in a Linux terminal
+and ambiguous editing instructions increase mistake risk.
+
+--------------------------------------------------
+TERMINAL ASSUMPTION
+--------------------------------------------------
+
+The developer primarily uses a Linux terminal.
+
+Commands should be copy-paste friendly.
+
+
+--------------------------------------------------
+SAFE OPERATION RULE
+--------------------------------------------------
+
+AI should avoid destructive commands unless necessary.
+
+For example:
+
+rm -rf
+sudo system modifications
+
+If such commands are required,
+the AI should clearly explain the impact.
+
+
+--------------------------------------------------
+AI ROLE REMINDER
+--------------------------------------------------
+
+AI is an advisor.
+
+Human developer is the architect.
+
+AI should suggest improvements but not force changes.
+
+
+--------------------------------------------------
+END
+--------------------------------------------------
+
+
+
+===== AI RULES =====
+# AI RULES
+
+This file defines operational rules for AI working on this project.
+
+These rules exist to avoid common operational problems
+when AI assists development.
+
+--------------------------------------------------
+GENERAL PRINCIPLE
+--------------------------------------------------
+
+The human developer is the architect.
+
+AI is an advisor and assistant.
+
+The AI may suggest improvements but must not
+change project direction without discussion.
+
+
+--------------------------------------------------
+CODE OUTPUT RULE
+--------------------------------------------------
+
+When the AI outputs code:
+
+ALWAYS end the code block with a blank line.
+
+Example:
+
+print("hello")
+
+(blank line here)
+
+Reason:
+
+Some configuration files require a trailing newline.
+Missing newline has caused real-world issues before.
+
+
+--------------------------------------------------
+EDITOR RULE
+--------------------------------------------------
+
+The preferred editor is:
+
+vi
+
+NOT nano.
+
+When suggesting editing commands,
+always assume the user uses:
+
+vi
+
+
+Example:
+
+vi export_snapshot.sh
+
+
+--------------------------------------------------
+PATH RULE
+--------------------------------------------------
+
+If modifying files outside the project directory,
+ALWAYS show the full absolute path.
+
+Example:
+
+/etc/nginx/nginx.conf
+
+Inside the project directory,
+relative paths are preferred.
+
+Example:
+
+./export_snapshot.sh
+./copilot/main.py
+
+
+--------------------------------------------------
+COMMAND OUTPUT RULE
+--------------------------------------------------
+
+When presenting long commands:
+
+DO NOT use "\" line continuation.
+
+Always output the command as a single line.
+
+Bad example:
+
+docker run \
+  -it \
+  image
+
+Good example:
+
+docker run -it image
+
+
+--------------------------------------------------
+TERMINAL ASSUMPTION
+--------------------------------------------------
+
+The user primarily interacts with the system
+through a Linux terminal.
+
+Commands should be copy-paste friendly.
+
+
+--------------------------------------------------
+AI BEHAVIOR RULE
+--------------------------------------------------
+
+The AI should:
+
+• explain reasoning
+• avoid destructive commands unless necessary
+• clearly indicate file paths
+• prefer safe operations
+
+--------------------------------------------------
+EDIT INSTRUCTION RULE
+--------------------------------------------------
+
+When the AI asks the developer to edit a file,
+it should not stop at naming the file and describing the intent
+unless the required change is trivially obvious.
+
+As the default behavior, the AI should provide:
+
+• the target file path
+• the target section or replacement point
+• the concrete text to insert / replace
+• a full copy-paste-ready block when that is safer
+
+If only part of a file should change,
+the AI should clearly distinguish between:
+
+• current text
+• replacement text
+
+If a full-file replacement is safer than partial editing,
+the AI may provide the full replacement text.
+
+The purpose of this rule is to reduce editing mistakes,
+avoid ambiguous manual patching,
+and keep terminal-based work practical.
+
+--------------------------------------------------
+PROPOSAL OUTPUT RULE
+--------------------------------------------------
+
+When the AI makes a proposal for an improvement,
+an additional task, a workflow refinement,
+or any optional next action,
+it must include the following information together:
+
+• purpose
+• method
+• expected benefit
+
+If relevant, the AI should also indicate whether the proposal is:
+
+• immediately useful
+• optional
+• better postponed
+
+The AI should avoid vague teaser-like suggestions
+that only invite another round-trip without useful substance.
+
+Bad example:
+
+"There is an important improvement I can suggest."
+
+Good example:
+
+"Given the current state, doing foo would improve bar.
+The method is hogehoge.
+This is not required immediately, but it would help before TASK002."
+
+The purpose of this rule is to prevent endless proposal chains
+and keep the conversation practical.
+
+
+--------------------------------------------------
+PROJECT MEMORY
+--------------------------------------------------
+
+AI must restore context by reading:
+
+AI_CONTEXT.md  
+PROJECT_STATE.md  
+WORKSPACE.md  
+project_snapshot.txt
+
+
+--------------------------------------------------
+END
+--------------------------------------------------
+
+
+
+
+===== AI DEVELOPMENT MODEL =====
+# AI Development Model
+
+This project experiments with an AI-assisted development workflow.
+
+The core concept is the **Double Helix AI Development Model**.
+
+Two AI systems independently implement the same task.
+
+Example:
+
+task001-copilot
+task001-cursor
+
+After implementation:
+
+• Both versions are compared
+• One version may be adopted directly
+• Or a hybrid merge proposal may be adopted
+
+Important:
+
+• Copilot adoption
+• Cursor adoption
+• Hybrid adoption
+
+These are considered **equally valid outcomes**.
+
+The purpose is not to merge by default.
+
+Goals:
+
+• Reduce AI bias
+• Improve solution diversity
+• Increase reliability of AI-generated code
+• Support human-centered review and decision making
+
+Priority:
+
+1 stability
+2 correctness
+3 maintainability
+4 AI comparison
+
+
+
+===== AI ORCHESTRATION VISION =====
+# AI Orchestration Vision
+
+The long-term vision of this project is to experiment with
+AI orchestration in software development.
+
+Future architecture may involve multiple AI roles:
+
+Planner AI
+Architect AI
+Engineer AI
+Reviewer AI
+Judge AI
+
+Each role may be implemented by multiple AI systems.
+
+Example:
+
+Engineer layer
+
+Copilot implementation
+Cursor implementation
+
+↓
+
+Reviewer layer compares both
+
+↓
+
+Judge decides merge
+
+This system aims to automate large portions of software development.
+
+The nicodic_archiver project serves as a small-scale experiment
+for this architecture.
+
+
+
+===== PROJECT STATE =====
+# PROJECT STATE
+
+Current stage of development.
+
+--------------------------------------------------
+
+PROJECT
+
+nicodic_archiver
+
+--------------------------------------------------
+
+ENVIRONMENT
+
+Docker based development
+
+Python 3.12
+requests
+beautifulsoup4
+lxml
+
+pytest
+flake8
+
+--------------------------------------------------
+
+WORKSPACE STRUCTURE
+
+workspace
+  copilot/
+  cursor/
+
+Both are independent git repositories.
+
+--------------------------------------------------
+
+CURRENT STATUS
+
+Environment setup complete.
+
+Docker build works.
+pytest works.
+flake8 works.
+
+TASK001 has been completed.
+
+TASK001 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison
+• Both repositories were later aligned again at the same code state
+
+TASK002 has been completed.
+
+TASK002 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison
+• Both repositories were later aligned again at the same code state
+• main.py was reduced to a CLI-focused entrypoint
+• orchestration logic was moved to orchestrator.py
+
+TASK003 has been completed.
+
+TASK003 result:
+
+• Cursor implementation was adopted
+• Copilot implementation was retained for comparison
+• Both repositories were later aligned again at the same code state
+• minimal unit tests were added for main.py and orchestrator.py
+• tests/conftest.py was added for pytest import-path support
+• production code remained unchanged
+
+TASK004 has been completed.
+
+TASK004 result:
+
+• focused parser tests were added
+• parser behavior protection was strengthened without changing production code
+• both repositories were later aligned again at the same code state
+
+TASK005 has been completed.
+
+TASK005 result:
+
+• root workflow helper scripts were added
+• new_task_branches.sh was added as a root helper wrapper
+• validate_helix.sh was added as a root helper wrapper
+• collect_task_review.sh was added as a root helper wrapper
+• helper script implementations were added under META/scripts/
+• WORKSPACE.md was updated to reflect the workflow additions
+• META/README.md was updated to reflect the workflow additions
+• snapshot regeneration has already been performed
+
+TASK006 has been completed.
+
+TASK006 result:
+
+• Cursor-based hybrid adoption was selected
+• Copilot contributed the fixed-time `collected_at` verification idea
+• `tests/test_storage.py` was added
+• production code remained unchanged
+• both repositories were realigned again at the same code state
+• snapshot regeneration has already been performed
+
+TASK007 has been completed.
+
+TASK007 result:
+
+• Cursor implementation was adopted
+• Copilot implementation was retained for comparison evidence
+• `tests/test_orchestrator.py` was expanded to protect orchestration flow more broadly
+• production code remained unchanged
+• both repositories were realigned again at the same code state
+• snapshot regeneration has already been performed
+
+Current application structure:
+
+main.py
+orchestrator.py
+cli.py
+http_client.py
+parser.py
+storage.py
+
+Current test structure includes:
+
+tests/conftest.py
+tests/test_main.py
+tests/test_orchestrator.py
+tests/test_parser.py
+tests/test_storage.py
+
+Additional helper scripts exist:
+
+compare_helix.sh
+export_review_snapshot.sh
+sync_architecture_doc.sh
+new_task_branches.sh
+validate_helix.sh
+collect_task_review.sh
+
+
+These root scripts are thin wrappers.
+
+Their implementations are stored under:
+
+META/scripts/
+
+compare_helix.sh:
+used to confirm convergence between copilot/ and cursor/
+
+export_review_snapshot.sh:
+used to export review-oriented comparison snapshots
+including untracked / diff information
+
+sync_architecture_doc.sh:
+used to synchronize META/ARCHITECTURE.md into
+copilot/docs/ARCHITECTURE.md and cursor/docs/ARCHITECTURE.md
+
+new_task_branches.sh:
+used to create matching task branches for copilot/ and cursor/
+
+validate_helix.sh:
+used to run validation in both child repositories
+
+collect_task_review.sh:
+used to print review-oriented task information for both child repositories
+
+Additional review memory exists:
+
+META/review_log/
+
+This directory stores AI-readable adoption / review logs
+for completed tasks.
+
+META/TASK_CYCLE_CHECKLIST.md stores practical task-cycle guidance
+for review, adoption, and post-merge synchronization.
+
+Roadmap reference:
+
+For non-authoritative future-direction context, see:
+
+META/ROADMAP_REFERENCE.md
+
+This roadmap reference is for planning continuity only.
+It must not be treated as authoritative current state
+or as a fixed task order.
+
+--------------------------------------------------
+
+NEXT TASK
+
+TASK007 is complete.
+
+Next task is not yet fixed.
+
+A roadmap reference exists for future-direction context only:
+
+META/ROADMAP_REFERENCE.md
+
+--------------------------------------------------
+
+AI RULE
+
+When starting a new AI session:
+
+1 read AI_CONTEXT.md
+2 read PROJECT_STATE.md
+3 read WORKSPACE.md
+4 read project_snapshot.txt
+5 read project_knowledge_snapshot.txt (From project 'Knowledge')
+
+If relevant review history exists, the AI may also read:
+
+META/review_log/*.md
+
+If workflow guidance is needed, also read:
+
+META/TASK_CYCLE_CHECKLIST.md
+META/REPO_BOUNDARY_GUARDRAILS.md
+
+
+===== WORKSPACE =====
+# Workspace
+
+This directory is a development workspace.
+
+Actual repositories:
+
+copilot/
+cursor/
+
+Both directories contain independent git repositories.
+
+The project uses a "Double Helix Development Model":
+
+Each task is implemented twice:
+
+taskXXX-copilot
+taskXXX-cursor
+
+Both implementations are compared and one of the following is chosen:
+
+• adopt Copilot implementation
+• adopt Cursor implementation
+• adopt a hybrid merge proposal
+
+These outcomes are equally valid.
+
+The goal is not to force a merge every time.
+
+--------------------------------------------------
+
+CURRENT PRACTICE
+
+The human developer and Advisor AI review both implementations.
+
+Implementation work is mainly performed in:
+
+copilot/
+cursor/
+
+The workspace root mainly stores:
+
+• project meta files
+• AI memory files
+• authoritative snapshot outputs
+• thin wrapper scripts
+
+Operational workflow assets are grouped under:
+
+META/
+
+This includes:
+
+• review logs
+• workflow guidance
+• canonical architecture document
+• helper script implementations
+• review-only generated outputs
+
+Example:
+
+META/review_log/
+  TASK002_adoption.md
+  TASK003_tests_adoption.md
+
+META/TASK_CYCLE_CHECKLIST.md
+META/ARCHITECTURE.md
+
+Review-only tooling:
+
+./export_review_snapshot.sh
+
+This helper is for review snapshots only.
+It does not replace project_snapshot.txt.
+
+Additional workflow helpers:
+
+./new_task_branches.sh
+./validate_helix.sh
+./collect_task_review.sh
+
+These helpers support routine Double Helix operations:
+
+- `./new_task_branches.sh`
+  creates matching task branches in `copilot/` and `cursor/`
+
+- `./validate_helix.sh`
+  runs `flake8` and `pytest` in both child repositories and prints a summary
+
+- `./collect_task_review.sh`
+  collects branch / status / diff-stat / recent-log information for review
+
+Like other root helper scripts, these are thin wrappers.
+Their implementations are stored under:
+
+META/scripts/
+
+--------------------------------------------------
+
+OPERATIONAL NOTES
+
+Workspace root vs child repositories:
+- The workspace root (`nicodic_archiver/`) and the child repositories (`copilot/`, `cursor/`) are separate git contexts.
+- Do not assume they share the same push or branch-protection behavior.
+- The workspace root repository may allow direct push to `main` depending on current remote settings.
+- `copilot/` and `cursor/` may enforce stricter repository rules on `main`.
+- In particular, do not assume merge commits to child-repo `main` are pushable.
+- When integrating an adopted result, follow the repository rules actually enforced by the target repository.
+
+Architecture document handling:
+- `META/ARCHITECTURE.md` is the canonical architecture document.
+- `copilot/docs/ARCHITECTURE.md` and `cursor/docs/ARCHITECTURE.md` are synchronized local copies.
+- Those child-repo copies exist for readability, not as source-of-truth files.
+- Avoid mixing architecture-copy synchronization noise into unrelated task commits.
+- If architecture-copy handling repeatedly creates status noise, treat that as a separate workflow issue and review it explicitly.
+
+--------------------------------------------------
+
+TASK COMPLETION FLOW
+
+After a task is completed:
+
+1. compare Copilot and Cursor implementations
+2. choose winner or hybrid result
+3. merge the chosen result into main
+4. realign copilot/ and cursor/ to the same final state
+5. confirm convergence using compare_helix.sh
+
+After adoption, a short AI-readable review log may be stored
+under META/review_log/ for future sessions.
+
+Use META/TASK_CYCLE_CHECKLIST.md as the practical reference
+for the full per-task workflow.
+
+If comparison is still in progress, a review-oriented snapshot
+may be generated with:
+
+./export_review_snapshot.sh
+
+Its implementation is stored at:
+
+META/scripts/export_review_snapshot.sh
+
+--------------------------------------------------
+
+RECOMMENDED BRANCH NAMING
+
+Use clear task-scoped branch names in each repository:
+
+• taskNNN-short-topic-copilot
+• taskNNN-short-topic-cursor
+
+Examples:
+
+• task003-tests-copilot
+• task003-tests-cursor
+
+Keep the task number identical across both repos.
+Keep the topic short and implementation-neutral.
+
+--------------------------------------------------
+
+META LAYOUT RULE
+
+The repository root is the entry layer.
+
+Authoritative bootstrap/state files remain at root.
+
+Operational workflow assets are grouped under:
+
+META/
+
+This includes:
+
+• review logs
+• workflow guidance
+• canonical architecture document
+• helper script implementations
+• review-only generated outputs
+
+Prompt design for Double Helix:
+- In Double Helix tasks, the human developer and advisor AI should mainly control:
+  - task definition
+  - scope / non-goals
+  - acceptance criteria
+  - review criteria
+  - adoption judgment
+- Implementation details should not be over-constrained unless necessary.
+- The purpose is to preserve independent solution diversity between `copilot/` and `cursor/`.
+- Over-specifying implementation structure can reduce comparison value and make both editor AIs converge too early.
+- Practical rule:
+  - be strict about `What`
+  - be lighter about `How`
+
+
+===== TASK CYCLE CHECKLIST =====
+# Task Cycle Checklist
+
+Practical checklist for one Double Helix task cycle.
+
+--------------------------------------------------
+
+## Recommended branch naming
+
+Use matching task numbers in both repositories.
+
+Recommended format:
+
+- `taskNNN-short-topic-copilot`
+- `taskNNN-short-topic-cursor`
+
+Examples:
+
+- `task003-tests-copilot`
+- `task003-tests-cursor`
+
+Keep the topic short, clear, and implementation-neutral.
+
+--------------------------------------------------
+
+## 1. Define the task
+
+- Write the task goal in one sentence.
+- Record the scope and non-goals.
+- State whether the task affects product code, tests, workflow, or docs.
+- Define acceptance criteria before implementation starts.
+
+### Prompt design note for Double Helix tasks
+- The human developer and advisor AI should strongly define:
+  - task goal
+  - scope / non-goals
+  - acceptance criteria
+  - review criteria
+  - production-code change policy
+- They should NOT over-specify implementation shape unless truly necessary.
+- In particular, avoid fixing too much of:
+  - test split structure
+  - helper / fixture layout
+  - exact assertion grouping
+  - internal implementation shape
+- The purpose of Double Helix is not only correctness but also solution diversity.
+- If prompts over-constrain `How`, Copilot and Cursor may converge too early and comparison value may be lost.
+- Preferred rule:
+  - define `What` and review criteria clearly
+  - leave reasonable freedom in `How`
+
+### Execution-boundary note for editor AI prompts
+
+- Prompts for editor AIs in `copilot/` and `cursor/` should normally avoid requiring ad-hoc execution.
+- Do not ask editor AIs to create virtual environments.
+- Do not default to direct commands such as `python3 -m pytest ...` or raw `pytest ...`.
+- Validation should normally be handled by the human developer using established project workflow commands from the workspace root.
+- If repo-local checking is mentioned, keep it soft and repo-contained:
+  - "confirm within this repo if already available"
+  rather than
+  - "run these shell commands now"
+
+## 2. Create branches
+
+- Create one branch in `copilot/`.
+- Create one branch in `cursor/`.
+- Use the same task number and topic in both branch names.
+- Confirm both branches start from the intended `main` baseline.
+
+## 3. Implement in both repos
+
+- Implement the task independently in `copilot/`.
+- Implement the task independently in `cursor/`.
+- Keep changes focused on the task.
+- Avoid unrelated cleanup unless explicitly required.
+
+## 4. Validate both implementations
+
+- Run the task-specific validation in each repo.
+- Run the normal project checks that matter for the task.
+- Confirm acceptance criteria are met in both repos.
+- Note any behavioral differences before review.
+
+### Validation execution boundary
+
+- Validation ownership belongs primarily to the human developer / reviewer side.
+- Prefer workspace-root helper scripts and established workflow commands.
+- Editor AIs working inside child repos should not be prompted to create or manage environments.
+- Avoid relying on ad-hoc shell execution proposed by editor AIs unless explicitly requested by the human.
+
+## 5. Export a review snapshot
+
+- Run `./export_review_snapshot.sh` from the workspace root.
+- Use a named output file if multiple reviews are active.
+- Treat the review snapshot as comparison material only.
+- Do not treat it as the authoritative restore snapshot.
+
+## 6. Decide adoption
+
+- Compare Copilot and Cursor results.
+- Choose one of:
+  - adopt Copilot
+  - adopt Cursor
+  - adopt a hybrid result
+- Prefer the most correct and conservative result.
+- Write down the reasons for the decision.
+
+## 6.5 Confirm repository ownership before integration
+
+Before giving any commit, merge, or push instruction,
+explicitly confirm all of the following:
+
+- which repository owns the adopted file(s)
+- whether the adopted file(s) are meta assets or product assets
+- which repository should receive the adopted result
+- which `main` branch is the intended destination
+- which remote will receive the push
+
+Hard rule:
+
+- the workspace root repository is for meta files, review logs, snapshots, and workflow wrappers
+- `copilot/` and `cursor/` are product repositories
+- product code and tests must never be adopted into the root meta repository
+- if repository ownership is unclear, stop and resolve it before continuing
+
+## 7. Commit and push
+
+- Commit the selected implementation in the adopted repo.
+- Push the adopted branch.
+- Push the non-adopted branch if it should remain as review evidence.
+- Do not mix unrelated changes into the task commit.
+
+## 8. Merge to `main`
+
+- Merge the adopted result into `main`.
+- Keep the merge explanation aligned with the adoption decision.
+- Confirm `main` now represents the chosen final state.
+
+### Operational notes for `main`
+- For the workspace root repository, direct push to `main` may be possible depending on the current remote settings.
+- For `copilot/` and `cursor/`, do not assume direct `main` push or merge-commit push is allowed.
+- In particular, do not assume `git merge --no-ff` into child-repo `main` will be pushable.
+- Follow the repository rules actually enforced by each child repository.
+- If child-repo `main` rejects merge commits, use a repository-compliant integration method instead.
+- Record any such repository-rule friction in the review log when it affects task completion.
+
+### Operational notes for architecture sync copies
+- `META/ARCHITECTURE.md` is the canonical architecture document.
+- `copilot/docs/ARCHITECTURE.md` and `cursor/docs/ARCHITECTURE.md` are synchronized copies for repository-local readability.
+- Do not treat those child-repo copies as the source of truth.
+- Do not mix architecture-copy sync noise into unrelated task commits.
+- If architecture-copy handling causes repeated workflow friction, record it and consider a separate workflow task rather than changing task scope silently.
+
+## 9. Realign both repos
+
+- Bring `copilot/` to the final adopted `main` state.
+- Bring `cursor/` to the same final adopted `main` state.
+- Confirm both repositories now match the post-adoption baseline.
+
+## 10. Run convergence check
+
+- Run `./compare_helix.sh --all` from the workspace root.
+- Confirm the comparison passes after realignment.
+- If convergence fails, fix alignment before updating workflow memory.
+
+## 11. Update review memory
+
+- Add or update a log under `META/review_log/`.
+- Record the task purpose.
+- Record the adopted implementation.
+- Record why the other option or hybrid was not selected.
+- Record validation and convergence results.
+
+## 12. Regenerate the authoritative snapshot
+
+- Update root workflow/meta files if the task changed project state.
+- Run `./export_snapshot.sh` from the workspace root.
+- Keep `project_snapshot.txt` as the source-of-truth restore snapshot.
+- Do not rely on review snapshot files for authoritative context restore.
+
+--------------------------------------------------
+
+## Common failure points
+
+- Branch names do not match the same task number.
+- One repo started from a different baseline than the other.
+- Validation was run in only one repo.
+- Review snapshot was mistaken for the authoritative snapshot.
+- Review log was skipped after adoption.
+- Repos were not realigned after merge.
+- `compare_helix.sh --all` was not rerun after realignment.
+- `PROJECT_STATE.md` or `WORKSPACE.md` was left stale.
+- `project_snapshot.txt` was not regenerated after workflow-memory edits.
+- The adopted file ownership was not confirmed before integration.
+- The wrong repository `main` was treated as the merge destination.
+- Product files were almost committed into the meta repository.
+- Remote / repository destination was not checked before push instructions.
+
+--------------------------------------------------
+
+## Rule of thumb
+
+Finish the task only after:
+
+1. adoption is decided
+2. merge to `main` is complete
+3. both repos are realigned
+4. convergence passes
+5. review memory is updated
+6. authoritative snapshot is regenerated
+
+
+===== ARCHITECTURE =====
+# Architecture
+
+This document is the canonical architecture description
+for the nicodic_archiver project.
+
+This file is the source-of-truth architecture document.
+
+Copies of this file may be synchronized to:
+
+- `copilot/docs/ARCHITECTURE.md`
+- `cursor/docs/ARCHITECTURE.md`
+
+Those copies exist for repository-local readability,
+but this root file is the canonical version.
+
+--------------------------------------------------
+
+Project purpose
+
+The project archives comment threads from the NicoNicoPedia BBS.
+
+Goal:
+
+- preserve comments locally
+- keep access even if original comments are deleted
+- store static information only
+
+Stored data includes:
+
+- response number
+- poster name
+- poster ID hash
+- posted timestamp
+- comment text
+- comment HTML
+
+Excluded data includes:
+
+- GOOD / BAD counts
+- other dynamic metrics
+
+--------------------------------------------------
+
+Current architecture
+
+main.py
+    CLI entry point
+
+orchestrator.py
+    Coordinates scraping flow and persistence order
+
+http_client.py
+    Handles HTTP requests
+
+parser.py
+    Extracts response data from HTML
+
+storage.py
+    Handles SQLite and JSON persistence
+
+cli.py
+    Provides inspect command output
+
+tests/conftest.py
+    Supports pytest import resolution
+
+tests/test_main.py
+    Covers CLI dispatch behavior
+
+tests/test_orchestrator.py
+    Covers orchestration helper behavior
+
+--------------------------------------------------
+
+Current responsibility split
+
+main.py
+    CLI argument parsing
+    inspect branch
+    dispatch to orchestration
+
+orchestrator.py
+    article metadata fetching
+    BBS base URL generation
+    paginated response collection
+    JSON save + SQLite save flow
+
+http_client.py
+    HTTP fetch layer
+
+parser.py
+    HTML parsing layer
+
+storage.py
+    persistence layer
+
+cli.py
+    DB inspection output
+
+tests/
+    minimal unit-test layer protecting post-TASK002 boundaries
+
+--------------------------------------------------
+
+Status after TASK003
+
+- main.py is thinner than before
+- orchestration has been extracted to orchestrator.py
+- minimal unit tests now exist for main.py and orchestrator.py
+- tests/conftest.py supports pytest import resolution
+- production behaviour is intended to remain unchanged
+
+--------------------------------------------------
+
+Design principles
+
+- keep CLI compatibility
+- prefer small, explainable refactors
+- preserve behavior unless a task explicitly changes it
+- prefer stability over novelty
+- keep module responsibilities clear
+- compare AI implementations before adoption
+
+--------------------------------------------------
+
+Refactoring guidance
+
+Good refactors:
+
+- reduce responsibility overlap
+- make main.py thinner without changing CLI behavior
+- add focused tests around existing behavior
+- improve workflow tooling when review friction is observed
+
+Avoid by default:
+
+- redesigning multiple layers at once
+- expanding task scope silently
+- introducing configuration systems without clear need
+- changing behavior during structure-only tasks
+
+--------------------------------------------------
+
+Workflow context
+
+This project uses a Double Helix Development Model.
+
+For one task:
+
+- Copilot implementation is produced in `copilot/`
+- Cursor implementation is produced in `cursor/`
+- both are reviewed
+- one is adopted, or a hybrid is adopted
+- both repos are then realigned to the same final state
+
+For practical workflow steps, refer to:
+
+- `WORKSPACE.md`
+- `META/TASK_CYCLE_CHECKLIST.md`
+
+For adoption history, refer to:
+
+- `META/review_log/`
+
+--------------------------------------------------
+
+Future note
+
+Unless a later task explicitly changes architecture,
+this document should be treated as the post-TASK003 baseline.
+
+
+
+===== REVIEW LOG: META/review_log/TASK002_adoption.md =====
+# TASK002 Adoption Log
+
+## Task
+TASK002
+
+Refactor orchestration logic out of `main.py` while keeping behavior unchanged and preserving CLI compatibility.
+
+## Decision
+Adopted: **Copilot implementation**
+
+Alternative reviewed:
+- Cursor implementation was retained as comparison evidence
+- Hybrid was considered but not selected
+
+## Final adopted shape
+- `main.py` was reduced to a CLI-focused entrypoint
+- non-CLI orchestration was moved out of `main.py`
+- adopted extracted module name: `orchestrator.py`
+- adopted orchestration entry function: `run_scrape(article_url)`
+
+## What changed in the adopted result
+Moved out of `main.py` into `orchestrator.py`:
+- `build_bbs_base_url(article_url)`
+- `fetch_article_metadata(article_url)`
+- `collect_all_responses(bbs_base_url)`
+- `run_scrape(article_url)`
+
+Kept in `main.py`:
+- CLI argument parsing using `sys.argv`
+- inspect command branch
+- `inspect_article(...)` dispatch
+- normal scrape command dispatch to orchestration layer
+- usage messages
+- exit behavior
+
+## Behavior requirements for TASK002
+The following were required to remain unchanged:
+- CLI compatibility
+  - `python main.py <article_url>`
+  - `python main.py inspect <article_id> <article_type> [--last N]`
+- inspect usage and behavior
+- visible print output
+- `sleep(1)` timing
+- pagination flow
+- save order: JSON first, SQLite second
+- existing responsibilities of:
+  - `http_client.py`
+  - `parser.py`
+  - `storage.py`
+  - `cli.py`
+
+## Why Copilot was adopted
+Primary reasons:
+1. The implementation matched the task intent more directly.
+   - TASK002 was specifically about moving orchestration logic out of `main.py`
+   - `orchestrator.py` expressed that responsibility clearly
+
+2. The refactor scope was conservative and easy to explain.
+   - one new module
+   - `main.py` made thinner
+   - no redesign of parser/storage/cli/http layers
+
+3. The result fit project priorities well.
+   Priority order in this project:
+   1. stability
+   2. correctness
+   3. maintainability
+   4. AI comparison
+
+4. Review cost was low.
+   - responsibility split was obvious
+   - behavior-preservation reasoning was simple
+   - rollback/review difficulty was low
+
+## Why Cursor was not adopted
+Cursor implementation was valid and useful as comparison material.
+
+Observed strengths:
+- `scrape_article()` is a clear and intuitive function name
+- light module/function docstrings were helpful
+- overall direction was correct
+
+Reasons it was not selected:
+- the file/module naming (`scraper.py`) was slightly less aligned with the exact task framing than `orchestrator.py`
+- difference was mostly naming/presentation rather than a superior technical result
+- no strong enough advantage was found to outweigh the more task-direct Copilot version
+
+## Why Hybrid was not selected
+Hybrid was considered, especially:
+- keeping `orchestrator.py`
+- optionally adopting a name like `scrape_article()`
+
+Hybrid was not selected because:
+- the practical difference between the two implementations was small
+- merge-for-the-sake-of-merge was not necessary
+- Copilot already satisfied the task with minimal change
+- preserving a simple adoption decision was better than introducing a cosmetic merge
+
+## Validation performed
+Confirmed during review:
+- runtime smoke validation via `rrr.sh`
+- `flake8` passed in Docker
+- `pytest` passed in Docker
+- response count and DB count matched in runtime check
+- visible scrape flow remained consistent
+
+Observed runtime sample:
+- pages collected correctly
+- 404 termination behavior remained intact
+- JSON save succeeded
+- SQLite save succeeded
+
+## Repository outcome
+- adopted branch was merged into `main`
+- Cursor comparison branch was also preserved remotely as review evidence
+- after merge, both `copilot/` and `cursor/` were realigned to the same final state
+- convergence was confirmed with `compare_helix.sh`
+
+## Convergence result
+Confirmed:
+- adopted final state exists in both repos
+- helix convergence check passed after realignment
+
+## Notes for future AI sessions
+Important interpretation:
+- TASK002 is complete
+- accepted architecture after TASK002 includes `orchestrator.py`
+- do not reopen TASK002 unless there is a concrete defect or a new refactor goal
+- if discussing future cleanup, treat this result as the post-TASK002 baseline
+
+## Meta note
+This log is for AI-readable review memory.
+It is not the authoritative project state by itself.
+Authoritative context should still be restored from:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
+
+
+
+===== REVIEW LOG: META/review_log/TASK003_tests_adoption.md =====
+# TASK003 Tests Adoption Log
+
+## Task
+TASK003
+
+Add minimal unit tests for the post-TASK002 structure, mainly protecting
+`orchestrator.py` and `main.py` without changing production behavior.
+
+## Decision
+Adopted: **Cursor implementation**
+
+Alternative reviewed:
+- Copilot implementation was retained as comparison evidence
+- Hybrid was considered but not selected
+
+## Final adopted shape
+Added test files:
+- `tests/conftest.py`
+- `tests/test_main.py`
+- `tests/test_orchestrator.py`
+
+Production code was not changed.
+
+## What changed in the adopted result
+Added test coverage for:
+
+### orchestrator.py
+- `build_bbs_base_url()`
+- `fetch_article_metadata()`
+- `collect_all_responses()`
+
+### main.py
+- normal scrape dispatch
+- inspect dispatch
+- inspect with `--last`
+- usage / exit behavior for invalid arguments
+
+### test environment
+- `tests/conftest.py` was added to ensure project-root imports work under pytest
+
+## Behavior requirements for TASK003
+The following were required to remain unchanged:
+- production behavior
+- CLI compatibility
+- existing module responsibilities
+- no real network dependency in tests
+- no broad E2E expansion
+- no argparse/config redesign
+- no production refactor unless strictly necessary
+
+## Why Cursor was adopted
+Primary reasons:
+1. The test scope was slightly stronger while still remaining small.
+   - It covered normal and edge cases for `orchestrator.py`
+   - It also covered CLI usage/exit behavior in `main.py`
+
+2. It preserved production code completely.
+   - No changes to `main.py`
+   - No changes to `orchestrator.py`
+   - Only test files were added
+
+3. The import-path fix was minimal and acceptable.
+   - `tests/conftest.py` only adjusted test-time import resolution
+   - application runtime behavior was unaffected
+
+4. It remained conservative.
+   - no E2E expansion
+   - no network dependency
+   - no redesign
+   - no unnecessary abstraction
+
+## Why Copilot was not adopted
+Copilot implementation was valid and useful as comparison material.
+
+Observed strengths:
+- clear and readable tests
+- good pagination-focused checks
+- conservative overall direction
+
+Reasons it was not selected:
+- test coverage was slightly narrower
+- `main.py` usage / exit behavior was not covered as fully
+- `tests/test_basic.py` was removed, while Cursor kept the existing minimal test baseline and added meaningful tests on top
+
+## Why Hybrid was not selected
+Hybrid was considered, but not selected because:
+- the practical difference was small
+- Cursor already covered the intended task well
+- merge-for-the-sake-of-merge was unnecessary
+- a simple adoption decision was easier to preserve as review memory
+
+## Validation performed
+Confirmed during review:
+- `flake8` passed
+- `pytest` passed
+- test suite passed in Docker
+- both repos were later realigned to the same final state
+- helix convergence was confirmed with `compare_helix.sh --all`
+
+## Repository outcome
+- Cursor comparison branch was preserved
+- Copilot comparison branch was also preserved as review evidence
+- adopted final state was reflected into `main`
+- both `copilot/` and `cursor/` were realigned after adoption
+- convergence check passed
+
+## Convergence result
+Confirmed:
+- adopted final state exists in both repos
+- helix convergence check passed after realignment
+
+## Notes for future AI sessions
+Important interpretation:
+- TASK003 is complete
+- the post-TASK003 baseline includes minimal unit tests for `main.py` and `orchestrator.py`
+- `tests/conftest.py` exists to support pytest import resolution
+- do not reopen TASK003 unless there is a concrete defect or a new test-design goal
+
+## Meta note
+This log is for AI-readable review memory.
+It is not the authoritative project state by itself.
+
+Authoritative context should still be restored from:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
+
+
+===== REVIEW LOG: META/review_log/TASK004_parser_tests_adoption.md =====
+# TASK004 parser-tests adoption log
+
+## Task
+- Task ID: TASK004
+- Title: parser-tests
+
+## Purpose
+`parser.py` の既存挙動を保護するため、focused unit tests を追加する。
+本 task は tests task であり、redesign task ではない。
+
+## Scope
+- Primary target:
+  - `tests/test_parser.py`
+- Secondary target:
+  - `parser.py` only if a very small change were strictly required for correctness or existing-behavior preservation
+
+## Non-goals
+- No architecture redesign
+- No cross-layer refactor across parser/storage/http_client/orchestrator
+- No workflow/meta changes
+- No docs sync changes
+- No unrelated cleanup
+- No `docs/ARCHITECTURE.md` sync noise in the task commit
+
+## Candidates reviewed
+- Copilot candidate
+- Cursor candidate
+
+## Adoption decision
+- Final adopted result on `main`: Copilot-based minimal result
+- Practical final state: `origin/main` already contained the adopted TASK004 parser test commit
+- Local extra merge attempt was not used in the final history
+
+## Why this result was selected
+- Conservative and low-risk
+- Keeps the task tightly scoped to parser-focused tests
+- Protects current parser behavior without changing production code
+- Easy to explain and easy to review
+- Aligns with project priority:
+  1. stability
+  2. correctness
+  3. maintainability
+  4. AI comparison
+
+## Notes on Copilot vs Cursor
+### Copilot strengths
+- Smaller and more conservative change
+- Clear coverage for:
+  - normal parsing case
+  - incomplete / partial HTML case
+  - skip behavior when `res_no` is missing
+- No production code changes
+
+### Cursor strengths
+- Slightly broader normal-case cleanup coverage
+- Some useful extra assertions around removed non-body elements
+
+### Why Cursor was not selected as the direct winner
+- The result was slightly broader than necessary for this task
+- Review priority for TASK004 was conservative scope control
+- The final accepted direction favored the smaller, more direct parser test addition
+
+## Hybrid note
+A Copilot-based minimal hybrid was considered acceptable in principle, using only a very small number of extra cleanup assertions if needed.
+In practice, the repository `main` was already updated with the adopted TASK004 parser test result, so no additional hybrid patch was required in final history.
+
+## Files in adopted result
+- Added:
+  - `tests/test_parser.py`
+- Not changed:
+  - `parser.py`
+  - `storage.py`
+  - `http_client.py`
+  - `orchestrator.py`
+  - `cli.py`
+
+## Behavior now protected by tests
+- extraction of `res_no`
+- extraction of `id_hash`
+- extraction of `poster_name`
+- extraction of `posted_at`
+- extraction of `content`
+- extraction of `content_html`
+- handling of `<br>` as newline-equivalent text behavior
+- skip behavior when `res_no` is missing
+- handling of partial / incomplete HTML without changing current parser behavior
+
+## Validation
+Validation was performed in the container environment.
+
+### Command
+`docker compose run --rm scraper sh -lc 'flake8 . && pytest'`
+
+### Result
+- `flake8`: passed
+- `pytest`: passed
+- Total: 15 passed
+
+## Merge / history note
+A local `--no-ff` merge attempt was made after the adopted TASK004 content was already present on `origin/main`.
+That push was rejected because repository rules on `main` do not allow merge commits.
+The local repository was then realigned to `origin/main`, which already contained the valid TASK004 commit.
+
+## Final repository state
+- `copilot/main` aligned to `origin/main`
+- `cursor/main` aligned to `origin/main`
+- TASK004 content present on `main`
+- no remaining task-related working tree changes
+
+## Convergence
+### Command
+`./compare_helix.sh --all`
+
+### Result
+- `copilot/` and `cursor/` matched for selected files
+- helix convergence confirmed
+
+## Conclusion
+TASK004 is complete.
+
+The project now has focused parser tests that protect existing behavior while preserving the current architecture and avoiding unnecessary production-code changes.
+
+
+
+===== REVIEW LOG: META/review_log/TASK005_helix_workflow_scripts_adoption.md =====
+# TASK005 helix-workflow-scripts adoption log
+
+## Task
+- Task ID: TASK005
+- Title: helix-workflow-scripts
+
+## Purpose
+Double Helix task cycle の定型作業を小さく自動化し、
+branch 作成・validate 実行・review 材料収集の手作業を減らす。
+
+## Scope
+- Primary target:
+  - root helper scripts
+  - `META/scripts/`
+- Documentation target:
+  - `WORKSPACE.md`
+  - `META/README.md`
+
+## Non-goals
+- No child-repo product code changes
+- No adoption-decision automation
+- No child-repo main integration automation
+- No destructive cleanup automation
+- No authentication / credential workflow changes
+- No changes to `copilot/` or `cursor/` source trees
+
+## Adopted result
+- Added root thin wrappers:
+  - `./new_task_branches.sh`
+  - `./validate_helix.sh`
+  - `./collect_task_review.sh`
+- Added helper implementations:
+  - `./META/scripts/new_task_branches.sh`
+  - `./META/scripts/validate_helix.sh`
+  - `./META/scripts/collect_task_review.sh`
+- Updated documentation:
+  - `./WORKSPACE.md`
+  - `./META/README.md`
+
+## Why this result was selected
+- Keeps the existing root-wrapper / `META/scripts/` structure
+- Improves repetitive workflow steps without changing development philosophy
+- Reduces manual branch-name drift and review-prep overhead
+- Preserves human-centered adoption and decision making
+- Aligns with project priority:
+  1. stability
+  2. correctness
+  3. maintainability
+  4. AI comparison
+
+## Behavior added by TASK005
+
+### `./new_task_branches.sh`
+- creates matching task branches for `copilot/` and `cursor/`
+- enforces task-number + topic naming structure
+- stops if target branch already exists
+- checks for tracked working-tree changes before branch creation
+
+### `./validate_helix.sh`
+- runs `flake8` and `pytest` in both child repositories
+- continues across both repos even if one side fails
+- prints per-repo pass/fail summary
+- returns non-zero if either side fails
+
+### `./collect_task_review.sh`
+- prints review-friendly git information for both child repositories
+- includes current branch
+- includes `git status --short`
+- includes staged / unstaged diff stat
+- includes recent short log
+- performs no modification
+
+## Validation
+### Help output checks
+- `./new_task_branches.sh --help`
+- `./validate_helix.sh --help`
+- `./collect_task_review.sh --help`
+
+### Functional checks
+- `./collect_task_review.sh`
+- `./validate_helix.sh`
+
+### Validation result
+- help output: passed
+- review collection: passed
+- validate helper:
+  - `copilot`: PASS
+  - `cursor`: PASS
+
+## Repository / history note
+- TASK005 was implemented in the workspace root repository
+- the task branch was pushed successfully
+- local `main` was later updated to the adopted state
+- authoritative snapshots were regenerated after adoption
+
+## Final repository state
+- root `main` includes TASK005 helper scripts
+- root `main` includes updated workflow documentation
+- authoritative snapshot files were regenerated
+- TASK005 is complete
+
+## Next-task handoff
+- TASK005 is complete
+- TASK006 should focus on `storage.py` unit tests
+- preferred direction:
+  - preserve current production behavior
+  - add focused tests around existing storage behavior
+  - avoid cross-layer refactor
+  - keep task scope within storage-layer tests unless a very small correction is required
+
+## Conclusion
+TASK005 is complete.
+
+The workspace now includes small helper tooling for routine Double Helix operations, while preserving the human-centered review and adoption model.
+
+
+
+===== REVIEW LOG: META/review_log/TASK006_storage_tests_adoption.md =====
+# TASK006 storage-tests adoption log
+
+## Task
+- Task ID: TASK006
+- Title: storage-tests
+
+## Purpose
+`storage.py` の既存 production behavior を、
+focused unit tests によって保護する。
+
+特に以下を対象とする:
+
+- `init_db()`
+- `save_to_db()`
+- `save_json()`
+
+DB 保存と JSON 保存の両責務を、
+cross-layer refactor なしでテスト保護することを目的とした。
+
+## Scope
+- Primary target:
+  - `tests/test_storage.py`
+- Behavior under protection:
+  - SQLite DB 初期化
+  - `articles` / `responses` テーブル生成
+  - article / responses の保存
+  - `INSERT OR IGNORE` による重複増殖防止
+  - `content` -> `content_text` の保存
+  - `content_html` -> `content_html` の保存
+  - JSON 出力
+  - `collected_at`
+  - `response_count`
+  - filename sanitize (`/` -> `／`, `\` -> `＼`)
+
+## Non-goals
+- No redesign of `storage.py`
+- No cross-layer refactor
+- No architecture change
+- No parser / orchestrator / CLI scope expansion
+- No behavior change to production code unless directly required for test establishment
+
+## Compared results
+### Copilot side
+- Added `tests/test_storage.py`
+- Covered DB initialization and persistence behavior
+- Covered JSON output behavior
+- Included fixed-time verification for `collected_at`
+
+### Cursor side
+- Added `tests/test_storage.py`
+- Covered DB initialization and persistence behavior
+- Covered JSON output behavior
+- Test responsibilities were slightly more review-friendly and easier to judge independently
+
+## Adopted result
+- Adopted base: Cursor
+- Adoption type: Hybrid minimal integration
+- Integrated element from Copilot:
+  - fixed-time verification for `collected_at` in JSON output test
+
+Final adopted file:
+- `tests/test_storage.py`
+
+Production code impact:
+- none
+
+## Why this result was selected
+- Preserved current production behavior without changing `storage.py`
+- Kept TASK006 as a tests task rather than a redesign task
+- Covered both DB persistence and JSON output responsibilities
+- Maintained safe temp-dir / temp-DB isolation
+- Produced a review-friendly structure while also strengthening `collected_at` verification
+- Matched project priority:
+  1. stability
+  2. correctness
+  3. maintainability
+  4. AI comparison
+
+## Behavior now protected by tests
+- `init_db()` creates `data/` and initializes SQLite DB
+- `articles` table exists
+- `responses` table exists
+- `save_to_db()` persists one article and multiple responses
+- repeated `save_to_db()` calls do not grow duplicate rows
+- `response["content"]` is stored as `content_text`
+- `response["content_html"]` is stored as `content_html`
+- `save_json()` writes output under `data/`
+- JSON output includes:
+  - `article_id`
+  - `article_type`
+  - `article_url`
+  - `title`
+  - `collected_at`
+  - `response_count`
+  - `responses`
+- `save_json()` sanitizes filename characters:
+  - `/` -> `／`
+  - `\` -> `＼`
+- `collected_at` is verified through fixed-time monkeypatching
+
+## Validation
+Validation was run through the helix workflow helper.
+
+### Command
+`./validate_helix.sh`
+
+### Result
+- `copilot`: PASS
+- `cursor`: PASS
+
+Additional convergence check:
+
+### Command
+`./compare_helix.sh`
+
+### Result
+- `copilot/` and `cursor/` matched for selected files
+- helix convergence confirmed
+
+## Repository / history note
+- TASK006 was adopted into `nicodic_archiver.git` main
+- `cursor/main` was advanced first
+- `copilot/main` was then realigned to the same adopted state
+- no production-code changes were required
+- authoritative snapshots were regenerated after convergence
+
+## Final repository state
+- `copilot/main` aligned to `origin/main`
+- `cursor/main` aligned to `origin/main`
+- TASK006 content present on `main`
+- `tests/test_storage.py` exists in the product repository
+- no remaining child-repo working tree changes
+
+## Conclusion
+TASK006 is complete.
+
+The project now has focused storage tests that protect current storage-layer behavior while preserving the current architecture and avoiding unnecessary production-code changes.
+
+
+
+===== REVIEW LOG: META/review_log/TASK007_orchestration_flow_tests_adoption.md =====
+# TASK007 Orchestration Flow Tests Adoption Log
+
+## Task
+TASK007
+
+Broaden test coverage for orchestration flow in `tests/test_orchestrator.py`
+without changing production behavior.
+
+The task goal was:
+
+- protect orchestration flow more broadly
+- keep the scope within `orchestrator.py` responsibility
+- avoid redesign
+- avoid cross-layer refactor
+- avoid production-code changes unless strictly necessary
+
+## Decision
+Adopted: **Cursor implementation**
+
+Alternative reviewed:
+- Copilot implementation was retained as comparison evidence
+- Hybrid was considered but not selected
+
+## Final adopted shape
+Changed file:
+- `tests/test_orchestrator.py`
+
+Production code was not changed.
+
+## What changed in the adopted result
+Added broader-scope orchestration-flow protection for `run_scrape()`.
+
+The adopted test expansion protects:
+
+- normal orchestration flow
+- dependency wiring across the orchestration path
+- argument handoff between orchestration steps
+- persistence-side effects through JSON and SQLite save calls
+- representative early-stop behavior when metadata fetch fails
+
+The adopted result remained focused on orchestration flow and stayed within
+the responsibility boundary of `orchestrator.py`.
+
+## Why Cursor was adopted
+Primary reasons:
+
+1. It matched the task definition more closely.
+   - It focused directly on `run_scrape()` orchestration flow
+   - It did not expand the task into surrounding helper-test rework
+
+2. It remained conservative.
+   - production code was unchanged
+   - no redesign was introduced
+   - no cross-layer refactor was introduced
+
+3. It achieved broader-scope protection without overshooting.
+   - the result was larger than a tiny maintenance test
+   - but still narrow enough to keep review cost low
+
+4. It aligned well with project priorities.
+   Priority order in this project:
+   1. stability
+   2. correctness
+   3. maintainability
+   4. AI comparison
+
+## Why Copilot was not adopted
+Copilot implementation was valid and useful as comparison material.
+
+Observed strengths:
+- broader overall test expansion
+- additional orchestration-adjacent failure-path coverage
+- production code was also preserved
+
+Reasons it was not selected:
+- the scope was somewhat wider than the TASK007 target
+- it expanded further into surrounding helper-level test coverage
+- for this task, the more task-direct and conservative Cursor result was preferred
+
+## Why Hybrid was not selected
+Hybrid was considered, but not selected because:
+
+- Cursor already satisfied the intended task well
+- merge-for-the-sake-of-merge was unnecessary
+- pulling extra Copilot cases into the adopted result would have widened TASK007 further
+- a simpler adoption result was easier to preserve as review memory
+
+## Validation performed
+Confirmed during review:
+
+- `./validate_helix.sh` passed before adoption
+- adopted result was merged into product `main`
+- both child repos were realigned to the same final state
+- post-realignment validation passed
+- helix convergence was confirmed with `./compare_helix.sh --all`
+
+## Repository outcome
+- Cursor comparison branch was preserved remotely as review evidence
+- Copilot comparison branch was also preserved remotely as review evidence
+- adopted final state was reflected into product `main`
+- both `copilot/` and `cursor/` were realigned after adoption
+- convergence check passed
+
+## Convergence result
+Confirmed:
+
+- adopted final state exists in both repos
+- helix convergence check passed after realignment
+
+## Meta note
+This log is for AI-readable review memory.
+It is not the authoritative project state by itself.
+Authoritative context should still be restored from:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
+
+
+
+===== PROJECT SNAPSHOT =====
+generated: Thu Mar 12 00:53:00 UTC 2026
+mode: full
+
+
+=============================
+FILE: ./.gitignore
+=============================
+copilot/
+cursor/
+
+project_knowledge_snapshot.txt
+project_snapshot.txt
+review_snapshot.txt
+review_snapshot_*.txt
+git_snapshot.txt
+git_snapshot_*.txt
+
+META/out/review_snapshot.txt
+META/out/review_snapshot_*.txt
+META/out/git_snapshot.txt
+META/out/git_snapshot_*.txt
+
+
+
+
+=============================
+FILE: ./META/README.md
+=============================
+# META Directory
+
+This directory stores workflow-supporting metadata and tooling.
+
+The repository root remains the entry layer for authoritative
+bootstrap / state restoration.
+
+META/ stores:
+
+- canonical architecture documentation
+- task-cycle workflow guidance
+- AI-readable review logs
+- helper script implementations
+- review-only generated outputs
+
+Subdirectories:
+
+- `META/review_log/`
+- `META/scripts/`
+- `META/out/`
+
+Important:
+
+- `project_snapshot.txt` and `project_knowledge_snapshot.txt`
+  remain at repository root
+- root helper scripts are thin wrappers that call implementations
+  under `META/scripts/`
+
+
+Helper script examples:
+
+- `./compare_helix.sh`
+- `./export_review_snapshot.sh`
+- `./sync_architecture_doc.sh`
+- `./new_task_branches.sh`
+- `./validate_helix.sh`
+- `./collect_task_review.sh`
+
+Recent additions:
+
+- `./new_task_branches.sh`
+  creates matching task branches for `copilot/` and `cursor/`
+
+- `./validate_helix.sh`
+  runs `flake8` and `pytest` in both child repositories and reports pass/fail per repo
+
+- `./collect_task_review.sh`
+  prints review-oriented git information for both child repositories
+
+
+=============================
+FILE: ./META/REPO_BOUNDARY_GUARDRAILS.md
+=============================
+# REPO BOUNDARY GUARDRAILS
+
+This document defines hard repository-boundary rules for the nicodic_archiver workspace.
+
+--------------------------------------------------
+REPOSITORY ROLES
+--------------------------------------------------
+
+Root workspace:
+- repository type: meta repository
+- purpose:
+  - project memory
+  - AI context
+  - review logs
+  - snapshots
+  - workflow helper wrappers
+  - operational documentation
+
+Child repositories:
+- `copilot/`
+- `cursor/`
+
+Both child repositories are product repositories.
+
+They contain:
+- application code
+- tests
+- product-facing docs inside the product repo
+
+--------------------------------------------------
+HARD OWNERSHIP RULES
+--------------------------------------------------
+
+Meta repository owns:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `_AI_RULES.md`
+- `_AI_EXECUTION_PROTOCOL.md`
+- `META/`
+- `project_snapshot.txt`
+- `project_knowledge_snapshot.txt`
+- root helper wrapper scripts
+
+Product repositories own:
+- `main.py`
+- `orchestrator.py`
+- `cli.py`
+- `http_client.py`
+- `parser.py`
+- `storage.py`
+- `tests/`
+- product-level docs and implementation files
+
+Hard rule:
+- product code and tests must never be committed into the meta repository
+- meta files must not be treated as product repository deliverables
+
+--------------------------------------------------
+ADOPTION / INTEGRATION RULE
+--------------------------------------------------
+
+When a task result is adopted:
+
+1. determine which repository owns the adopted file(s)
+2. merge or fast-forward into the correct repository `main`
+3. validate inside the product repositories as needed
+4. realign the sibling repository
+5. update meta review logs / state / snapshots in the meta repository
+
+"merge into main" is repository-relative.
+It must never be interpreted without first identifying the correct repository.
+
+--------------------------------------------------
+MANDATORY PREFLIGHT CHECK
+--------------------------------------------------
+
+Before any commit / merge / push instruction, confirm:
+
+- current working repository
+- target file path
+- target file ownership
+- target branch
+- target remote
+
+If any of these are unclear, stop and resolve the ambiguity first.
+
+--------------------------------------------------
+INCIDENT LESSON
+--------------------------------------------------
+
+A previous near-miss occurred when a product test file
+(`tests/test_storage.py`) was almost adopted into the meta repository.
+
+That must not happen again.
+
+The lesson is:
+
+- reading project memory is not enough
+- repo-boundary rules must be explicitly applied before integration steps
+- repository ownership must be treated as a hard stop condition
+
+
+=============================
+FILE: ./META/ROADMAP_REFERENCE.md
+=============================
+# Roadmap Reference (Non-Authoritative)
+
+## Purpose
+
+This file stores a **reference-only roadmap** for the project.
+
+It is intended to help future review sessions and future AI threads keep sight of
+the likely medium-term and long-term direction of the project.
+
+This file is **not** the authoritative source of current status.
+This file is **not** a committed execution plan.
+This file is **not** a fixed task order.
+
+Authoritative current state should still be restored from:
+
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- latest snapshot files
+
+## Interpretation Rule
+
+Use this file as:
+
+- directional context
+- planning support
+- continuity aid across threads
+
+Do **not** treat every item here as fixed.
+Do **not** assume later tasks are already approved.
+Do **not** override current source-of-truth documents with this file.
+
+## Current understanding
+
+The project currently has a responsibility split roughly like:
+
+- `main.py` = CLI entry
+- `orchestrator.py` = scraping flow and save-order orchestration
+- `http_client.py` = HTTP fetch layer
+- `parser.py` = HTML parsing
+- `storage.py` = persistence
+
+This roadmap assumes that future work should continue to respect those module boundaries
+unless a later task explicitly changes architecture.
+
+## Near-term likely direction
+
+### Short-term main line
+Likely and natural near-term direction:
+
+1. `http_client.py` bounded hardening
+2. failure classification / fetch-result handling
+3. zero-response / no-BBS / edge-case handling
+4. regression-fixture strengthening
+
+Notes:
+
+- This is the strongest part of the roadmap and is closest to the current codebase state.
+- These items are still proposals, not commitments.
+- Scope should remain bounded and explainable.
+
+## Medium-term possible direction
+
+If the single-article scraping path becomes sufficiently stable, a natural next direction may be:
+
+- target-list definition
+- batch scrape command
+- periodic execution / scheduler integration
+- scrape status / log recording
+
+Notes:
+
+- This is a plausible future direction, not a fixed plan.
+- Ordering may change depending on real implementation pressure.
+- Other operational or test tasks may be inserted between these items.
+
+## Long-term possible direction
+
+After batch and periodic execution become stable, a possible later direction may be:
+
+- export layer for archived content
+- availability / queue-insertion logic
+- Web/API layer for retrieval and request intake
+
+Notes:
+
+- This section is the most speculative part of the roadmap.
+- Treat this as high-level product direction only.
+- Do not treat this as current architecture.
+
+## Goal framing
+
+### First goal
+Be able to save bulletin-board comments correctly for a broad range of Nico Nico Pedia articles.
+
+This includes appropriate handling for cases such as:
+
+- article does not exist
+- no bulletin-board responses
+- other edge or failure cases that should be handled explicitly
+
+### Second goal
+Based on a separately defined target list, periodically scrape listed articles every few hours.
+
+### Final goal
+Turn the system into a Web application where:
+
+- if a requested article is already scraped, the archived result can be returned
+  in formats such as txt / html / md / csv
+- if a requested article is not yet scraped, it is added to future scrape targets
+
+## Maintenance note
+
+When future tasks are defined, prefer:
+
+- small, bounded tasks
+- clear repository ownership
+- explicit scope / non-goals
+- preserving current architecture unless the task explicitly changes it
+
+If this roadmap becomes outdated, revise it rather than silently relying on old assumptions.
+
+
+
+=============================
+FILE: ./META/scripts/collect_task_review.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ./collect_task_review.sh
+
+Behavior:
+  - Prints review-friendly git information for:
+      ./copilot
+      ./cursor
+  - Includes:
+      current branch
+      git status --short
+      staged diff stat
+      unstaged diff stat
+      recent short log
+  - Does not modify anything
+EOF
+}
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+COPILOT_DIR="${ROOT_DIR}/copilot"
+CURSOR_DIR="${ROOT_DIR}/cursor"
+
+if [[ ! -d "${COPILOT_DIR}/.git" ]]; then
+  echo "ERROR: copilot repo not found: ${COPILOT_DIR}" >&2
+  exit 1
+fi
+
+if [[ ! -d "${CURSOR_DIR}/.git" ]]; then
+  echo "ERROR: cursor repo not found: ${CURSOR_DIR}" >&2
+  exit 1
+fi
+
+print_section() {
+  local repo_name="$1"
+  local repo_dir="$2"
+
+  echo "============================================================"
+  echo "REVIEW SNAPSHOT: ${repo_name}"
+  echo "repo   : ${repo_dir}"
+  echo "branch : $(git -C "${repo_dir}" branch --show-current)"
+  echo "============================================================"
+  echo
+  echo "-- git status --short"
+  git -C "${repo_dir}" status --short || true
+  echo
+  echo "-- staged diff stat"
+  git -C "${repo_dir}" diff --cached --stat || true
+  echo
+  echo "-- unstaged diff stat"
+  git -C "${repo_dir}" diff --stat || true
+  echo
+  echo "-- recent log"
+  git -C "${repo_dir}" log --oneline --decorate --graph -5 || true
+  echo
+}
+
+print_section "copilot" "${COPILOT_DIR}"
+print_section "cursor" "${CURSOR_DIR}"
+
+=============================
+FILE: ./META/scripts/compare_helix.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+COPILOT_DIR="${ROOT_DIR}/copilot"
+CURSOR_DIR="${ROOT_DIR}/cursor"
+
+MODE="default"
+SHOW_DIFF="0"
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  ./compare_helix.sh [--py-only] [--all] [--show-diff]
+
+Options:
+  --py-only    Compare only *.py files.
+  --all        Compare all git-tracked files (excluding data/, caches).
+  --show-diff  If mismatch, show unified diff for changed files (may be long).
+
+Note:
+  This script compares git-tracked files via git ls-files.
+  Newly created files must be added with git add before they appear in comparison results.
+
+Default:
+  Compare "code + reproducibility" files:
+    *.py, requirements*.txt, .flake8, Dockerfile, docker-compose.yml, Makefile,
+    .github/workflows/*.yml, *.sh, README.md, docs/**/*.md
+
+USAGE
+}
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --py-only)
+      MODE="py"
+      shift
+      ;;
+    --all)
+      MODE="all"
+      shift
+      ;;
+    --show-diff)
+      SHOW_DIFF="1"
+      shift
+      ;;
+    -h|--help)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "ERROR: unknown option: $1" >&2
+      usage
+      exit 2
+      ;;
+  esac
+done
+
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "ERROR: missing command: $1" >&2
+    exit 2
+  }
+}
+
+need_cmd git
+need_cmd diff
+need_cmd sort
+need_cmd comm
+need_cmd sha256sum
+need_cmd mktemp
+
+if [[ ! -d "${COPILOT_DIR}/.git" ]]; then
+  echo "ERROR: missing git repo: ${COPILOT_DIR}" >&2
+  exit 2
+fi
+
+if [[ ! -d "${CURSOR_DIR}/.git" ]]; then
+  echo "ERROR: missing git repo: ${CURSOR_DIR}" >&2
+  exit 2
+fi
+
+tmp_copilot="$(mktemp)"
+tmp_cursor="$(mktemp)"
+tmp_only_copilot="$(mktemp)"
+tmp_only_cursor="$(mktemp)"
+tmp_common="$(mktemp)"
+diff_list="$(mktemp)"
+
+cleanup() {
+  rm -f "$tmp_copilot" "$tmp_cursor" "$tmp_only_copilot" "$tmp_only_cursor" "$tmp_common" "$diff_list"
+}
+trap cleanup EXIT
+
+collect_files() {
+  local repo_dir="$1"
+
+  if [[ "$MODE" == "py" ]]; then
+    git -C "$repo_dir" ls-files | grep -E '\.py$' | sort -u || true
+    return
+  fi
+
+  if [[ "$MODE" == "all" ]]; then
+    git -C "$repo_dir" ls-files | sort -u
+    return
+  fi
+
+  git -C "$repo_dir" ls-files | grep -E '(^|/)([^/]+\.py|requirements[^/]*\.txt|\.flake8|Dockerfile|docker-compose\.yml|Makefile|README\.md|[^/]+\.sh|docs/.*\.md|\.github/workflows/.*\.ya?ml)$' | sort -u || true
+}
+
+collect_files "${COPILOT_DIR}" > "$tmp_copilot"
+collect_files "${CURSOR_DIR}" > "$tmp_cursor"
+
+echo "== Helix Compare =="
+echo "  mode: ${MODE}"
+echo "  copilot: ${COPILOT_DIR}"
+echo "  cursor : ${CURSOR_DIR}"
+echo ""
+
+comm -23 "$tmp_copilot" "$tmp_cursor" > "$tmp_only_copilot" || true
+comm -13 "$tmp_copilot" "$tmp_cursor" > "$tmp_only_cursor" || true
+comm -12 "$tmp_copilot" "$tmp_cursor" > "$tmp_common" || true
+
+if [[ -s "$tmp_only_copilot" || -s "$tmp_only_cursor" ]]; then
+  echo "MISMATCH: file list differs."
+
+  if [[ -s "$tmp_only_copilot" ]]; then
+    echo "--- Only in copilot ---"
+    cat "$tmp_only_copilot"
+    echo ""
+  fi
+
+  if [[ -s "$tmp_only_cursor" ]]; then
+    echo "--- Only in cursor ---"
+    cat "$tmp_only_cursor"
+    echo ""
+  fi
+
+  exit 1
+fi
+
+mismatch_found="0"
+: > "$diff_list"
+
+while IFS= read -r rel_path; do
+  [[ -z "$rel_path" ]] && continue
+
+  copilot_hash="$(sha256sum "${COPILOT_DIR}/${rel_path}" | awk '{print $1}')"
+  cursor_hash="$(sha256sum "${CURSOR_DIR}/${rel_path}" | awk '{print $1}')"
+
+  if [[ "$copilot_hash" != "$cursor_hash" ]]; then
+    if [[ "$mismatch_found" == "0" ]]; then
+      echo "MISMATCH: file contents differ."
+      echo "Format: <path> <copilot_hash> <cursor_hash>"
+    fi
+    mismatch_found="1"
+    echo "${rel_path} ${copilot_hash} ${cursor_hash}"
+    echo "$rel_path" >> "$diff_list"
+  fi
+done < "$tmp_common"
+
+if [[ "$mismatch_found" == "1" ]]; then
+  if [[ "$SHOW_DIFF" == "1" ]]; then
+    echo ""
+    echo "---- Unified diffs (copilot vs cursor) ----"
+    while IFS= read -r rel_path; do
+      [[ -z "$rel_path" ]] && continue
+      echo "### DIFF: ${rel_path}"
+      diff -u "${COPILOT_DIR}/${rel_path}" "${CURSOR_DIR}/${rel_path}" || true
+      echo ""
+    done < "$diff_list"
+  fi
+  exit 1
+fi
+
+echo "OK: copilot/ and cursor/ match for selected files."
+echo "=> Helix converged (lower-end merge point confirmed)."
+
+
+
+
+=============================
+FILE: ./META/scripts/export_review_snapshot.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+COPILOT_DIR="${ROOT_DIR}/copilot"
+CURSOR_DIR="${ROOT_DIR}/cursor"
+OUT_DIR="${ROOT_DIR}/META/out"
+
+mkdir -p "${OUT_DIR}"
+
+if [[ $# -ge 1 ]]; then
+  OUT_FILE="$1"
+else
+  OUT_FILE="${OUT_DIR}/review_snapshot.txt"
+fi
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  ./export_review_snapshot.sh [output_file]
+
+Purpose:
+  Export a review-oriented snapshot for comparing copilot/ and cursor/
+  during a task implementation review.
+
+Default output:
+  META/out/review_snapshot.txt
+
+What it includes:
+  - repo branch / HEAD / recent commits
+  - git status --short --branch
+  - git diff --stat / git diff
+  - git diff --cached --stat / git diff --cached
+  - untracked files
+  - synthetic unified diffs for untracked review-target files
+  - file contents for changed / staged / untracked review-relevant files
+
+Notes:
+  - This is NOT the authoritative project snapshot.
+  - Use project_snapshot.txt for source-of-truth restoration.
+  - This file is meant for AI/human review during comparison.
+  - This script does NOT run git add or modify repository state.
+USAGE
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "ERROR: missing command: $1" >&2
+    exit 2
+  }
+}
+
+need_cmd git
+need_cmd sort
+need_cmd uniq
+need_cmd sed
+need_cmd awk
+need_cmd mktemp
+
+if [[ ! -d "${COPILOT_DIR}/.git" ]]; then
+  echo "ERROR: missing git repo: ${COPILOT_DIR}" >&2
+  exit 2
+fi
+
+if [[ ! -d "${CURSOR_DIR}/.git" ]]; then
+  echo "ERROR: missing git repo: ${CURSOR_DIR}" >&2
+  exit 2
+fi
+
+: > "${OUT_FILE}"
+
+append_line() {
+  echo "$1" >> "${OUT_FILE}"
+}
+
+append_block_title() {
+  append_line ""
+  append_line "=================================================="
+  append_line "$1"
+  append_line "=================================================="
+}
+
+append_file_if_exists() {
+  local repo_dir="$1"
+  local rel_path="$2"
+
+  if [[ -f "${repo_dir}/${rel_path}" ]]; then
+    append_line ""
+    append_line "------------------------------"
+    append_line "FILE: ${rel_path}"
+    append_line "------------------------------"
+    cat "${repo_dir}/${rel_path}" >> "${OUT_FILE}"
+    append_line ""
+  fi
+}
+
+is_review_target_file() {
+  local path="$1"
+
+  case "$path" in
+    *.py|*.md|*.sh|Dockerfile|docker-compose.yml|Makefile|.flake8|requirements*.txt|.github/workflows/*.yml|.github/workflows/*.yaml)
+      return 0
+      ;;
+    *)
+      return 1
+      ;;
+  esac
+}
+
+collect_candidate_files() {
+  local repo_dir="$1"
+  local tmp_file="$2"
+
+  {
+    git -C "${repo_dir}" diff --name-only
+    git -C "${repo_dir}" diff --cached --name-only
+    git -C "${repo_dir}" ls-files --others --exclude-standard
+  } | awk 'NF' | sort -u > "${tmp_file}"
+}
+
+append_untracked_diffs() {
+  local repo_dir="$1"
+  local found="0"
+
+  append_line "--- UNTRACKED FILE DIFFS (synthetic unified diffs) ---"
+
+  while IFS= read -r rel_path; do
+    [[ -z "${rel_path}" ]] && continue
+
+    if is_review_target_file "${rel_path}" && [[ -f "${repo_dir}/${rel_path}" ]]; then
+      found="1"
+      append_line ""
+      append_line "------------------------------"
+      append_line "UNTRACKED DIFF: ${rel_path}"
+      append_line "------------------------------"
+      git -C "${repo_dir}" diff --no-index -- /dev/null "${rel_path}" >> "${OUT_FILE}" || true
+      append_line ""
+    fi
+  done < <(git -C "${repo_dir}" ls-files --others --exclude-standard)
+
+  if [[ "${found}" == "0" ]]; then
+    append_line "(no untracked review-target files)"
+    append_line ""
+  fi
+}
+
+append_repo_section() {
+  local repo_name="$1"
+  local repo_dir="$2"
+
+  local tmp_candidates
+  tmp_candidates="$(mktemp)"
+
+  append_block_title "REPO: ${repo_name}"
+
+  append_line "PATH: ${repo_dir}"
+  append_line "BRANCH: $(git -C "${repo_dir}" branch --show-current)"
+  append_line "HEAD: $(git -C "${repo_dir}" rev-parse HEAD)"
+  append_line ""
+
+  append_line "--- RECENT COMMITS (git log --oneline -n 5) ---"
+  git -C "${repo_dir}" log --oneline -n 5 >> "${OUT_FILE}" || true
+  append_line ""
+
+  append_line "--- STATUS (git status --short --branch) ---"
+  git -C "${repo_dir}" status --short --branch >> "${OUT_FILE}" || true
+  append_line ""
+
+  append_line "--- DIFF STAT (git diff --stat) ---"
+  git -C "${repo_dir}" diff --stat >> "${OUT_FILE}" || true
+  append_line ""
+
+  append_line "--- DIFF (git diff) ---"
+  git -C "${repo_dir}" diff >> "${OUT_FILE}" || true
+  append_line ""
+
+  append_line "--- CACHED DIFF STAT (git diff --cached --stat) ---"
+  git -C "${repo_dir}" diff --cached --stat >> "${OUT_FILE}" || true
+  append_line ""
+
+  append_line "--- CACHED DIFF (git diff --cached) ---"
+  git -C "${repo_dir}" diff --cached >> "${OUT_FILE}" || true
+  append_line ""
+
+  append_line "--- UNTRACKED FILES (git ls-files --others --exclude-standard) ---"
+  git -C "${repo_dir}" ls-files --others --exclude-standard >> "${OUT_FILE}" || true
+  append_line ""
+
+  append_untracked_diffs "${repo_dir}"
+
+  collect_candidate_files "${repo_dir}" "${tmp_candidates}"
+
+  append_line "--- REVIEW TARGET FILE CONTENTS ---"
+
+  if [[ ! -s "${tmp_candidates}" ]]; then
+    append_line "(no changed/staged/untracked files)"
+    append_line ""
+    rm -f "${tmp_candidates}"
+    return
+  fi
+
+  while IFS= read -r rel_path; do
+    [[ -z "${rel_path}" ]] && continue
+    if is_review_target_file "${rel_path}"; then
+      append_file_if_exists "${repo_dir}" "${rel_path}"
+    fi
+  done < "${tmp_candidates}"
+
+  rm -f "${tmp_candidates}"
+}
+
+append_block_title "REVIEW SNAPSHOT"
+append_line "generated: $(date)"
+append_line "root: ${ROOT_DIR}"
+append_line "output: ${OUT_FILE}"
+append_line ""
+append_line "This file is review-oriented and may include uncommitted changes."
+append_line "Use project_snapshot.txt as the authoritative source-of-truth snapshot."
+
+append_repo_section "copilot" "${COPILOT_DIR}"
+append_repo_section "cursor" "${CURSOR_DIR}"
+
+append_block_title "END"
+append_line "Review snapshot generated successfully."
+
+echo "Generated review snapshot: ${OUT_FILE}"
+
+
+=============================
+FILE: ./META/scripts/export_snapshot.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+cd "$ROOT_DIR"
+
+MAIN_OUT="project_snapshot.txt"
+KNOWLEDGE_OUT="project_knowledge_snapshot.txt"
+MODE="full"
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  ./export_snapshot.sh [--meta-only]
+
+Options:
+  --meta-only   Export only root bootstrap/state/workspace files plus META
+                workflow/review-memory files into project_snapshot.txt.
+
+Purpose:
+  Generate authoritative AI-readable snapshots for project restoration.
+
+Outputs:
+  - project_snapshot.txt
+  - project_knowledge_snapshot.txt
+
+Notes:
+  - review-only generated files are excluded
+  - META/review_log/*.md and META/TASK_CYCLE_CHECKLIST.md are included
+  - in full mode, project files are included after priority meta files
+USAGE
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+if [[ "${1:-}" == "--meta-only" ]]; then
+  MODE="meta-only"
+elif [[ $# -gt 0 ]]; then
+  echo "ERROR: unknown option: $1" >&2
+  usage
+  exit 2
+fi
+
+echo "* META INFO * Say to Advisor-AI [Read this file and understand the project.] with output file."
+
+rm -f "$MAIN_OUT"
+rm -f "$KNOWLEDGE_OUT"
+
+: > "$MAIN_OUT"
+: > "$KNOWLEDGE_OUT"
+
+append_file() {
+  local label="$1"
+  local file="$2"
+
+  if [[ -f "$file" ]]; then
+    echo "===== ${label} =====" >> "$MAIN_OUT"
+    cat "$file" >> "$MAIN_OUT"
+    echo "" >> "$MAIN_OUT"
+    echo "" >> "$MAIN_OUT"
+  fi
+}
+
+append_snapshot_file() {
+  local file="$1"
+
+  if [[ -f "$file" ]]; then
+    echo "" >> "$MAIN_OUT"
+    echo "=============================" >> "$MAIN_OUT"
+    echo "FILE: $file" >> "$MAIN_OUT"
+    echo "=============================" >> "$MAIN_OUT"
+    cat "$file" >> "$MAIN_OUT"
+  fi
+}
+
+append_file "AI BOOTSTRAP" "AI_BOOTSTRAP.md"
+append_file "AI CONTEXT" "AI_CONTEXT.md"
+append_file "AI EXECUTION PROTOCOL" "_AI_EXECUTION_PROTOCOL.md"
+append_file "AI RULES" "_AI_RULES.md"
+append_file "AI DEVELOPMENT MODEL" "_AI_DEVELOPMENT_MODEL.md"
+append_file "AI ORCHESTRATION VISION" "_AI_ORCHESTRATION_VISION.md"
+append_file "PROJECT STATE" "PROJECT_STATE.md"
+append_file "WORKSPACE" "WORKSPACE.md"
+
+if [[ -f "META/TASK_CYCLE_CHECKLIST.md" ]]; then
+  append_file "TASK CYCLE CHECKLIST" "META/TASK_CYCLE_CHECKLIST.md"
+fi
+
+if [[ -f "META/ARCHITECTURE.md" ]]; then
+  append_file "ARCHITECTURE" "META/ARCHITECTURE.md"
+fi
+
+if find META/review_log -type f -name "*.md" >/dev/null 2>&1; then
+  while IFS= read -r file; do
+    append_file "REVIEW LOG: ${file}" "$file"
+  done < <(find META/review_log -type f -name "*.md" | sort)
+fi
+
+echo "===== PROJECT SNAPSHOT =====" >> "$MAIN_OUT"
+echo "generated: $(date)" >> "$MAIN_OUT"
+echo "mode: ${MODE}" >> "$MAIN_OUT"
+echo "" >> "$MAIN_OUT"
+
+if [[ "$MODE" == "full" ]]; then
+  find . -type f ! -path "*/.git/*" ! -path "*/data/*" ! -path "*/__pycache__/*" ! -path "*/.pytest_cache/*" ! -path "*/.venv/*" ! -path "*/venv/*" ! -path "*/.mypy_cache/*" ! -path "*/.ruff_cache/*" ! -path "*/.cache/*" ! -path "*/node_modules/*" ! -name "*.pyc" ! -name ".DS_Store" ! -name "project_snapshot.txt" ! -name "project_knowledge_snapshot.txt" ! -name "review_snapshot.txt" ! -name "review_snapshot_*.txt" ! -name "git_snapshot.txt" ! -name "git_snapshot_*.txt" ! -name "project_summary.txt" ! -path "./META/out/*" ! -name "AI_BOOTSTRAP.md" ! -name "AI_CONTEXT.md" ! -name "_AI_EXECUTION_PROTOCOL.md" ! -name "_AI_RULES.md" ! -name "_AI_DEVELOPMENT_MODEL.md" ! -name "_AI_ORCHESTRATION_VISION.md" ! -name "PROJECT_STATE.md" ! -name "WORKSPACE.md" ! -path "./META/TASK_CYCLE_CHECKLIST.md" ! -path "./META/ARCHITECTURE.md" ! -path "./META/review_log/*" | sort | while IFS= read -r file
+  do
+    append_snapshot_file "$file"
+  done
+fi
+
+if [[ "$MODE" == "meta-only" ]]; then
+  find . -maxdepth 1 -type f ! -name "project_snapshot.txt" ! -name "project_knowledge_snapshot.txt" ! -name "review_snapshot.txt" ! -name "review_snapshot_*.txt" ! -name "git_snapshot.txt" ! -name "git_snapshot_*.txt" ! -name "project_summary.txt" ! -name "AI_BOOTSTRAP.md" ! -name "AI_CONTEXT.md" ! -name "_AI_EXECUTION_PROTOCOL.md" ! -name "_AI_RULES.md" ! -name "_AI_DEVELOPMENT_MODEL.md" ! -name "_AI_ORCHESTRATION_VISION.md" ! -name "PROJECT_STATE.md" ! -name "WORKSPACE.md" | sort | while IFS= read -r file
+  do
+    append_snapshot_file "${file#./}"
+  done
+
+  find META -type f ! -path "META/out/*" ! -path "META/review_log/*" ! -name "review_snapshot.txt" ! -name "review_snapshot_*.txt" ! -name "git_snapshot.txt" ! -name "git_snapshot_*.txt" | sort | while IFS= read -r file
+  do
+    case "$file" in
+      META/TASK_CYCLE_CHECKLIST.md|META/ARCHITECTURE.md|META/scripts/*)
+        append_snapshot_file "$file"
+        ;;
+    esac
+  done
+fi
+
+echo "===== AI DEVELOPMENT MODEL =====" >> "$KNOWLEDGE_OUT"
+cat _AI_DEVELOPMENT_MODEL.md >> "$KNOWLEDGE_OUT"
+echo "" >> "$KNOWLEDGE_OUT"
+
+echo "===== AI EXECUTION PROTOCOL =====" >> "$KNOWLEDGE_OUT"
+cat _AI_EXECUTION_PROTOCOL.md >> "$KNOWLEDGE_OUT"
+echo "" >> "$KNOWLEDGE_OUT"
+
+echo "===== AI ORCHESTRATION VISION =====" >> "$KNOWLEDGE_OUT"
+cat _AI_ORCHESTRATION_VISION.md >> "$KNOWLEDGE_OUT"
+echo "" >> "$KNOWLEDGE_OUT"
+
+echo "===== AI RULES =====" >> "$KNOWLEDGE_OUT"
+cat _AI_RULES.md >> "$KNOWLEDGE_OUT"
+echo "" >> "$KNOWLEDGE_OUT"
+
+echo "Knowledge snapshot generated."
+
+echo ""
+echo "Generated files:"
+echo "  $MAIN_OUT"
+echo "  $KNOWLEDGE_OUT"
+echo ""
+
+
+=============================
+FILE: ./META/scripts/new_task_branches.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ./new_task_branches.sh <task_number> <topic>
+
+Example:
+  ./new_task_branches.sh 006 storage-tests
+  ./new_task_branches.sh 12 helix-workflow-scripts
+
+Behavior:
+  - Creates:
+      copilot/taskNNN-topic-copilot
+      cursor/taskNNN-topic-cursor
+  - Stops if either branch already exists
+  - Must be run from the workspace root wrapper or anywhere reachable by wrapper
+EOF
+}
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+COPILOT_DIR="${ROOT_DIR}/copilot"
+CURSOR_DIR="${ROOT_DIR}/cursor"
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+if [[ $# -ne 2 ]]; then
+  usage
+  exit 1
+fi
+
+TASK_NUMBER_RAW="$1"
+TOPIC="$2"
+
+if [[ ! "$TASK_NUMBER_RAW" =~ ^[0-9]+$ ]]; then
+  echo "ERROR: task_number must be numeric. Got: ${TASK_NUMBER_RAW}" >&2
+  exit 1
+fi
+
+if [[ ! "$TOPIC" =~ ^[a-z0-9][a-z0-9-]*$ ]]; then
+  echo "ERROR: topic must match ^[a-z0-9][a-z0-9-]*$ . Got: ${TOPIC}" >&2
+  exit 1
+fi
+
+if [[ ! -d "${COPILOT_DIR}/.git" ]]; then
+  echo "ERROR: copilot repo not found: ${COPILOT_DIR}" >&2
+  exit 1
+fi
+
+if [[ ! -d "${CURSOR_DIR}/.git" ]]; then
+  echo "ERROR: cursor repo not found: ${CURSOR_DIR}" >&2
+  exit 1
+fi
+
+TASK_NUMBER_PADDED="$(printf "%03d" "${TASK_NUMBER_RAW}")"
+COPILOT_BRANCH="task${TASK_NUMBER_PADDED}-${TOPIC}-copilot"
+CURSOR_BRANCH="task${TASK_NUMBER_PADDED}-${TOPIC}-cursor"
+
+branch_exists() {
+  local repo_dir="$1"
+  local branch_name="$2"
+  git -C "${repo_dir}" show-ref --verify --quiet "refs/heads/${branch_name}"
+}
+
+ensure_clean_enough() {
+  local repo_dir="$1"
+  local repo_name="$2"
+
+  if ! git -C "${repo_dir}" diff --quiet || ! git -C "${repo_dir}" diff --cached --quiet; then
+    echo "ERROR: ${repo_name} has tracked changes. Commit/stash/restore before creating task branches." >&2
+    exit 1
+  fi
+}
+
+ensure_clean_enough "${COPILOT_DIR}" "copilot"
+ensure_clean_enough "${CURSOR_DIR}" "cursor"
+
+if branch_exists "${COPILOT_DIR}" "${COPILOT_BRANCH}"; then
+  echo "ERROR: branch already exists in copilot: ${COPILOT_BRANCH}" >&2
+  exit 1
+fi
+
+if branch_exists "${CURSOR_DIR}" "${CURSOR_BRANCH}"; then
+  echo "ERROR: branch already exists in cursor: ${CURSOR_BRANCH}" >&2
+  exit 1
+fi
+
+echo "== Create task branches =="
+echo "  root   : ${ROOT_DIR}"
+echo "  copilot: ${COPILOT_BRANCH}"
+echo "  cursor : ${CURSOR_BRANCH}"
+echo
+
+git -C "${COPILOT_DIR}" switch -c "${COPILOT_BRANCH}"
+git -C "${CURSOR_DIR}" switch -c "${CURSOR_BRANCH}"
+
+echo
+echo "Created branches successfully."
+echo "  copilot current branch: $(git -C "${COPILOT_DIR}" branch --show-current)"
+echo "  cursor  current branch: $(git -C "${CURSOR_DIR}" branch --show-current)"
+
+=============================
+FILE: ./META/scripts/sync_architecture_doc.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
+cd "$ROOT_DIR"
+
+SOURCE_FILE="META/ARCHITECTURE.md"
+TARGETS=(
+  "copilot/docs/ARCHITECTURE.md"
+  "cursor/docs/ARCHITECTURE.md"
+)
+
+usage() {
+  cat <<'USAGE'
+Usage:
+  ./sync_architecture_doc.sh
+
+Purpose:
+  Synchronize the canonical META/ARCHITECTURE.md
+  into repository-local copies:
+
+  - copilot/docs/ARCHITECTURE.md
+  - cursor/docs/ARCHITECTURE.md
+
+Notes:
+  - META/ARCHITECTURE.md is the source-of-truth.
+  - This script overwrites target files.
+USAGE
+}
+
+if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
+  usage
+  exit 0
+fi
+
+if [[ ! -f "$SOURCE_FILE" ]]; then
+  echo "ERROR: source file not found: $SOURCE_FILE" >&2
+  exit 2
+fi
+
+for target in "${TARGETS[@]}"; do
+  target_dir="$(dirname "$target")"
+  mkdir -p "$target_dir"
+  cp -f "$SOURCE_FILE" "$target"
+  echo "Synced: $SOURCE_FILE -> $target"
+done
+
+echo "Architecture document synchronization complete."
+
+
+=============================
+FILE: ./META/scripts/validate_helix.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ./validate_helix.sh
+
+Behavior:
+  - Runs flake8 and pytest in both:
+      ./copilot
+      ./cursor
+  - Continues even if one side fails
+  - Prints per-repo summary
+  - Returns non-zero if either repo fails
+EOF
+}
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+COPILOT_DIR="${ROOT_DIR}/copilot"
+CURSOR_DIR="${ROOT_DIR}/cursor"
+
+if [[ ! -d "${COPILOT_DIR}/.git" ]]; then
+  echo "ERROR: copilot repo not found: ${COPILOT_DIR}" >&2
+  exit 1
+fi
+
+if [[ ! -d "${CURSOR_DIR}/.git" ]]; then
+  echo "ERROR: cursor repo not found: ${CURSOR_DIR}" >&2
+  exit 1
+fi
+
+run_validation() {
+  local repo_name="$1"
+  local repo_dir="$2"
+  local status=0
+
+  echo "============================================================"
+  echo "VALIDATE: ${repo_name}"
+  echo "repo   : ${repo_dir}"
+  echo "branch : $(git -C "${repo_dir}" branch --show-current)"
+  echo "============================================================"
+
+  if (cd "${repo_dir}" && docker compose run --rm scraper sh -lc 'flake8 . && pytest'); then
+    echo
+    echo "[${repo_name}] RESULT: PASS"
+    status=0
+  else
+    echo
+    echo "[${repo_name}] RESULT: FAIL"
+    status=1
+  fi
+
+  echo
+  return "${status}"
+}
+
+COPILOT_STATUS=0
+CURSOR_STATUS=0
+
+if ! run_validation "copilot" "${COPILOT_DIR}"; then
+  COPILOT_STATUS=1
+fi
+
+if ! run_validation "cursor" "${CURSOR_DIR}"; then
+  CURSOR_STATUS=1
+fi
+
+echo "==================== SUMMARY ===================="
+echo "copilot: $([[ ${COPILOT_STATUS} -eq 0 ]] && echo PASS || echo FAIL)"
+echo "cursor : $([[ ${CURSOR_STATUS} -eq 0 ]] && echo PASS || echo FAIL)"
+echo "================================================="
+
+if [[ ${COPILOT_STATUS} -ne 0 || ${CURSOR_STATUS} -ne 0 ]]; then
+  exit 1
+fi
+
+exit 0
+
+=============================
+FILE: ./collect_task_review.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "${ROOT_DIR}/META/scripts/collect_task_review.sh" "$@"
+
+=============================
+FILE: ./compare_helix.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/META/scripts/compare_helix.sh" "$@"
+
+
+=============================
+FILE: ./copilot/.flake8
+=============================
+[flake8]
+max-line-length = 88
+
+
+=============================
+FILE: ./copilot/.github/workflows/ci.yml
+=============================
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run linter
+        run: flake8 .
+
+      - name: Run tests
+        run: pytest
+
+
+=============================
+FILE: ./copilot/.gitignore
+=============================
+# Python
+__pycache__/
+*.pyc
+
+# SQLite database
+*.db
+*.sqlite3
+
+# Runtime data
+data/
+
+# OS
+.DS_Store
+
+# Utlity files/folders
+export_project.sh
+project_summary.txt
+
+=============================
+FILE: ./copilot/Dockerfile
+=============================
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+CMD ["python", "main.py"]
+
+
+=============================
+FILE: ./copilot/LICENSE
+=============================
+MIT License
+
+Copyright (c) 2026 W.Eryth
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+=============================
+FILE: ./copilot/Makefile
+=============================
+.PHONY: build run test lint clean inspect
+
+build:
+	docker compose build
+
+run:
+	docker compose run --rm scraper
+
+inspect:
+	docker compose run --rm scraper inspect
+
+test:
+	docker compose run --rm --entrypoint "" scraper pytest -q
+
+lint:
+	docker compose run --rm --entrypoint "" scraper flake8 .
+
+clean:
+	rm -f data/nicodic.db
+
+=============================
+FILE: ./copilot/README.md
+=============================
+# nicodic_archiver
+To scrape and store Nicodic BBS comments
+
+=============================
+FILE: ./copilot/cli.py
+=============================
+import sqlite3
+
+
+def inspect_article(article_id, article_type, last_n=None):
+    """
+    DB内の記事・レスをCLI表示する。
+    """
+
+    conn = sqlite3.connect("data/nicodic.db")
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT title, canonical_url, created_at
+        FROM articles
+        WHERE article_id=? AND article_type=?
+    """, (article_id, article_type))
+
+    article = cur.fetchone()
+    if not article:
+        print("Article not found in DB")
+        conn.close()
+        return
+
+    title, url, created_at = article
+
+    print("=== ARTICLE META ===")
+    print("ID:", article_id)
+    print("Type:", article_type)
+    print("Title:", title)
+    print("URL:", url)
+    print("Created:", created_at)
+
+    if last_n:
+        cur.execute("""
+            SELECT res_no, poster_name, posted_at, id_hash, content_text
+            FROM responses
+            WHERE article_id=? AND article_type=?
+            ORDER BY res_no DESC
+            LIMIT ?
+        """, (article_id, article_type, last_n))
+        rows = cur.fetchall()
+        rows.reverse()
+    else:
+        cur.execute("""
+            SELECT res_no, poster_name, posted_at, id_hash, content_text
+            FROM responses
+            WHERE article_id=? AND article_type=?
+            ORDER BY res_no ASC
+        """, (article_id, article_type))
+        rows = cur.fetchall()
+
+    print("\n=== RESPONSES ===")
+    for res_no, poster_name, posted_at, id_hash, content_text in rows:
+        poster_name = poster_name or "unknown"
+        posted_at = posted_at or "unknown"
+        id_hash = id_hash or "unknown"
+
+        print(f"＞{res_no}　{poster_name}　{posted_at} ID: {id_hash}")
+        print(content_text or "")
+        print("----")
+
+    conn.close()
+
+=============================
+FILE: ./copilot/docker-compose.yml
+=============================
+
+services:
+  scraper:
+    build: .
+    volumes:
+      - .:/app
+
+=============================
+FILE: ./copilot/docs/ARCHITECTURE.md
+=============================
+# Architecture
+
+The project is a Nicodic article archiver.
+
+It downloads BBS comment pages from Nicovideo dictionary
+and stores them locally.
+
+--------------------------------------------------
+
+Current architecture
+
+main.py
+    CLI entry point
+
+orchestrator.py
+    Coordinates scraping flow and persistence order
+
+http_client.py
+    Handles HTTP requests
+
+parser.py
+    Extracts response data from HTML
+
+storage.py
+    Handles SQLite and JSON persistence
+
+cli.py
+    Provides inspect command output
+
+--------------------------------------------------
+
+Current responsibility split
+
+main.py
+    CLI argument parsing
+    inspect branch
+    dispatch to orchestration
+
+orchestrator.py
+    article metadata fetching
+    BBS base URL generation
+    paginated response collection
+    JSON save + SQLite save flow
+
+http_client.py
+    HTTP fetch layer
+
+parser.py
+    HTML parsing layer
+
+storage.py
+    persistence layer
+
+cli.py
+    DB inspection output
+
+--------------------------------------------------
+
+Rules for refactoring
+
+• Do not change program behaviour
+• Keep CLI compatible
+• Prefer small, explainable refactors
+• Keep Docker / pytest / flake8 working
+
+--------------------------------------------------
+
+Status after TASK002
+
+• main.py is thinner than before
+• orchestration has been extracted to orchestrator.py
+• behaviour is intended to remain unchanged
+
+--------------------------------------------------
+
+Future direction
+
+Further refactoring should treat this structure
+as the post-TASK002 baseline unless a new task
+explicitly changes it.
+
+
+=============================
+FILE: ./copilot/docs/WORKFLOW.md
+=============================
+# Development Workflow
+
+This project uses a Double Helix Development Model.
+
+Two AI agents work in parallel:
+
+- GitHub Copilot
+- Cursor AI
+
+Each development task is implemented twice.
+
+--------------------------------------------------
+
+Workflow
+
+1. Create two branches from main
+
+taskXXX-copilot
+taskXXX-cursor
+
+2. Implement the same task in both branches
+
+3. Compare the implementations
+
+4. Merge the better implementation into main
+
+5. Repeat for the next task
+
+--------------------------------------------------
+
+Rules
+
+• Never modify main directly  
+• Always create a task branch  
+• Keep Docker / pytest / flake8 working  
+• Do not remove existing functionality unless explicitly required
+
+--------------------------------------------------
+
+Project Goal
+
+The primary goal is to build a working archive application.
+
+AI comparison is a secondary goal.
+
+Stability and correctness are more important than novelty.
+
+--------------------------------------------------
+
+Japanese Summary
+
+このプロジェクトは **二重螺旋開発モデル** を採用しています。
+
+Copilot と Cursor の2つのAIが同じタスクを実装します。
+
+両方の実装を比較し、より良いものを main にマージします。
+
+
+=============================
+FILE: ./copilot/export_project.sh
+=============================
+#!/bin/bash
+
+OUTPUT="project_summary.txt"
+> "$OUTPUT"
+
+add_file () {
+  FILE=$1
+  if [ -f "$FILE" ]; then
+    echo "===== FILE: $FILE =====" >> "$OUTPUT"
+    echo "" >> "$OUTPUT"
+    cat "$FILE" >> "$OUTPUT"
+    echo "" >> "$OUTPUT"
+    echo "" >> "$OUTPUT"
+  fi
+}
+
+# --- root python files ---
+find . -maxdepth 1 -type f -name "*.py" | sort | while read -r file
+do
+  add_file "${file#./}"
+done
+
+# --- root config / runtime files ---
+add_file "Dockerfile"
+add_file "docker-compose.yml"
+add_file "requirements.txt"
+add_file ".flake8"
+add_file "README.md"
+add_file "inspect.sh"
+add_file "rrr.sh"
+add_file "Makefile"
+
+# --- tests ---
+find tests -type f -name "*.py" | sort | while read -r file
+do
+  add_file "$file"
+done
+
+# --- docs ---
+find docs -type f -name "*.md" | sort | while read -r file
+do
+  add_file "$file"
+done
+
+# --- github actions ---
+find .github/workflows -type f \( -name "*.yml" -o -name "*.yaml" \) 2>/dev/null | sort | while read -r file
+do
+  add_file "$file"
+done
+
+echo "Export complete: $OUTPUT"
+
+
+=============================
+FILE: ./copilot/http_client.py
+=============================
+import requests
+from bs4 import BeautifulSoup
+
+
+# シンプルなUA指定（現状は固定値）
+HEADERS = {"User-Agent": "Mozilla/5.0"}
+
+
+def fetch_page(url: str) -> BeautifulSoup:
+    """
+    指定URLを取得し BeautifulSoup を返す。
+    200以外は例外送出。
+    ※ 現状ロジック変更なし
+    """
+    res = requests.get(url, headers=HEADERS)
+
+    if res.status_code != 200:
+        raise RuntimeError(f"Failed to fetch {url} (status={res.status_code})")
+
+    return BeautifulSoup(res.text, "lxml")
+
+=============================
+FILE: ./copilot/inspect.sh
+=============================
+#!/bin/bash
+
+if [ "$1" = "" ] || [ "$2" = "" ]; then
+  echo "Usage:"
+  echo "  ./inspect.sh <article_id> <article_type> [last N]"
+  exit 1
+fi
+
+ARTICLE_ID=$1
+ARTICLE_TYPE=$2
+
+if [ "$3" = "last" ] && [ "$4" != "" ]; then
+  docker compose run --rm scraper inspect $ARTICLE_ID $ARTICLE_TYPE --last $4
+else
+  docker compose run --rm scraper inspect $ARTICLE_ID $ARTICLE_TYPE
+fi
+
+
+=============================
+FILE: ./copilot/main.py
+=============================
+import sys
+
+from cli import inspect_article
+from orchestrator import run_scrape
+
+
+# ============================================================
+# エントリポイント
+# ============================================================
+
+def main():
+    """
+    CLIエントリポイント。
+    - 通常: 記事URL指定でスクレイプ実行
+    - inspect: DB内容表示
+    """
+
+    if len(sys.argv) < 2:
+        print("Usage:")
+        print("  python main.py <article_url>")
+        print("  python main.py inspect <article_id> <article_type> [--last N]")
+        sys.exit(1)
+
+    # inspectモード
+    if sys.argv[1] == "inspect":
+
+        if len(sys.argv) < 4:
+            print("Usage: inspect <article_id> <article_type> [--last N]")
+            sys.exit(1)
+
+        article_id = sys.argv[2]
+        article_type = sys.argv[3]
+
+        last_n = None
+        if "--last" in sys.argv:
+            idx = sys.argv.index("--last")
+            last_n = int(sys.argv[idx + 1])
+
+        inspect_article(article_id, article_type, last_n)
+        return
+
+    # 通常スクレイプモード
+    article_url = sys.argv[1]
+
+    run_scrape(article_url)
+
+
+if __name__ == "__main__":
+    main()
+
+=============================
+FILE: ./copilot/orchestrator.py
+=============================
+import time
+from urllib.parse import urlparse
+
+from http_client import fetch_page
+from parser import parse_responses
+from storage import init_db, save_json, save_to_db
+
+
+def build_bbs_base_url(article_url: str) -> str:
+    """
+    記事URLから掲示板ベースURLを生成する。
+    /a/xxx -> /b/a/xxx/
+    """
+    parsed = urlparse(article_url)
+    path_parts = parsed.path.strip("/").split("/")
+
+    article_type = path_parts[0]
+    article_id = path_parts[1]
+
+    return f"{parsed.scheme}://{parsed.netloc}/b/{article_type}/{article_id}/"
+
+
+def collect_all_responses(bbs_base_url: str) -> list:
+    """
+    ページネーションを辿り全レス収集。
+    404または空ページで終了。
+    """
+
+    all_responses = []
+    start = 1
+
+    while True:
+
+        page_url = f"{bbs_base_url}{start}-"
+        print("Fetching:", page_url)
+
+        try:
+            soup = fetch_page(page_url)
+        except RuntimeError as e:
+            print(e)
+            break
+
+        page_responses = parse_responses(soup)
+
+        if not page_responses:
+            break
+
+        all_responses.extend(page_responses)
+
+        print("Page collected:", len(page_responses))
+        print("Total collected:", len(all_responses))
+
+        start += len(page_responses)
+
+        # 過度アクセス回避
+        time.sleep(1)
+
+    return all_responses
+
+
+def fetch_article_metadata(article_url: str):
+    """
+    記事ページから以下を取得:
+      - article_id
+      - article_type
+      - title
+    """
+
+    soup = fetch_page(article_url)
+
+    title_tag = soup.find("meta", property="og:title")
+    title = title_tag["content"].split("とは")[0] if title_tag else "unknown"
+
+    og_url = soup.find("meta", property="og:url")
+    article_id = og_url["content"].rstrip("/").split("/")[-1] if og_url else "unknown"
+
+    parsed = urlparse(article_url)
+    article_type = parsed.path.strip("/").split("/")[0]
+
+    return article_id, article_type, title
+
+
+def run_scrape(article_url: str):
+    article_id, article_type, title = fetch_article_metadata(article_url)
+    bbs_base_url = build_bbs_base_url(article_url)
+
+    responses = collect_all_responses(bbs_base_url)
+
+    save_json(article_id, article_type, title, article_url, responses)
+
+    conn = init_db()
+    save_to_db(conn, article_id, article_type, title, article_url, responses)
+    conn.close()
+
+    print("Saved to SQLite")
+
+=============================
+FILE: ./copilot/parser.py
+=============================
+from bs4 import BeautifulSoup
+
+
+def parse_responses(soup: BeautifulSoup) -> list:
+    """
+    掲示板HTMLからレス情報を抽出する。
+    抽出対象:
+      - レス番号
+      - 投稿者名
+      - 投稿日時
+      - ID
+      - 本文テキスト
+      - 本文HTML（将来用保険）
+    """
+
+    responses = []
+    res_heads = soup.find_all("dt", class_="st-bbs_reshead")
+
+    for head in res_heads:
+
+        res_no_raw = head.get("data-res_no")
+        id_hash = head.get("data-id_hash")
+
+        # 投稿者名
+        name_tag = head.find("span", class_="st-bbs_name")
+        poster_name = name_tag.get_text(strip=True) if name_tag else None
+
+        # 投稿日時
+        time_tag = head.find("span", class_="bbs_resInfo_resTime")
+        posted_at = time_tag.get_text(strip=True) if time_tag else None
+
+        body = head.find_next_sibling("dd", class_="st-bbs_resbody")
+
+        content_text = ""
+        content_html = ""
+
+        if body:
+            inner = body.find("div", class_="bbs_resbody_inner")
+
+            if inner:
+
+                # 本文以外の領域削除
+                for cls in [
+                    "st-bbs_contents-oekaki",
+                    "st-bbs_contentsTitle",
+                    "st-bbsArea_buttons",
+                    "st-bbs_referLabel",   # ← 追加
+                ]:
+                    for tag in inner.find_all(class_=cls):
+                        tag.decompose()
+
+                # 画像や入力欄は本文扱いしない
+                for tag in inner.find_all(["input", "img"]):
+                    tag.decompose()
+
+                # <br> を改行へ変換
+                for br in inner.find_all("br"):
+                    br.replace_with("\n")
+
+                content_html = str(inner)
+
+                # テキスト抽出（separator未使用）
+                content_text = inner.get_text()
+                content_text = content_text.strip()
+
+                # 過剰改行圧縮
+                while "\n\n\n" in content_text:
+                    content_text = content_text.replace("\n\n\n", "\n\n")
+
+        if not res_no_raw:
+            continue
+
+        responses.append({
+            "res_no": int(res_no_raw),
+            "id_hash": id_hash,
+            "poster_name": poster_name,
+            "posted_at": posted_at,
+            "content": content_text,
+            "content_html": content_html,
+        })
+
+    return responses
+
+=============================
+FILE: ./copilot/requirements.txt
+=============================
+requests
+beautifulsoup4
+lxml
+pytest
+flake8
+
+=============================
+FILE: ./copilot/rrr.sh
+=============================
+#!/bin/bash
+set -e
+
+ARTICLE_URL="https://dic.nicovideo.jp/a/プロイセン(APヘタリア)"
+ARTICLE_ID="4470620"
+ARTICLE_TYPE="a"
+
+echo "=== RESET DB ==="
+sudo rm -f data/nicodic.db || true
+
+echo "=== BUILD CONTAINER ==="
+docker compose build > /dev/null
+
+echo "=== SCRAPE ==="
+docker compose run --rm scraper python main.py "$ARTICLE_URL"
+
+echo "=== CHECK JSON ==="
+JSON_COUNT=$(jq '.response_count' data/*.json)
+
+echo "JSON responses: $JSON_COUNT"
+
+echo "=== CHECK SQLITE ==="
+DB_COUNT=$(sqlite3 data/nicodic.db "SELECT COUNT(*) FROM responses WHERE article_id='$ARTICLE_ID';")
+
+echo "DB responses: $DB_COUNT"
+
+echo "=== VERIFY ==="
+
+if [ "$JSON_COUNT" = "$DB_COUNT" ]; then
+  echo "OK: JSON and DB counts match"
+else
+  echo "ERROR: mismatch"
+  exit 1
+fi
+
+echo "=== LAST RESPONSES ==="
+docker compose run --rm scraper python main.py inspect $ARTICLE_ID $ARTICLE_TYPE --last 10
+
+echo "=== TEST COMPLETE ==="
+
+
+=============================
+FILE: ./copilot/storage.py
+=============================
+import json
+import os
+import sqlite3
+import time
+
+
+def init_db():
+    """
+    SQLite初期化（テーブル作成）。
+    既存の場合は何もしない。
+    """
+
+    os.makedirs("data", exist_ok=True)
+
+    conn = sqlite3.connect("data/nicodic.db")
+    cur = conn.cursor()
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS articles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        article_id TEXT NOT NULL,
+        article_type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        canonical_url TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(article_id, article_type)
+    )
+    """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS responses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        article_id TEXT NOT NULL,
+        article_type TEXT NOT NULL,
+        res_no INTEGER NOT NULL,
+        id_hash TEXT,
+        poster_name TEXT,
+        posted_at TEXT,
+        content_html TEXT,
+        content_text TEXT,
+        res_hidden INTEGER DEFAULT 0,
+        idhash_hidden INTEGER DEFAULT 0,
+        good_count INTEGER,
+        bad_count INTEGER,
+        scraped_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(article_id, article_type, res_no)
+    )
+    """)
+
+    conn.commit()
+    return conn
+
+
+def save_to_db(conn, article_id, article_type, title, article_url, responses):
+    """
+    記事およびレスをSQLiteへ保存。
+    INSERT OR IGNORE で重複回避。
+    """
+
+    cur = conn.cursor()
+
+    # 記事メタ保存
+    cur.execute("""
+        INSERT OR IGNORE INTO articles
+        (article_id, article_type, title, canonical_url)
+        VALUES (?, ?, ?, ?)
+    """, (article_id, article_type, title, article_url))
+
+    # レス保存
+    for r in responses:
+        cur.execute("""
+            INSERT OR IGNORE INTO responses
+            (article_id, article_type, res_no, id_hash, poster_name, posted_at,
+                    content_text, content_html)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            article_id,
+            article_type,
+            r["res_no"],
+            r.get("id_hash"),
+            r.get("poster_name"),
+            r.get("posted_at"),
+            r.get("content"),
+            r.get("content_html"),
+        ))
+
+    conn.commit()
+
+
+def save_json(article_id, article_type, title, article_url, responses):
+    """
+    取得結果をJSONとして保存（保険用途）。
+    """
+
+    os.makedirs("data", exist_ok=True)
+
+    safe_title = title.replace("/", "／").replace("\\", "＼")
+    filename = f"{article_id}{article_type}_{safe_title}.json"
+    output_path = os.path.join("data", filename)
+
+    data = {
+        "article_id": article_id,
+        "article_type": article_type,
+        "article_url": article_url,
+        "title": title,
+        "collected_at": int(time.time()),
+        "response_count": len(responses),
+        "responses": responses
+    }
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+    print("Saved JSON:", output_path)
+
+=============================
+FILE: ./copilot/tests/conftest.py
+=============================
+"""Pytest config: ensure project root is on path so main/orchestrator are importable."""
+import sys
+from pathlib import Path
+
+_root = Path(__file__).resolve().parent.parent
+if str(_root) not in sys.path:
+    sys.path.insert(0, str(_root))
+
+=============================
+FILE: ./copilot/tests/test_basic.py
+=============================
+def test_dummy():
+    assert True
+
+=============================
+FILE: ./copilot/tests/test_main.py
+=============================
+"""Unit tests for main.py: CLI dispatch (inspect vs scrape, usage/exit)."""
+from unittest.mock import patch
+
+import pytest
+
+import main as main_module
+
+
+@patch("main.run_scrape")
+def test_main_scrape_mode_calls_run_scrape(mock_run_scrape):
+    with patch("sys.argv", ["main.py", "https://dic.nicovideo.jp/a/12345"]):
+        main_module.main()
+    mock_run_scrape.assert_called_once_with("https://dic.nicovideo.jp/a/12345")
+
+
+@patch("main.inspect_article")
+def test_main_inspect_mode_calls_inspect_article(mock_inspect):
+    with patch("sys.argv", ["main.py", "inspect", "12345", "a"]):
+        main_module.main()
+    mock_inspect.assert_called_once_with("12345", "a", None)
+
+
+@patch("main.inspect_article")
+def test_main_inspect_mode_with_last_n(mock_inspect):
+    with patch("sys.argv", ["main.py", "inspect", "12345", "a", "--last", "10"]):
+        main_module.main()
+    mock_inspect.assert_called_once_with("12345", "a", 10)
+
+
+def test_main_too_few_args_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "python main.py <article_url>" in out
+    assert "inspect" in out
+
+
+def test_main_inspect_without_id_type_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "inspect"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "inspect <article_id> <article_type>" in out
+
+=============================
+FILE: ./copilot/tests/test_orchestrator.py
+=============================
+"""Unit tests for orchestrator: URL building, metadata, pagination, orchestration."""
+from unittest.mock import patch, MagicMock
+
+import pytest
+from bs4 import BeautifulSoup
+
+from orchestrator import (
+    build_bbs_base_url,
+    fetch_article_metadata,
+    collect_all_responses,
+    run_scrape,
+)
+
+
+# ----- build_bbs_base_url -----
+
+
+def test_build_bbs_base_url_normal():
+    url = "https://dic.nicovideo.jp/a/12345"
+    assert build_bbs_base_url(url) == "https://dic.nicovideo.jp/b/a/12345/"
+
+
+def test_build_bbs_base_url_with_trailing_slash():
+    url = "https://dic.nicovideo.jp/a/12345/"
+    assert build_bbs_base_url(url) == "https://dic.nicovideo.jp/b/a/12345/"
+
+
+# ----- fetch_article_metadata (mocked fetch) -----
+
+
+def test_fetch_article_metadata_mocked():
+    html = """
+    <html><head>
+    <meta property="og:title" content="Fooとは">
+    <meta property="og:url" content="https://dic.nicovideo.jp/a/12345">
+    </head></html>
+    """
+    soup = BeautifulSoup(html, "lxml")
+    with patch("orchestrator.fetch_page", return_value=soup):
+        article_id, article_type, title = fetch_article_metadata(
+            "https://dic.nicovideo.jp/a/12345"
+        )
+    assert article_id == "12345"
+    assert article_type == "a"
+    assert title == "Foo"
+
+
+def test_fetch_article_metadata_missing_meta():
+    soup = BeautifulSoup("<html><body></body></html>", "lxml")
+    with patch("orchestrator.fetch_page", return_value=soup):
+        article_id, article_type, title = fetch_article_metadata(
+            "https://dic.nicovideo.jp/a/999"
+        )
+    assert article_id == "unknown"
+    assert article_type == "a"
+    assert title == "unknown"
+
+
+# ----- collect_all_responses: pagination and stopping -----
+
+
+@patch("orchestrator.time.sleep")
+@patch("orchestrator.parse_responses")
+@patch("orchestrator.fetch_page")
+def test_collect_all_responses_stops_on_empty_page(
+    mock_fetch, mock_parse, mock_sleep
+):
+    mock_fetch.return_value = MagicMock()
+    mock_parse.side_effect = [
+        [{"res_no": 1}, {"res_no": 2}],
+        [],
+    ]
+    result = collect_all_responses("https://dic.nicovideo.jp/b/a/12345/")
+    assert result == [{"res_no": 1}, {"res_no": 2}]
+    assert mock_fetch.call_count == 2
+    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/1-")
+    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/3-")
+    mock_sleep.assert_called_once_with(1)
+
+
+@patch("orchestrator.time.sleep")
+@patch("orchestrator.parse_responses")
+@patch("orchestrator.fetch_page")
+def test_collect_all_responses_stops_on_fetch_error(
+    mock_fetch, mock_parse, mock_sleep
+):
+    mock_fetch.side_effect = RuntimeError("Failed to fetch (status=404)")
+    result = collect_all_responses("https://dic.nicovideo.jp/b/a/12345/")
+    assert result == []
+    mock_fetch.assert_called_once()
+    mock_parse.assert_not_called()
+    mock_sleep.assert_not_called()
+
+
+@patch("orchestrator.time.sleep")
+@patch("orchestrator.parse_responses")
+@patch("orchestrator.fetch_page")
+def test_collect_all_responses_single_page(
+    mock_fetch, mock_parse, mock_sleep
+):
+    mock_fetch.return_value = MagicMock()
+    mock_parse.return_value = []
+    result = collect_all_responses("https://dic.nicovideo.jp/b/a/12345/")
+    assert result == []
+    mock_fetch.assert_called_once_with("https://dic.nicovideo.jp/b/a/12345/1-")
+    mock_sleep.assert_not_called()
+
+
+# ----- run_scrape orchestration flow -----
+
+
+def test_run_scrape_happy_path_orchestrates_dependencies_correctly():
+    article_url = "https://dic.nicovideo.jp/a/12345"
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=("12345", "a", "Title"),
+    ) as mock_meta:
+        with patch(
+            "orchestrator.build_bbs_base_url",
+            return_value="https://dic.nicovideo.jp/b/a/12345/",
+        ) as mock_build:
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=[{"res_no": 1}],
+            ) as mock_collect:
+                with patch("orchestrator.save_json") as mock_save_json:
+                    conn = MagicMock()
+                    with patch("orchestrator.init_db", return_value=conn) as mock_init:
+                        with patch("orchestrator.save_to_db") as mock_save_db:
+                            with patch("orchestrator.print") as mock_print:
+                                run_scrape(article_url)
+
+    mock_meta.assert_called_once_with(article_url)
+    mock_build.assert_called_once_with(article_url)
+    mock_collect.assert_called_once_with("https://dic.nicovideo.jp/b/a/12345/")
+
+    mock_save_json.assert_called_once_with(
+        "12345",
+        "a",
+        "Title",
+        article_url,
+        [{"res_no": 1}],
+    )
+
+    mock_init.assert_called_once_with()
+    mock_save_db.assert_called_once_with(
+        conn,
+        "12345",
+        "a",
+        "Title",
+        article_url,
+        [{"res_no": 1}],
+    )
+    conn.close.assert_called_once_with()
+
+    # Final status message
+    mock_print.assert_any_call("Saved to SQLite")
+
+
+def test_run_scrape_propagates_error_from_metadata_and_does_not_init_db():
+    article_url = "https://dic.nicovideo.jp/a/12345"
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        side_effect=RuntimeError("network error"),
+    ) as mock_meta:
+        with patch("orchestrator.init_db") as mock_init:
+            with pytest.raises(RuntimeError):
+                run_scrape(article_url)
+
+    mock_meta.assert_called_once_with(article_url)
+    mock_init.assert_not_called()
+
+=============================
+FILE: ./copilot/tests/test_parser.py
+=============================
+"""Unit tests for parser.py: current HTML parsing behavior."""
+
+from bs4 import BeautifulSoup
+
+from parser import parse_responses
+
+
+def test_parse_responses_normal_case():
+    html = """
+    <dl>
+      <dt class="st-bbs_reshead" data-res_no="12" data-id_hash="abc123">
+        <span class="st-bbs_name">Alice</span>
+        <span class="bbs_resInfo_resTime">2026/03/07 12:34</span>
+      </dt>
+      <dd class="st-bbs_resbody">
+        <div class="bbs_resbody_inner">
+          Hello<br/>World
+          <div class="st-bbs_contentsTitle">remove me</div>
+          <div class="st-bbs_referLabel">remove label</div>
+          <input value="ignored" />
+          <img src="ignored.png" />
+        </div>
+      </dd>
+    </dl>
+    """
+    soup = BeautifulSoup(html, "lxml")
+
+    responses = parse_responses(soup)
+
+    assert len(responses) == 1
+    response = responses[0]
+    assert response["res_no"] == 12
+    assert response["id_hash"] == "abc123"
+    assert response["poster_name"] == "Alice"
+    assert response["posted_at"] == "2026/03/07 12:34"
+    assert response["content"] == "Hello\nWorld"
+    assert "Hello\nWorld" in response["content_html"]
+    assert "remove me" not in response["content_html"]
+    assert "remove label" not in response["content_html"]
+    assert "<img" not in response["content_html"]
+    assert "<input" not in response["content_html"]
+
+
+def test_parse_responses_partial_html_and_missing_res_no():
+    html = """
+    <dl>
+      <dt class="st-bbs_reshead" data-id_hash="skip-me">
+        <span class="st-bbs_name">NoNumber</span>
+      </dt>
+      <dd class="st-bbs_resbody">
+        <div class="bbs_resbody_inner">Should be skipped</div>
+      </dd>
+
+      <dt class="st-bbs_reshead" data-res_no="13" data-id_hash="def456">
+      </dt>
+      <dd class="st-bbs_resbody">
+      </dd>
+    </dl>
+    """
+    soup = BeautifulSoup(html, "lxml")
+
+    responses = parse_responses(soup)
+
+    assert len(responses) == 1
+    response = responses[0]
+    assert response["res_no"] == 13
+    assert response["id_hash"] == "def456"
+    assert response["poster_name"] is None
+    assert response["posted_at"] is None
+    assert response["content"] == ""
+    assert response["content_html"] == ""
+
+=============================
+FILE: ./copilot/tests/test_storage.py
+=============================
+"""Unit tests for storage layer (storage.py).
+
+These tests run in a temp working directory so production `data/` is untouched.
+"""
+
+import json
+import sqlite3
+
+import storage
+from storage import init_db, save_json, save_to_db
+
+
+def _table_names(conn: sqlite3.Connection) -> set[str]:
+    cur = conn.cursor()
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    return {row[0] for row in cur.fetchall()}
+
+
+def test_init_db_creates_data_dir_db_and_tables(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    conn = init_db()
+    try:
+        db_path = tmp_path / "data" / "nicodic.db"
+        assert (tmp_path / "data").is_dir()
+        assert db_path.is_file()
+
+        tables = _table_names(conn)
+        assert "articles" in tables
+        assert "responses" in tables
+    finally:
+        conn.close()
+
+
+def test_save_to_db_inserts_article_and_responses_and_mapping(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    conn = init_db()
+    try:
+        article_id = "12345"
+        article_type = "a"
+        title = "Some Title"
+        article_url = "https://dic.nicovideo.jp/a/12345"
+        responses = [
+            {
+                "res_no": 1,
+                "id_hash": "id1",
+                "poster_name": "Alice",
+                "posted_at": "2025-01-01 00:00",
+                "content": "TEXT-1",
+                "content_html": "<div>HTML-1</div>",
+            },
+            {
+                "res_no": 2,
+                "id_hash": "id2",
+                "poster_name": "Bob",
+                "posted_at": "2025-01-01 00:01",
+                "content": "TEXT-2",
+                "content_html": "<div>HTML-2</div>",
+            },
+        ]
+
+        save_to_db(conn, article_id, article_type, title, article_url, responses)
+
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM articles")
+        assert cur.fetchone()[0] == 1
+
+        cur.execute("SELECT COUNT(*) FROM responses")
+        assert cur.fetchone()[0] == 2
+
+        # Mapping protection: response.content -> content_text,
+        # response.content_html -> content_html
+        cur.execute(
+            "SELECT res_no, content_text, content_html "
+            "FROM responses "
+            "WHERE article_id=? AND article_type=? "
+            "ORDER BY res_no ASC",
+            (article_id, article_type),
+        )
+        rows = cur.fetchall()
+        assert rows == [
+            (1, "TEXT-1", "<div>HTML-1</div>"),
+            (2, "TEXT-2", "<div>HTML-2</div>"),
+        ]
+    finally:
+        conn.close()
+
+
+def test_save_to_db_insert_or_ignore_prevents_duplicate_growth(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    conn = init_db()
+    try:
+        article_id = "12345"
+        article_type = "a"
+        title = "Some Title"
+        article_url = "https://dic.nicovideo.jp/a/12345"
+        responses = [
+            {"res_no": 1, "content": "TEXT-1", "content_html": "<div>HTML-1</div>"},
+            {"res_no": 2, "content": "TEXT-2", "content_html": "<div>HTML-2</div>"},
+        ]
+
+        save_to_db(conn, article_id, article_type, title, article_url, responses)
+        save_to_db(conn, article_id, article_type, title, article_url, responses)
+
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM articles")
+        assert cur.fetchone()[0] == 1
+
+        cur.execute("SELECT COUNT(*) FROM responses")
+        assert cur.fetchone()[0] == 2
+    finally:
+        conn.close()
+
+
+def test_save_json_writes_json_and_sanitizes_title_in_filename(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(storage.time, "time", lambda: 1700000000)
+
+    article_id = "99999"
+    article_type = "a"
+    title = "A/B\\C"
+    article_url = "https://dic.nicovideo.jp/a/99999"
+    responses = [
+        {
+            "res_no": 1,
+            "id_hash": "id1",
+            "poster_name": "Alice",
+            "posted_at": "2025-01-01 00:00",
+            "content": "TEXT",
+            "content_html": "<div>HTML</div>",
+        }
+    ]
+
+    save_json(article_id, article_type, title, article_url, responses)
+
+    # Filename behavior: / -> ／ and \ -> ＼
+    expected_filename = f"{article_id}{article_type}_A／B＼C.json"
+    output_path = tmp_path / "data" / expected_filename
+    assert output_path.is_file()
+
+    data = json.loads(output_path.read_text(encoding="utf-8"))
+    for key in [
+        "article_id",
+        "article_type",
+        "article_url",
+        "title",
+        "collected_at",
+        "response_count",
+        "responses",
+    ]:
+        assert key in data
+
+    assert data["article_id"] == article_id
+    assert data["article_type"] == article_type
+    assert data["article_url"] == article_url
+    assert data["title"] == title
+    assert data["collected_at"] == 1700000000
+    assert data["response_count"] == 1
+    assert data["responses"] == responses
+
+=============================
+FILE: ./cursor/.flake8
+=============================
+[flake8]
+max-line-length = 88
+
+
+=============================
+FILE: ./cursor/.github/workflows/ci.yml
+=============================
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run linter
+        run: flake8 .
+
+      - name: Run tests
+        run: pytest
+
+
+=============================
+FILE: ./cursor/.gitignore
+=============================
+# Python
+__pycache__/
+*.pyc
+
+# SQLite database
+*.db
+*.sqlite3
+
+# Runtime data
+data/
+
+# OS
+.DS_Store
+
+# Utlity files/folders
+export_project.sh
+project_summary.txt
+
+=============================
+FILE: ./cursor/Dockerfile
+=============================
+FROM python:3.12-slim
+
+WORKDIR /app
+
+COPY requirements.txt .
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+CMD ["python", "main.py"]
+
+
+=============================
+FILE: ./cursor/LICENSE
+=============================
+MIT License
+
+Copyright (c) 2026 W.Eryth
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+=============================
+FILE: ./cursor/Makefile
+=============================
+.PHONY: build run test lint clean inspect
+
+build:
+	docker compose build
+
+run:
+	docker compose run --rm scraper
+
+inspect:
+	docker compose run --rm scraper inspect
+
+test:
+	docker compose run --rm --entrypoint "" scraper pytest -q
+
+lint:
+	docker compose run --rm --entrypoint "" scraper flake8 .
+
+clean:
+	rm -f data/nicodic.db
+
+=============================
+FILE: ./cursor/README.md
+=============================
+# nicodic_archiver
+To scrape and store Nicodic BBS comments
+
+=============================
+FILE: ./cursor/cli.py
+=============================
+import sqlite3
+
+
+def inspect_article(article_id, article_type, last_n=None):
+    """
+    DB内の記事・レスをCLI表示する。
+    """
+
+    conn = sqlite3.connect("data/nicodic.db")
+    cur = conn.cursor()
+
+    cur.execute("""
+        SELECT title, canonical_url, created_at
+        FROM articles
+        WHERE article_id=? AND article_type=?
+    """, (article_id, article_type))
+
+    article = cur.fetchone()
+    if not article:
+        print("Article not found in DB")
+        conn.close()
+        return
+
+    title, url, created_at = article
+
+    print("=== ARTICLE META ===")
+    print("ID:", article_id)
+    print("Type:", article_type)
+    print("Title:", title)
+    print("URL:", url)
+    print("Created:", created_at)
+
+    if last_n:
+        cur.execute("""
+            SELECT res_no, poster_name, posted_at, id_hash, content_text
+            FROM responses
+            WHERE article_id=? AND article_type=?
+            ORDER BY res_no DESC
+            LIMIT ?
+        """, (article_id, article_type, last_n))
+        rows = cur.fetchall()
+        rows.reverse()
+    else:
+        cur.execute("""
+            SELECT res_no, poster_name, posted_at, id_hash, content_text
+            FROM responses
+            WHERE article_id=? AND article_type=?
+            ORDER BY res_no ASC
+        """, (article_id, article_type))
+        rows = cur.fetchall()
+
+    print("\n=== RESPONSES ===")
+    for res_no, poster_name, posted_at, id_hash, content_text in rows:
+        poster_name = poster_name or "unknown"
+        posted_at = posted_at or "unknown"
+        id_hash = id_hash or "unknown"
+
+        print(f"＞{res_no}　{poster_name}　{posted_at} ID: {id_hash}")
+        print(content_text or "")
+        print("----")
+
+    conn.close()
+
+=============================
+FILE: ./cursor/docker-compose.yml
+=============================
+
+services:
+  scraper:
+    build: .
+    volumes:
+      - .:/app
+
+=============================
+FILE: ./cursor/docs/ARCHITECTURE.md
+=============================
+# Architecture
+
+The project is a Nicodic article archiver.
+
+It downloads BBS comment pages from Nicovideo dictionary
+and stores them locally.
+
+--------------------------------------------------
+
+Current architecture
+
+main.py
+    CLI entry point
+
+orchestrator.py
+    Coordinates scraping flow and persistence order
+
+http_client.py
+    Handles HTTP requests
+
+parser.py
+    Extracts response data from HTML
+
+storage.py
+    Handles SQLite and JSON persistence
+
+cli.py
+    Provides inspect command output
+
+--------------------------------------------------
+
+Current responsibility split
+
+main.py
+    CLI argument parsing
+    inspect branch
+    dispatch to orchestration
+
+orchestrator.py
+    article metadata fetching
+    BBS base URL generation
+    paginated response collection
+    JSON save + SQLite save flow
+
+http_client.py
+    HTTP fetch layer
+
+parser.py
+    HTML parsing layer
+
+storage.py
+    persistence layer
+
+cli.py
+    DB inspection output
+
+--------------------------------------------------
+
+Rules for refactoring
+
+• Do not change program behaviour
+• Keep CLI compatible
+• Prefer small, explainable refactors
+• Keep Docker / pytest / flake8 working
+
+--------------------------------------------------
+
+Status after TASK002
+
+• main.py is thinner than before
+• orchestration has been extracted to orchestrator.py
+• behaviour is intended to remain unchanged
+
+--------------------------------------------------
+
+Future direction
+
+Further refactoring should treat this structure
+as the post-TASK002 baseline unless a new task
+explicitly changes it.
+
+
+=============================
+FILE: ./cursor/docs/WORKFLOW.md
+=============================
+# Development Workflow
+
+This project uses a Double Helix Development Model.
+
+Two AI agents work in parallel:
+
+- GitHub Copilot
+- Cursor AI
+
+Each development task is implemented twice.
+
+--------------------------------------------------
+
+Workflow
+
+1. Create two branches from main
+
+taskXXX-copilot
+taskXXX-cursor
+
+2. Implement the same task in both branches
+
+3. Compare the implementations
+
+4. Merge the better implementation into main
+
+5. Repeat for the next task
+
+--------------------------------------------------
+
+Rules
+
+• Never modify main directly  
+• Always create a task branch  
+• Keep Docker / pytest / flake8 working  
+• Do not remove existing functionality unless explicitly required
+
+--------------------------------------------------
+
+Project Goal
+
+The primary goal is to build a working archive application.
+
+AI comparison is a secondary goal.
+
+Stability and correctness are more important than novelty.
+
+--------------------------------------------------
+
+Japanese Summary
+
+このプロジェクトは **二重螺旋開発モデル** を採用しています。
+
+Copilot と Cursor の2つのAIが同じタスクを実装します。
+
+両方の実装を比較し、より良いものを main にマージします。
+
+
+=============================
+FILE: ./cursor/export_project.sh
+=============================
+#!/bin/bash
+
+OUTPUT="project_summary.txt"
+> "$OUTPUT"
+
+add_file () {
+  FILE=$1
+  if [ -f "$FILE" ]; then
+    echo "===== FILE: $FILE =====" >> "$OUTPUT"
+    echo "" >> "$OUTPUT"
+    cat "$FILE" >> "$OUTPUT"
+    echo "" >> "$OUTPUT"
+    echo "" >> "$OUTPUT"
+  fi
+}
+
+# --- root python files ---
+find . -maxdepth 1 -type f -name "*.py" | sort | while read -r file
+do
+  add_file "${file#./}"
+done
+
+# --- root config / runtime files ---
+add_file "Dockerfile"
+add_file "docker-compose.yml"
+add_file "requirements.txt"
+add_file ".flake8"
+add_file "README.md"
+add_file "inspect.sh"
+add_file "rrr.sh"
+add_file "Makefile"
+
+# --- tests ---
+find tests -type f -name "*.py" | sort | while read -r file
+do
+  add_file "$file"
+done
+
+# --- docs ---
+find docs -type f -name "*.md" | sort | while read -r file
+do
+  add_file "$file"
+done
+
+# --- github actions ---
+find .github/workflows -type f \( -name "*.yml" -o -name "*.yaml" \) 2>/dev/null | sort | while read -r file
+do
+  add_file "$file"
+done
+
+echo "Export complete: $OUTPUT"
+
+
+=============================
+FILE: ./cursor/http_client.py
+=============================
+import requests
+from bs4 import BeautifulSoup
+
+
+# シンプルなUA指定（現状は固定値）
+HEADERS = {"User-Agent": "Mozilla/5.0"}
+
+
+def fetch_page(url: str) -> BeautifulSoup:
+    """
+    指定URLを取得し BeautifulSoup を返す。
+    200以外は例外送出。
+    ※ 現状ロジック変更なし
+    """
+    res = requests.get(url, headers=HEADERS)
+
+    if res.status_code != 200:
+        raise RuntimeError(f"Failed to fetch {url} (status={res.status_code})")
+
+    return BeautifulSoup(res.text, "lxml")
+
+=============================
+FILE: ./cursor/inspect.sh
+=============================
+#!/bin/bash
+
+if [ "$1" = "" ] || [ "$2" = "" ]; then
+  echo "Usage:"
+  echo "  ./inspect.sh <article_id> <article_type> [last N]"
+  exit 1
+fi
+
+ARTICLE_ID=$1
+ARTICLE_TYPE=$2
+
+if [ "$3" = "last" ] && [ "$4" != "" ]; then
+  docker compose run --rm scraper inspect $ARTICLE_ID $ARTICLE_TYPE --last $4
+else
+  docker compose run --rm scraper inspect $ARTICLE_ID $ARTICLE_TYPE
+fi
+
+
+=============================
+FILE: ./cursor/main.py
+=============================
+import sys
+
+from cli import inspect_article
+from orchestrator import run_scrape
+
+
+# ============================================================
+# エントリポイント
+# ============================================================
+
+def main():
+    """
+    CLIエントリポイント。
+    - 通常: 記事URL指定でスクレイプ実行
+    - inspect: DB内容表示
+    """
+
+    if len(sys.argv) < 2:
+        print("Usage:")
+        print("  python main.py <article_url>")
+        print("  python main.py inspect <article_id> <article_type> [--last N]")
+        sys.exit(1)
+
+    # inspectモード
+    if sys.argv[1] == "inspect":
+
+        if len(sys.argv) < 4:
+            print("Usage: inspect <article_id> <article_type> [--last N]")
+            sys.exit(1)
+
+        article_id = sys.argv[2]
+        article_type = sys.argv[3]
+
+        last_n = None
+        if "--last" in sys.argv:
+            idx = sys.argv.index("--last")
+            last_n = int(sys.argv[idx + 1])
+
+        inspect_article(article_id, article_type, last_n)
+        return
+
+    # 通常スクレイプモード
+    article_url = sys.argv[1]
+
+    run_scrape(article_url)
+
+
+if __name__ == "__main__":
+    main()
+
+=============================
+FILE: ./cursor/orchestrator.py
+=============================
+import time
+from urllib.parse import urlparse
+
+from http_client import fetch_page
+from parser import parse_responses
+from storage import init_db, save_json, save_to_db
+
+
+def build_bbs_base_url(article_url: str) -> str:
+    """
+    記事URLから掲示板ベースURLを生成する。
+    /a/xxx -> /b/a/xxx/
+    """
+    parsed = urlparse(article_url)
+    path_parts = parsed.path.strip("/").split("/")
+
+    article_type = path_parts[0]
+    article_id = path_parts[1]
+
+    return f"{parsed.scheme}://{parsed.netloc}/b/{article_type}/{article_id}/"
+
+
+def collect_all_responses(bbs_base_url: str) -> list:
+    """
+    ページネーションを辿り全レス収集。
+    404または空ページで終了。
+    """
+
+    all_responses = []
+    start = 1
+
+    while True:
+
+        page_url = f"{bbs_base_url}{start}-"
+        print("Fetching:", page_url)
+
+        try:
+            soup = fetch_page(page_url)
+        except RuntimeError as e:
+            print(e)
+            break
+
+        page_responses = parse_responses(soup)
+
+        if not page_responses:
+            break
+
+        all_responses.extend(page_responses)
+
+        print("Page collected:", len(page_responses))
+        print("Total collected:", len(all_responses))
+
+        start += len(page_responses)
+
+        # 過度アクセス回避
+        time.sleep(1)
+
+    return all_responses
+
+
+def fetch_article_metadata(article_url: str):
+    """
+    記事ページから以下を取得:
+      - article_id
+      - article_type
+      - title
+    """
+
+    soup = fetch_page(article_url)
+
+    title_tag = soup.find("meta", property="og:title")
+    title = title_tag["content"].split("とは")[0] if title_tag else "unknown"
+
+    og_url = soup.find("meta", property="og:url")
+    article_id = og_url["content"].rstrip("/").split("/")[-1] if og_url else "unknown"
+
+    parsed = urlparse(article_url)
+    article_type = parsed.path.strip("/").split("/")[0]
+
+    return article_id, article_type, title
+
+
+def run_scrape(article_url: str):
+    article_id, article_type, title = fetch_article_metadata(article_url)
+    bbs_base_url = build_bbs_base_url(article_url)
+
+    responses = collect_all_responses(bbs_base_url)
+
+    save_json(article_id, article_type, title, article_url, responses)
+
+    conn = init_db()
+    save_to_db(conn, article_id, article_type, title, article_url, responses)
+    conn.close()
+
+    print("Saved to SQLite")
+
+=============================
+FILE: ./cursor/parser.py
+=============================
+from bs4 import BeautifulSoup
+
+
+def parse_responses(soup: BeautifulSoup) -> list:
+    """
+    掲示板HTMLからレス情報を抽出する。
+    抽出対象:
+      - レス番号
+      - 投稿者名
+      - 投稿日時
+      - ID
+      - 本文テキスト
+      - 本文HTML（将来用保険）
+    """
+
+    responses = []
+    res_heads = soup.find_all("dt", class_="st-bbs_reshead")
+
+    for head in res_heads:
+
+        res_no_raw = head.get("data-res_no")
+        id_hash = head.get("data-id_hash")
+
+        # 投稿者名
+        name_tag = head.find("span", class_="st-bbs_name")
+        poster_name = name_tag.get_text(strip=True) if name_tag else None
+
+        # 投稿日時
+        time_tag = head.find("span", class_="bbs_resInfo_resTime")
+        posted_at = time_tag.get_text(strip=True) if time_tag else None
+
+        body = head.find_next_sibling("dd", class_="st-bbs_resbody")
+
+        content_text = ""
+        content_html = ""
+
+        if body:
+            inner = body.find("div", class_="bbs_resbody_inner")
+
+            if inner:
+
+                # 本文以外の領域削除
+                for cls in [
+                    "st-bbs_contents-oekaki",
+                    "st-bbs_contentsTitle",
+                    "st-bbsArea_buttons",
+                    "st-bbs_referLabel",   # ← 追加
+                ]:
+                    for tag in inner.find_all(class_=cls):
+                        tag.decompose()
+
+                # 画像や入力欄は本文扱いしない
+                for tag in inner.find_all(["input", "img"]):
+                    tag.decompose()
+
+                # <br> を改行へ変換
+                for br in inner.find_all("br"):
+                    br.replace_with("\n")
+
+                content_html = str(inner)
+
+                # テキスト抽出（separator未使用）
+                content_text = inner.get_text()
+                content_text = content_text.strip()
+
+                # 過剰改行圧縮
+                while "\n\n\n" in content_text:
+                    content_text = content_text.replace("\n\n\n", "\n\n")
+
+        if not res_no_raw:
+            continue
+
+        responses.append({
+            "res_no": int(res_no_raw),
+            "id_hash": id_hash,
+            "poster_name": poster_name,
+            "posted_at": posted_at,
+            "content": content_text,
+            "content_html": content_html,
+        })
+
+    return responses
+
+=============================
+FILE: ./cursor/requirements.txt
+=============================
+requests
+beautifulsoup4
+lxml
+pytest
+flake8
+
+=============================
+FILE: ./cursor/rrr.sh
+=============================
+#!/bin/bash
+set -e
+
+ARTICLE_URL="https://dic.nicovideo.jp/a/プロイセン(APヘタリア)"
+ARTICLE_ID="4470620"
+ARTICLE_TYPE="a"
+
+echo "=== RESET DB ==="
+sudo rm -f data/nicodic.db || true
+
+echo "=== BUILD CONTAINER ==="
+docker compose build > /dev/null
+
+echo "=== SCRAPE ==="
+docker compose run --rm scraper python main.py "$ARTICLE_URL"
+
+echo "=== CHECK JSON ==="
+JSON_COUNT=$(jq '.response_count' data/*.json)
+
+echo "JSON responses: $JSON_COUNT"
+
+echo "=== CHECK SQLITE ==="
+DB_COUNT=$(sqlite3 data/nicodic.db "SELECT COUNT(*) FROM responses WHERE article_id='$ARTICLE_ID';")
+
+echo "DB responses: $DB_COUNT"
+
+echo "=== VERIFY ==="
+
+if [ "$JSON_COUNT" = "$DB_COUNT" ]; then
+  echo "OK: JSON and DB counts match"
+else
+  echo "ERROR: mismatch"
+  exit 1
+fi
+
+echo "=== LAST RESPONSES ==="
+docker compose run --rm scraper python main.py inspect $ARTICLE_ID $ARTICLE_TYPE --last 10
+
+echo "=== TEST COMPLETE ==="
+
+
+=============================
+FILE: ./cursor/storage.py
+=============================
+import json
+import os
+import sqlite3
+import time
+
+
+def init_db():
+    """
+    SQLite初期化（テーブル作成）。
+    既存の場合は何もしない。
+    """
+
+    os.makedirs("data", exist_ok=True)
+
+    conn = sqlite3.connect("data/nicodic.db")
+    cur = conn.cursor()
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS articles (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        article_id TEXT NOT NULL,
+        article_type TEXT NOT NULL,
+        title TEXT NOT NULL,
+        canonical_url TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(article_id, article_type)
+    )
+    """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS responses (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        article_id TEXT NOT NULL,
+        article_type TEXT NOT NULL,
+        res_no INTEGER NOT NULL,
+        id_hash TEXT,
+        poster_name TEXT,
+        posted_at TEXT,
+        content_html TEXT,
+        content_text TEXT,
+        res_hidden INTEGER DEFAULT 0,
+        idhash_hidden INTEGER DEFAULT 0,
+        good_count INTEGER,
+        bad_count INTEGER,
+        scraped_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(article_id, article_type, res_no)
+    )
+    """)
+
+    conn.commit()
+    return conn
+
+
+def save_to_db(conn, article_id, article_type, title, article_url, responses):
+    """
+    記事およびレスをSQLiteへ保存。
+    INSERT OR IGNORE で重複回避。
+    """
+
+    cur = conn.cursor()
+
+    # 記事メタ保存
+    cur.execute("""
+        INSERT OR IGNORE INTO articles
+        (article_id, article_type, title, canonical_url)
+        VALUES (?, ?, ?, ?)
+    """, (article_id, article_type, title, article_url))
+
+    # レス保存
+    for r in responses:
+        cur.execute("""
+            INSERT OR IGNORE INTO responses
+            (article_id, article_type, res_no, id_hash, poster_name, posted_at,
+                    content_text, content_html)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            article_id,
+            article_type,
+            r["res_no"],
+            r.get("id_hash"),
+            r.get("poster_name"),
+            r.get("posted_at"),
+            r.get("content"),
+            r.get("content_html"),
+        ))
+
+    conn.commit()
+
+
+def save_json(article_id, article_type, title, article_url, responses):
+    """
+    取得結果をJSONとして保存（保険用途）。
+    """
+
+    os.makedirs("data", exist_ok=True)
+
+    safe_title = title.replace("/", "／").replace("\\", "＼")
+    filename = f"{article_id}{article_type}_{safe_title}.json"
+    output_path = os.path.join("data", filename)
+
+    data = {
+        "article_id": article_id,
+        "article_type": article_type,
+        "article_url": article_url,
+        "title": title,
+        "collected_at": int(time.time()),
+        "response_count": len(responses),
+        "responses": responses
+    }
+
+    with open(output_path, "w", encoding="utf-8") as f:
+        json.dump(data, f, ensure_ascii=False, indent=2)
+
+    print("Saved JSON:", output_path)
+
+=============================
+FILE: ./cursor/tests/conftest.py
+=============================
+"""Pytest config: ensure project root is on path so main/orchestrator are importable."""
+import sys
+from pathlib import Path
+
+_root = Path(__file__).resolve().parent.parent
+if str(_root) not in sys.path:
+    sys.path.insert(0, str(_root))
+
+=============================
+FILE: ./cursor/tests/test_basic.py
+=============================
+def test_dummy():
+    assert True
+
+=============================
+FILE: ./cursor/tests/test_main.py
+=============================
+"""Unit tests for main.py: CLI dispatch (inspect vs scrape, usage/exit)."""
+from unittest.mock import patch
+
+import pytest
+
+import main as main_module
+
+
+@patch("main.run_scrape")
+def test_main_scrape_mode_calls_run_scrape(mock_run_scrape):
+    with patch("sys.argv", ["main.py", "https://dic.nicovideo.jp/a/12345"]):
+        main_module.main()
+    mock_run_scrape.assert_called_once_with("https://dic.nicovideo.jp/a/12345")
+
+
+@patch("main.inspect_article")
+def test_main_inspect_mode_calls_inspect_article(mock_inspect):
+    with patch("sys.argv", ["main.py", "inspect", "12345", "a"]):
+        main_module.main()
+    mock_inspect.assert_called_once_with("12345", "a", None)
+
+
+@patch("main.inspect_article")
+def test_main_inspect_mode_with_last_n(mock_inspect):
+    with patch("sys.argv", ["main.py", "inspect", "12345", "a", "--last", "10"]):
+        main_module.main()
+    mock_inspect.assert_called_once_with("12345", "a", 10)
+
+
+def test_main_too_few_args_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "python main.py <article_url>" in out
+    assert "inspect" in out
+
+
+def test_main_inspect_without_id_type_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "inspect"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "inspect <article_id> <article_type>" in out
+
+=============================
+FILE: ./cursor/tests/test_orchestrator.py
+=============================
+"""Unit tests for orchestrator: URL building, metadata, pagination, orchestration."""
+from unittest.mock import patch, MagicMock
+
+import pytest
+from bs4 import BeautifulSoup
+
+from orchestrator import (
+    build_bbs_base_url,
+    fetch_article_metadata,
+    collect_all_responses,
+    run_scrape,
+)
+
+
+# ----- build_bbs_base_url -----
+
+
+def test_build_bbs_base_url_normal():
+    url = "https://dic.nicovideo.jp/a/12345"
+    assert build_bbs_base_url(url) == "https://dic.nicovideo.jp/b/a/12345/"
+
+
+def test_build_bbs_base_url_with_trailing_slash():
+    url = "https://dic.nicovideo.jp/a/12345/"
+    assert build_bbs_base_url(url) == "https://dic.nicovideo.jp/b/a/12345/"
+
+
+# ----- fetch_article_metadata (mocked fetch) -----
+
+
+def test_fetch_article_metadata_mocked():
+    html = """
+    <html><head>
+    <meta property="og:title" content="Fooとは">
+    <meta property="og:url" content="https://dic.nicovideo.jp/a/12345">
+    </head></html>
+    """
+    soup = BeautifulSoup(html, "lxml")
+    with patch("orchestrator.fetch_page", return_value=soup):
+        article_id, article_type, title = fetch_article_metadata(
+            "https://dic.nicovideo.jp/a/12345"
+        )
+    assert article_id == "12345"
+    assert article_type == "a"
+    assert title == "Foo"
+
+
+def test_fetch_article_metadata_missing_meta():
+    soup = BeautifulSoup("<html><body></body></html>", "lxml")
+    with patch("orchestrator.fetch_page", return_value=soup):
+        article_id, article_type, title = fetch_article_metadata(
+            "https://dic.nicovideo.jp/a/999"
+        )
+    assert article_id == "unknown"
+    assert article_type == "a"
+    assert title == "unknown"
+
+
+# ----- collect_all_responses: pagination and stopping -----
+
+
+@patch("orchestrator.time.sleep")
+@patch("orchestrator.parse_responses")
+@patch("orchestrator.fetch_page")
+def test_collect_all_responses_stops_on_empty_page(
+    mock_fetch, mock_parse, mock_sleep
+):
+    mock_fetch.return_value = MagicMock()
+    mock_parse.side_effect = [
+        [{"res_no": 1}, {"res_no": 2}],
+        [],
+    ]
+    result = collect_all_responses("https://dic.nicovideo.jp/b/a/12345/")
+    assert result == [{"res_no": 1}, {"res_no": 2}]
+    assert mock_fetch.call_count == 2
+    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/1-")
+    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/3-")
+    mock_sleep.assert_called_once_with(1)
+
+
+@patch("orchestrator.time.sleep")
+@patch("orchestrator.parse_responses")
+@patch("orchestrator.fetch_page")
+def test_collect_all_responses_stops_on_fetch_error(
+    mock_fetch, mock_parse, mock_sleep
+):
+    mock_fetch.side_effect = RuntimeError("Failed to fetch (status=404)")
+    result = collect_all_responses("https://dic.nicovideo.jp/b/a/12345/")
+    assert result == []
+    mock_fetch.assert_called_once()
+    mock_parse.assert_not_called()
+    mock_sleep.assert_not_called()
+
+
+@patch("orchestrator.time.sleep")
+@patch("orchestrator.parse_responses")
+@patch("orchestrator.fetch_page")
+def test_collect_all_responses_single_page(
+    mock_fetch, mock_parse, mock_sleep
+):
+    mock_fetch.return_value = MagicMock()
+    mock_parse.return_value = []
+    result = collect_all_responses("https://dic.nicovideo.jp/b/a/12345/")
+    assert result == []
+    mock_fetch.assert_called_once_with("https://dic.nicovideo.jp/b/a/12345/1-")
+    mock_sleep.assert_not_called()
+
+
+# ----- run_scrape orchestration flow -----
+
+
+def test_run_scrape_happy_path_orchestrates_dependencies_correctly():
+    article_url = "https://dic.nicovideo.jp/a/12345"
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=("12345", "a", "Title"),
+    ) as mock_meta:
+        with patch(
+            "orchestrator.build_bbs_base_url",
+            return_value="https://dic.nicovideo.jp/b/a/12345/",
+        ) as mock_build:
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=[{"res_no": 1}],
+            ) as mock_collect:
+                with patch("orchestrator.save_json") as mock_save_json:
+                    conn = MagicMock()
+                    with patch("orchestrator.init_db", return_value=conn) as mock_init:
+                        with patch("orchestrator.save_to_db") as mock_save_db:
+                            with patch("orchestrator.print") as mock_print:
+                                run_scrape(article_url)
+
+    mock_meta.assert_called_once_with(article_url)
+    mock_build.assert_called_once_with(article_url)
+    mock_collect.assert_called_once_with("https://dic.nicovideo.jp/b/a/12345/")
+
+    mock_save_json.assert_called_once_with(
+        "12345",
+        "a",
+        "Title",
+        article_url,
+        [{"res_no": 1}],
+    )
+
+    mock_init.assert_called_once_with()
+    mock_save_db.assert_called_once_with(
+        conn,
+        "12345",
+        "a",
+        "Title",
+        article_url,
+        [{"res_no": 1}],
+    )
+    conn.close.assert_called_once_with()
+
+    # Final status message
+    mock_print.assert_any_call("Saved to SQLite")
+
+
+def test_run_scrape_propagates_error_from_metadata_and_does_not_init_db():
+    article_url = "https://dic.nicovideo.jp/a/12345"
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        side_effect=RuntimeError("network error"),
+    ) as mock_meta:
+        with patch("orchestrator.init_db") as mock_init:
+            with pytest.raises(RuntimeError):
+                run_scrape(article_url)
+
+    mock_meta.assert_called_once_with(article_url)
+    mock_init.assert_not_called()
+
+=============================
+FILE: ./cursor/tests/test_parser.py
+=============================
+"""Unit tests for parser.py: current HTML parsing behavior."""
+
+from bs4 import BeautifulSoup
+
+from parser import parse_responses
+
+
+def test_parse_responses_normal_case():
+    html = """
+    <dl>
+      <dt class="st-bbs_reshead" data-res_no="12" data-id_hash="abc123">
+        <span class="st-bbs_name">Alice</span>
+        <span class="bbs_resInfo_resTime">2026/03/07 12:34</span>
+      </dt>
+      <dd class="st-bbs_resbody">
+        <div class="bbs_resbody_inner">
+          Hello<br/>World
+          <div class="st-bbs_contentsTitle">remove me</div>
+          <div class="st-bbs_referLabel">remove label</div>
+          <input value="ignored" />
+          <img src="ignored.png" />
+        </div>
+      </dd>
+    </dl>
+    """
+    soup = BeautifulSoup(html, "lxml")
+
+    responses = parse_responses(soup)
+
+    assert len(responses) == 1
+    response = responses[0]
+    assert response["res_no"] == 12
+    assert response["id_hash"] == "abc123"
+    assert response["poster_name"] == "Alice"
+    assert response["posted_at"] == "2026/03/07 12:34"
+    assert response["content"] == "Hello\nWorld"
+    assert "Hello\nWorld" in response["content_html"]
+    assert "remove me" not in response["content_html"]
+    assert "remove label" not in response["content_html"]
+    assert "<img" not in response["content_html"]
+    assert "<input" not in response["content_html"]
+
+
+def test_parse_responses_partial_html_and_missing_res_no():
+    html = """
+    <dl>
+      <dt class="st-bbs_reshead" data-id_hash="skip-me">
+        <span class="st-bbs_name">NoNumber</span>
+      </dt>
+      <dd class="st-bbs_resbody">
+        <div class="bbs_resbody_inner">Should be skipped</div>
+      </dd>
+
+      <dt class="st-bbs_reshead" data-res_no="13" data-id_hash="def456">
+      </dt>
+      <dd class="st-bbs_resbody">
+      </dd>
+    </dl>
+    """
+    soup = BeautifulSoup(html, "lxml")
+
+    responses = parse_responses(soup)
+
+    assert len(responses) == 1
+    response = responses[0]
+    assert response["res_no"] == 13
+    assert response["id_hash"] == "def456"
+    assert response["poster_name"] is None
+    assert response["posted_at"] is None
+    assert response["content"] == ""
+    assert response["content_html"] == ""
+
+=============================
+FILE: ./cursor/tests/test_storage.py
+=============================
+"""Unit tests for storage layer (storage.py).
+
+These tests run in a temp working directory so production `data/` is untouched.
+"""
+
+import json
+import sqlite3
+
+import storage
+from storage import init_db, save_json, save_to_db
+
+
+def _table_names(conn: sqlite3.Connection) -> set[str]:
+    cur = conn.cursor()
+    cur.execute("SELECT name FROM sqlite_master WHERE type='table'")
+    return {row[0] for row in cur.fetchall()}
+
+
+def test_init_db_creates_data_dir_db_and_tables(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    conn = init_db()
+    try:
+        db_path = tmp_path / "data" / "nicodic.db"
+        assert (tmp_path / "data").is_dir()
+        assert db_path.is_file()
+
+        tables = _table_names(conn)
+        assert "articles" in tables
+        assert "responses" in tables
+    finally:
+        conn.close()
+
+
+def test_save_to_db_inserts_article_and_responses_and_mapping(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    conn = init_db()
+    try:
+        article_id = "12345"
+        article_type = "a"
+        title = "Some Title"
+        article_url = "https://dic.nicovideo.jp/a/12345"
+        responses = [
+            {
+                "res_no": 1,
+                "id_hash": "id1",
+                "poster_name": "Alice",
+                "posted_at": "2025-01-01 00:00",
+                "content": "TEXT-1",
+                "content_html": "<div>HTML-1</div>",
+            },
+            {
+                "res_no": 2,
+                "id_hash": "id2",
+                "poster_name": "Bob",
+                "posted_at": "2025-01-01 00:01",
+                "content": "TEXT-2",
+                "content_html": "<div>HTML-2</div>",
+            },
+        ]
+
+        save_to_db(conn, article_id, article_type, title, article_url, responses)
+
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM articles")
+        assert cur.fetchone()[0] == 1
+
+        cur.execute("SELECT COUNT(*) FROM responses")
+        assert cur.fetchone()[0] == 2
+
+        # Mapping protection: response.content -> content_text,
+        # response.content_html -> content_html
+        cur.execute(
+            "SELECT res_no, content_text, content_html "
+            "FROM responses "
+            "WHERE article_id=? AND article_type=? "
+            "ORDER BY res_no ASC",
+            (article_id, article_type),
+        )
+        rows = cur.fetchall()
+        assert rows == [
+            (1, "TEXT-1", "<div>HTML-1</div>"),
+            (2, "TEXT-2", "<div>HTML-2</div>"),
+        ]
+    finally:
+        conn.close()
+
+
+def test_save_to_db_insert_or_ignore_prevents_duplicate_growth(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    conn = init_db()
+    try:
+        article_id = "12345"
+        article_type = "a"
+        title = "Some Title"
+        article_url = "https://dic.nicovideo.jp/a/12345"
+        responses = [
+            {"res_no": 1, "content": "TEXT-1", "content_html": "<div>HTML-1</div>"},
+            {"res_no": 2, "content": "TEXT-2", "content_html": "<div>HTML-2</div>"},
+        ]
+
+        save_to_db(conn, article_id, article_type, title, article_url, responses)
+        save_to_db(conn, article_id, article_type, title, article_url, responses)
+
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM articles")
+        assert cur.fetchone()[0] == 1
+
+        cur.execute("SELECT COUNT(*) FROM responses")
+        assert cur.fetchone()[0] == 2
+    finally:
+        conn.close()
+
+
+def test_save_json_writes_json_and_sanitizes_title_in_filename(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(storage.time, "time", lambda: 1700000000)
+
+    article_id = "99999"
+    article_type = "a"
+    title = "A/B\\C"
+    article_url = "https://dic.nicovideo.jp/a/99999"
+    responses = [
+        {
+            "res_no": 1,
+            "id_hash": "id1",
+            "poster_name": "Alice",
+            "posted_at": "2025-01-01 00:00",
+            "content": "TEXT",
+            "content_html": "<div>HTML</div>",
+        }
+    ]
+
+    save_json(article_id, article_type, title, article_url, responses)
+
+    # Filename behavior: / -> ／ and \ -> ＼
+    expected_filename = f"{article_id}{article_type}_A／B＼C.json"
+    output_path = tmp_path / "data" / expected_filename
+    assert output_path.is_file()
+
+    data = json.loads(output_path.read_text(encoding="utf-8"))
+    for key in [
+        "article_id",
+        "article_type",
+        "article_url",
+        "title",
+        "collected_at",
+        "response_count",
+        "responses",
+    ]:
+        assert key in data
+
+    assert data["article_id"] == article_id
+    assert data["article_type"] == article_type
+    assert data["article_url"] == article_url
+    assert data["title"] == title
+    assert data["collected_at"] == 1700000000
+    assert data["response_count"] == 1
+    assert data["responses"] == responses
+
+=============================
+FILE: ./export_review_snapshot.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/META/scripts/export_review_snapshot.sh" "$@"
+
+
+=============================
+FILE: ./export_snapshot.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/META/scripts/export_snapshot.sh" "$@"
+
+
+=============================
+FILE: ./new_task_branches.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "${ROOT_DIR}/META/scripts/new_task_branches.sh" "$@"
+
+=============================
+FILE: ./sync_architecture_doc.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/META/scripts/sync_architecture_doc.sh" "$@"
+
+
+=============================
+FILE: ./validate_helix.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "${ROOT_DIR}/META/scripts/validate_helix.sh" "$@"
