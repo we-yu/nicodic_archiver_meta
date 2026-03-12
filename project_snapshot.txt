@@ -322,6 +322,41 @@ META/TASK_CYCLE_CHECKLIST.md
 META/REPO_BOUNDARY_GUARDRAILS.md
 
 ----------------------------------------
+COPILOT META ASSISTANT USAGE
+----------------------------------------
+
+A GitHub Copilot-connected AI may be used as a **supplementary meta assistant**
+for this project.
+
+Its intended role is limited to:
+
+- context recovery
+- source-of-truth file lookup
+- snapshot-based overview
+- review-log search
+- brief factual summaries from the meta repository
+
+Scope restriction:
+
+- use it for the root meta repository only
+- do not treat it as a product-repo implementation agent
+- do not let it act as judge, reviewer, or adoption decider
+
+Important:
+
+- it is **not** an authoritative source of truth
+- it does **not** replace human judgment
+- it does **not** replace the advisor AI review function
+- all final decisions must still be made by the human + advisor side
+- when any conflict exists, prefer the actual source-of-truth files
+
+Operational note:
+
+- prefer lightweight Ask-style usage for factual retrieval and context recovery
+- avoid using agent-style task execution for normal meta-repo information lookup
+- treat its outputs as supporting summaries, not as canonical records
+
+----------------------------------------
 ROADMAP REFERENCE
 ----------------------------------------
 
@@ -1148,6 +1183,24 @@ META/ROADMAP_REFERENCE.md
 This roadmap reference is for planning continuity only.
 It must not be treated as authoritative current state
 or as a fixed task order.
+
+Copilot meta-assistant note:
+
+A GitHub Copilot-connected AI is currently being used in a limited,
+supplementary role for meta-repository information retrieval and
+context recovery.
+
+Its role is limited to:
+- reading meta-repo source-of-truth files
+- summarizing current state
+- locating review-memory information
+- helping restore context across sessions
+
+It is not used as:
+- a product implementation authority
+- a review verdict authority
+- an adoption decision authority
+- a replacement for the human + advisor judgment chain
 
 --------------------------------------------------
 
@@ -2542,7 +2595,7 @@ Authoritative context should still be restored from:
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Thu Mar 12 05:16:12 UTC 2026
+generated: Thu Mar 12 05:52:00 UTC 2026
 mode: full
 
 
