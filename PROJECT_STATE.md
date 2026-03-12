@@ -177,19 +177,27 @@ for completed tasks.
 META/TASK_CYCLE_CHECKLIST.md stores practical task-cycle guidance
 for review, adoption, and post-merge synchronization.
 
+Roadmap reference:
+
+For non-authoritative future-direction context, see:
+
+META/ROADMAP_REFERENCE.md
+
+This roadmap reference is for planning continuity only.
+It must not be treated as authoritative current state
+or as a fixed task order.
+
 --------------------------------------------------
 
 NEXT TASK
 
-TASK006 is complete.
+TASK007 is complete.
 
 Next task is not yet fixed.
 
-Preferred immediate direction:
+A roadmap reference exists for future-direction context only:
 
-• perform TASK006 incident review and guardrail analysis
-• update operational rules for repo-boundary safety
-• keep future task selection separate from the incident-analysis task
+META/ROADMAP_REFERENCE.md
 
 --------------------------------------------------
 

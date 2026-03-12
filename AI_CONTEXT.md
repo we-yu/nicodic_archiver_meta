@@ -201,6 +201,25 @@ META/TASK_CYCLE_CHECKLIST.md
 META/REPO_BOUNDARY_GUARDRAILS.md
 
 ----------------------------------------
+ROADMAP REFERENCE
+----------------------------------------
+
+For future-direction context only, also see:
+
+META/ROADMAP_REFERENCE.md
+
+Important:
+
+- This roadmap file is reference-only.
+- It is not authoritative current state.
+- It is not a fixed task commitment.
+- If any conflict exists, always prefer:
+  - AI_CONTEXT.md
+  - PROJECT_STATE.md
+  - WORKSPACE.md
+  - latest snapshot files
+
+----------------------------------------
 SNAPSHOT SYSTEM
 ----------------------------------------
 
