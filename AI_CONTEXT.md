@@ -201,6 +201,41 @@ META/TASK_CYCLE_CHECKLIST.md
 META/REPO_BOUNDARY_GUARDRAILS.md
 
 ----------------------------------------
+COPILOT META ASSISTANT USAGE
+----------------------------------------
+
+A GitHub Copilot-connected AI may be used as a **supplementary meta assistant**
+for this project.
+
+Its intended role is limited to:
+
+- context recovery
+- source-of-truth file lookup
+- snapshot-based overview
+- review-log search
+- brief factual summaries from the meta repository
+
+Scope restriction:
+
+- use it for the root meta repository only
+- do not treat it as a product-repo implementation agent
+- do not let it act as judge, reviewer, or adoption decider
+
+Important:
+
+- it is **not** an authoritative source of truth
+- it does **not** replace human judgment
+- it does **not** replace the advisor AI review function
+- all final decisions must still be made by the human + advisor side
+- when any conflict exists, prefer the actual source-of-truth files
+
+Operational note:
+
+- prefer lightweight Ask-style usage for factual retrieval and context recovery
+- avoid using agent-style task execution for normal meta-repo information lookup
+- treat its outputs as supporting summaries, not as canonical records
+
+----------------------------------------
 ROADMAP REFERENCE
 ----------------------------------------
 

@@ -187,6 +187,24 @@ This roadmap reference is for planning continuity only.
 It must not be treated as authoritative current state
 or as a fixed task order.
 
+Copilot meta-assistant note:
+
+A GitHub Copilot-connected AI is currently being used in a limited,
+supplementary role for meta-repository information retrieval and
+context recovery.
+
+Its role is limited to:
+- reading meta-repo source-of-truth files
+- summarizing current state
+- locating review-memory information
+- helping restore context across sessions
+
+It is not used as:
+- a product implementation authority
+- a review verdict authority
+- an adoption decision authority
+- a replacement for the human + advisor judgment chain
+
 --------------------------------------------------
 
 NEXT TASK
