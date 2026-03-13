@@ -109,6 +109,7 @@ Keep the topic short, clear, and implementation-neutral.
 - Use a named output file if multiple reviews are active.
 - Treat the review snapshot as comparison material only.
 - Do not treat it as the authoritative restore snapshot.
+- As the default rule, do not commit `META/out/review_snapshot.txt` as part of authoritative workflow memory unless there is a specific reason to preserve that exact review artifact.
 
 ## 6. Decide adoption
 
@@ -198,6 +199,7 @@ Hard rule:
 - Run `./compare_helix.sh --all` from the workspace root.
 - Confirm the comparison passes after realignment.
 - If convergence fails, fix alignment before updating workflow memory.
+- Ensure new files relevant to comparison are already tracked before running `./compare_helix.sh --all`.
 
 ## 11. Update review memory
 

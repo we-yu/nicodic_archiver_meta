@@ -205,6 +205,19 @@ This roadmap reference is for planning continuity only.
 It must not be treated as authoritative current state
 or as a fixed task order.
 
+Medium-term direction reference:
+
+For stronger near-term planning guidance across the next few tasks, see:
+
+META/MEDIUM_TERM_DIRECTION.md
+
+This medium-term direction is stronger than the roadmap reference,
+but weaker than authoritative current-state files.
+
+It is intended to guide likely next-task direction
+without becoming a fixed task order
+or replacing source-of-truth state restoration.
+
 Copilot meta-assistant note:
 
 A GitHub Copilot-connected AI is currently being used in a limited,
@@ -255,3 +268,7 @@ If workflow guidance is needed, also read:
 
 META/TASK_CYCLE_CHECKLIST.md
 META/REPO_BOUNDARY_GUARDRAILS.md
+
+If the next few tasks are being planned, also read:
+
+META/MEDIUM_TERM_DIRECTION.md

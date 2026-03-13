@@ -1202,6 +1202,19 @@ This roadmap reference is for planning continuity only.
 It must not be treated as authoritative current state
 or as a fixed task order.
 
+Medium-term direction reference:
+
+For stronger near-term planning guidance across the next few tasks, see:
+
+META/MEDIUM_TERM_DIRECTION.md
+
+This medium-term direction is stronger than the roadmap reference,
+but weaker than authoritative current-state files.
+
+It is intended to guide likely next-task direction
+without becoming a fixed task order
+or replacing source-of-truth state restoration.
+
 Copilot meta-assistant note:
 
 A GitHub Copilot-connected AI is currently being used in a limited,
@@ -1252,6 +1265,10 @@ If workflow guidance is needed, also read:
 
 META/TASK_CYCLE_CHECKLIST.md
 META/REPO_BOUNDARY_GUARDRAILS.md
+
+If the next few tasks are being planned, also read:
+
+META/MEDIUM_TERM_DIRECTION.md
 
 
 ===== WORKSPACE =====
@@ -1545,6 +1562,7 @@ Keep the topic short, clear, and implementation-neutral.
 - First distinguish:
   - implementation-quality issues
   - submission-quality issues such as lint, formatting, or minor test-expression mistakes
+  - manual-fix mistakes that do not reflect the underlying implementation quality
 - If a failure appears small, localized, and easy to correct without changing task scope,
   review the implementation substance before rejecting the branch.
 - Immediate rejection is more appropriate when the failure indicates:
@@ -1560,6 +1578,7 @@ Keep the topic short, clear, and implementation-neutral.
 - Use a named output file if multiple reviews are active.
 - Treat the review snapshot as comparison material only.
 - Do not treat it as the authoritative restore snapshot.
+- As the default rule, do not commit `META/out/review_snapshot.txt` as part of authoritative workflow memory unless there is a specific reason to preserve that exact review artifact.
 
 ## 6. Decide adoption
 
@@ -1570,6 +1589,16 @@ Keep the topic short, clear, and implementation-neutral.
   - adopt a hybrid result
 - Prefer the most correct and conservative result.
 - Write down the reasons for the decision.
+
+### Minimal hybrid note
+
+- A hybrid result does not always require a branch-to-branch merge.
+- A valid low-friction option is:
+  - adopt one side as the base result
+  - manually incorporate a very small, reviewable improvement from the other side
+- Use this only when the borrowed change is narrow, explainable, and does not widen task scope.
+- Prefer this over a heavier merge when the practical difference is only one or a few lines.
+- Record the borrowed adjustment explicitly in the review log.
 
 ## 6.5 Confirm repository ownership before integration
 
@@ -1639,6 +1668,7 @@ Hard rule:
 - Run `./compare_helix.sh --all` from the workspace root.
 - Confirm the comparison passes after realignment.
 - If convergence fails, fix alignment before updating workflow memory.
+- Ensure new files relevant to comparison are already tracked before running `./compare_helix.sh --all`.
 
 ## 11. Update review memory
 
@@ -2718,7 +2748,7 @@ Adopted: **Copilot**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Thu Mar 12 16:18:06 UTC 2026
+generated: Fri Mar 13 18:58:06 UTC 2026
 mode: full
 
 
@@ -2781,19 +2811,217 @@ FILE: ./.gitignore
 =============================
 copilot/
 cursor/
+example_webpage/
 
 # project_knowledge_snapshot.txt
 # project_snapshot.txt
-# review_snapshot.txt
-# review_snapshot_*.txt
+review_snapshot.txt
+review_snapshot_*.txt
 # git_snapshot.txt
 # git_snapshot_*.txt
 
-# META/out/review_snapshot.txt
-# META/out/review_snapshot_*.txt
+META/out/review_snapshot.txt
+META/out/review_snapshot_*.txt
 # META/out/git_snapshot.txt
 # META/out/git_snapshot_*.txt
 
+
+
+
+=============================
+FILE: ./META/MEDIUM_TERM_DIRECTION.md
+=============================
+# Medium-Term Direction
+
+Planning guidance for the next few tasks.
+
+--------------------------------------------------
+
+## Purpose
+
+This file stores a **medium-term task direction** for the project.
+
+It is intended to reduce repeated planning overhead between adjacent tasks
+while keeping task scope bounded and practical.
+
+This file is:
+
+- stronger than the roadmap reference
+- weaker than authoritative current-state files
+- a planning guide for the next several tasks
+
+This file is **not**:
+
+- the authoritative source of current project state
+- a fixed task order
+- a guarantee that every listed task will be executed unchanged
+
+Authoritative current state must still be restored from:
+
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- latest snapshot files
+
+If any conflict exists, prefer the authoritative current-state files.
+
+--------------------------------------------------
+
+## Current planning stance
+
+The project should continue to respect the current module boundaries unless
+a later task explicitly changes architecture.
+
+Current baseline:
+
+- `main.py` = CLI entry
+- `orchestrator.py` = scraping flow / save-order orchestration
+- `http_client.py` = HTTP fetch layer
+- `parser.py` = HTML parsing
+- `storage.py` = persistence
+
+The current near-term goal is still aligned with the first product goal:
+
+> save bulletin-board comments correctly for a broad range of Nico Nico Pedia articles
+
+This includes explicit handling for cases such as:
+
+- article not found
+- no bulletin-board responses
+- other bounded edge or failure cases
+
+--------------------------------------------------
+
+## Near-term task direction
+
+### TASK009 direction
+Bounded orchestration-flow hardening for:
+
+- article not found
+- no-BBS / zero-response
+- representative edge-case handling
+
+Expected shape:
+
+- `orchestrator.py` centered production hardening
+- focused tests
+- clear scope / non-goals
+- no redesign
+
+Current intended scope:
+
+Included:
+- explicit handling for article not found
+- explicit handling for no-BBS / zero-response
+- `orchestrator.py` centered flow hardening
+- focused tests
+
+Excluded:
+- large-thread cutoff / block policy
+- malicious content sanitization policy
+- parser redesign
+- storage redesign
+- full failure-classification design
+
+### TASK010 direction
+Bounded follow-up on failure-result handling, only if still needed after TASK009.
+
+Expected shape:
+
+- small cleanup of flow-level result handling
+- no frameworkization
+- no broad abstraction layer
+- keep current architecture intact
+
+### TASK011 direction
+Large-thread / high-volume handling policy, if real implementation pressure still exists.
+
+Expected shape:
+
+- bounded operational protection
+- explicit thresholds or stop conditions only if justified
+- no scheduler or batch expansion yet
+
+### TASK012 direction
+Representative regression protection strengthening, after the main single-article path is stable.
+
+Expected shape:
+
+- focused regression coverage
+- no test-only drift
+- tied directly to already-adopted production behavior
+
+--------------------------------------------------
+
+## Planning rules
+
+When defining the next task, prefer:
+
+- small bounded tasks
+- production-facing progress over abstract cleanup
+- explicit scope / non-goals
+- preservation of current architecture
+- reviewable changes that fit the Double Helix model
+
+Avoid:
+
+- cross-layer redesign
+- framework-first abstraction
+- broad speculative refactors
+- turning every follow-up into a test-only task
+- silently widening the task after implementation starts
+
+--------------------------------------------------
+
+## Prompt-design implication
+
+For tasks guided by this file:
+
+- strongly define `What`
+- keep review criteria explicit
+- leave reasonable freedom in `How`
+
+Do not over-fix:
+
+- helper split
+- fixture layout
+- assertion grouping
+- exact naming
+- internal implementation shape
+
+The goal is to preserve solution diversity
+while still preventing task drift.
+
+--------------------------------------------------
+
+## Review and update rule
+
+This file should be reviewed after each completed task.
+
+Possible outcomes after a task completes:
+
+- keep the current medium-term direction
+- reorder upcoming likely tasks
+- narrow or widen a future task boundary
+- remove items that are no longer useful
+- insert a newly needed bounded task between listed items
+
+The human developer and advisor AI may revise this file when implementation results
+or newly observed risks justify a change.
+
+--------------------------------------------------
+
+## Relationship to the roadmap
+
+`META/ROADMAP_REFERENCE.md` remains the broader and weaker direction document.
+
+This file is closer to actual task planning, but still not authoritative current state.
+
+A good rule of thumb:
+
+- roadmap = broad reference
+- medium-term direction = working near-term plan
+- state files + snapshots = authoritative truth
 
 
 
@@ -3686,7 +3914,7 @@ echo "mode: ${MODE}" >> "$MAIN_OUT"
 echo "" >> "$MAIN_OUT"
 
 if [[ "$MODE" == "full" ]]; then
-  find . -type f ! -path "*/.git/*" ! -path "*/data/*" ! -path "*/__pycache__/*" ! -path "*/.pytest_cache/*" ! -path "*/.venv/*" ! -path "*/venv/*" ! -path "*/.mypy_cache/*" ! -path "*/.ruff_cache/*" ! -path "*/.cache/*" ! -path "*/node_modules/*" ! -name "*.pyc" ! -name ".DS_Store" ! -name "project_snapshot.txt" ! -name "project_knowledge_snapshot.txt" ! -name "review_snapshot.txt" ! -name "review_snapshot_*.txt" ! -name "git_snapshot.txt" ! -name "git_snapshot_*.txt" ! -name "project_summary.txt" ! -path "./META/out/*" ! -name "AI_BOOTSTRAP.md" ! -name "AI_CONTEXT.md" ! -name "_AI_EXECUTION_PROTOCOL.md" ! -name "_AI_RULES.md" ! -name "_AI_DEVELOPMENT_MODEL.md" ! -name "_AI_ORCHESTRATION_VISION.md" ! -name "PROJECT_STATE.md" ! -name "WORKSPACE.md" ! -path "./META/TASK_CYCLE_CHECKLIST.md" ! -path "./META/ARCHITECTURE.md" ! -path "./META/review_log/*" | sort | while IFS= read -r file
+  find . -type f ! -path "*/.git/*" ! -path "*/example_webpage/*" ! -path "*/data/*" ! -path "*/__pycache__/*" ! -path "*/.pytest_cache/*" ! -path "*/.venv/*" ! -path "*/venv/*" ! -path "*/.mypy_cache/*" ! -path "*/.ruff_cache/*" ! -path "*/.cache/*" ! -path "*/node_modules/*" ! -name "*.pyc" ! -name ".DS_Store" ! -name "project_snapshot.txt" ! -name "project_knowledge_snapshot.txt" ! -name "review_snapshot.txt" ! -name "review_snapshot_*.txt" ! -name "git_snapshot.txt" ! -name "git_snapshot_*.txt" ! -name "project_summary.txt" ! -path "./META/out/*" ! -name "AI_BOOTSTRAP.md" ! -name "AI_CONTEXT.md" ! -name "_AI_EXECUTION_PROTOCOL.md" ! -name "_AI_RULES.md" ! -name "_AI_DEVELOPMENT_MODEL.md" ! -name "_AI_ORCHESTRATION_VISION.md" ! -name "PROJECT_STATE.md" ! -name "WORKSPACE.md" ! -path "./META/TASK_CYCLE_CHECKLIST.md" ! -path "./META/ARCHITECTURE.md" ! -path "./META/review_log/*" | sort | while IFS= read -r file
   do
     append_snapshot_file "$file"
   done
