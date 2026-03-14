@@ -152,6 +152,20 @@ TASK010 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK011 has been completed.
+
+TASK011 result:
+
+• Cursor implementation was adopted
+• `orchestrator.py` was hardened with bounded high-volume handling policy
+• known high-volume article IDs are now skipped before collection and save flow
+• a fixed response cap was added for unknown high-volume articles
+• capped results are preserved and saved as partial results
+• `tests/test_orchestrator.py` was expanded to protect the new high-volume policy behavior
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -265,9 +279,7 @@ It is not used as:
 
 NEXT TASK
 
-NEXT TASK
-
-TASK010 is complete.
+TASK011 is complete.
 
 Next task is not yet fixed.
 

@@ -1136,6 +1136,33 @@ TASK009 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK010 has been completed.
+
+TASK010 result:
+
+• Cursor-based minimal hybrid adoption was selected
+• Copilot contributed the later-page interruption page-level observability line
+• `orchestrator.py` was hardened to distinguish later-page interruption from empty-result handling
+• partial responses are now preserved and saved when later-page interruption occurs
+• `tests/test_orchestrator.py` was expanded to protect the new interruption-handling behavior
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
+TASK011 has been completed.
+
+TASK011 result:
+
+• Cursor implementation was adopted
+• `orchestrator.py` was hardened with bounded high-volume handling policy
+• known high-volume article IDs are now skipped before collection and save flow
+• a fixed response cap was added for unknown high-volume articles
+• capped results are preserved and saved as partial results
+• `tests/test_orchestrator.py` was expanded to protect the new high-volume policy behavior
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -1249,7 +1276,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK009 is complete.
+TASK011 is complete.
 
 Next task is not yet fixed.
 
@@ -2843,8 +2870,196 @@ Adopted: **Copilot**
 
 
 
+===== REVIEW LOG: META/review_log/task010_review.md =====
+# TASK010 Review
+
+## Task
+Clarify bounded failure-result handling in `orchestrator.py` for cases where
+later-page fetch interruption occurs after partial response collection,
+while preserving the current architecture and protecting the behavior with
+focused tests.
+
+## Scope
+- `orchestrator.py`
+- `tests/test_orchestrator.py`
+
+## Non-goals
+- parser redesign
+- storage redesign
+- http_client redesign
+- retry / backoff design
+- full failure-classification design
+- scheduler / batch scrape expansion
+- large-thread cutoff policy
+- malicious content sanitization policy
+- cross-layer abstraction
+
+## Compared implementations
+
+### Copilot
+- extended `collect_all_responses()` to return `(responses, interrupted)`
+- treated later-page fetch failure as interrupted partial collection
+- preserved partial save path
+- added focused tests for later-page interruption behavior
+- included page-level interruption logging
+
+### Cursor
+- extended `collect_all_responses()` to return `(responses, interrupted)`
+- more explicitly separated:
+  - empty-result
+  - first-page non-404 failure
+  - later-page interruption with partial responses
+- preserved partial save path
+- added focused tests for later-page interruption behavior
+
+## Adoption decision
+Adopted: **Cursor-based minimal hybrid**
+
+Borrowed minimal element from Copilot:
+- later-page interruption page URL observability line:
+  - `print("Later-page fetch interrupted:", page_url)`
+
+## Why this result was selected
+- stayed fully within the bounded `orchestrator.py` task scope
+- most clearly separated later-page interruption from empty-result semantics
+- preserved partial responses and save-path behavior
+- made the result semantics explainable in both code and output
+- kept the change small, production-facing, and easy to review
+
+## Why Copilot was not adopted directly
+- Copilot was valid, bounded, and reviewable
+- however, Cursor expressed the result semantics more explicitly in
+  `run_scrape()` and was slightly easier to reason about as the TASK010 baseline
+- the only Copilot advantage worth borrowing was the page-level interruption log
+
+## Why hybrid was selected
+- this was a minimal hybrid, not a merge-for-the-sake-of-merge
+- the borrowed Copilot change was one narrow observability improvement
+- it did not widen scope or change architecture
+- it improved reviewability and runtime explanation at very low cost
+
+## Validation result
+- `./validate_helix.sh` passed for both `copilot/` and `cursor/`
+- post-adoption validation on `main` also passed for both child repositories
+
+## Convergence result
+- `./compare_helix.sh --all` passed after realignment
+- `copilot/` and `cursor/` were confirmed to match on the adopted final state
+
+## Final state
+- TASK010 adopted result:
+  - Cursor-based minimal hybrid
+- `orchestrator.py` now distinguishes:
+  - empty-result
+  - first-page non-404 failure
+  - later-page interruption after partial collection
+- partial responses are saved when later-page interruption occurs
+- focused tests protect the new behavior
+- both child repositories are converged on `main`
+
+
+
+
+===== REVIEW LOG: META/review_log/task011_review.md =====
+# TASK011 Review
+
+## Task
+Introduce bounded high-volume handling in `orchestrator.py` by:
+- explicitly skipping known high-volume articles with a denylist, and
+- applying a fixed response cap to unknown high-volume articles,
+while preserving the current architecture and protecting the behavior with
+focused tests.
+
+## Scope
+- `orchestrator.py`
+- `tests/test_orchestrator.py`
+
+## Non-goals
+- parser redesign
+- storage redesign
+- http_client redesign
+- retry / backoff design
+- full failure-classification design
+- scheduler / batch scrape expansion
+- external config / blacklist file design
+- CLI option / env var design
+- cross-layer abstraction
+
+## Compared implementations
+
+### Copilot
+- added fixed high-volume policy constants in `orchestrator.py`
+- skipped known high-volume article IDs before collection / save flow
+- extended `collect_all_responses()` to return:
+  - responses
+  - interrupted
+  - capped
+- applied a fixed response cap while preserving partial-save behavior
+- added focused tests for:
+  - cap reached
+  - denylist skip
+  - capped save-path behavior
+
+### Cursor
+- added fixed high-volume policy constants in `orchestrator.py`
+- used a denylist seed with an explicit temporary-comment marker
+- skipped known high-volume article IDs before collection / save flow
+- extended `collect_all_responses()` to return:
+  - responses
+  - interrupted
+  - cap_reached
+- applied a fixed response cap while preserving partial-save behavior
+- added focused tests for:
+  - cap reached
+  - denylist skip
+  - capped save-path behavior
+
+## Adoption decision
+Adopted: **Cursor**
+
+## Why this result was selected
+- stayed fully within the bounded `orchestrator.py` task scope
+- expressed the high-volume policy semantics more clearly
+- kept denylist skip, cap reached, interruption, and empty-result handling
+  easier to distinguish in both code and output
+- preserved partial-save behavior under cap reached
+- remained conservative and production-facing
+
+## Why Copilot was not adopted directly
+- Copilot was valid, bounded, and reviewable
+- however, Cursor presented the denylist / cap / normal-flow distinction
+  slightly more clearly
+- no strong enough Copilot-specific advantage was found to justify either
+  direct adoption or a mandatory hybrid
+
+## Why hybrid was not selected
+- unlike TASK010, no narrow borrowed change clearly improved the Cursor result
+  enough to justify a hybrid
+- merge-for-the-sake-of-merge was unnecessary
+- Cursor alone already satisfied the task well
+
+## Validation result
+- `./validate_helix.sh` passed for both `copilot/` and `cursor/`
+- post-adoption validation on `main` also passed for both child repositories
+
+## Convergence result
+- `./compare_helix.sh --all` passed after realignment
+- `copilot/` and `cursor/` were confirmed to match on the adopted final state
+
+## Final state
+- TASK011 adopted result: Cursor
+- `orchestrator.py` now includes:
+  - denylist-based skip for known high-volume articles
+  - fixed response cap handling for unknown high-volume articles
+- denylist hits do not enter the save path
+- cap reached results are saved as partial results
+- focused tests protect the new high-volume policy behavior
+
+
+
+
 ===== PROJECT SNAPSHOT =====
-generated: Sat Mar 14 07:27:20 UTC 2026
+generated: Sat Mar 14 08:53:56 UTC 2026
 mode: full
 
 
@@ -2916,8 +3131,9 @@ review_snapshot_*.txt
 # git_snapshot.txt
 # git_snapshot_*.txt
 
-# META/out/review_snapshot.txt
-# META/out/review_snapshot_*.txt
+META/out/review_snapshot.txt
+META/out/review_snapshot_*.txt
+
 # META/out/git_snapshot.txt
 # META/out/git_snapshot_*.txt
 
@@ -4959,6 +5175,12 @@ from http_client import fetch_page
 from parser import parse_responses
 from storage import init_db, save_json, save_to_db
 
+# 取得レス数の上限。未知の high-volume 記事に対する bounded protection。
+RESPONSE_CAP = 1_000_000
+
+# 仮置き。known high-volume article を skip するための seed。
+DENYLIST_ARTICLE_IDS = frozenset({"480340", "237789"})
+
 
 class ArticleNotFoundError(RuntimeError):
     """記事ページが見つからない場合の orchestration 用例外。"""
@@ -4978,19 +5200,21 @@ def build_bbs_base_url(article_url: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}/b/{article_type}/{article_id}/"
 
 
-def collect_all_responses(bbs_base_url: str) -> tuple[list, bool]:
+def collect_all_responses(bbs_base_url: str) -> tuple[list, bool, bool]:
     """
     ページネーションを辿り全レス収集。
-    404または空ページで終了。
+    404または空ページで終了。RESPONSE_CAP に達した場合も終了。
 
     Returns:
-        (all_responses, interrupted)
+        (all_responses, interrupted, cap_reached)
         interrupted=True は「途中ページでの取得エラーにより中断した」ことを表す。
+        cap_reached=True は「取得上限に到達した」ことを表す。
     """
 
     all_responses = []
     start = 1
     interrupted = False
+    cap_reached = False
 
     while True:
 
@@ -5004,7 +5228,7 @@ def collect_all_responses(bbs_base_url: str) -> tuple[list, bool]:
             # empty-result として返す（中断フラグは立てない）。
             if start == 1 and "status=404" in str(e):
                 print("No BBS found:", bbs_base_url)
-                return [], False
+                return [], False, False
 
             # 1ページ目のその他エラーは従来どおり上位へ伝播させる。
             if start == 1:
@@ -5025,6 +5249,12 @@ def collect_all_responses(bbs_base_url: str) -> tuple[list, bool]:
 
         all_responses.extend(page_responses)
 
+        if len(all_responses) >= RESPONSE_CAP:
+            all_responses = all_responses[:RESPONSE_CAP]
+            cap_reached = True
+            print("Total collected:", len(all_responses))
+            break
+
         print("Page collected:", len(page_responses))
         print("Total collected:", len(all_responses))
 
@@ -5033,7 +5263,7 @@ def collect_all_responses(bbs_base_url: str) -> tuple[list, bool]:
         # 過度アクセス回避
         time.sleep(1)
 
-    return all_responses, interrupted
+    return all_responses, interrupted, cap_reached
 
 
 def fetch_article_metadata(article_url: str):
@@ -5074,18 +5304,28 @@ def run_scrape(article_url: str):
         print(f"Article not found: {article_url}")
         return
 
+    if article_id in DENYLIST_ARTICLE_IDS:
+        print("Skipping article (high-volume).")
+        return
+
     bbs_base_url = build_bbs_base_url(article_url)
 
-    responses, interrupted = collect_all_responses(bbs_base_url)
+    responses, interrupted, cap_reached = collect_all_responses(bbs_base_url)
 
-    # empty-result（レス0件）と later-page interruption を区別して扱う。
-    if not responses and not interrupted:
+    # empty-result / later-page interruption / cap reached を区別して扱う。
+    if not responses and not interrupted and not cap_reached:
         # 掲示板は存在するがレスが0件、あるいは掲示板自体が存在しないケース。
         print("No BBS responses found; saving empty result")
     elif interrupted and responses:
         # 途中ページでのエラーにより中断したが、一部レスは取得済み。
         print(
             f"BBS fetch interrupted; saving partial responses "
+            f"({len(responses)} items) for: {article_url}"
+        )
+    elif cap_reached and responses:
+        # 取得上限に到達。その時点までの responses を保存する。
+        print(
+            f"Response cap reached; saving partial responses "
             f"({len(responses)} items) for: {article_url}"
         )
 
@@ -5571,11 +5811,12 @@ def test_collect_all_responses_stops_on_empty_page(
         [{"res_no": 1}, {"res_no": 2}],
         [],
     ]
-    result, interrupted = collect_all_responses(
+    result, interrupted, cap_reached = collect_all_responses(
         "https://dic.nicovideo.jp/b/a/12345/"
     )
     assert result == [{"res_no": 1}, {"res_no": 2}]
     assert interrupted is False
+    assert cap_reached is False
     assert mock_fetch.call_count == 2
     mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/1-")
     mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/3-")
@@ -5591,11 +5832,12 @@ def test_collect_all_responses_returns_empty_for_missing_bbs(
     mock_fetch.side_effect = RuntimeError(
         "Failed to fetch https://dic.nicovideo.jp/b/a/12345/1- (status=404)"
     )
-    result, interrupted = collect_all_responses(
+    result, interrupted, cap_reached = collect_all_responses(
         "https://dic.nicovideo.jp/b/a/12345/"
     )
     assert result == []
     assert interrupted is False
+    assert cap_reached is False
     mock_fetch.assert_called_once()
     mock_parse.assert_not_called()
     mock_sleep.assert_not_called()
@@ -5624,11 +5866,12 @@ def test_collect_all_responses_single_page(
 ):
     mock_fetch.return_value = MagicMock()
     mock_parse.return_value = []
-    result, interrupted = collect_all_responses(
+    result, interrupted, cap_reached = collect_all_responses(
         "https://dic.nicovideo.jp/b/a/12345/"
     )
     assert result == []
     assert interrupted is False
+    assert cap_reached is False
     mock_fetch.assert_called_once_with("https://dic.nicovideo.jp/b/a/12345/1-")
     mock_sleep.assert_not_called()
 
@@ -5646,12 +5889,36 @@ def test_collect_all_responses_sets_interrupted_on_later_page_error(
     ]
     mock_parse.return_value = [{"res_no": 1}]
 
-    result, interrupted = collect_all_responses(
+    result, interrupted, cap_reached = collect_all_responses(
         "https://dic.nicovideo.jp/b/a/12345/"
     )
 
     assert result == [{"res_no": 1}]
     assert interrupted is True
+    assert cap_reached is False
+    assert mock_fetch.call_count == 2
+    mock_sleep.assert_called_once_with(1)
+
+
+@patch("orchestrator.time.sleep")
+@patch("orchestrator.parse_responses")
+@patch("orchestrator.fetch_page")
+@patch("orchestrator.RESPONSE_CAP", 3)
+def test_collect_all_responses_stops_at_cap_and_sets_cap_reached(
+    mock_fetch, mock_parse, mock_sleep
+):
+    mock_fetch.return_value = MagicMock()
+    mock_parse.side_effect = [
+        [{"res_no": 1}, {"res_no": 2}],
+        [{"res_no": 3}, {"res_no": 4}],
+    ]
+    result, interrupted, cap_reached = collect_all_responses(
+        "https://dic.nicovideo.jp/b/a/12345/"
+    )
+    assert len(result) == 3
+    assert result == [{"res_no": 1}, {"res_no": 2}, {"res_no": 3}]
+    assert interrupted is False
+    assert cap_reached is True
     assert mock_fetch.call_count == 2
     mock_sleep.assert_called_once_with(1)
 
@@ -5672,7 +5939,7 @@ def test_run_scrape_happy_path_orchestrates_dependencies_correctly():
         ) as mock_build:
             with patch(
                 "orchestrator.collect_all_responses",
-                return_value=([{"res_no": 1}], False),
+                return_value=([{"res_no": 1}], False, False),
             ) as mock_collect:
                 with patch("orchestrator.save_json") as mock_save_json:
                     conn = MagicMock()
@@ -5758,7 +6025,7 @@ def test_run_scrape_saves_empty_result_for_zero_response_case():
         ) as mock_build:
             with patch(
                 "orchestrator.collect_all_responses",
-                return_value=([], False),
+                return_value=([], False, False),
             ) as mock_collect:
                 with patch("orchestrator.save_json") as mock_save_json:
                     conn = MagicMock()
@@ -5799,7 +6066,7 @@ def test_run_scrape_logs_and_saves_partial_on_later_page_interruption():
             partial = [{"res_no": 1}]
             with patch(
                 "orchestrator.collect_all_responses",
-                return_value=(partial, True),
+                return_value=(partial, True, False),
             ) as mock_collect:
                 with patch("orchestrator.save_json") as mock_save_json:
                     conn = MagicMock()
@@ -5834,6 +6101,80 @@ def test_run_scrape_logs_and_saves_partial_on_later_page_interruption():
         " ".join(map(str, c.args)) for c in mock_print.call_args_list
     )
     assert "BBS fetch interrupted; saving partial responses" in joined_calls
+
+
+def test_run_scrape_denylist_skips_collection_and_save():
+    article_url = "https://dic.nicovideo.jp/a/480340"
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=("480340", "a", "Title"),
+    ) as mock_meta:
+        with patch("orchestrator.build_bbs_base_url") as mock_build:
+            with patch("orchestrator.collect_all_responses") as mock_collect:
+                with patch("orchestrator.save_json") as mock_save_json:
+                    with patch("orchestrator.init_db") as mock_init:
+                        with patch("orchestrator.save_to_db") as mock_save_db:
+                            with patch("orchestrator.print") as mock_print:
+                                run_scrape(article_url)
+
+    mock_meta.assert_called_once_with(article_url)
+    mock_build.assert_not_called()
+    mock_collect.assert_not_called()
+    mock_save_json.assert_not_called()
+    mock_init.assert_not_called()
+    mock_save_db.assert_not_called()
+    mock_print.assert_any_call("Skipping article (high-volume).")
+
+
+def test_run_scrape_cap_reached_saves_partial_and_logs():
+    article_url = "https://dic.nicovideo.jp/a/12345"
+    partial = [{"res_no": i} for i in range(1, 4)]
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=("12345", "a", "Title"),
+    ) as mock_meta:
+        with patch(
+            "orchestrator.build_bbs_base_url",
+            return_value="https://dic.nicovideo.jp/b/a/12345/",
+        ) as mock_build:
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=(partial, False, True),
+            ) as mock_collect:
+                with patch("orchestrator.save_json") as mock_save_json:
+                    conn = MagicMock()
+                    with patch("orchestrator.init_db", return_value=conn) as mock_init:
+                        with patch("orchestrator.save_to_db") as mock_save_db:
+                            with patch("orchestrator.print") as mock_print:
+                                run_scrape(article_url)
+
+    mock_meta.assert_called_once_with(article_url)
+    mock_build.assert_called_once_with(article_url)
+    mock_collect.assert_called_once_with("https://dic.nicovideo.jp/b/a/12345/")
+    mock_save_json.assert_called_once_with(
+        "12345",
+        "a",
+        "Title",
+        article_url,
+        partial,
+    )
+    mock_init.assert_called_once_with()
+    mock_save_db.assert_called_once_with(
+        conn,
+        "12345",
+        "a",
+        "Title",
+        article_url,
+        partial,
+    )
+    conn.close.assert_called_once_with()
+    joined_calls = " ".join(
+        " ".join(map(str, c.args)) for c in mock_print.call_args_list
+    )
+    assert "Response cap reached; saving partial responses" in joined_calls
+    assert "3 items" in joined_calls
 
 =============================
 FILE: ./copilot/tests/test_parser.py
@@ -6605,6 +6946,12 @@ from http_client import fetch_page
 from parser import parse_responses
 from storage import init_db, save_json, save_to_db
 
+# 取得レス数の上限。未知の high-volume 記事に対する bounded protection。
+RESPONSE_CAP = 1_000_000
+
+# 仮置き。known high-volume article を skip するための seed。
+DENYLIST_ARTICLE_IDS = frozenset({"480340", "237789"})
+
 
 class ArticleNotFoundError(RuntimeError):
     """記事ページが見つからない場合の orchestration 用例外。"""
@@ -6624,19 +6971,21 @@ def build_bbs_base_url(article_url: str) -> str:
     return f"{parsed.scheme}://{parsed.netloc}/b/{article_type}/{article_id}/"
 
 
-def collect_all_responses(bbs_base_url: str) -> tuple[list, bool]:
+def collect_all_responses(bbs_base_url: str) -> tuple[list, bool, bool]:
     """
     ページネーションを辿り全レス収集。
-    404または空ページで終了。
+    404または空ページで終了。RESPONSE_CAP に達した場合も終了。
 
     Returns:
-        (all_responses, interrupted)
+        (all_responses, interrupted, cap_reached)
         interrupted=True は「途中ページでの取得エラーにより中断した」ことを表す。
+        cap_reached=True は「取得上限に到達した」ことを表す。
     """
 
     all_responses = []
     start = 1
     interrupted = False
+    cap_reached = False
 
     while True:
 
@@ -6650,7 +6999,7 @@ def collect_all_responses(bbs_base_url: str) -> tuple[list, bool]:
             # empty-result として返す（中断フラグは立てない）。
             if start == 1 and "status=404" in str(e):
                 print("No BBS found:", bbs_base_url)
-                return [], False
+                return [], False, False
 
             # 1ページ目のその他エラーは従来どおり上位へ伝播させる。
             if start == 1:
@@ -6671,6 +7020,12 @@ def collect_all_responses(bbs_base_url: str) -> tuple[list, bool]:
 
         all_responses.extend(page_responses)
 
+        if len(all_responses) >= RESPONSE_CAP:
+            all_responses = all_responses[:RESPONSE_CAP]
+            cap_reached = True
+            print("Total collected:", len(all_responses))
+            break
+
         print("Page collected:", len(page_responses))
         print("Total collected:", len(all_responses))
 
@@ -6679,7 +7034,7 @@ def collect_all_responses(bbs_base_url: str) -> tuple[list, bool]:
         # 過度アクセス回避
         time.sleep(1)
 
-    return all_responses, interrupted
+    return all_responses, interrupted, cap_reached
 
 
 def fetch_article_metadata(article_url: str):
@@ -6720,18 +7075,28 @@ def run_scrape(article_url: str):
         print(f"Article not found: {article_url}")
         return
 
+    if article_id in DENYLIST_ARTICLE_IDS:
+        print("Skipping article (high-volume).")
+        return
+
     bbs_base_url = build_bbs_base_url(article_url)
 
-    responses, interrupted = collect_all_responses(bbs_base_url)
+    responses, interrupted, cap_reached = collect_all_responses(bbs_base_url)
 
-    # empty-result（レス0件）と later-page interruption を区別して扱う。
-    if not responses and not interrupted:
+    # empty-result / later-page interruption / cap reached を区別して扱う。
+    if not responses and not interrupted and not cap_reached:
         # 掲示板は存在するがレスが0件、あるいは掲示板自体が存在しないケース。
         print("No BBS responses found; saving empty result")
     elif interrupted and responses:
         # 途中ページでのエラーにより中断したが、一部レスは取得済み。
         print(
             f"BBS fetch interrupted; saving partial responses "
+            f"({len(responses)} items) for: {article_url}"
+        )
+    elif cap_reached and responses:
+        # 取得上限に到達。その時点までの responses を保存する。
+        print(
+            f"Response cap reached; saving partial responses "
             f"({len(responses)} items) for: {article_url}"
         )
 
@@ -7217,11 +7582,12 @@ def test_collect_all_responses_stops_on_empty_page(
         [{"res_no": 1}, {"res_no": 2}],
         [],
     ]
-    result, interrupted = collect_all_responses(
+    result, interrupted, cap_reached = collect_all_responses(
         "https://dic.nicovideo.jp/b/a/12345/"
     )
     assert result == [{"res_no": 1}, {"res_no": 2}]
     assert interrupted is False
+    assert cap_reached is False
     assert mock_fetch.call_count == 2
     mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/1-")
     mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/3-")
@@ -7237,11 +7603,12 @@ def test_collect_all_responses_returns_empty_for_missing_bbs(
     mock_fetch.side_effect = RuntimeError(
         "Failed to fetch https://dic.nicovideo.jp/b/a/12345/1- (status=404)"
     )
-    result, interrupted = collect_all_responses(
+    result, interrupted, cap_reached = collect_all_responses(
         "https://dic.nicovideo.jp/b/a/12345/"
     )
     assert result == []
     assert interrupted is False
+    assert cap_reached is False
     mock_fetch.assert_called_once()
     mock_parse.assert_not_called()
     mock_sleep.assert_not_called()
@@ -7270,11 +7637,12 @@ def test_collect_all_responses_single_page(
 ):
     mock_fetch.return_value = MagicMock()
     mock_parse.return_value = []
-    result, interrupted = collect_all_responses(
+    result, interrupted, cap_reached = collect_all_responses(
         "https://dic.nicovideo.jp/b/a/12345/"
     )
     assert result == []
     assert interrupted is False
+    assert cap_reached is False
     mock_fetch.assert_called_once_with("https://dic.nicovideo.jp/b/a/12345/1-")
     mock_sleep.assert_not_called()
 
@@ -7292,12 +7660,36 @@ def test_collect_all_responses_sets_interrupted_on_later_page_error(
     ]
     mock_parse.return_value = [{"res_no": 1}]
 
-    result, interrupted = collect_all_responses(
+    result, interrupted, cap_reached = collect_all_responses(
         "https://dic.nicovideo.jp/b/a/12345/"
     )
 
     assert result == [{"res_no": 1}]
     assert interrupted is True
+    assert cap_reached is False
+    assert mock_fetch.call_count == 2
+    mock_sleep.assert_called_once_with(1)
+
+
+@patch("orchestrator.time.sleep")
+@patch("orchestrator.parse_responses")
+@patch("orchestrator.fetch_page")
+@patch("orchestrator.RESPONSE_CAP", 3)
+def test_collect_all_responses_stops_at_cap_and_sets_cap_reached(
+    mock_fetch, mock_parse, mock_sleep
+):
+    mock_fetch.return_value = MagicMock()
+    mock_parse.side_effect = [
+        [{"res_no": 1}, {"res_no": 2}],
+        [{"res_no": 3}, {"res_no": 4}],
+    ]
+    result, interrupted, cap_reached = collect_all_responses(
+        "https://dic.nicovideo.jp/b/a/12345/"
+    )
+    assert len(result) == 3
+    assert result == [{"res_no": 1}, {"res_no": 2}, {"res_no": 3}]
+    assert interrupted is False
+    assert cap_reached is True
     assert mock_fetch.call_count == 2
     mock_sleep.assert_called_once_with(1)
 
@@ -7318,7 +7710,7 @@ def test_run_scrape_happy_path_orchestrates_dependencies_correctly():
         ) as mock_build:
             with patch(
                 "orchestrator.collect_all_responses",
-                return_value=([{"res_no": 1}], False),
+                return_value=([{"res_no": 1}], False, False),
             ) as mock_collect:
                 with patch("orchestrator.save_json") as mock_save_json:
                     conn = MagicMock()
@@ -7404,7 +7796,7 @@ def test_run_scrape_saves_empty_result_for_zero_response_case():
         ) as mock_build:
             with patch(
                 "orchestrator.collect_all_responses",
-                return_value=([], False),
+                return_value=([], False, False),
             ) as mock_collect:
                 with patch("orchestrator.save_json") as mock_save_json:
                     conn = MagicMock()
@@ -7445,7 +7837,7 @@ def test_run_scrape_logs_and_saves_partial_on_later_page_interruption():
             partial = [{"res_no": 1}]
             with patch(
                 "orchestrator.collect_all_responses",
-                return_value=(partial, True),
+                return_value=(partial, True, False),
             ) as mock_collect:
                 with patch("orchestrator.save_json") as mock_save_json:
                     conn = MagicMock()
@@ -7480,6 +7872,80 @@ def test_run_scrape_logs_and_saves_partial_on_later_page_interruption():
         " ".join(map(str, c.args)) for c in mock_print.call_args_list
     )
     assert "BBS fetch interrupted; saving partial responses" in joined_calls
+
+
+def test_run_scrape_denylist_skips_collection_and_save():
+    article_url = "https://dic.nicovideo.jp/a/480340"
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=("480340", "a", "Title"),
+    ) as mock_meta:
+        with patch("orchestrator.build_bbs_base_url") as mock_build:
+            with patch("orchestrator.collect_all_responses") as mock_collect:
+                with patch("orchestrator.save_json") as mock_save_json:
+                    with patch("orchestrator.init_db") as mock_init:
+                        with patch("orchestrator.save_to_db") as mock_save_db:
+                            with patch("orchestrator.print") as mock_print:
+                                run_scrape(article_url)
+
+    mock_meta.assert_called_once_with(article_url)
+    mock_build.assert_not_called()
+    mock_collect.assert_not_called()
+    mock_save_json.assert_not_called()
+    mock_init.assert_not_called()
+    mock_save_db.assert_not_called()
+    mock_print.assert_any_call("Skipping article (high-volume).")
+
+
+def test_run_scrape_cap_reached_saves_partial_and_logs():
+    article_url = "https://dic.nicovideo.jp/a/12345"
+    partial = [{"res_no": i} for i in range(1, 4)]
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=("12345", "a", "Title"),
+    ) as mock_meta:
+        with patch(
+            "orchestrator.build_bbs_base_url",
+            return_value="https://dic.nicovideo.jp/b/a/12345/",
+        ) as mock_build:
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=(partial, False, True),
+            ) as mock_collect:
+                with patch("orchestrator.save_json") as mock_save_json:
+                    conn = MagicMock()
+                    with patch("orchestrator.init_db", return_value=conn) as mock_init:
+                        with patch("orchestrator.save_to_db") as mock_save_db:
+                            with patch("orchestrator.print") as mock_print:
+                                run_scrape(article_url)
+
+    mock_meta.assert_called_once_with(article_url)
+    mock_build.assert_called_once_with(article_url)
+    mock_collect.assert_called_once_with("https://dic.nicovideo.jp/b/a/12345/")
+    mock_save_json.assert_called_once_with(
+        "12345",
+        "a",
+        "Title",
+        article_url,
+        partial,
+    )
+    mock_init.assert_called_once_with()
+    mock_save_db.assert_called_once_with(
+        conn,
+        "12345",
+        "a",
+        "Title",
+        article_url,
+        partial,
+    )
+    conn.close.assert_called_once_with()
+    joined_calls = " ".join(
+        " ".join(map(str, c.args)) for c in mock_print.call_args_list
+    )
+    assert "Response cap reached; saving partial responses" in joined_calls
+    assert "3 items" in joined_calls
 
 =============================
 FILE: ./cursor/tests/test_parser.py
