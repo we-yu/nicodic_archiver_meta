@@ -166,6 +166,25 @@ TASK011 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK012 has been completed.
+
+TASK012 result:
+
+• Copilot implementation was adopted
+• `tests/test_orchestrator.py` was strengthened with representative regression coverage for the already-adopted single-article scrape path
+• representative save-path behavior is now more explicitly protected for:
+  - normal save path
+  - no-BBS / zero-response empty-result save path
+  - later-page interruption partial-save path
+  - response-cap reached partial-save path
+• representative skip-path behavior is now more explicitly protected for:
+  - article-not-found
+  - known high-volume skip
+• production code remained unchanged
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -279,7 +298,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK011 is complete.
+TASK012 is complete.
 
 Next task is not yet fixed.
 
