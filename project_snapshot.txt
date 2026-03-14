@@ -1124,6 +1124,18 @@ TASK008 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK009 has been completed.
+
+TASK009 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• `orchestrator.py` was hardened to handle article-not-found and no-BBS / zero-response cases more explicitly
+• `tests/test_orchestrator.py` was expanded to protect the new edge-case behavior
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -1237,7 +1249,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK008 is complete.
+TASK009 is complete.
 
 Next task is not yet fixed.
 
@@ -2747,8 +2759,92 @@ Adopted: **Copilot**
 
 
 
+===== REVIEW LOG: META/review_log/task009_review.md =====
+# TASK009 Review
+
+## Task
+Harden `orchestrator.py` so that article-not-found and no-BBS / zero-response cases are handled explicitly and consistently at the scrape-flow level, with focused tests protecting the behavior.
+
+## Scope
+- `orchestrator.py`
+- `tests/test_orchestrator.py`
+
+## Non-goals
+- large-thread cutoff / block policy
+- malicious content sanitization policy
+- parser redesign
+- storage redesign
+- full failure-classification design
+- scheduler / batch scrape / target-list work
+
+## Compared implementations
+
+### Copilot
+- Introduced `ArticleNotFoundError` for orchestration-local article-not-found handling
+- Treated article page 404 and missing `og:url` as article-not-found outcomes
+- Treated BBS first-page 404 as no-BBS and returned an empty response list
+- Kept non-404 first-page failures distinct from empty-result handling
+- Saved empty results explicitly when responses were empty
+- Added focused tests for:
+  - article metadata not found
+  - article page 404
+  - BBS first-page 404 as no-BBS
+  - first-page non-404 failure propagation
+  - article-not-found save-path skip
+  - zero-response empty-result save behavior
+
+### Cursor
+- Added explicit article-not-found handling in `run_scrape`
+- Added explicit empty-result logging for `responses == []`
+- Kept the implementation smaller and more conservative
+- Added focused tests around article-not-found early return and empty-result save behavior
+
+## Adoption decision
+Adopted: **Copilot**
+
+## Why Copilot was adopted
+- Stayed within the bounded orchestration-flow scope
+- Provided stronger explicit handling for article-not-found cases
+- More clearly separated no-BBS / zero-response from generic failure paths
+- Added focused protection for the intended edge-case behavior
+- Final validated result passed all checks
+- A simple real-sample verification also confirmed basic runtime behavior was maintained
+
+## Why Cursor was not adopted
+- Cursor was valid, bounded, and conservative
+- However, its implementation handled fewer representative edge cases
+- Copilot made the scrape-flow distinction between article-not-found, empty-result, and generic failure more explicit
+
+## Why hybrid was not selected
+- Both implementations were close in direction
+- Copilot already covered the preferred behavior without needing additional integration work
+- A hybrid would add complexity without enough extra benefit
+
+## Validation result
+- `./validate_helix.sh` passed for both `copilot/` and `cursor/`
+- Copilot initially failed due to a small print-call shape mismatch in a focused test expectation
+- That issue was corrected without changing task scope or implementation intent
+- Final validation passed for both child repositories
+
+## Convergence result
+- `./compare_helix.sh --all` passed after realignment
+- `copilot/` and `cursor/` were confirmed to match on the post-adoption baseline
+
+## Review notes
+- Copilot initially produced a small submission-quality mismatch around the article-not-found print shape
+- The issue was localized and corrected without widening scope
+- The adoption decision was made on the corrected implementation substance
+- TASK009 remains a bounded orchestration hardening task, not a redesign task
+
+## Final state
+- TASK009 adopted result: Copilot
+- Both child repositories should be realigned to the adopted final state
+- Next task not yet fixed
+
+
+
 ===== PROJECT SNAPSHOT =====
-generated: Fri Mar 13 18:59:01 UTC 2026
+generated: Sat Mar 14 05:51:23 UTC 2026
 mode: full
 
 
@@ -4864,6 +4960,10 @@ from parser import parse_responses
 from storage import init_db, save_json, save_to_db
 
 
+class ArticleNotFoundError(RuntimeError):
+    """記事ページが見つからない場合の orchestration 用例外。"""
+
+
 def build_bbs_base_url(article_url: str) -> str:
     """
     記事URLから掲示板ベースURLを生成する。
@@ -4895,12 +4995,21 @@ def collect_all_responses(bbs_base_url: str) -> list:
         try:
             soup = fetch_page(page_url)
         except RuntimeError as e:
+            if start == 1 and "status=404" in str(e):
+                print("No BBS found:", bbs_base_url)
+                return []
+
+            if start == 1:
+                raise
+
             print(e)
             break
 
         page_responses = parse_responses(soup)
 
         if not page_responses:
+            if start == 1:
+                print("No responses found:", bbs_base_url)
             break
 
         all_responses.extend(page_responses)
@@ -4924,13 +5033,21 @@ def fetch_article_metadata(article_url: str):
       - title
     """
 
-    soup = fetch_page(article_url)
+    try:
+        soup = fetch_page(article_url)
+    except RuntimeError as exc:
+        if "status=404" in str(exc):
+            raise ArticleNotFoundError(f"Article not found: {article_url}") from exc
+        raise
 
     title_tag = soup.find("meta", property="og:title")
     title = title_tag["content"].split("とは")[0] if title_tag else "unknown"
 
     og_url = soup.find("meta", property="og:url")
-    article_id = og_url["content"].rstrip("/").split("/")[-1] if og_url else "unknown"
+    if og_url is None:
+        raise ArticleNotFoundError(f"Article not found: {article_url}")
+
+    article_id = og_url["content"].rstrip("/").split("/")[-1]
 
     parsed = urlparse(article_url)
     article_type = parsed.path.strip("/").split("/")[0]
@@ -4939,10 +5056,19 @@ def fetch_article_metadata(article_url: str):
 
 
 def run_scrape(article_url: str):
-    article_id, article_type, title = fetch_article_metadata(article_url)
+    try:
+        article_id, article_type, title = fetch_article_metadata(article_url)
+
+    except ArticleNotFoundError:
+        print(f"Article not found: {article_url}")
+        return
+
     bbs_base_url = build_bbs_base_url(article_url)
 
     responses = collect_all_responses(bbs_base_url)
+
+    if not responses:
+        print("No BBS responses found; saving empty result")
 
     save_json(article_id, article_type, title, article_url, responses)
 
@@ -5347,6 +5473,7 @@ import pytest
 from bs4 import BeautifulSoup
 
 from orchestrator import (
+    ArticleNotFoundError,
     build_bbs_base_url,
     fetch_article_metadata,
     collect_all_responses,
@@ -5387,15 +5514,28 @@ def test_fetch_article_metadata_mocked():
     assert title == "Foo"
 
 
-def test_fetch_article_metadata_missing_meta():
+def test_fetch_article_metadata_raises_when_article_meta_missing():
     soup = BeautifulSoup("<html><body></body></html>", "lxml")
     with patch("orchestrator.fetch_page", return_value=soup):
-        article_id, article_type, title = fetch_article_metadata(
-            "https://dic.nicovideo.jp/a/999"
-        )
-    assert article_id == "unknown"
-    assert article_type == "a"
-    assert title == "unknown"
+        with pytest.raises(
+            ArticleNotFoundError,
+            match=r"Article not found: https://dic.nicovideo.jp/a/999",
+        ):
+            fetch_article_metadata("https://dic.nicovideo.jp/a/999")
+
+
+def test_fetch_article_metadata_wraps_404_as_article_not_found():
+    with patch(
+        "orchestrator.fetch_page",
+        side_effect=RuntimeError(
+            "Failed to fetch https://dic.nicovideo.jp/a/999 (status=404)"
+        ),
+    ):
+        with pytest.raises(
+            ArticleNotFoundError,
+            match=r"Article not found: https://dic.nicovideo.jp/a/999",
+        ):
+            fetch_article_metadata("https://dic.nicovideo.jp/a/999")
 
 
 # ----- collect_all_responses: pagination and stopping -----
@@ -5423,13 +5563,30 @@ def test_collect_all_responses_stops_on_empty_page(
 @patch("orchestrator.time.sleep")
 @patch("orchestrator.parse_responses")
 @patch("orchestrator.fetch_page")
-def test_collect_all_responses_stops_on_fetch_error(
+def test_collect_all_responses_returns_empty_for_missing_bbs(
     mock_fetch, mock_parse, mock_sleep
 ):
-    mock_fetch.side_effect = RuntimeError("Failed to fetch (status=404)")
+    mock_fetch.side_effect = RuntimeError(
+        "Failed to fetch https://dic.nicovideo.jp/b/a/12345/1- (status=404)"
+    )
     result = collect_all_responses("https://dic.nicovideo.jp/b/a/12345/")
     assert result == []
     mock_fetch.assert_called_once()
+    mock_parse.assert_not_called()
+    mock_sleep.assert_not_called()
+
+
+@patch("orchestrator.time.sleep")
+@patch("orchestrator.parse_responses")
+@patch("orchestrator.fetch_page")
+def test_collect_all_responses_propagates_first_page_non_404_fetch_error(
+    mock_fetch, mock_parse, mock_sleep
+):
+    mock_fetch.side_effect = RuntimeError("network unavailable")
+
+    with pytest.raises(RuntimeError, match=r"network unavailable"):
+        collect_all_responses("https://dic.nicovideo.jp/b/a/12345/")
+
     mock_parse.assert_not_called()
     mock_sleep.assert_not_called()
 
@@ -5513,6 +5670,68 @@ def test_run_scrape_propagates_error_from_metadata_and_does_not_init_db():
 
     mock_meta.assert_called_once_with(article_url)
     mock_init.assert_not_called()
+
+
+def test_run_scrape_article_not_found_skips_save_path():
+    article_url = "https://dic.nicovideo.jp/a/999"
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        side_effect=ArticleNotFoundError(f"Article not found: {article_url}"),
+    ) as mock_meta:
+        with patch("orchestrator.collect_all_responses") as mock_collect:
+            with patch("orchestrator.save_json") as mock_save_json:
+                with patch("orchestrator.init_db") as mock_init:
+                    with patch("orchestrator.save_to_db") as mock_save_db:
+                        with patch("orchestrator.print") as mock_print:
+                            run_scrape(article_url)
+
+    mock_meta.assert_called_once_with(article_url)
+    mock_collect.assert_not_called()
+    mock_save_json.assert_not_called()
+    mock_init.assert_not_called()
+    mock_save_db.assert_not_called()
+    mock_print.assert_any_call(f"Article not found: {article_url}")
+
+
+def test_run_scrape_saves_empty_result_for_zero_response_case():
+    article_url = "https://dic.nicovideo.jp/a/12345"
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=("12345", "a", "Title"),
+    ) as mock_meta:
+        with patch(
+            "orchestrator.build_bbs_base_url",
+            return_value="https://dic.nicovideo.jp/b/a/12345/",
+        ) as mock_build:
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=[],
+            ) as mock_collect:
+                with patch("orchestrator.save_json") as mock_save_json:
+                    conn = MagicMock()
+                    with patch("orchestrator.init_db", return_value=conn) as mock_init:
+                        with patch("orchestrator.save_to_db") as mock_save_db:
+                            with patch("orchestrator.print") as mock_print:
+                                run_scrape(article_url)
+
+    mock_meta.assert_called_once_with(article_url)
+    mock_build.assert_called_once_with(article_url)
+    mock_collect.assert_called_once_with("https://dic.nicovideo.jp/b/a/12345/")
+    mock_save_json.assert_called_once_with("12345", "a", "Title", article_url, [])
+    mock_init.assert_called_once_with()
+    mock_save_db.assert_called_once_with(
+        conn,
+        "12345",
+        "a",
+        "Title",
+        article_url,
+        [],
+    )
+    conn.close.assert_called_once_with()
+    mock_print.assert_any_call("No BBS responses found; saving empty result")
+    mock_print.assert_any_call("Saved to SQLite")
 
 =============================
 FILE: ./copilot/tests/test_parser.py
@@ -6285,6 +6504,10 @@ from parser import parse_responses
 from storage import init_db, save_json, save_to_db
 
 
+class ArticleNotFoundError(RuntimeError):
+    """記事ページが見つからない場合の orchestration 用例外。"""
+
+
 def build_bbs_base_url(article_url: str) -> str:
     """
     記事URLから掲示板ベースURLを生成する。
@@ -6316,12 +6539,21 @@ def collect_all_responses(bbs_base_url: str) -> list:
         try:
             soup = fetch_page(page_url)
         except RuntimeError as e:
+            if start == 1 and "status=404" in str(e):
+                print("No BBS found:", bbs_base_url)
+                return []
+
+            if start == 1:
+                raise
+
             print(e)
             break
 
         page_responses = parse_responses(soup)
 
         if not page_responses:
+            if start == 1:
+                print("No responses found:", bbs_base_url)
             break
 
         all_responses.extend(page_responses)
@@ -6345,13 +6577,21 @@ def fetch_article_metadata(article_url: str):
       - title
     """
 
-    soup = fetch_page(article_url)
+    try:
+        soup = fetch_page(article_url)
+    except RuntimeError as exc:
+        if "status=404" in str(exc):
+            raise ArticleNotFoundError(f"Article not found: {article_url}") from exc
+        raise
 
     title_tag = soup.find("meta", property="og:title")
     title = title_tag["content"].split("とは")[0] if title_tag else "unknown"
 
     og_url = soup.find("meta", property="og:url")
-    article_id = og_url["content"].rstrip("/").split("/")[-1] if og_url else "unknown"
+    if og_url is None:
+        raise ArticleNotFoundError(f"Article not found: {article_url}")
+
+    article_id = og_url["content"].rstrip("/").split("/")[-1]
 
     parsed = urlparse(article_url)
     article_type = parsed.path.strip("/").split("/")[0]
@@ -6360,10 +6600,19 @@ def fetch_article_metadata(article_url: str):
 
 
 def run_scrape(article_url: str):
-    article_id, article_type, title = fetch_article_metadata(article_url)
+    try:
+        article_id, article_type, title = fetch_article_metadata(article_url)
+
+    except ArticleNotFoundError:
+        print(f"Article not found: {article_url}")
+        return
+
     bbs_base_url = build_bbs_base_url(article_url)
 
     responses = collect_all_responses(bbs_base_url)
+
+    if not responses:
+        print("No BBS responses found; saving empty result")
 
     save_json(article_id, article_type, title, article_url, responses)
 
@@ -6768,6 +7017,7 @@ import pytest
 from bs4 import BeautifulSoup
 
 from orchestrator import (
+    ArticleNotFoundError,
     build_bbs_base_url,
     fetch_article_metadata,
     collect_all_responses,
@@ -6808,15 +7058,28 @@ def test_fetch_article_metadata_mocked():
     assert title == "Foo"
 
 
-def test_fetch_article_metadata_missing_meta():
+def test_fetch_article_metadata_raises_when_article_meta_missing():
     soup = BeautifulSoup("<html><body></body></html>", "lxml")
     with patch("orchestrator.fetch_page", return_value=soup):
-        article_id, article_type, title = fetch_article_metadata(
-            "https://dic.nicovideo.jp/a/999"
-        )
-    assert article_id == "unknown"
-    assert article_type == "a"
-    assert title == "unknown"
+        with pytest.raises(
+            ArticleNotFoundError,
+            match=r"Article not found: https://dic.nicovideo.jp/a/999",
+        ):
+            fetch_article_metadata("https://dic.nicovideo.jp/a/999")
+
+
+def test_fetch_article_metadata_wraps_404_as_article_not_found():
+    with patch(
+        "orchestrator.fetch_page",
+        side_effect=RuntimeError(
+            "Failed to fetch https://dic.nicovideo.jp/a/999 (status=404)"
+        ),
+    ):
+        with pytest.raises(
+            ArticleNotFoundError,
+            match=r"Article not found: https://dic.nicovideo.jp/a/999",
+        ):
+            fetch_article_metadata("https://dic.nicovideo.jp/a/999")
 
 
 # ----- collect_all_responses: pagination and stopping -----
@@ -6844,13 +7107,30 @@ def test_collect_all_responses_stops_on_empty_page(
 @patch("orchestrator.time.sleep")
 @patch("orchestrator.parse_responses")
 @patch("orchestrator.fetch_page")
-def test_collect_all_responses_stops_on_fetch_error(
+def test_collect_all_responses_returns_empty_for_missing_bbs(
     mock_fetch, mock_parse, mock_sleep
 ):
-    mock_fetch.side_effect = RuntimeError("Failed to fetch (status=404)")
+    mock_fetch.side_effect = RuntimeError(
+        "Failed to fetch https://dic.nicovideo.jp/b/a/12345/1- (status=404)"
+    )
     result = collect_all_responses("https://dic.nicovideo.jp/b/a/12345/")
     assert result == []
     mock_fetch.assert_called_once()
+    mock_parse.assert_not_called()
+    mock_sleep.assert_not_called()
+
+
+@patch("orchestrator.time.sleep")
+@patch("orchestrator.parse_responses")
+@patch("orchestrator.fetch_page")
+def test_collect_all_responses_propagates_first_page_non_404_fetch_error(
+    mock_fetch, mock_parse, mock_sleep
+):
+    mock_fetch.side_effect = RuntimeError("network unavailable")
+
+    with pytest.raises(RuntimeError, match=r"network unavailable"):
+        collect_all_responses("https://dic.nicovideo.jp/b/a/12345/")
+
     mock_parse.assert_not_called()
     mock_sleep.assert_not_called()
 
@@ -6934,6 +7214,68 @@ def test_run_scrape_propagates_error_from_metadata_and_does_not_init_db():
 
     mock_meta.assert_called_once_with(article_url)
     mock_init.assert_not_called()
+
+
+def test_run_scrape_article_not_found_skips_save_path():
+    article_url = "https://dic.nicovideo.jp/a/999"
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        side_effect=ArticleNotFoundError(f"Article not found: {article_url}"),
+    ) as mock_meta:
+        with patch("orchestrator.collect_all_responses") as mock_collect:
+            with patch("orchestrator.save_json") as mock_save_json:
+                with patch("orchestrator.init_db") as mock_init:
+                    with patch("orchestrator.save_to_db") as mock_save_db:
+                        with patch("orchestrator.print") as mock_print:
+                            run_scrape(article_url)
+
+    mock_meta.assert_called_once_with(article_url)
+    mock_collect.assert_not_called()
+    mock_save_json.assert_not_called()
+    mock_init.assert_not_called()
+    mock_save_db.assert_not_called()
+    mock_print.assert_any_call(f"Article not found: {article_url}")
+
+
+def test_run_scrape_saves_empty_result_for_zero_response_case():
+    article_url = "https://dic.nicovideo.jp/a/12345"
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=("12345", "a", "Title"),
+    ) as mock_meta:
+        with patch(
+            "orchestrator.build_bbs_base_url",
+            return_value="https://dic.nicovideo.jp/b/a/12345/",
+        ) as mock_build:
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=[],
+            ) as mock_collect:
+                with patch("orchestrator.save_json") as mock_save_json:
+                    conn = MagicMock()
+                    with patch("orchestrator.init_db", return_value=conn) as mock_init:
+                        with patch("orchestrator.save_to_db") as mock_save_db:
+                            with patch("orchestrator.print") as mock_print:
+                                run_scrape(article_url)
+
+    mock_meta.assert_called_once_with(article_url)
+    mock_build.assert_called_once_with(article_url)
+    mock_collect.assert_called_once_with("https://dic.nicovideo.jp/b/a/12345/")
+    mock_save_json.assert_called_once_with("12345", "a", "Title", article_url, [])
+    mock_init.assert_called_once_with()
+    mock_save_db.assert_called_once_with(
+        conn,
+        "12345",
+        "a",
+        "Title",
+        article_url,
+        [],
+    )
+    conn.close.assert_called_once_with()
+    mock_print.assert_any_call("No BBS responses found; saving empty result")
+    mock_print.assert_any_call("Saved to SQLite")
 
 =============================
 FILE: ./cursor/tests/test_parser.py

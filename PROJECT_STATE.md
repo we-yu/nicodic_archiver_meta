@@ -127,6 +127,18 @@ TASK008 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK009 has been completed.
+
+TASK009 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• `orchestrator.py` was hardened to handle article-not-found and no-BBS / zero-response cases more explicitly
+• `tests/test_orchestrator.py` was expanded to protect the new edge-case behavior
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -240,7 +252,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK008 is complete.
+TASK009 is complete.
 
 Next task is not yet fixed.
 
