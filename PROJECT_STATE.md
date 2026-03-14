@@ -139,6 +139,19 @@ TASK009 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK010 has been completed.
+
+TASK010 result:
+
+• Cursor-based minimal hybrid adoption was selected
+• Copilot contributed the later-page interruption page-level observability line
+• `orchestrator.py` was hardened to distinguish later-page interruption from empty-result handling
+• partial responses are now preserved and saved when later-page interruption occurs
+• `tests/test_orchestrator.py` was expanded to protect the new interruption-handling behavior
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -252,7 +265,9 @@ It is not used as:
 
 NEXT TASK
 
-TASK009 is complete.
+NEXT TASK
+
+TASK010 is complete.
 
 Next task is not yet fixed.
 
