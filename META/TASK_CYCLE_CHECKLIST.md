@@ -48,6 +48,14 @@ Keep the topic short, clear, and implementation-neutral.
   - define `What` and review criteria clearly
   - leave reasonable freedom in `How`
 
+For a reusable editor-prompt structure, also see:
+
+- `META/EDITOR_PROMPT_TEMPLATE.md`
+
+Use that file as workflow guidance for editor-facing implementation prompts.
+It complements this checklist, but does not replace task-specific definition work.
+
+
 ### Execution-boundary note for editor AI prompts
 
 - Prompts for editor AIs in `copilot/` and `cursor/` should normally avoid requiring ad-hoc execution.

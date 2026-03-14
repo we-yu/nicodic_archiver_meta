@@ -50,11 +50,15 @@ META/
 
 This includes:
 
-• review logs
-• workflow guidance
-• canonical architecture document
-• helper script implementations
-• review-only generated outputs
+- review logs
+- workflow guidance
+- canonical architecture documentation
+- task-cycle workflow guidance
+- editor-prompt design guidance
+- AI-readable review logs
+- helper script implementations
+- review-only generated outputs
+
 
 Example:
 
@@ -91,6 +95,16 @@ These helpers support routine Double Helix operations:
 
 Like other root helper scripts, these are thin wrappers.
 Their implementations are stored under:
+
+Prompt-design guidance:
+
+- `META/EDITOR_PROMPT_TEMPLATE.md`
+
+This file provides a reusable structure for editor-AI implementation prompts
+used in `copilot/` and `cursor/`.
+
+It is workflow guidance, not authoritative current state.
+
 
 META/scripts/
 

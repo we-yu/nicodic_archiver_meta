@@ -21,9 +21,12 @@ If relevant supplementary memory exists, the AI may also read:
 
 • META/review_log/*.md
 • META/TASK_CYCLE_CHECKLIST.md
+• META/EDITOR_PROMPT_TEMPLATE.md
 
 Review logs are supplementary memory.
 TASK_CYCLE_CHECKLIST.md is workflow guidance.
+EDITOR_PROMPT_TEMPLATE.md is editor-prompt design guidance.
+
 
 --------------------------------------------------
 

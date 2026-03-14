@@ -9,6 +9,7 @@ META/ stores:
 
 - canonical architecture documentation
 - task-cycle workflow guidance
+- editor-prompt design guidance
 - AI-readable review logs
 - helper script implementations
 - review-only generated outputs
@@ -35,6 +36,19 @@ Helper script examples:
 - `./new_task_branches.sh`
 - `./validate_helix.sh`
 - `./collect_task_review.sh`
+
+Prompt-design guidance:
+
+- `META/EDITOR_PROMPT_TEMPLATE.md`
+
+This file defines a reusable prompt structure for editor AIs
+working inside child product repositories.
+
+It is intended to:
+- stabilize prompt quality across sessions
+- preserve Double Helix comparison value
+- keep editor AI work within child-repo execution boundaries
+
 
 Recent additions:
 

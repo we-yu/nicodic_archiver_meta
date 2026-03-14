@@ -306,6 +306,7 @@ META/review_log/*.md
 If workflow guidance is needed, also read:
 
 META/TASK_CYCLE_CHECKLIST.md
+META/EDITOR_PROMPT_TEMPLATE.md
 META/REPO_BOUNDARY_GUARDRAILS.md
 
 If the next few tasks are being planned, also read:
