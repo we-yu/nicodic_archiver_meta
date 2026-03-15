@@ -2,7 +2,7 @@
 ==================================================
 REVIEW SNAPSHOT
 ==================================================
-generated: Sat Mar 14 16:51:19 UTC 2026
+generated: Sun Mar 15 05:17:17 UTC 2026
 root: /home/manage/product/nicodic_archiver
 output: /home/manage/product/nicodic_archiver/META/out/review_snapshot.txt
 
@@ -13,69 +13,911 @@ Use project_snapshot.txt as the authoritative source-of-truth snapshot.
 REPO: copilot
 ==================================================
 PATH: /home/manage/product/nicodic_archiver/copilot
-BRANCH: main
-HEAD: 797e53bc7630c5edc1c1c934e04373d161cfd73e
+BRANCH: task013-target-list-loading-copilot
+HEAD: a01d7d4ea81abe4392d16ce4b043576b2426b1a2
 
 --- RECENT COMMITS (git log --oneline -n 5) ---
+a01d7d4 Remove cursor setting file folder from trace target
 797e53b TASK012: strengthen representative orchestrator regression coverage (#16)
 58b47f4 TASK011: add high-volume handling policy (#15)
 da04820 TASK010: clarify later-page interruption handling (#14)
 77d7607 TASK009: handle article edge cases in orchestrator (#13)
-73f040b TASK008: harden http client failure boundary (#12)
 
 --- STATUS (git status --short --branch) ---
-## main...origin/main
+## task013-target-list-loading-copilot
+ M main.py
+ M tests/test_main.py
+?? target_list.py
+?? tests/test_target_list.py
 
 --- DIFF STAT (git diff --stat) ---
+ main.py            | 16 ++++++++++++++++
+ tests/test_main.py | 26 ++++++++++++++++++++++++++
+ 2 files changed, 42 insertions(+)
 
 --- DIFF (git diff) ---
+diff --git a/main.py b/main.py
+index 06a6d38..8995228 100644
+--- a/main.py
++++ b/main.py
+@@ -2,6 +2,7 @@ import sys
+ 
+ from cli import inspect_article
+ from orchestrator import run_scrape
++from target_list import load_target_urls
+ 
+ 
+ # ============================================================
+@@ -19,6 +20,7 @@ def main():
+         print("Usage:")
+         print("  python main.py <article_url>")
+         print("  python main.py inspect <article_id> <article_type> [--last N]")
++        print("  python main.py targets <target_list_path>")
+         sys.exit(1)
+ 
+     # inspectモード
+@@ -39,6 +41,20 @@ def main():
+         inspect_article(article_id, article_type, last_n)
+         return
+ 
++    if sys.argv[1] == "targets":
++
++        if len(sys.argv) < 3:
++            print("Usage: targets <target_list_path>")
++            sys.exit(1)
++
++        target_list_path = sys.argv[2]
++        targets = load_target_urls(target_list_path)
++
++        print(f"Loaded {len(targets)} scrape target(s) from {target_list_path}")
++        for target in targets:
++            print(target)
++        return
++
+     # 通常スクレイプモード
+     article_url = sys.argv[1]
+ 
+diff --git a/tests/test_main.py b/tests/test_main.py
+index 7f5bc65..ab5915b 100644
+--- a/tests/test_main.py
++++ b/tests/test_main.py
+@@ -27,6 +27,31 @@ def test_main_inspect_mode_with_last_n(mock_inspect):
+     mock_inspect.assert_called_once_with("12345", "a", 10)
+ 
+ 
++@patch("main.load_target_urls", return_value=[
++    "https://dic.nicovideo.jp/a/12345",
++    "https://dic.nicovideo.jp/a/99999",
++])
++def test_main_targets_mode_loads_and_prints_targets(mock_load_targets, capsys):
++    with patch("sys.argv", ["main.py", "targets", "targets.txt"]):
++        main_module.main()
++
++    mock_load_targets.assert_called_once_with("targets.txt")
++    out = capsys.readouterr().out
++    assert "Loaded 2 scrape target(s) from targets.txt" in out
++    assert "https://dic.nicovideo.jp/a/12345" in out
++    assert "https://dic.nicovideo.jp/a/99999" in out
++
++
++def test_main_targets_without_path_exits_with_usage(capsys):
++    with patch("sys.argv", ["main.py", "targets"]):
++        with pytest.raises(SystemExit) as exc_info:
++            main_module.main()
++
++    assert exc_info.value.code == 1
++    out = capsys.readouterr().out
++    assert "Usage: targets <target_list_path>" in out
++
++
+ def test_main_too_few_args_exits_with_usage(capsys):
+     with patch("sys.argv", ["main.py"]):
+         with pytest.raises(SystemExit) as exc_info:
+@@ -35,6 +60,7 @@ def test_main_too_few_args_exits_with_usage(capsys):
+     out = capsys.readouterr().out
+     assert "python main.py <article_url>" in out
+     assert "inspect" in out
++    assert "targets <target_list_path>" in out
+ 
+ 
+ def test_main_inspect_without_id_type_exits_with_usage(capsys):
 
 --- CACHED DIFF STAT (git diff --cached --stat) ---
 
 --- CACHED DIFF (git diff --cached) ---
 
 --- UNTRACKED FILES (git ls-files --others --exclude-standard) ---
+target_list.py
+tests/test_target_list.py
 
 --- UNTRACKED FILE DIFFS (synthetic unified diffs) ---
-(no untracked review-target files)
+
+------------------------------
+UNTRACKED DIFF: target_list.py
+------------------------------
+diff --git a/target_list.py b/target_list.py
+new file mode 100644
+index 0000000..fb3306c
+--- /dev/null
++++ b/target_list.py
+@@ -0,0 +1,23 @@
++from pathlib import Path
++
++
++# Temporary plain-text input source until a more structured target registry exists.
++def load_target_urls(file_path: str) -> list[str]:
++    """Load a stable URL list from a human-editable plain text file."""
++
++    seen_urls = set()
++    targets = []
++
++    for raw_line in Path(file_path).read_text(encoding="utf-8").splitlines():
++        line = raw_line.strip()
++
++        if not line or line.startswith("#"):
++            continue
++
++        if line in seen_urls:
++            continue
++
++        seen_urls.add(line)
++        targets.append(line)
++
++    return targets
+\ No newline at end of file
+
+
+------------------------------
+UNTRACKED DIFF: tests/test_target_list.py
+------------------------------
+diff --git a/tests/test_target_list.py b/tests/test_target_list.py
+new file mode 100644
+index 0000000..1563b0f
+--- /dev/null
++++ b/tests/test_target_list.py
+@@ -0,0 +1,33 @@
++from target_list import load_target_urls
++
++
++def test_load_target_urls_reads_plain_text_targets_stably(tmp_path):
++    target_file = tmp_path / "targets.txt"
++    target_file.write_text(
++        "\n"
++        "# temporary scrape targets\n"
++        "https://dic.nicovideo.jp/a/12345\n"
++        "\n"
++        "https://dic.nicovideo.jp/a/99999\n",
++        encoding="utf-8",
++    )
++
++    assert load_target_urls(str(target_file)) == [
++        "https://dic.nicovideo.jp/a/12345",
++        "https://dic.nicovideo.jp/a/99999",
++    ]
++
++
++def test_load_target_urls_ignores_duplicate_lines_while_preserving_order(tmp_path):
++    target_file = tmp_path / "targets.txt"
++    target_file.write_text(
++        "https://dic.nicovideo.jp/a/12345\n"
++        "https://dic.nicovideo.jp/a/12345\n"
++        "https://dic.nicovideo.jp/a/77777\n",
++        encoding="utf-8",
++    )
++
++    assert load_target_urls(str(target_file)) == [
++        "https://dic.nicovideo.jp/a/12345",
++        "https://dic.nicovideo.jp/a/77777",
++    ]
+\ No newline at end of file
 
 --- REVIEW TARGET FILE CONTENTS ---
-(no changed/staged/untracked files)
 
+------------------------------
+FILE: main.py
+------------------------------
+import sys
+
+from cli import inspect_article
+from orchestrator import run_scrape
+from target_list import load_target_urls
+
+
+# ============================================================
+# エントリポイント
+# ============================================================
+
+def main():
+    """
+    CLIエントリポイント。
+    - 通常: 記事URL指定でスクレイプ実行
+    - inspect: DB内容表示
+    """
+
+    if len(sys.argv) < 2:
+        print("Usage:")
+        print("  python main.py <article_url>")
+        print("  python main.py inspect <article_id> <article_type> [--last N]")
+        print("  python main.py targets <target_list_path>")
+        sys.exit(1)
+
+    # inspectモード
+    if sys.argv[1] == "inspect":
+
+        if len(sys.argv) < 4:
+            print("Usage: inspect <article_id> <article_type> [--last N]")
+            sys.exit(1)
+
+        article_id = sys.argv[2]
+        article_type = sys.argv[3]
+
+        last_n = None
+        if "--last" in sys.argv:
+            idx = sys.argv.index("--last")
+            last_n = int(sys.argv[idx + 1])
+
+        inspect_article(article_id, article_type, last_n)
+        return
+
+    if sys.argv[1] == "targets":
+
+        if len(sys.argv) < 3:
+            print("Usage: targets <target_list_path>")
+            sys.exit(1)
+
+        target_list_path = sys.argv[2]
+        targets = load_target_urls(target_list_path)
+
+        print(f"Loaded {len(targets)} scrape target(s) from {target_list_path}")
+        for target in targets:
+            print(target)
+        return
+
+    # 通常スクレイプモード
+    article_url = sys.argv[1]
+
+    run_scrape(article_url)
+
+
+if __name__ == "__main__":
+    main()
+
+
+------------------------------
+FILE: target_list.py
+------------------------------
+from pathlib import Path
+
+
+# Temporary plain-text input source until a more structured target registry exists.
+def load_target_urls(file_path: str) -> list[str]:
+    """Load a stable URL list from a human-editable plain text file."""
+
+    seen_urls = set()
+    targets = []
+
+    for raw_line in Path(file_path).read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+
+        if not line or line.startswith("#"):
+            continue
+
+        if line in seen_urls:
+            continue
+
+        seen_urls.add(line)
+        targets.append(line)
+
+    return targets
+
+------------------------------
+FILE: tests/test_main.py
+------------------------------
+"""Unit tests for main.py: CLI dispatch (inspect vs scrape, usage/exit)."""
+from unittest.mock import patch
+
+import pytest
+
+import main as main_module
+
+
+@patch("main.run_scrape")
+def test_main_scrape_mode_calls_run_scrape(mock_run_scrape):
+    with patch("sys.argv", ["main.py", "https://dic.nicovideo.jp/a/12345"]):
+        main_module.main()
+    mock_run_scrape.assert_called_once_with("https://dic.nicovideo.jp/a/12345")
+
+
+@patch("main.inspect_article")
+def test_main_inspect_mode_calls_inspect_article(mock_inspect):
+    with patch("sys.argv", ["main.py", "inspect", "12345", "a"]):
+        main_module.main()
+    mock_inspect.assert_called_once_with("12345", "a", None)
+
+
+@patch("main.inspect_article")
+def test_main_inspect_mode_with_last_n(mock_inspect):
+    with patch("sys.argv", ["main.py", "inspect", "12345", "a", "--last", "10"]):
+        main_module.main()
+    mock_inspect.assert_called_once_with("12345", "a", 10)
+
+
+@patch("main.load_target_urls", return_value=[
+    "https://dic.nicovideo.jp/a/12345",
+    "https://dic.nicovideo.jp/a/99999",
+])
+def test_main_targets_mode_loads_and_prints_targets(mock_load_targets, capsys):
+    with patch("sys.argv", ["main.py", "targets", "targets.txt"]):
+        main_module.main()
+
+    mock_load_targets.assert_called_once_with("targets.txt")
+    out = capsys.readouterr().out
+    assert "Loaded 2 scrape target(s) from targets.txt" in out
+    assert "https://dic.nicovideo.jp/a/12345" in out
+    assert "https://dic.nicovideo.jp/a/99999" in out
+
+
+def test_main_targets_without_path_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "targets"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "Usage: targets <target_list_path>" in out
+
+
+def test_main_too_few_args_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "python main.py <article_url>" in out
+    assert "inspect" in out
+    assert "targets <target_list_path>" in out
+
+
+def test_main_inspect_without_id_type_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "inspect"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "inspect <article_id> <article_type>" in out
+
+
+------------------------------
+FILE: tests/test_target_list.py
+------------------------------
+from target_list import load_target_urls
+
+
+def test_load_target_urls_reads_plain_text_targets_stably(tmp_path):
+    target_file = tmp_path / "targets.txt"
+    target_file.write_text(
+        "\n"
+        "# temporary scrape targets\n"
+        "https://dic.nicovideo.jp/a/12345\n"
+        "\n"
+        "https://dic.nicovideo.jp/a/99999\n",
+        encoding="utf-8",
+    )
+
+    assert load_target_urls(str(target_file)) == [
+        "https://dic.nicovideo.jp/a/12345",
+        "https://dic.nicovideo.jp/a/99999",
+    ]
+
+
+def test_load_target_urls_ignores_duplicate_lines_while_preserving_order(tmp_path):
+    target_file = tmp_path / "targets.txt"
+    target_file.write_text(
+        "https://dic.nicovideo.jp/a/12345\n"
+        "https://dic.nicovideo.jp/a/12345\n"
+        "https://dic.nicovideo.jp/a/77777\n",
+        encoding="utf-8",
+    )
+
+    assert load_target_urls(str(target_file)) == [
+        "https://dic.nicovideo.jp/a/12345",
+        "https://dic.nicovideo.jp/a/77777",
+    ]
 
 ==================================================
 REPO: cursor
 ==================================================
 PATH: /home/manage/product/nicodic_archiver/cursor
-BRANCH: main
-HEAD: 797e53bc7630c5edc1c1c934e04373d161cfd73e
+BRANCH: task013-target-list-loading-cursor
+HEAD: a01d7d4ea81abe4392d16ce4b043576b2426b1a2
 
 --- RECENT COMMITS (git log --oneline -n 5) ---
+a01d7d4 Remove cursor setting file folder from trace target
 797e53b TASK012: strengthen representative orchestrator regression coverage (#16)
 58b47f4 TASK011: add high-volume handling policy (#15)
 da04820 TASK010: clarify later-page interruption handling (#14)
 77d7607 TASK009: handle article edge cases in orchestrator (#13)
-73f040b TASK008: harden http client failure boundary (#12)
 
 --- STATUS (git status --short --branch) ---
-## main...origin/main
-?? .cursor/
+## task013-target-list-loading-cursor
+ M main.py
+ M tests/test_main.py
+?? target_list.py
+?? tests/test_target_list.py
 
 --- DIFF STAT (git diff --stat) ---
+ main.py            | 14 ++++++++++++++
+ tests/test_main.py | 35 +++++++++++++++++++++++++++++++++++
+ 2 files changed, 49 insertions(+)
 
 --- DIFF (git diff) ---
+diff --git a/main.py b/main.py
+index 06a6d38..5cb1a16 100644
+--- a/main.py
++++ b/main.py
+@@ -2,6 +2,7 @@ import sys
+ 
+ from cli import inspect_article
+ from orchestrator import run_scrape
++from target_list import load_target_list
+ 
+ 
+ # ============================================================
+@@ -18,9 +19,22 @@ def main():
+     if len(sys.argv) < 2:
+         print("Usage:")
+         print("  python main.py <article_url>")
++        print("  python main.py --target-list <file>")
+         print("  python main.py inspect <article_id> <article_type> [--last N]")
+         sys.exit(1)
+ 
++    # target list: provisional file-based source; run first target only (no batch).
++    if sys.argv[1] == "--target-list":
++        if len(sys.argv) < 3:
++            print("Usage: python main.py --target-list <file>")
++            sys.exit(1)
++        urls = load_target_list(sys.argv[2])
++        if not urls:
++            print("Target list is empty or had no valid lines.")
++            sys.exit(1)
++        run_scrape(urls[0])
++        return
++
+     # inspectモード
+     if sys.argv[1] == "inspect":
+ 
+diff --git a/tests/test_main.py b/tests/test_main.py
+index 7f5bc65..0e8546e 100644
+--- a/tests/test_main.py
++++ b/tests/test_main.py
+@@ -34,9 +34,44 @@ def test_main_too_few_args_exits_with_usage(capsys):
+     assert exc_info.value.code == 1
+     out = capsys.readouterr().out
+     assert "python main.py <article_url>" in out
++    assert "target-list" in out
+     assert "inspect" in out
+ 
+ 
++@patch("main.run_scrape")
++@patch("main.load_target_list")
++def test_main_target_list_loads_file_and_runs_first_url(mock_load, mock_run_scrape):
++    mock_load.return_value = [
++        "https://dic.nicovideo.jp/a/1",
++        "https://dic.nicovideo.jp/a/2",
++    ]
++    with patch("sys.argv", ["main.py", "--target-list", "/path/to/list.txt"]):
++        main_module.main()
++    mock_load.assert_called_once_with("/path/to/list.txt")
++    mock_run_scrape.assert_called_once_with("https://dic.nicovideo.jp/a/1")
++
++
++@patch("main.load_target_list")
++def test_main_target_list_empty_exits_with_message(mock_load, capsys):
++    mock_load.return_value = []
++    with patch("sys.argv", ["main.py", "--target-list", "/path/to/empty.txt"]):
++        with pytest.raises(SystemExit) as exc_info:
++            main_module.main()
++    assert exc_info.value.code == 1
++    out = capsys.readouterr().out
++    assert "empty" in out.lower() or "no valid" in out.lower()
++
++
++@patch("main.load_target_list")
++def test_main_target_list_missing_file_arg_exits_with_usage(capsys):
++    with patch("sys.argv", ["main.py", "--target-list"]):
++        with pytest.raises(SystemExit) as exc_info:
++            main_module.main()
++    assert exc_info.value.code == 1
++    out = capsys.readouterr().out
++    assert "--target-list" in out or "target-list" in out
++
++
+ def test_main_inspect_without_id_type_exits_with_usage(capsys):
+     with patch("sys.argv", ["main.py", "inspect"]):
+         with pytest.raises(SystemExit) as exc_info:
 
 --- CACHED DIFF STAT (git diff --cached --stat) ---
 
 --- CACHED DIFF (git diff --cached) ---
 
 --- UNTRACKED FILES (git ls-files --others --exclude-standard) ---
-.cursor/rules/double-helix-workflow.mdc
+target_list.py
+tests/test_target_list.py
 
 --- UNTRACKED FILE DIFFS (synthetic unified diffs) ---
-(no untracked review-target files)
+
+------------------------------
+UNTRACKED DIFF: target_list.py
+------------------------------
+diff --git a/target_list.py b/target_list.py
+new file mode 100644
+index 0000000..3e3299d
+--- /dev/null
++++ b/target_list.py
+@@ -0,0 +1,21 @@
++"""
++Plain-text target list loader.
++
++Provisional file-based input source for article URLs; not a long-term registry.
++"""
++
++
++def load_target_list(filepath: str) -> list[str]:
++    """
++    Read a plain-text target list: one URL per line.
++    Blank lines and lines starting with # are skipped. Lines are stripped.
++    Returns a list of URL strings in order of appearance.
++    """
++    urls = []
++    with open(filepath, encoding="utf-8") as f:
++        for line in f:
++            line = line.strip()
++            if not line or line.startswith("#"):
++                continue
++            urls.append(line)
++    return urls
+
+
+------------------------------
+UNTRACKED DIFF: tests/test_target_list.py
+------------------------------
+diff --git a/tests/test_target_list.py b/tests/test_target_list.py
+new file mode 100644
+index 0000000..e665e51
+--- /dev/null
++++ b/tests/test_target_list.py
+@@ -0,0 +1,72 @@
++"""Tests for plain-text target list loader."""
++import tempfile
++from pathlib import Path
++
++import pytest
++
++from target_list import load_target_list
++
++
++def test_load_target_list_empty_file():
++    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
++        path = f.name
++    try:
++        assert load_target_list(path) == []
++    finally:
++        Path(path).unlink(missing_ok=True)
++
++
++def test_load_target_list_one_url():
++    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
++        f.write("https://dic.nicovideo.jp/a/12345\n")
++        path = f.name
++    try:
++        assert load_target_list(path) == ["https://dic.nicovideo.jp/a/12345"]
++    finally:
++        Path(path).unlink(missing_ok=True)
++
++
++def test_load_target_list_multiple_urls():
++    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
++        f.write("https://dic.nicovideo.jp/a/1\n")
++        f.write("https://dic.nicovideo.jp/a/2\n")
++        f.write("https://dic.nicovideo.jp/a/3\n")
++        path = f.name
++    try:
++        got = load_target_list(path)
++        assert got == [
++            "https://dic.nicovideo.jp/a/1",
++            "https://dic.nicovideo.jp/a/2",
++            "https://dic.nicovideo.jp/a/3",
++        ]
++    finally:
++        Path(path).unlink(missing_ok=True)
++
++
++def test_load_target_list_skips_comments_and_blank_lines():
++    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
++        f.write("# comment\n")
++        f.write("\n")
++        f.write("https://dic.nicovideo.jp/a/42\n")
++        f.write("  \n")
++        f.write("# another\n")
++        f.write("https://dic.nicovideo.jp/a/99\n")
++        path = f.name
++    try:
++        got = load_target_list(path)
++        assert got == [
++            "https://dic.nicovideo.jp/a/42",
++            "https://dic.nicovideo.jp/a/99",
++        ]
++    finally:
++        Path(path).unlink(missing_ok=True)
++
++
++def test_load_target_list_strips_lines():
++    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
++        f.write("  https://dic.nicovideo.jp/a/1  \n")
++        path = f.name
++    try:
++        assert load_target_list(path) == ["https://dic.nicovideo.jp/a/1"]
++    finally:
++        Path(path).unlink(missing_ok=True)
 
 --- REVIEW TARGET FILE CONTENTS ---
+
+------------------------------
+FILE: main.py
+------------------------------
+import sys
+
+from cli import inspect_article
+from orchestrator import run_scrape
+from target_list import load_target_list
+
+
+# ============================================================
+# エントリポイント
+# ============================================================
+
+def main():
+    """
+    CLIエントリポイント。
+    - 通常: 記事URL指定でスクレイプ実行
+    - inspect: DB内容表示
+    """
+
+    if len(sys.argv) < 2:
+        print("Usage:")
+        print("  python main.py <article_url>")
+        print("  python main.py --target-list <file>")
+        print("  python main.py inspect <article_id> <article_type> [--last N]")
+        sys.exit(1)
+
+    # target list: provisional file-based source; run first target only (no batch).
+    if sys.argv[1] == "--target-list":
+        if len(sys.argv) < 3:
+            print("Usage: python main.py --target-list <file>")
+            sys.exit(1)
+        urls = load_target_list(sys.argv[2])
+        if not urls:
+            print("Target list is empty or had no valid lines.")
+            sys.exit(1)
+        run_scrape(urls[0])
+        return
+
+    # inspectモード
+    if sys.argv[1] == "inspect":
+
+        if len(sys.argv) < 4:
+            print("Usage: inspect <article_id> <article_type> [--last N]")
+            sys.exit(1)
+
+        article_id = sys.argv[2]
+        article_type = sys.argv[3]
+
+        last_n = None
+        if "--last" in sys.argv:
+            idx = sys.argv.index("--last")
+            last_n = int(sys.argv[idx + 1])
+
+        inspect_article(article_id, article_type, last_n)
+        return
+
+    # 通常スクレイプモード
+    article_url = sys.argv[1]
+
+    run_scrape(article_url)
+
+
+if __name__ == "__main__":
+    main()
+
+
+------------------------------
+FILE: target_list.py
+------------------------------
+"""
+Plain-text target list loader.
+
+Provisional file-based input source for article URLs; not a long-term registry.
+"""
+
+
+def load_target_list(filepath: str) -> list[str]:
+    """
+    Read a plain-text target list: one URL per line.
+    Blank lines and lines starting with # are skipped. Lines are stripped.
+    Returns a list of URL strings in order of appearance.
+    """
+    urls = []
+    with open(filepath, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line or line.startswith("#"):
+                continue
+            urls.append(line)
+    return urls
+
+
+------------------------------
+FILE: tests/test_main.py
+------------------------------
+"""Unit tests for main.py: CLI dispatch (inspect vs scrape, usage/exit)."""
+from unittest.mock import patch
+
+import pytest
+
+import main as main_module
+
+
+@patch("main.run_scrape")
+def test_main_scrape_mode_calls_run_scrape(mock_run_scrape):
+    with patch("sys.argv", ["main.py", "https://dic.nicovideo.jp/a/12345"]):
+        main_module.main()
+    mock_run_scrape.assert_called_once_with("https://dic.nicovideo.jp/a/12345")
+
+
+@patch("main.inspect_article")
+def test_main_inspect_mode_calls_inspect_article(mock_inspect):
+    with patch("sys.argv", ["main.py", "inspect", "12345", "a"]):
+        main_module.main()
+    mock_inspect.assert_called_once_with("12345", "a", None)
+
+
+@patch("main.inspect_article")
+def test_main_inspect_mode_with_last_n(mock_inspect):
+    with patch("sys.argv", ["main.py", "inspect", "12345", "a", "--last", "10"]):
+        main_module.main()
+    mock_inspect.assert_called_once_with("12345", "a", 10)
+
+
+def test_main_too_few_args_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "python main.py <article_url>" in out
+    assert "target-list" in out
+    assert "inspect" in out
+
+
+@patch("main.run_scrape")
+@patch("main.load_target_list")
+def test_main_target_list_loads_file_and_runs_first_url(mock_load, mock_run_scrape):
+    mock_load.return_value = [
+        "https://dic.nicovideo.jp/a/1",
+        "https://dic.nicovideo.jp/a/2",
+    ]
+    with patch("sys.argv", ["main.py", "--target-list", "/path/to/list.txt"]):
+        main_module.main()
+    mock_load.assert_called_once_with("/path/to/list.txt")
+    mock_run_scrape.assert_called_once_with("https://dic.nicovideo.jp/a/1")
+
+
+@patch("main.load_target_list")
+def test_main_target_list_empty_exits_with_message(mock_load, capsys):
+    mock_load.return_value = []
+    with patch("sys.argv", ["main.py", "--target-list", "/path/to/empty.txt"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "empty" in out.lower() or "no valid" in out.lower()
+
+
+@patch("main.load_target_list")
+def test_main_target_list_missing_file_arg_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "--target-list"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "--target-list" in out or "target-list" in out
+
+
+def test_main_inspect_without_id_type_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "inspect"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "inspect <article_id> <article_type>" in out
+
+
+------------------------------
+FILE: tests/test_target_list.py
+------------------------------
+"""Tests for plain-text target list loader."""
+import tempfile
+from pathlib import Path
+
+import pytest
+
+from target_list import load_target_list
+
+
+def test_load_target_list_empty_file():
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        path = f.name
+    try:
+        assert load_target_list(path) == []
+    finally:
+        Path(path).unlink(missing_ok=True)
+
+
+def test_load_target_list_one_url():
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        f.write("https://dic.nicovideo.jp/a/12345\n")
+        path = f.name
+    try:
+        assert load_target_list(path) == ["https://dic.nicovideo.jp/a/12345"]
+    finally:
+        Path(path).unlink(missing_ok=True)
+
+
+def test_load_target_list_multiple_urls():
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        f.write("https://dic.nicovideo.jp/a/1\n")
+        f.write("https://dic.nicovideo.jp/a/2\n")
+        f.write("https://dic.nicovideo.jp/a/3\n")
+        path = f.name
+    try:
+        got = load_target_list(path)
+        assert got == [
+            "https://dic.nicovideo.jp/a/1",
+            "https://dic.nicovideo.jp/a/2",
+            "https://dic.nicovideo.jp/a/3",
+        ]
+    finally:
+        Path(path).unlink(missing_ok=True)
+
+
+def test_load_target_list_skips_comments_and_blank_lines():
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        f.write("# comment\n")
+        f.write("\n")
+        f.write("https://dic.nicovideo.jp/a/42\n")
+        f.write("  \n")
+        f.write("# another\n")
+        f.write("https://dic.nicovideo.jp/a/99\n")
+        path = f.name
+    try:
+        got = load_target_list(path)
+        assert got == [
+            "https://dic.nicovideo.jp/a/42",
+            "https://dic.nicovideo.jp/a/99",
+        ]
+    finally:
+        Path(path).unlink(missing_ok=True)
+
+
+def test_load_target_list_strips_lines():
+    with tempfile.NamedTemporaryFile(mode="w", suffix=".txt", delete=False) as f:
+        f.write("  https://dic.nicovideo.jp/a/1  \n")
+        path = f.name
+    try:
+        assert load_target_list(path) == ["https://dic.nicovideo.jp/a/1"]
+    finally:
+        Path(path).unlink(missing_ok=True)
+
 
 ==================================================
 END

@@ -1185,6 +1185,22 @@ TASK012 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK013 has been completed.
+
+TASK013 result:
+
+• Copilot implementation was adopted
+• a provisional plain-text file-based target source was introduced
+• `target_list.py` was added to provide bounded target-list loading
+• `main.py` gained a bounded CLI/application entry for target-list loading
+• `tests/test_target_list.py` was added
+• `tests/test_main.py` was updated to protect the new bounded entry behavior
+• batch scrape behavior was not introduced
+• production changes remained limited to bounded functional expansion for target loading
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -1298,7 +1314,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK012 is complete.
+TASK013 is complete.
 
 Next task is not yet fixed.
 
@@ -2875,6 +2891,121 @@ Authoritative context should still be restored from:
 
 
 
+===== REVIEW LOG: META/review_log/TASK013_adoption.md =====
+# TASK013 Adoption Log
+
+## Task
+TASK013
+
+Introduce a plain-text file-based target source together with a bounded loader
+and bounded CLI/application entry, without expanding into batch scrape,
+scheduler, request intake, or DB-backed target registry design.
+
+## Decision
+Adopted: **Copilot implementation**
+
+Alternative reviewed:
+- Cursor implementation was retained as comparison evidence
+- Hybrid was considered but not selected
+
+## Final adopted shape
+Changed files:
+- `target_list.py`
+- `main.py`
+- `tests/test_main.py`
+- `tests/test_target_list.py`
+
+## What changed in the adopted result
+The adopted result introduced a minimal plain-text target source for article URLs.
+
+Key behavior added:
+- human-editable plain-text target file support
+- bounded loader that reads a stable URL list from file input
+- bounded CLI entry that loads and displays target URLs
+- focused tests protecting loader behavior and CLI entry behavior
+
+The adopted result kept this target source explicitly provisional and did not
+treat it as a long-term registry design.
+
+## Why Copilot was adopted
+Primary reasons:
+
+1. It matched the TASK013 boundary more conservatively.
+   - It introduced the target source, loader, and entry
+   - It stopped at loading and listing targets
+   - It did not step into scrape execution from the target list
+
+2. It preserved the intended task shape clearly.
+   - plain text target list
+   - bounded loader
+   - bounded CLI/application entry
+   - no batch scrape expansion
+
+3. It stayed within bounded functional expansion.
+   - no scheduler
+   - no request intake
+   - no DB-backed target registry
+   - no parser / storage / http_client redesign
+
+4. It remained review-friendly.
+   - the target-loading responsibility was easy to identify
+   - focused tests clearly protected the new bounded behavior
+
+## Why Cursor was not adopted
+Cursor implementation was valid and useful as comparison evidence.
+
+Observed strengths:
+- it kept the loader responsibility bounded
+- it clearly marked the file-based source as provisional
+- it connected the target list to application flow in a practical way
+
+Reasons it was not selected:
+- it went one step further by executing `run_scrape()` on the first loaded target
+- that moved slightly closer to TASK014-style flow
+- compared with Copilot, the TASK013 boundary was less conservative
+
+## Why Hybrid was not selected
+Hybrid was considered, but not selected because:
+- both implementations were already small and coherent
+- no narrow borrowed adjustment clearly improved the adopted Copilot result enough to justify a hybrid
+- merge-for-the-sake-of-merge was unnecessary
+- a simpler adoption decision is easier to preserve as review memory
+
+## Validation result
+Validation was run with the established workflow:
+- `./validate_helix.sh` passed for both child repositories after minor cleanup
+- final post-adoption validation on `main` passed
+
+## Convergence result
+- `./compare_helix.sh --all` passed after realignment
+- `copilot/` and `cursor/` matched on the adopted final state
+
+## Repository outcome
+- adopted implementation repository: `copilot/`
+- comparison-evidence repository: `cursor/`
+- optional adoption marker branch:
+  - `adopted/task013-target-list-loading`
+- after integration, both child repositories were realigned to the same adopted final state
+
+## Notes for future AI sessions
+Important interpretation:
+- TASK013 is complete
+- the project now has a provisional plain-text target source and bounded loading path
+- batch scrape behavior is still intentionally out of scope
+- future planning may now proceed toward TASK014-style batch execution using this bounded input path
+
+## Meta note
+This log is AI-readable review memory.
+It is not authoritative current state by itself.
+
+Authoritative context should still be restored from:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
+
+
+
 ===== REVIEW LOG: META/review_log/task008_review.md =====
 # TASK008 Review
 
@@ -3227,7 +3358,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Sat Mar 14 16:53:08 UTC 2026
+generated: Sun Mar 15 18:54:08 UTC 2026
 mode: full
 
 
@@ -5380,6 +5511,8 @@ data/
 export_project.sh
 project_summary.txt
 
+.cursor/
+
 =============================
 FILE: ./copilot/Dockerfile
 =============================
@@ -5790,6 +5923,7 @@ import sys
 
 from cli import inspect_article
 from orchestrator import run_scrape
+from target_list import load_target_urls
 
 
 # ============================================================
@@ -5807,6 +5941,7 @@ def main():
         print("Usage:")
         print("  python main.py <article_url>")
         print("  python main.py inspect <article_id> <article_type> [--last N]")
+        print("  python main.py targets <target_list_path>")
         sys.exit(1)
 
     # inspectモード
@@ -5825,6 +5960,20 @@ def main():
             last_n = int(sys.argv[idx + 1])
 
         inspect_article(article_id, article_type, last_n)
+        return
+
+    if sys.argv[1] == "targets":
+
+        if len(sys.argv) < 3:
+            print("Usage: targets <target_list_path>")
+            sys.exit(1)
+
+        target_list_path = sys.argv[2]
+        targets = load_target_urls(target_list_path)
+
+        print(f"Loaded {len(targets)} scrape target(s) from {target_list_path}")
+        for target in targets:
+            print(target)
         return
 
     # 通常スクレイプモード
@@ -6266,6 +6415,33 @@ def save_json(article_id, article_type, title, article_url, responses):
     print("Saved JSON:", output_path)
 
 =============================
+FILE: ./copilot/target_list.py
+=============================
+from pathlib import Path
+
+
+# Temporary plain-text input source until a more structured target registry exists.
+def load_target_urls(file_path: str) -> list[str]:
+    """Load a stable URL list from a human-editable plain text file."""
+
+    seen_urls = set()
+    targets = []
+
+    for raw_line in Path(file_path).read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+
+        if not line or line.startswith("#"):
+            continue
+
+        if line in seen_urls:
+            continue
+
+        seen_urls.add(line)
+        targets.append(line)
+
+    return targets
+
+=============================
 FILE: ./copilot/tests/conftest.py
 =============================
 """Pytest config: ensure project root is on path so main/orchestrator are importable."""
@@ -6375,6 +6551,31 @@ def test_main_inspect_mode_with_last_n(mock_inspect):
     mock_inspect.assert_called_once_with("12345", "a", 10)
 
 
+@patch("main.load_target_urls", return_value=[
+    "https://dic.nicovideo.jp/a/12345",
+    "https://dic.nicovideo.jp/a/99999",
+])
+def test_main_targets_mode_loads_and_prints_targets(mock_load_targets, capsys):
+    with patch("sys.argv", ["main.py", "targets", "targets.txt"]):
+        main_module.main()
+
+    mock_load_targets.assert_called_once_with("targets.txt")
+    out = capsys.readouterr().out
+    assert "Loaded 2 scrape target(s) from targets.txt" in out
+    assert "https://dic.nicovideo.jp/a/12345" in out
+    assert "https://dic.nicovideo.jp/a/99999" in out
+
+
+def test_main_targets_without_path_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "targets"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "Usage: targets <target_list_path>" in out
+
+
 def test_main_too_few_args_exits_with_usage(capsys):
     with patch("sys.argv", ["main.py"]):
         with pytest.raises(SystemExit) as exc_info:
@@ -6383,6 +6584,7 @@ def test_main_too_few_args_exits_with_usage(capsys):
     out = capsys.readouterr().out
     assert "python main.py <article_url>" in out
     assert "inspect" in out
+    assert "targets <target_list_path>" in out
 
 
 def test_main_inspect_without_id_type_exits_with_usage(capsys):
@@ -7228,6 +7430,43 @@ def test_save_json_writes_json_and_sanitizes_title_in_filename(tmp_path, monkeyp
     assert data["responses"] == responses
 
 =============================
+FILE: ./copilot/tests/test_target_list.py
+=============================
+from target_list import load_target_urls
+
+
+def test_load_target_urls_reads_plain_text_targets_stably(tmp_path):
+    target_file = tmp_path / "targets.txt"
+    target_file.write_text(
+        "\n"
+        "# temporary scrape targets\n"
+        "https://dic.nicovideo.jp/a/12345\n"
+        "\n"
+        "https://dic.nicovideo.jp/a/99999\n",
+        encoding="utf-8",
+    )
+
+    assert load_target_urls(str(target_file)) == [
+        "https://dic.nicovideo.jp/a/12345",
+        "https://dic.nicovideo.jp/a/99999",
+    ]
+
+
+def test_load_target_urls_ignores_duplicate_lines_while_preserving_order(tmp_path):
+    target_file = tmp_path / "targets.txt"
+    target_file.write_text(
+        "https://dic.nicovideo.jp/a/12345\n"
+        "https://dic.nicovideo.jp/a/12345\n"
+        "https://dic.nicovideo.jp/a/77777\n",
+        encoding="utf-8",
+    )
+
+    assert load_target_urls(str(target_file)) == [
+        "https://dic.nicovideo.jp/a/12345",
+        "https://dic.nicovideo.jp/a/77777",
+    ]
+
+=============================
 FILE: ./cursor/.cursor/rules/double-helix-workflow.mdc
 =============================
 ---
@@ -7319,6 +7558,8 @@ data/
 # Utlity files/folders
 export_project.sh
 project_summary.txt
+
+.cursor/
 
 =============================
 FILE: ./cursor/Dockerfile
@@ -7730,6 +7971,7 @@ import sys
 
 from cli import inspect_article
 from orchestrator import run_scrape
+from target_list import load_target_urls
 
 
 # ============================================================
@@ -7747,6 +7989,7 @@ def main():
         print("Usage:")
         print("  python main.py <article_url>")
         print("  python main.py inspect <article_id> <article_type> [--last N]")
+        print("  python main.py targets <target_list_path>")
         sys.exit(1)
 
     # inspectモード
@@ -7765,6 +8008,20 @@ def main():
             last_n = int(sys.argv[idx + 1])
 
         inspect_article(article_id, article_type, last_n)
+        return
+
+    if sys.argv[1] == "targets":
+
+        if len(sys.argv) < 3:
+            print("Usage: targets <target_list_path>")
+            sys.exit(1)
+
+        target_list_path = sys.argv[2]
+        targets = load_target_urls(target_list_path)
+
+        print(f"Loaded {len(targets)} scrape target(s) from {target_list_path}")
+        for target in targets:
+            print(target)
         return
 
     # 通常スクレイプモード
@@ -8206,6 +8463,33 @@ def save_json(article_id, article_type, title, article_url, responses):
     print("Saved JSON:", output_path)
 
 =============================
+FILE: ./cursor/target_list.py
+=============================
+from pathlib import Path
+
+
+# Temporary plain-text input source until a more structured target registry exists.
+def load_target_urls(file_path: str) -> list[str]:
+    """Load a stable URL list from a human-editable plain text file."""
+
+    seen_urls = set()
+    targets = []
+
+    for raw_line in Path(file_path).read_text(encoding="utf-8").splitlines():
+        line = raw_line.strip()
+
+        if not line or line.startswith("#"):
+            continue
+
+        if line in seen_urls:
+            continue
+
+        seen_urls.add(line)
+        targets.append(line)
+
+    return targets
+
+=============================
 FILE: ./cursor/tests/conftest.py
 =============================
 """Pytest config: ensure project root is on path so main/orchestrator are importable."""
@@ -8315,6 +8599,31 @@ def test_main_inspect_mode_with_last_n(mock_inspect):
     mock_inspect.assert_called_once_with("12345", "a", 10)
 
 
+@patch("main.load_target_urls", return_value=[
+    "https://dic.nicovideo.jp/a/12345",
+    "https://dic.nicovideo.jp/a/99999",
+])
+def test_main_targets_mode_loads_and_prints_targets(mock_load_targets, capsys):
+    with patch("sys.argv", ["main.py", "targets", "targets.txt"]):
+        main_module.main()
+
+    mock_load_targets.assert_called_once_with("targets.txt")
+    out = capsys.readouterr().out
+    assert "Loaded 2 scrape target(s) from targets.txt" in out
+    assert "https://dic.nicovideo.jp/a/12345" in out
+    assert "https://dic.nicovideo.jp/a/99999" in out
+
+
+def test_main_targets_without_path_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "targets"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "Usage: targets <target_list_path>" in out
+
+
 def test_main_too_few_args_exits_with_usage(capsys):
     with patch("sys.argv", ["main.py"]):
         with pytest.raises(SystemExit) as exc_info:
@@ -8323,6 +8632,7 @@ def test_main_too_few_args_exits_with_usage(capsys):
     out = capsys.readouterr().out
     assert "python main.py <article_url>" in out
     assert "inspect" in out
+    assert "targets <target_list_path>" in out
 
 
 def test_main_inspect_without_id_type_exits_with_usage(capsys):
@@ -9166,6 +9476,43 @@ def test_save_json_writes_json_and_sanitizes_title_in_filename(tmp_path, monkeyp
     assert data["collected_at"] == 1700000000
     assert data["response_count"] == 1
     assert data["responses"] == responses
+
+=============================
+FILE: ./cursor/tests/test_target_list.py
+=============================
+from target_list import load_target_urls
+
+
+def test_load_target_urls_reads_plain_text_targets_stably(tmp_path):
+    target_file = tmp_path / "targets.txt"
+    target_file.write_text(
+        "\n"
+        "# temporary scrape targets\n"
+        "https://dic.nicovideo.jp/a/12345\n"
+        "\n"
+        "https://dic.nicovideo.jp/a/99999\n",
+        encoding="utf-8",
+    )
+
+    assert load_target_urls(str(target_file)) == [
+        "https://dic.nicovideo.jp/a/12345",
+        "https://dic.nicovideo.jp/a/99999",
+    ]
+
+
+def test_load_target_urls_ignores_duplicate_lines_while_preserving_order(tmp_path):
+    target_file = tmp_path / "targets.txt"
+    target_file.write_text(
+        "https://dic.nicovideo.jp/a/12345\n"
+        "https://dic.nicovideo.jp/a/12345\n"
+        "https://dic.nicovideo.jp/a/77777\n",
+        encoding="utf-8",
+    )
+
+    assert load_target_urls(str(target_file)) == [
+        "https://dic.nicovideo.jp/a/12345",
+        "https://dic.nicovideo.jp/a/77777",
+    ]
 
 =============================
 FILE: ./export_review_snapshot.sh

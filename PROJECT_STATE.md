@@ -185,6 +185,22 @@ TASK012 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK013 has been completed.
+
+TASK013 result:
+
+• Copilot implementation was adopted
+• a provisional plain-text file-based target source was introduced
+• `target_list.py` was added to provide bounded target-list loading
+• `main.py` gained a bounded CLI/application entry for target-list loading
+• `tests/test_target_list.py` was added
+• `tests/test_main.py` was updated to protect the new bounded entry behavior
+• batch scrape behavior was not introduced
+• production changes remained limited to bounded functional expansion for target loading
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -298,7 +314,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK012 is complete.
+TASK013 is complete.
 
 Next task is not yet fixed.
 
