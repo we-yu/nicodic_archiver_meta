@@ -1249,6 +1249,7 @@ sync_architecture_doc.sh
 new_task_branches.sh
 validate_helix.sh
 collect_task_review.sh
+export_open_issues.sh
 
 These root scripts are thin wrappers.
 
@@ -1278,6 +1279,10 @@ used to run validation in both child repositories
 
 collect_task_review.sh:
 used to print review-oriented task information for both child repositories
+
+export_open_issues.sh:
+used to export open GitHub issues from the meta repository
+into a local text file such as `Issues.txt`
 
 Additional review memory exists:
 
@@ -1453,6 +1458,7 @@ Additional workflow helpers:
 ./new_task_branches.sh
 ./validate_helix.sh
 ./collect_task_review.sh
+./export_open_issues.sh
 
 These helpers support routine Double Helix operations:
 
@@ -1464,6 +1470,10 @@ These helpers support routine Double Helix operations:
 
 - `./collect_task_review.sh`
   collects branch / status / diff-stat / recent-log information for review
+
+- `./export_open_issues.sh`
+  exports open GitHub issues from the meta repository into a local text file
+  such as `Issues.txt`
 
 Like other root helper scripts, these are thin wrappers.
 Their implementations are stored under:
@@ -1691,6 +1701,9 @@ It complements this checklist, but does not replace task-specific definition wor
   - unstable production behavior
   - broad or unclear rework requirement
 - In Double Helix review, preserve comparison value when a branch is still substantively useful.
+- submission-quality issues should also include avoidable style failures such as:
+  - overlong lines introduced in touched code
+  - unnecessary patch / mock setup that does not correspond to the execution path under test
 
 ## 5. Export a review snapshot
 
@@ -3500,7 +3513,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Tue Mar 17 13:00:00 UTC 2026
+generated: Tue Mar 17 16:03:53 UTC 2026
 mode: full
 
 
@@ -3587,7 +3600,7 @@ FILE: ./Issues.txt
 =============================
 # Open Issues Export
 # Repository: we-yu/nicodic_archiver_meta
-# Generated at: 2026-03-17 12:59:15 UTC
+# Generated at: 2026-03-17 13:25:44 UTC
 
 ## Issue #11: Execution policy proposal: bounded batch run with per-article cap, skip-on-overlap, and rotating start index
 URL: https://github.com/we-yu/nicodic_archiver_meta/issues/11
@@ -4416,6 +4429,8 @@ validation handling:
 - validation ownership remains on the human side
 - the human will validate later using the established workflow
 - focus on file editing and repo-local consistency
+- avoid avoidable submission-quality problems in touched code, especially overlong lines
+- do not add unnecessary patch / mock setup when the tested path does not actually reach that dependency
 
 --------------------------------------------------
 
@@ -4883,6 +4898,7 @@ Helper script examples:
 - `./new_task_branches.sh`
 - `./validate_helix.sh`
 - `./collect_task_review.sh`
+- `./export_open_issues.sh`
 
 Prompt-design guidance:
 
@@ -4908,6 +4924,9 @@ Recent additions:
 - `./collect_task_review.sh`
   prints review-oriented git information for both child repositories
 
+- `./export_open_issues.sh`
+  exports open GitHub issues from the meta repository into a local text file
+  for planning / review reference
 
 =============================
 FILE: ./META/REPO_BOUNDARY_GUARDRAILS.md
@@ -5398,6 +5417,68 @@ echo "=> Helix converged (lower-end merge point confirmed)."
 
 
 =============================
+FILE: ./META/scripts/export_open_issues.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ./export_open_issues.sh [output_file]
+
+Purpose:
+  Export open GitHub issues from the meta repository into a local text file.
+
+Default output:
+  Issues.txt
+
+Environment:
+  LIMIT   Optional. Max number of open issues to export. Default: 1000
+
+Notes:
+  - Requires GitHub CLI (`gh`) to be installed and authenticated
+  - This is a workflow/reference helper, not an authoritative state file
+EOF
+}
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+need_cmd() {
+  command -v "$1" >/dev/null 2>&1 || {
+    echo "ERROR: missing command: $1" >&2
+    exit 2
+  }
+}
+
+need_cmd gh
+need_cmd date
+
+REPO="we-yu/nicodic_archiver_meta"
+OUTFILE="${1:-Issues.txt}"
+LIMIT="${LIMIT:-1000}"
+
+{
+  echo "# Open Issues Export"
+  echo "# Repository: ${REPO}"
+  echo "# Generated at: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+  echo
+} > "${OUTFILE}"
+
+gh issue list --repo "${REPO}" --state open --limit "${LIMIT}" --json number --jq '.[].number' |
+while IFS= read -r num; do
+  gh issue view "${num}" --repo "${REPO}" --json number,title,body,url \
+    --jq '"## Issue #\(.number): \(.title)\nURL: \(.url)\n\n" + ((.body // "") | if . == "" then "(本文なし)" else . end) + "\n\n---\n"'
+done >> "${OUTFILE}"
+
+echo "Done: ${OUTFILE}"
+
+
+
+=============================
 FILE: ./META/scripts/export_review_snapshot.sh
 =============================
 #!/usr/bin/env bash
@@ -5853,7 +5934,13 @@ if [[ ! -d "${CURSOR_DIR}/.git" ]]; then
   exit 1
 fi
 
-TASK_NUMBER_PADDED="$(printf "%03d" "${TASK_NUMBER_RAW}")"
+TASK_NUMBER_NORMALIZED="${TASK_NUMBER_RAW#0}"
+if [[ -z "${TASK_NUMBER_NORMALIZED}" ]]; then
+  TASK_NUMBER_NORMALIZED="0"
+fi
+
+TASK_NUMBER_PADDED="$(printf "%03d" "$((10#${TASK_NUMBER_NORMALIZED}))")"
+
 COPILOT_BRANCH="task${TASK_NUMBER_PADDED}-${TOPIC}-copilot"
 CURSOR_BRANCH="task${TASK_NUMBER_PADDED}-${TOPIC}-cursor"
 
@@ -6169,6 +6256,29 @@ FILE: ./copilot/.flake8
 =============================
 [flake8]
 max-line-length = 88
+
+
+=============================
+FILE: ./copilot/.github/copilot-instructions.md
+=============================
+## Your Role
+
+- You are an **implementation editor**, not the final reviewer or adoption decider.
+
+## Constraints
+
+- **No automation outside edits**: Do not propose shell commands, venv creation, pytest runs, or validation commands.
+- **Bounded changes**: Keep changes small and focused. Avoid redesign of parser, storage, or `http_client` unless explicitly requested.
+- **Submission-quality only**:
+  - Do not introduce avoidable line-length violations in newly added or edited lines.
+  - All newly created or edited text/source files must end with a trailing newline.
+  - Do not perform unrelated formatting-only cleanup outside touched areas.
+
+## In Practice
+
+- Implement what’s asked in the relevant module and its tests only.
+- Do not refactor unrelated code or suggest global validation steps.
+
 
 
 =============================
@@ -6636,7 +6746,11 @@ fi
 =============================
 FILE: ./copilot/main.py
 =============================
+import os
 import sys
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
 
 from cli import inspect_article
 from orchestrator import run_scrape
@@ -6705,21 +6819,63 @@ def main():
 
         print(f"Loaded {len(targets)} scrape target(s) from {target_list_path}")
 
+        run_id = uuid.uuid4().hex[:12]
+        started_at = datetime.now(timezone.utc).isoformat()
+        log_dir = Path(os.environ.get("BATCH_LOG_DIR", "data/batch_runs"))
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / f"batch_{run_id}.log"
+
+        with log_path.open("a", encoding="utf-8") as f:
+            f.write("BATCH_RUN_START\n")
+            f.write(f"run_id={run_id}\n")
+            f.write(f"started_at={started_at}\n")
+            f.write(f"target_list_path={target_list_path}\n")
+            f.write(f"total_targets={len(targets)}\n")
+
         any_failed = False
+        failed_targets = 0
         for idx, target in enumerate(targets, start=1):
             print(f"[{idx}/{len(targets)}] Scraping: {target}")
             try:
                 ok = run_scrape(target)
             except Exception as exc:
                 any_failed = True
+                failed_targets += 1
                 print(f"[FAIL] {target} ({type(exc).__name__}: {exc})")
+                with log_path.open("a", encoding="utf-8") as f:
+                    f.write("FAIL\n")
+                    f.write(f"target={target}\n")
+                    f.write(f"short_reason={type(exc).__name__}: {exc}\n")
                 continue
 
             if ok:
                 print(f"[OK] {target}")
             else:
                 any_failed = True
+                failed_targets += 1
                 print(f"[FAIL] {target}")
+                with log_path.open("a", encoding="utf-8") as f:
+                    f.write("FAIL\n")
+                    f.write(f"target={target}\n")
+                    f.write("short_reason=run_scrape_returned_false\n")
+
+        ended_at = datetime.now(timezone.utc).isoformat()
+        total_targets = len(targets)
+        if failed_targets == 0:
+            final_status = "success"
+        elif failed_targets == total_targets:
+            final_status = "failure"
+        else:
+            final_status = "partial_failure"
+
+        with log_path.open("a", encoding="utf-8") as f:
+            f.write("BATCH_RUN_END\n")
+            f.write(f"run_id={run_id}\n")
+            f.write(f"started_at={started_at}\n")
+            f.write(f"ended_at={ended_at}\n")
+            f.write(f"total_targets={total_targets}\n")
+            f.write(f"failed_targets={failed_targets}\n")
+            f.write(f"final_status={final_status}\n")
 
         if any_failed:
             sys.exit(1)
@@ -7275,6 +7431,9 @@ FILE: ./copilot/tests/test_main.py
 """Unit tests for main.py: CLI dispatch (inspect vs scrape, usage/exit)."""
 from unittest.mock import patch
 
+import os
+from pathlib import Path
+
 import pytest
 
 import main as main_module
@@ -7353,8 +7512,9 @@ def test_main_inspect_without_id_type_exits_with_usage(capsys):
 ])
 @patch("main.run_scrape", side_effect=[True, True])
 def test_main_batch_all_success_exits_zero(
-    mock_run_scrape, mock_load_targets, capsys
+    mock_run_scrape, mock_load_targets, tmp_path, capsys
 ):
+    os.environ["BATCH_LOG_DIR"] = str(tmp_path)
     with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
         main_module.main()
 
@@ -7365,6 +7525,16 @@ def test_main_batch_all_success_exits_zero(
     assert "[OK] https://dic.nicovideo.jp/a/1" in out
     assert "[OK] https://dic.nicovideo.jp/a/2" in out
 
+    logs = list(Path(tmp_path).glob("batch_*.log"))
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    assert "BATCH_RUN_START" in text
+    assert "BATCH_RUN_END" in text
+    assert "total_targets=2" in text
+    assert "failed_targets=0" in text
+    assert "final_status=success" in text
+    assert "\nFAIL\n" not in text
+
 
 @patch("main.load_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
@@ -7372,8 +7542,9 @@ def test_main_batch_all_success_exits_zero(
 ])
 @patch("main.run_scrape", side_effect=[False, True])
 def test_main_batch_failure_sets_nonzero_exit_and_continues(
-    mock_run_scrape, mock_load_targets, capsys
+    mock_run_scrape, mock_load_targets, tmp_path, capsys
 ):
+    os.environ["BATCH_LOG_DIR"] = str(tmp_path)
     with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
         with pytest.raises(SystemExit) as exc_info:
             main_module.main()
@@ -7384,6 +7555,17 @@ def test_main_batch_failure_sets_nonzero_exit_and_continues(
     assert "[FAIL] https://dic.nicovideo.jp/a/1" in out
     assert "[OK] https://dic.nicovideo.jp/a/2" in out
 
+    logs = list(Path(tmp_path).glob("batch_*.log"))
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    assert "failed_targets=1" in text
+    assert "total_targets=2" in text
+    assert "final_status=partial_failure" in text
+    assert "FAIL\n" in text
+    assert "target=https://dic.nicovideo.jp/a/1" in text
+    assert "short_reason=run_scrape_returned_false" in text
+    assert "target=https://dic.nicovideo.jp/a/2" not in text
+
 
 @patch("main.load_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
@@ -7391,8 +7573,9 @@ def test_main_batch_failure_sets_nonzero_exit_and_continues(
 ])
 @patch("main.run_scrape", side_effect=[RuntimeError("boom"), True])
 def test_main_batch_exception_sets_nonzero_exit_and_continues(
-    mock_run_scrape, mock_load_targets, capsys
+    mock_run_scrape, mock_load_targets, tmp_path, capsys
 ):
+    os.environ["BATCH_LOG_DIR"] = str(tmp_path)
     with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
         with pytest.raises(SystemExit) as exc_info:
             main_module.main()
@@ -7403,6 +7586,15 @@ def test_main_batch_exception_sets_nonzero_exit_and_continues(
     assert "[FAIL] https://dic.nicovideo.jp/a/1" in out
     assert "RuntimeError" in out
     assert "[OK] https://dic.nicovideo.jp/a/2" in out
+
+    logs = list(Path(tmp_path).glob("batch_*.log"))
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    assert "failed_targets=1" in text
+    assert "final_status=partial_failure" in text
+    assert "target=https://dic.nicovideo.jp/a/1" in text
+    assert "short_reason=RuntimeError: boom" in text
+    assert "target=https://dic.nicovideo.jp/a/2" not in text
 
 
 def test_main_batch_without_path_exits_with_usage(capsys):
@@ -8323,6 +8515,24 @@ This repository uses a **Double Helix** workflow.
 - When in doubt, change less and stay within the current file and its direct test file.
 
 =============================
+FILE: ./cursor/.cursor/rules/submission-hygiene.mdc
+=============================
+---
+description: Mechanical submission-quality guardrails for touched files
+alwaysApply: true
+---
+
+# Submission Hygiene
+
+Apply only lightweight, mechanical guardrails.
+
+- Do not introduce avoidable line-length violations in newly added or edited lines.
+- All newly created or edited text/source files must end with a trailing newline.
+- Do not perform unrelated formatting-only cleanup outside touched areas.
+
+
+
+=============================
 FILE: ./cursor/.flake8
 =============================
 [flake8]
@@ -8794,7 +9004,11 @@ fi
 =============================
 FILE: ./cursor/main.py
 =============================
+import os
 import sys
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
 
 from cli import inspect_article
 from orchestrator import run_scrape
@@ -8863,21 +9077,63 @@ def main():
 
         print(f"Loaded {len(targets)} scrape target(s) from {target_list_path}")
 
+        run_id = uuid.uuid4().hex[:12]
+        started_at = datetime.now(timezone.utc).isoformat()
+        log_dir = Path(os.environ.get("BATCH_LOG_DIR", "data/batch_runs"))
+        log_dir.mkdir(parents=True, exist_ok=True)
+        log_path = log_dir / f"batch_{run_id}.log"
+
+        with log_path.open("a", encoding="utf-8") as f:
+            f.write("BATCH_RUN_START\n")
+            f.write(f"run_id={run_id}\n")
+            f.write(f"started_at={started_at}\n")
+            f.write(f"target_list_path={target_list_path}\n")
+            f.write(f"total_targets={len(targets)}\n")
+
         any_failed = False
+        failed_targets = 0
         for idx, target in enumerate(targets, start=1):
             print(f"[{idx}/{len(targets)}] Scraping: {target}")
             try:
                 ok = run_scrape(target)
             except Exception as exc:
                 any_failed = True
+                failed_targets += 1
                 print(f"[FAIL] {target} ({type(exc).__name__}: {exc})")
+                with log_path.open("a", encoding="utf-8") as f:
+                    f.write("FAIL\n")
+                    f.write(f"target={target}\n")
+                    f.write(f"short_reason={type(exc).__name__}: {exc}\n")
                 continue
 
             if ok:
                 print(f"[OK] {target}")
             else:
                 any_failed = True
+                failed_targets += 1
                 print(f"[FAIL] {target}")
+                with log_path.open("a", encoding="utf-8") as f:
+                    f.write("FAIL\n")
+                    f.write(f"target={target}\n")
+                    f.write("short_reason=run_scrape_returned_false\n")
+
+        ended_at = datetime.now(timezone.utc).isoformat()
+        total_targets = len(targets)
+        if failed_targets == 0:
+            final_status = "success"
+        elif failed_targets == total_targets:
+            final_status = "failure"
+        else:
+            final_status = "partial_failure"
+
+        with log_path.open("a", encoding="utf-8") as f:
+            f.write("BATCH_RUN_END\n")
+            f.write(f"run_id={run_id}\n")
+            f.write(f"started_at={started_at}\n")
+            f.write(f"ended_at={ended_at}\n")
+            f.write(f"total_targets={total_targets}\n")
+            f.write(f"failed_targets={failed_targets}\n")
+            f.write(f"final_status={final_status}\n")
 
         if any_failed:
             sys.exit(1)
@@ -9433,6 +9689,9 @@ FILE: ./cursor/tests/test_main.py
 """Unit tests for main.py: CLI dispatch (inspect vs scrape, usage/exit)."""
 from unittest.mock import patch
 
+import os
+from pathlib import Path
+
 import pytest
 
 import main as main_module
@@ -9511,8 +9770,9 @@ def test_main_inspect_without_id_type_exits_with_usage(capsys):
 ])
 @patch("main.run_scrape", side_effect=[True, True])
 def test_main_batch_all_success_exits_zero(
-    mock_run_scrape, mock_load_targets, capsys
+    mock_run_scrape, mock_load_targets, tmp_path, capsys
 ):
+    os.environ["BATCH_LOG_DIR"] = str(tmp_path)
     with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
         main_module.main()
 
@@ -9523,6 +9783,16 @@ def test_main_batch_all_success_exits_zero(
     assert "[OK] https://dic.nicovideo.jp/a/1" in out
     assert "[OK] https://dic.nicovideo.jp/a/2" in out
 
+    logs = list(Path(tmp_path).glob("batch_*.log"))
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    assert "BATCH_RUN_START" in text
+    assert "BATCH_RUN_END" in text
+    assert "total_targets=2" in text
+    assert "failed_targets=0" in text
+    assert "final_status=success" in text
+    assert "\nFAIL\n" not in text
+
 
 @patch("main.load_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
@@ -9530,8 +9800,9 @@ def test_main_batch_all_success_exits_zero(
 ])
 @patch("main.run_scrape", side_effect=[False, True])
 def test_main_batch_failure_sets_nonzero_exit_and_continues(
-    mock_run_scrape, mock_load_targets, capsys
+    mock_run_scrape, mock_load_targets, tmp_path, capsys
 ):
+    os.environ["BATCH_LOG_DIR"] = str(tmp_path)
     with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
         with pytest.raises(SystemExit) as exc_info:
             main_module.main()
@@ -9542,6 +9813,17 @@ def test_main_batch_failure_sets_nonzero_exit_and_continues(
     assert "[FAIL] https://dic.nicovideo.jp/a/1" in out
     assert "[OK] https://dic.nicovideo.jp/a/2" in out
 
+    logs = list(Path(tmp_path).glob("batch_*.log"))
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    assert "failed_targets=1" in text
+    assert "total_targets=2" in text
+    assert "final_status=partial_failure" in text
+    assert "FAIL\n" in text
+    assert "target=https://dic.nicovideo.jp/a/1" in text
+    assert "short_reason=run_scrape_returned_false" in text
+    assert "target=https://dic.nicovideo.jp/a/2" not in text
+
 
 @patch("main.load_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
@@ -9549,8 +9831,9 @@ def test_main_batch_failure_sets_nonzero_exit_and_continues(
 ])
 @patch("main.run_scrape", side_effect=[RuntimeError("boom"), True])
 def test_main_batch_exception_sets_nonzero_exit_and_continues(
-    mock_run_scrape, mock_load_targets, capsys
+    mock_run_scrape, mock_load_targets, tmp_path, capsys
 ):
+    os.environ["BATCH_LOG_DIR"] = str(tmp_path)
     with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
         with pytest.raises(SystemExit) as exc_info:
             main_module.main()
@@ -9561,6 +9844,15 @@ def test_main_batch_exception_sets_nonzero_exit_and_continues(
     assert "[FAIL] https://dic.nicovideo.jp/a/1" in out
     assert "RuntimeError" in out
     assert "[OK] https://dic.nicovideo.jp/a/2" in out
+
+    logs = list(Path(tmp_path).glob("batch_*.log"))
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    assert "failed_targets=1" in text
+    assert "final_status=partial_failure" in text
+    assert "target=https://dic.nicovideo.jp/a/1" in text
+    assert "short_reason=RuntimeError: boom" in text
+    assert "target=https://dic.nicovideo.jp/a/2" not in text
 
 
 def test_main_batch_without_path_exits_with_usage(capsys):
@@ -10457,28 +10749,9 @@ FILE: ./export_open_issues.sh
 #!/usr/bin/env bash
 set -euo pipefail
 
-# 固定リポジトリ
-REPO="we-yu/nicodic_archiver_meta"
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+exec "${ROOT_DIR}/META/scripts/export_open_issues.sh" "$@"
 
-# 引数1があればそれを出力ファイルに、なければデフォルト
-OUTFILE="${1:-Issues.txt}"
-
-LIMIT="${LIMIT:-1000}"
-
-{
-  echo "# Open Issues Export"
-  echo "# Repository: $REPO"
-  echo "# Generated at: $(date '+%Y-%m-%d %H:%M:%S %Z')"
-  echo
-} > "$OUTFILE"
-
-gh issue list --repo "$REPO" --state open --limit "$LIMIT" --json number --jq '.[].number' |
-while IFS= read -r num; do
-  gh issue view "$num" --repo "$REPO" --json number,title,body,url \
-    --jq '"## Issue #\(.number): \(.title)\nURL: \(.url)\n\n" + ((.body // "") | if . == "" then "(本文なし)" else . end) + "\n\n---\n"'
-done >> "$OUTFILE"
-
-echo "Done: $OUTFILE"
 
 =============================
 FILE: ./export_review_snapshot.sh

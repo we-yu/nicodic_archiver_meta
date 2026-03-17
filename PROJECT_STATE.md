@@ -221,6 +221,32 @@ TASK014 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK015 has been completed.
+
+TASK015 result:
+
+• Cursor implementation was adopted
+• Copilot implementation was retained for comparison evidence
+• minimal batch-run logging / status recording was added
+• logging is batch-only
+• run logs are stored as text `.log` files
+• each batch run records:
+  - a start marker
+  - an end summary
+  - failure-only detail entries
+• success targets are not individually persisted in run logs
+• final status is recorded as:
+  - `success`
+  - `partial_failure`
+  - `failure`
+• `main.py` was updated
+• `tests/test_main.py` was updated
+• no parser / storage / http_client redesign was introduced
+• no scheduler / overlap / retry-backoff expansion was introduced
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -339,7 +365,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK014 is complete.
+TASK015 is complete.
 
 Next task is not yet fixed.
 
