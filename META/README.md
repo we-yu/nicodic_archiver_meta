@@ -36,6 +36,7 @@ Helper script examples:
 - `./new_task_branches.sh`
 - `./validate_helix.sh`
 - `./collect_task_review.sh`
+- `./export_open_issues.sh`
 
 Prompt-design guidance:
 
@@ -61,3 +62,6 @@ Recent additions:
 - `./collect_task_review.sh`
   prints review-oriented git information for both child repositories
 
+- `./export_open_issues.sh`
+  exports open GitHub issues from the meta repository into a local text file
+  for planning / review reference

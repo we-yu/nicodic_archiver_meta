@@ -56,7 +56,13 @@ if [[ ! -d "${CURSOR_DIR}/.git" ]]; then
   exit 1
 fi
 
-TASK_NUMBER_PADDED="$(printf "%03d" "${TASK_NUMBER_RAW}")"
+TASK_NUMBER_NORMALIZED="${TASK_NUMBER_RAW#0}"
+if [[ -z "${TASK_NUMBER_NORMALIZED}" ]]; then
+  TASK_NUMBER_NORMALIZED="0"
+fi
+
+TASK_NUMBER_PADDED="$(printf "%03d" "$((10#${TASK_NUMBER_NORMALIZED}))")"
+
 COPILOT_BRANCH="task${TASK_NUMBER_PADDED}-${TOPIC}-copilot"
 CURSOR_BRANCH="task${TASK_NUMBER_PADDED}-${TOPIC}-cursor"
 

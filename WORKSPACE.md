@@ -81,6 +81,7 @@ Additional workflow helpers:
 ./new_task_branches.sh
 ./validate_helix.sh
 ./collect_task_review.sh
+./export_open_issues.sh
 
 These helpers support routine Double Helix operations:
 
@@ -92,6 +93,10 @@ These helpers support routine Double Helix operations:
 
 - `./collect_task_review.sh`
   collects branch / status / diff-stat / recent-log information for review
+
+- `./export_open_issues.sh`
+  exports open GitHub issues from the meta repository into a local text file
+  such as `Issues.txt`
 
 Like other root helper scripts, these are thin wrappers.
 Their implementations are stored under:

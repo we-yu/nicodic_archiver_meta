@@ -3500,7 +3500,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Tue Mar 17 10:33:26 UTC 2026
+generated: Tue Mar 17 13:00:00 UTC 2026
 mode: full
 
 
@@ -3578,7 +3578,582 @@ META/out/review_snapshot_*.txt
 # META/out/git_snapshot.txt
 # META/out/git_snapshot_*.txt
 
+Issues.txt
 
+
+
+=============================
+FILE: ./Issues.txt
+=============================
+# Open Issues Export
+# Repository: we-yu/nicodic_archiver_meta
+# Generated at: 2026-03-17 12:59:15 UTC
+
+## Issue #11: Execution policy proposal: bounded batch run with per-article cap, skip-on-overlap, and rotating start index
+URL: https://github.com/we-yu/nicodic_archiver_meta/issues/11
+
+## Summary
+
+As the project moves toward batch execution and periodic runs, we need a clear policy for:
+
+- long-running scrape operations
+- overlapping runs
+- fairness across targets (especially large vs small articles)
+
+This issue records both:
+1. the problem itself
+2. a lightweight operational proposal
+
+The proposal is not fixed and should be treated as a candidate for later discussion.
+
+---
+
+## Problem
+
+### 1. Long-running articles can block the entire run
+
+Some articles (e.g. very large threads) may take a long time to scrape.
+
+If a single article takes hours, then:
+- a single run may become extremely long
+- other articles may be delayed significantly
+- the system may effectively stop updating other content
+
+---
+
+### 2. Overlapping periodic runs
+
+If the system is configured to run periodically (e.g. every few hours):
+
+- a previous run may still be in progress when the next run time arrives
+- behavior is currently undefined:
+  - should the new run start anyway?
+  - should it wait?
+  - should it be skipped?
+
+---
+
+### 3. Starvation of smaller targets
+
+If processing is strictly sequential:
+
+[A (very large), B (very large), C (small), D (small)]
+
+
+Then:
+- large targets may consume most of the time budget
+- smaller targets may be delayed repeatedly
+- in worst cases, some targets may rarely be reached
+
+---
+
+## Proposal (not fixed)
+
+The following is a candidate policy that aims to balance:
+
+- simplicity
+- bounded execution
+- avoidance of system-wide blocking
+
+### 1. Periodic execution
+
+- The system attempts a run every X hours
+
+- If a previous run is still active:
+  → the new run is **skipped** (no overlap, no queue)
+
+---
+
+### 2. Batch execution model
+
+- Each run processes the target list sequentially
+
+- However, the starting position is **rotated**
+  → not always from the first entry
+
+- The next run starts from where the previous run left off
+
+---
+
+### 3. Per-article cap
+
+- Each article has a maximum retrieval limit per run
+  (e.g. MAX 10800 responses)
+
+- If the cap is reached:
+  → the article is **truncated for that run**
+
+- The article is treated normally in the next run
+  (no special priority or state)
+
+---
+
+### 4. No parallel execution
+
+- Execution remains strictly sequential
+- No worker pools or distributed processing
+
+---
+
+### 5. No persistent queue or scheduler
+
+- No backlog queue
+- No deferred run accumulation
+- No priority system
+
+---
+
+## Expected behavior
+
+This policy aims to:
+
+- prevent a single large article from blocking the system indefinitely
+- keep implementation simple and bounded
+- avoid overlapping runs and concurrency issues
+- ensure that all targets eventually get processed (via rotation)
+
+---
+
+## Trade-offs
+
+This proposal accepts:
+
+- large articles may take multiple runs to fully process
+- effective update interval may vary due to skipped runs
+- no strict fairness guarantees (but improved over strict fixed-order)
+
+---
+
+## Open questions
+
+The following are intentionally left undecided:
+
+- Should there be a maximum runtime per run (time budget)?
+- Should large articles eventually be handled differently?
+- Should skipped runs be logged or exposed?
+- Should rotation be index-based or randomized?
+- Should future tasks introduce priority or scheduling layers?
+
+---
+
+## Non-goals (for now)
+
+This proposal does NOT introduce:
+
+- parallel or distributed execution
+- retry/backoff frameworks
+- task queues
+- DB-backed scheduling
+- full job management system
+
+---
+
+## Notes for future work
+
+This topic is expected to relate to future tasks such as:
+
+- periodic execution entrypoint
+- run status visibility
+- archive readout and user-facing behavior
+
+This issue is intended to capture the design space early,
+not to enforce a final solution.
+
+
+---
+
+## Issue #10: Improve task workflow with resumable semi-automation for Double Helix operations
+URL: https://github.com/we-yu/nicodic_archiver_meta/issues/10
+
+## Summary
+
+The current Double Helix workflow has become more stable than in the early project phase, but a significant operational burden still remains.
+
+The main pain points are:
+
+1. repeated task execution steps that are almost identical across tasks
+2. thread-to-thread AI context transfer overhead
+3. heavy manual coordination between:
+   - advisor AI
+   - Copilot editor AI
+   - Cursor editor AI
+4. difficulty restarting cleanly after interruption or partial failure
+
+This issue is to explore and eventually implement a **resumable semi-automation layer** for the existing workflow.
+
+This is **not** a request to fully automate judgment or adoption.
+The main goal is to reduce repetitive human operational burden while preserving:
+- human judgment
+- advisor review
+- Double Helix comparison value
+- bounded task execution
+
+---
+
+## Current workflow pain points
+
+A typical task currently involves repeated manual steps such as:
+
+- check current workspace / child repo state
+- create task branches
+- collect review baseline
+- prepare and send prompts to Copilot and Cursor
+- wait for editor outputs
+- run validation
+- export review snapshot
+- compare helix state
+- send review materials to advisor AI
+- adopt / merge / realign after decision
+- update meta files and snapshots
+
+Most of these steps are structurally similar from task to task.
+
+The current burden is not only command execution itself, but also:
+
+- remembering the next correct step
+- preparing the correct prompt for the next AI interaction
+- handling interruptions or failures
+- resuming from a partially completed phase without confusion
+
+---
+
+## Problem statement
+
+The current workflow is already script-assisted, but not yet phase-driven or resumable.
+
+What is missing is a lightweight orchestration layer that can:
+
+- track the current task phase
+- stop at human-in-the-loop points
+- generate the next required prompt or instruction packet
+- allow restart from a known phase
+- generate advisor-facing error-report prompts when needed
+
+The desired direction is **semi-automation**, not blind full automation.
+
+---
+
+## Important constraints
+
+Any future solution should preserve the existing project principles:
+
+- authoritative current state remains in root/meta files and snapshots
+- child repos remain separate execution targets
+- editor AIs remain bounded implementation editors
+- human keeps validation ownership
+- human + advisor keep review / adoption judgment
+- the system should support interruption and restart
+- the system should not force fully automatic merge/adopt behavior
+
+This should reduce repetitive workflow cost without collapsing the Double Helix model into a one-click black box.
+
+---
+
+## Desired future capability
+
+A future workflow helper should ideally support:
+
+### 1. phase-based task execution
+Examples of possible phases:
+
+- precheck
+- branch creation
+- editor prompt ready
+- waiting for editor outputs
+- post-edit review preparation
+- validation done
+- advisor review waiting
+- adoption ready
+- meta update ready
+
+### 2. resumable state tracking
+The workflow should be restartable from a known phase after interruption or failure.
+
+### 3. human-in-the-loop pauses
+Examples:
+
+- "Please send this prompt to advisor AI, then press y to continue"
+- "Please send these prompts to Copilot and Cursor, then press y to continue"
+- "Validation failed. Please send the generated error prompt to advisor AI"
+
+### 4. generated prompt packets
+The helper should generate reusable files such as:
+
+- Copilot prompt
+- Cursor prompt
+- advisor review prompt
+- error escalation prompt
+- next-thread handoff prompt
+
+### 5. task-local handoff support
+The current workflow suffers from thread-to-thread AI context transfer overhead.
+A future system should support smaller, more structured task handoff packets instead of relying on long chat history reconstruction.
+
+---
+
+## Proposed direction
+
+A likely good direction is:
+
+- keep the current helper scripts
+- add a lightweight stateful task runner on top of them
+- pause at human-required steps
+- store task phase state in a small machine-readable file
+- support resuming from a phase
+- generate prompts and handoff artifacts automatically
+
+A likely first implementation may be local-first, for example:
+
+- shell-based orchestration
+- Python-based stateful runner
+- generated files under `META/out/`
+- task-local brief files under something like `META/task_brief/`
+
+Possible longer-term optional extension:
+- notification / approval / resume integration with external workflow tools such as n8n
+- but this is secondary; local-first orchestration is likely the better first step
+
+---
+
+## Explicit non-goals for the future implementation
+
+The future implementation should **not** aim to:
+
+- fully automate advisor judgment
+- fully automate adoption decisions
+- hide task state from the human
+- replace Double Helix comparison with a black-box pipeline
+- overbuild a general workflow platform
+- introduce large infrastructure-first complexity before it is actually needed
+
+---
+
+## Questions for the future design task
+
+When this issue is picked up later, the AI / human should explicitly think through:
+
+1. What is the minimum viable phase model?
+2. What state file format should track task progress?
+3. What should be generated automatically vs manually supplied?
+4. How should resume behavior work after interruption?
+5. How should validation failure / diff failure / branch failure be escalated?
+6. Should task-local brief files be introduced?
+7. Should next-thread handoff prompts be generated automatically?
+8. Should this remain local-only at first, or integrate external workflow tools later?
+
+---
+
+## Suggested implementation shape for future discussion
+
+Possible candidates to evaluate later:
+
+- `taskflow.py` or equivalent local stateful runner
+- `new_task_brief.sh`
+- `prepare_next_thread.sh`
+- phase-based resume helper
+- generated prompt files under `META/out/`
+- optional later integration with external workflow tools (example: n8n) for approval/resume notifications
+
+These are ideas, not fixed requirements.
+
+---
+
+## Why this matters
+
+The current system is no longer failing because of basic workflow chaos.
+The remaining cost is now largely operational repetition and AI handoff overhead.
+
+Reducing that cost would likely improve:
+
+- iteration speed
+- consistency
+- recoverability after interruption
+- quality of human attention during actual review/adoption decisions
+
+This is intended as a workflow-improvement task for a future phase, not as an immediate implementation request.
+
+---
+
+## Issue #9: Test design hygiene: avoid unnecessary patch/mock usage that obscures fixture behavior
+URL: https://github.com/we-yu/nicodic_archiver_meta/issues/9
+
+## Summary
+
+Some AI-generated tests have used `patch()` in cases where the patched dependency was not actually needed for the tested branch.
+
+This can introduce fragile or misleading tests and may even interfere with pytest fixture behavior.
+
+Example pattern already observed:
+- `@patch("main.load_target_list")` applied to a branch where the loader should not be called
+- patched argument position unintentionally shadowing a pytest fixture such as `capsys`
+
+## Why this matters
+
+Unlike trailing newline or line length, this is not a purely mechanical formatting issue.
+It is a test-design quality issue.
+
+Unnecessary patch/mock usage can:
+- obscure the true behavior under test
+- increase brittleness
+- hide simpler test structure
+- create fixture collisions or misleading failures
+- make review harder by adding indirection with no behavioral value
+
+## Desired outcome
+
+Establish and later propagate a balanced rule:
+
+- Use patch/mock when the branch under test actually needs dependency isolation or interaction verification.
+- Do not introduce patch/mock preemptively when the dependency should not be reached in that test path.
+- Prefer simpler tests when the behavior can be asserted without mocking.
+
+## Important nuance
+
+This issue is **not** proposing a blanket ban on `patch()` or mocks.
+
+That would be too rigid and would produce worse tests in many cases.
+
+The intended policy direction is:
+
+- patch when it is necessary
+- avoid patch when it is unnecessary
+- be careful with pytest fixture interaction and decorator-injected arguments
+- keep test intent readable
+
+## Examples of good future guidance
+
+- If a branch should exit before dependency use, do not patch that dependency unless interaction itself is the assertion target.
+- If patch is needed, keep injected mock arguments explicit and ordered correctly.
+- Prefer direct fixture usage when mocking adds no value.
+
+## Scope of this issue
+
+This issue records the problem and prepares future guidance.
+It does **not** immediately change META files in this step.
+
+## Possible follow-up directions
+
+- Add AI guidance about patch necessity checks
+- Add review checklist wording for test simplicity and fixture safety
+- Add examples of “patch needed” vs “patch unnecessary”
+
+## Acceptance idea
+
+Future AI-generated tests should avoid unnecessary patch/mock usage, especially when it risks fixture confusion or hides a simpler direct test.
+
+---
+
+## Issue #8: Validation hygiene: prevent avoidable line-length failures in AI-edited files
+URL: https://github.com/we-yu/nicodic_archiver_meta/issues/8
+
+## Summary
+
+Some AI-generated edits have failed validation because of avoidable overlong lines.
+
+These failures are usually minor and easy to fix, but they still create review noise and unnecessary rework.
+
+Examples already observed:
+- docstring/comment lines exceeding flake8 line length
+- test-side string/comment formatting that could have been wrapped earlier
+
+## Why this matters
+
+This is mostly not a design problem.
+It is a validation hygiene problem.
+
+In this workflow, avoidable line-length failures are costly because:
+- they interrupt comparison review
+- they force manual cleanup after otherwise acceptable edits
+- they reduce confidence in task completion quality
+
+## Desired outcome
+
+Establish and later propagate a practical rule:
+
+- AI-generated edits should avoid introducing lines that exceed the repository's enforced line-length policy.
+
+This should be treated as a default formatting discipline, especially for:
+- Python code
+- docstrings
+- comments
+- test messages / usage strings when practical
+
+## Important nuance
+
+This is not a request to aggressively reflow unrelated existing code.
+The focus is:
+
+- do not introduce new avoidable line-length failures
+- keep fixes bounded to touched areas
+- avoid task drift into unrelated formatting cleanup
+
+## Scope of this issue
+
+This issue records the problem and prepares for later guidance.
+It does **not** immediately change META files in this step.
+
+## Possible follow-up directions
+
+- Add explicit AI guidance about line-length discipline
+- Add review checklist wording
+- Optionally add formatter/linter-aware guardrails in future task support
+
+## Acceptance idea
+
+Future AI task outputs should not fail validation due to newly introduced avoidable long lines.
+
+---
+
+## Issue #7: Test/workflow hygiene: require trailing newline at end of source files
+URL: https://github.com/we-yu/nicodic_archiver_meta/issues/7
+
+## Summary
+
+Some AI-generated files have failed validation only because they were saved without a trailing newline at EOF.
+
+This is a low-level formatting issue, but it causes avoidable flake8 failures and interrupts otherwise valid task review.
+
+Examples already observed:
+- Python source file without final newline
+- test file without final newline
+
+## Why this matters
+
+These failures are not about design or behavior.
+They create review noise, waste validation cycles, and reduce the signal quality of helix comparison.
+
+In this project, small avoidable formatting failures are worth preventing because:
+- they interrupt bounded task review
+- they create unnecessary manual cleanup
+- they can make a valid implementation appear weaker than it really is
+
+## Desired outcome
+
+Establish and later propagate a simple rule:
+
+- All generated source files must end with a trailing newline.
+
+This should apply especially to:
+- `.py`
+- config-like text files
+- markdown or other tracked text assets when relevant
+
+## Scope of this issue
+
+This issue is only for documenting the problem and deciding the future guidance.
+It does **not** immediately change META files in this step.
+
+## Possible follow-up directions
+
+- Add explicit guidance for AI-generated code/output
+- Add review checklist wording
+- Optionally add lightweight lint/editor/tooling guardrails if needed
+
+## Acceptance idea
+
+We should be able to say that future AI tasks no longer fail validation because of missing EOF newline alone.
+
+---
 
 
 =============================
@@ -9875,6 +10450,35 @@ def test_load_target_urls_ignores_duplicate_lines_while_preserving_order(tmp_pat
         "https://dic.nicovideo.jp/a/12345",
         "https://dic.nicovideo.jp/a/77777",
     ]
+
+=============================
+FILE: ./export_open_issues.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+# 固定リポジトリ
+REPO="we-yu/nicodic_archiver_meta"
+
+# 引数1があればそれを出力ファイルに、なければデフォルト
+OUTFILE="${1:-Issues.txt}"
+
+LIMIT="${LIMIT:-1000}"
+
+{
+  echo "# Open Issues Export"
+  echo "# Repository: $REPO"
+  echo "# Generated at: $(date '+%Y-%m-%d %H:%M:%S %Z')"
+  echo
+} > "$OUTFILE"
+
+gh issue list --repo "$REPO" --state open --limit "$LIMIT" --json number --jq '.[].number' |
+while IFS= read -r num; do
+  gh issue view "$num" --repo "$REPO" --json number,title,body,url \
+    --jq '"## Issue #\(.number): \(.title)\nURL: \(.url)\n\n" + ((.body // "") | if . == "" then "(本文なし)" else . end) + "\n\n---\n"'
+done >> "$OUTFILE"
+
+echo "Done: $OUTFILE"
 
 =============================
 FILE: ./export_review_snapshot.sh

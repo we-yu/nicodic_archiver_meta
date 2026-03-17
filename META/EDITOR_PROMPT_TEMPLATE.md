@@ -255,6 +255,8 @@ validation handling:
 - validation ownership remains on the human side
 - the human will validate later using the established workflow
 - focus on file editing and repo-local consistency
+- avoid avoidable submission-quality problems in touched code, especially overlong lines
+- do not add unnecessary patch / mock setup when the tested path does not actually reach that dependency
 
 --------------------------------------------------
 

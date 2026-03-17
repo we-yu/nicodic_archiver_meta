@@ -110,6 +110,9 @@ It complements this checklist, but does not replace task-specific definition wor
   - unstable production behavior
   - broad or unclear rework requirement
 - In Double Helix review, preserve comparison value when a branch is still substantively useful.
+- submission-quality issues should also include avoidable style failures such as:
+  - overlong lines introduced in touched code
+  - unnecessary patch / mock setup that does not correspond to the execution path under test
 
 ## 5. Export a review snapshot
 

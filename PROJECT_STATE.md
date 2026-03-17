@@ -249,6 +249,7 @@ sync_architecture_doc.sh
 new_task_branches.sh
 validate_helix.sh
 collect_task_review.sh
+export_open_issues.sh
 
 These root scripts are thin wrappers.
 
@@ -278,6 +279,10 @@ used to run validation in both child repositories
 
 collect_task_review.sh:
 used to print review-oriented task information for both child repositories
+
+export_open_issues.sh:
+used to export open GitHub issues from the meta repository
+into a local text file such as `Issues.txt`
 
 Additional review memory exists:
 
