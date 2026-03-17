@@ -15,5 +15,6 @@ META/out/review_snapshot_*.txt
 # META/out/git_snapshot.txt
 # META/out/git_snapshot_*.txt
 
+Issues.txt
 
 

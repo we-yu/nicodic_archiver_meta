@@ -1201,6 +1201,26 @@ TASK013 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK014 has been completed.
+
+TASK014 result:
+
+• Cursor implementation was adopted
+• Copilot implementation was retained for comparison evidence
+• a bounded batch scrape command was added using the target list
+• batch execution remains serial and CLI-centered
+• existing single-article scrape flow is reused for each target
+• continue-on-error behavior was added at the batch layer
+• final non-zero exit is returned when any target fails
+• target-level success / failure visibility was added to CLI output
+• single-article save semantics were not redesigned
+• `main.py` was updated
+• `orchestrator.py` was minimally extended to support batch-facing success signaling
+• `tests/test_main.py` and `tests/test_orchestrator.py` were updated
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -1314,7 +1334,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK013 is complete.
+TASK014 is complete.
 
 Next task is not yet fixed.
 
@@ -3006,6 +3026,128 @@ Authoritative context should still be restored from:
 
 
 
+===== REVIEW LOG: META/review_log/TASK014_adoption.md =====
+# TASK014 Adoption Log
+
+## Task
+TASK014
+
+Add a bounded batch scrape command using the target list, while reusing the
+existing single-article scrape flow and preserving current single-article save
+semantics.
+
+## Decision
+Adopted: **Cursor**
+
+Alternative reviewed:
+- Copilot implementation was retained as comparison evidence
+- Hybrid was considered but not selected
+
+## Final adopted shape
+Changed files:
+- `main.py`
+- `orchestrator.py`
+- `tests/test_main.py`
+- `tests/test_orchestrator.py`
+
+## What changed in the adopted result
+The adopted result introduced a bounded batch scrape command centered on the
+CLI/application entry layer.
+
+Key behavior added:
+- batch execution using the existing target list
+- bounded serial multi-target execution
+- continue-on-error across targets
+- target-level success / failure visibility in CLI output
+- final non-zero exit when any target fails
+
+The adopted result reused the existing single-article scrape flow for each
+target and did not redesign single-article save semantics.
+
+## Why Cursor was adopted
+Primary reasons:
+
+1. It matched the fixed TASK014 semantics more directly.
+   - continue-on-error was handled explicitly
+   - final non-zero on any failure was handled explicitly
+   - target-level success / failure visibility was clearer
+
+2. It handled non-exception single-article non-success outcomes more clearly.
+   - a minimal batch-facing success signal was added to `run_scrape()`
+   - this allowed the batch layer to distinguish success from skip / failure
+     more accurately than exception-only handling
+
+3. It preserved the intended task boundary.
+   - no parallel / distributed execution
+   - no retry / backoff expansion
+   - no scheduler expansion
+   - no parser / storage / http_client redesign
+   - no single-article save-semantics redesign
+
+4. It remained reviewable.
+   - the batch behavior was easy to identify
+   - the representative tests made the batch semantics visible
+
+## Why Copilot was not adopted
+Copilot implementation was valid and conservative.
+
+Observed strengths:
+- very small change surface
+- batch glue stayed tightly centered in `main.py`
+- tests were focused and review-friendly
+
+Reasons it was not selected:
+- failure handling depended mainly on exceptions
+- non-exception single-article non-success paths were less clearly reflected
+  in batch success / failure judgment
+- because of that, the fixed TASK014 semantics were expressed less completely
+
+## Why Hybrid was not selected
+Hybrid was considered, but not selected because:
+- the main difference was not cosmetic
+- Cursor more fully satisfied the intended TASK014 semantics on its own
+- no narrow borrowed adjustment from Copilot clearly improved the adopted
+  result enough to justify a hybrid
+- keeping the adoption decision simple improves review memory clarity
+
+## Validation result
+Validation was run with the established workflow:
+- `./validate_helix.sh` passed for both child repositories before adoption
+- post-adoption validation on converged `main` also passed
+
+## Convergence result
+- `./compare_helix.sh --all` passed after realignment
+- `copilot/` and `cursor/` matched on the adopted final state
+
+## Repository outcome
+- adopted implementation repository: `cursor/`
+- comparison-evidence repository: `copilot/`
+- optional adoption marker branch:
+  - `adopted/task014-batch-scrape`
+- after integration, both child repositories were realigned to the same
+  adopted final state
+
+## Notes for future AI sessions
+Important interpretation:
+- TASK014 is complete
+- the project now has a bounded batch scrape command using the target list
+- batch execution remains serial and CLI-centered
+- single-article save semantics were not redesigned in TASK014
+- future planning may proceed toward run logging / status recording and later
+  periodic execution, while preserving the adopted batch baseline
+
+## Meta note
+This log is AI-readable review memory.
+It is not authoritative current state by itself.
+
+Authoritative context should still be restored from:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
+
+
+
 ===== REVIEW LOG: META/review_log/task008_review.md =====
 # TASK008 Review
 
@@ -3358,7 +3500,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Sun Mar 15 18:54:08 UTC 2026
+generated: Tue Mar 17 10:33:26 UTC 2026
 mode: full
 
 
@@ -5942,6 +6084,7 @@ def main():
         print("  python main.py <article_url>")
         print("  python main.py inspect <article_id> <article_type> [--last N]")
         print("  python main.py targets <target_list_path>")
+        print("  python main.py batch <target_list_path>")
         sys.exit(1)
 
     # inspectモード
@@ -5974,6 +6117,37 @@ def main():
         print(f"Loaded {len(targets)} scrape target(s) from {target_list_path}")
         for target in targets:
             print(target)
+        return
+
+    if sys.argv[1] == "batch":
+
+        if len(sys.argv) < 3:
+            print("Usage: batch <target_list_path>")
+            sys.exit(1)
+
+        target_list_path = sys.argv[2]
+        targets = load_target_urls(target_list_path)
+
+        print(f"Loaded {len(targets)} scrape target(s) from {target_list_path}")
+
+        any_failed = False
+        for idx, target in enumerate(targets, start=1):
+            print(f"[{idx}/{len(targets)}] Scraping: {target}")
+            try:
+                ok = run_scrape(target)
+            except Exception as exc:
+                any_failed = True
+                print(f"[FAIL] {target} ({type(exc).__name__}: {exc})")
+                continue
+
+            if ok:
+                print(f"[OK] {target}")
+            else:
+                any_failed = True
+                print(f"[FAIL] {target}")
+
+        if any_failed:
+            sys.exit(1)
         return
 
     # 通常スクレイプモード
@@ -6116,17 +6290,17 @@ def fetch_article_metadata(article_url: str):
     return article_id, article_type, title
 
 
-def run_scrape(article_url: str):
+def run_scrape(article_url: str) -> bool:
     try:
         article_id, article_type, title = fetch_article_metadata(article_url)
 
     except ArticleNotFoundError:
         print(f"Article not found: {article_url}")
-        return
+        return False
 
     if article_id in DENYLIST_ARTICLE_IDS:
         print("Skipping article (high-volume).")
-        return
+        return False
 
     bbs_base_url = build_bbs_base_url(article_url)
 
@@ -6156,6 +6330,7 @@ def run_scrape(article_url: str):
     conn.close()
 
     print("Saved to SQLite")
+    return True
 
 =============================
 FILE: ./copilot/parser.py
@@ -6585,6 +6760,7 @@ def test_main_too_few_args_exits_with_usage(capsys):
     assert "python main.py <article_url>" in out
     assert "inspect" in out
     assert "targets <target_list_path>" in out
+    assert "batch <target_list_path>" in out
 
 
 def test_main_inspect_without_id_type_exits_with_usage(capsys):
@@ -6594,6 +6770,74 @@ def test_main_inspect_without_id_type_exits_with_usage(capsys):
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
     assert "inspect <article_id> <article_type>" in out
+
+
+@patch("main.load_target_urls", return_value=[
+    "https://dic.nicovideo.jp/a/1",
+    "https://dic.nicovideo.jp/a/2",
+])
+@patch("main.run_scrape", side_effect=[True, True])
+def test_main_batch_all_success_exits_zero(
+    mock_run_scrape, mock_load_targets, capsys
+):
+    with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
+        main_module.main()
+
+    assert mock_run_scrape.call_count == 2
+    mock_run_scrape.assert_any_call("https://dic.nicovideo.jp/a/1")
+    mock_run_scrape.assert_any_call("https://dic.nicovideo.jp/a/2")
+    out = capsys.readouterr().out
+    assert "[OK] https://dic.nicovideo.jp/a/1" in out
+    assert "[OK] https://dic.nicovideo.jp/a/2" in out
+
+
+@patch("main.load_target_urls", return_value=[
+    "https://dic.nicovideo.jp/a/1",
+    "https://dic.nicovideo.jp/a/2",
+])
+@patch("main.run_scrape", side_effect=[False, True])
+def test_main_batch_failure_sets_nonzero_exit_and_continues(
+    mock_run_scrape, mock_load_targets, capsys
+):
+    with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    assert mock_run_scrape.call_count == 2
+    out = capsys.readouterr().out
+    assert "[FAIL] https://dic.nicovideo.jp/a/1" in out
+    assert "[OK] https://dic.nicovideo.jp/a/2" in out
+
+
+@patch("main.load_target_urls", return_value=[
+    "https://dic.nicovideo.jp/a/1",
+    "https://dic.nicovideo.jp/a/2",
+])
+@patch("main.run_scrape", side_effect=[RuntimeError("boom"), True])
+def test_main_batch_exception_sets_nonzero_exit_and_continues(
+    mock_run_scrape, mock_load_targets, capsys
+):
+    with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    assert mock_run_scrape.call_count == 2
+    out = capsys.readouterr().out
+    assert "[FAIL] https://dic.nicovideo.jp/a/1" in out
+    assert "RuntimeError" in out
+    assert "[OK] https://dic.nicovideo.jp/a/2" in out
+
+
+def test_main_batch_without_path_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "batch"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "Usage: batch <target_list_path>" in out
 
 =============================
 FILE: ./copilot/tests/test_orchestrator.py
@@ -6819,7 +7063,7 @@ def test_run_scrape_happy_path_orchestrates_dependencies_correctly():
                     with patch("orchestrator.init_db", return_value=conn) as mock_init:
                         with patch("orchestrator.save_to_db") as mock_save_db:
                             with patch("orchestrator.print") as mock_print:
-                                run_scrape(article_url)
+                                ok = run_scrape(article_url)
 
     mock_meta.assert_called_once_with(article_url)
     mock_build.assert_called_once_with(article_url)
@@ -6846,6 +7090,7 @@ def test_run_scrape_happy_path_orchestrates_dependencies_correctly():
 
     # Final status message
     mock_print.assert_any_call("Saved to SQLite")
+    assert ok is True
 
 
 def test_run_scrape_propagates_error_from_metadata_and_does_not_init_db():
@@ -6875,7 +7120,7 @@ def test_run_scrape_article_not_found_skips_save_path():
                 with patch("orchestrator.init_db") as mock_init:
                     with patch("orchestrator.save_to_db") as mock_save_db:
                         with patch("orchestrator.print") as mock_print:
-                            run_scrape(article_url)
+                            ok = run_scrape(article_url)
 
     mock_meta.assert_called_once_with(article_url)
     mock_collect.assert_not_called()
@@ -6883,6 +7128,7 @@ def test_run_scrape_article_not_found_skips_save_path():
     mock_init.assert_not_called()
     mock_save_db.assert_not_called()
     mock_print.assert_any_call(f"Article not found: {article_url}")
+    assert ok is False
 
 
 def test_run_scrape_saves_empty_result_for_zero_response_case():
@@ -6905,7 +7151,7 @@ def test_run_scrape_saves_empty_result_for_zero_response_case():
                     with patch("orchestrator.init_db", return_value=conn) as mock_init:
                         with patch("orchestrator.save_to_db") as mock_save_db:
                             with patch("orchestrator.print") as mock_print:
-                                run_scrape(article_url)
+                                ok = run_scrape(article_url)
 
     mock_meta.assert_called_once_with(article_url)
     mock_build.assert_called_once_with(article_url)
@@ -6923,6 +7169,7 @@ def test_run_scrape_saves_empty_result_for_zero_response_case():
     conn.close.assert_called_once_with()
     mock_print.assert_any_call("No BBS responses found; saving empty result")
     mock_print.assert_any_call("Saved to SQLite")
+    assert ok is True
 
 
 def test_run_scrape_logs_and_saves_partial_on_later_page_interruption():
@@ -6946,7 +7193,7 @@ def test_run_scrape_logs_and_saves_partial_on_later_page_interruption():
                     with patch("orchestrator.init_db", return_value=conn) as mock_init:
                         with patch("orchestrator.save_to_db") as mock_save_db:
                             with patch("orchestrator.print") as mock_print:
-                                run_scrape(article_url)
+                                ok = run_scrape(article_url)
 
     mock_meta.assert_called_once_with(article_url)
     mock_build.assert_called_once_with(article_url)
@@ -6974,6 +7221,7 @@ def test_run_scrape_logs_and_saves_partial_on_later_page_interruption():
         " ".join(map(str, c.args)) for c in mock_print.call_args_list
     )
     assert "BBS fetch interrupted; saving partial responses" in joined_calls
+    assert ok is True
 
 
 def test_run_scrape_denylist_skips_collection_and_save():
@@ -6989,7 +7237,7 @@ def test_run_scrape_denylist_skips_collection_and_save():
                     with patch("orchestrator.init_db") as mock_init:
                         with patch("orchestrator.save_to_db") as mock_save_db:
                             with patch("orchestrator.print") as mock_print:
-                                run_scrape(article_url)
+                                ok = run_scrape(article_url)
 
     mock_meta.assert_called_once_with(article_url)
     mock_build.assert_not_called()
@@ -6998,6 +7246,7 @@ def test_run_scrape_denylist_skips_collection_and_save():
     mock_init.assert_not_called()
     mock_save_db.assert_not_called()
     mock_print.assert_any_call("Skipping article (high-volume).")
+    assert ok is False
 
 
 def test_run_scrape_cap_reached_saves_partial_and_logs():
@@ -7021,7 +7270,7 @@ def test_run_scrape_cap_reached_saves_partial_and_logs():
                     with patch("orchestrator.init_db", return_value=conn) as mock_init:
                         with patch("orchestrator.save_to_db") as mock_save_db:
                             with patch("orchestrator.print") as mock_print:
-                                run_scrape(article_url)
+                                ok = run_scrape(article_url)
 
     mock_meta.assert_called_once_with(article_url)
     mock_build.assert_called_once_with(article_url)
@@ -7048,6 +7297,7 @@ def test_run_scrape_cap_reached_saves_partial_and_logs():
     )
     assert "Response cap reached; saving partial responses" in joined_calls
     assert "3 items" in joined_calls
+    assert ok is True
 
 
 @pytest.mark.parametrize(
@@ -7106,7 +7356,7 @@ def test_run_scrape_representative_save_path_regression(
                     with patch("orchestrator.init_db", return_value=conn) as mock_init:
                         with patch("orchestrator.save_to_db") as mock_save_db:
                             with patch("orchestrator.print") as mock_print:
-                                run_scrape(article_url)
+                                ok = run_scrape(article_url)
 
     mock_meta.assert_called_once_with(article_url)
     mock_build.assert_called_once_with(article_url)
@@ -7129,6 +7379,7 @@ def test_run_scrape_representative_save_path_regression(
     )
     conn.close.assert_called_once_with()
     mock_print.assert_any_call("Saved to SQLite")
+    assert ok is True
 
     if expected_message is None:
         joined_calls = " ".join(
@@ -7179,7 +7430,7 @@ def test_run_scrape_representative_skip_path_regression(
                     with patch("orchestrator.init_db") as mock_init:
                         with patch("orchestrator.save_to_db") as mock_save_db:
                             with patch("orchestrator.print") as mock_print:
-                                run_scrape(article_url)
+                                ok = run_scrape(article_url)
 
     mock_meta.assert_called_once_with(article_url)
     mock_build.assert_not_called()
@@ -7188,6 +7439,7 @@ def test_run_scrape_representative_skip_path_regression(
     mock_init.assert_not_called()
     mock_save_db.assert_not_called()
     mock_print.assert_any_call(expected_message)
+    assert ok is False
 
 =============================
 FILE: ./copilot/tests/test_parser.py
@@ -7990,6 +8242,7 @@ def main():
         print("  python main.py <article_url>")
         print("  python main.py inspect <article_id> <article_type> [--last N]")
         print("  python main.py targets <target_list_path>")
+        print("  python main.py batch <target_list_path>")
         sys.exit(1)
 
     # inspectモード
@@ -8022,6 +8275,37 @@ def main():
         print(f"Loaded {len(targets)} scrape target(s) from {target_list_path}")
         for target in targets:
             print(target)
+        return
+
+    if sys.argv[1] == "batch":
+
+        if len(sys.argv) < 3:
+            print("Usage: batch <target_list_path>")
+            sys.exit(1)
+
+        target_list_path = sys.argv[2]
+        targets = load_target_urls(target_list_path)
+
+        print(f"Loaded {len(targets)} scrape target(s) from {target_list_path}")
+
+        any_failed = False
+        for idx, target in enumerate(targets, start=1):
+            print(f"[{idx}/{len(targets)}] Scraping: {target}")
+            try:
+                ok = run_scrape(target)
+            except Exception as exc:
+                any_failed = True
+                print(f"[FAIL] {target} ({type(exc).__name__}: {exc})")
+                continue
+
+            if ok:
+                print(f"[OK] {target}")
+            else:
+                any_failed = True
+                print(f"[FAIL] {target}")
+
+        if any_failed:
+            sys.exit(1)
         return
 
     # 通常スクレイプモード
@@ -8164,17 +8448,17 @@ def fetch_article_metadata(article_url: str):
     return article_id, article_type, title
 
 
-def run_scrape(article_url: str):
+def run_scrape(article_url: str) -> bool:
     try:
         article_id, article_type, title = fetch_article_metadata(article_url)
 
     except ArticleNotFoundError:
         print(f"Article not found: {article_url}")
-        return
+        return False
 
     if article_id in DENYLIST_ARTICLE_IDS:
         print("Skipping article (high-volume).")
-        return
+        return False
 
     bbs_base_url = build_bbs_base_url(article_url)
 
@@ -8204,6 +8488,7 @@ def run_scrape(article_url: str):
     conn.close()
 
     print("Saved to SQLite")
+    return True
 
 =============================
 FILE: ./cursor/parser.py
@@ -8633,6 +8918,7 @@ def test_main_too_few_args_exits_with_usage(capsys):
     assert "python main.py <article_url>" in out
     assert "inspect" in out
     assert "targets <target_list_path>" in out
+    assert "batch <target_list_path>" in out
 
 
 def test_main_inspect_without_id_type_exits_with_usage(capsys):
@@ -8642,6 +8928,74 @@ def test_main_inspect_without_id_type_exits_with_usage(capsys):
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
     assert "inspect <article_id> <article_type>" in out
+
+
+@patch("main.load_target_urls", return_value=[
+    "https://dic.nicovideo.jp/a/1",
+    "https://dic.nicovideo.jp/a/2",
+])
+@patch("main.run_scrape", side_effect=[True, True])
+def test_main_batch_all_success_exits_zero(
+    mock_run_scrape, mock_load_targets, capsys
+):
+    with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
+        main_module.main()
+
+    assert mock_run_scrape.call_count == 2
+    mock_run_scrape.assert_any_call("https://dic.nicovideo.jp/a/1")
+    mock_run_scrape.assert_any_call("https://dic.nicovideo.jp/a/2")
+    out = capsys.readouterr().out
+    assert "[OK] https://dic.nicovideo.jp/a/1" in out
+    assert "[OK] https://dic.nicovideo.jp/a/2" in out
+
+
+@patch("main.load_target_urls", return_value=[
+    "https://dic.nicovideo.jp/a/1",
+    "https://dic.nicovideo.jp/a/2",
+])
+@patch("main.run_scrape", side_effect=[False, True])
+def test_main_batch_failure_sets_nonzero_exit_and_continues(
+    mock_run_scrape, mock_load_targets, capsys
+):
+    with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    assert mock_run_scrape.call_count == 2
+    out = capsys.readouterr().out
+    assert "[FAIL] https://dic.nicovideo.jp/a/1" in out
+    assert "[OK] https://dic.nicovideo.jp/a/2" in out
+
+
+@patch("main.load_target_urls", return_value=[
+    "https://dic.nicovideo.jp/a/1",
+    "https://dic.nicovideo.jp/a/2",
+])
+@patch("main.run_scrape", side_effect=[RuntimeError("boom"), True])
+def test_main_batch_exception_sets_nonzero_exit_and_continues(
+    mock_run_scrape, mock_load_targets, capsys
+):
+    with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    assert mock_run_scrape.call_count == 2
+    out = capsys.readouterr().out
+    assert "[FAIL] https://dic.nicovideo.jp/a/1" in out
+    assert "RuntimeError" in out
+    assert "[OK] https://dic.nicovideo.jp/a/2" in out
+
+
+def test_main_batch_without_path_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "batch"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "Usage: batch <target_list_path>" in out
 
 =============================
 FILE: ./cursor/tests/test_orchestrator.py
@@ -8867,7 +9221,7 @@ def test_run_scrape_happy_path_orchestrates_dependencies_correctly():
                     with patch("orchestrator.init_db", return_value=conn) as mock_init:
                         with patch("orchestrator.save_to_db") as mock_save_db:
                             with patch("orchestrator.print") as mock_print:
-                                run_scrape(article_url)
+                                ok = run_scrape(article_url)
 
     mock_meta.assert_called_once_with(article_url)
     mock_build.assert_called_once_with(article_url)
@@ -8894,6 +9248,7 @@ def test_run_scrape_happy_path_orchestrates_dependencies_correctly():
 
     # Final status message
     mock_print.assert_any_call("Saved to SQLite")
+    assert ok is True
 
 
 def test_run_scrape_propagates_error_from_metadata_and_does_not_init_db():
@@ -8923,7 +9278,7 @@ def test_run_scrape_article_not_found_skips_save_path():
                 with patch("orchestrator.init_db") as mock_init:
                     with patch("orchestrator.save_to_db") as mock_save_db:
                         with patch("orchestrator.print") as mock_print:
-                            run_scrape(article_url)
+                            ok = run_scrape(article_url)
 
     mock_meta.assert_called_once_with(article_url)
     mock_collect.assert_not_called()
@@ -8931,6 +9286,7 @@ def test_run_scrape_article_not_found_skips_save_path():
     mock_init.assert_not_called()
     mock_save_db.assert_not_called()
     mock_print.assert_any_call(f"Article not found: {article_url}")
+    assert ok is False
 
 
 def test_run_scrape_saves_empty_result_for_zero_response_case():
@@ -8953,7 +9309,7 @@ def test_run_scrape_saves_empty_result_for_zero_response_case():
                     with patch("orchestrator.init_db", return_value=conn) as mock_init:
                         with patch("orchestrator.save_to_db") as mock_save_db:
                             with patch("orchestrator.print") as mock_print:
-                                run_scrape(article_url)
+                                ok = run_scrape(article_url)
 
     mock_meta.assert_called_once_with(article_url)
     mock_build.assert_called_once_with(article_url)
@@ -8971,6 +9327,7 @@ def test_run_scrape_saves_empty_result_for_zero_response_case():
     conn.close.assert_called_once_with()
     mock_print.assert_any_call("No BBS responses found; saving empty result")
     mock_print.assert_any_call("Saved to SQLite")
+    assert ok is True
 
 
 def test_run_scrape_logs_and_saves_partial_on_later_page_interruption():
@@ -8994,7 +9351,7 @@ def test_run_scrape_logs_and_saves_partial_on_later_page_interruption():
                     with patch("orchestrator.init_db", return_value=conn) as mock_init:
                         with patch("orchestrator.save_to_db") as mock_save_db:
                             with patch("orchestrator.print") as mock_print:
-                                run_scrape(article_url)
+                                ok = run_scrape(article_url)
 
     mock_meta.assert_called_once_with(article_url)
     mock_build.assert_called_once_with(article_url)
@@ -9022,6 +9379,7 @@ def test_run_scrape_logs_and_saves_partial_on_later_page_interruption():
         " ".join(map(str, c.args)) for c in mock_print.call_args_list
     )
     assert "BBS fetch interrupted; saving partial responses" in joined_calls
+    assert ok is True
 
 
 def test_run_scrape_denylist_skips_collection_and_save():
@@ -9037,7 +9395,7 @@ def test_run_scrape_denylist_skips_collection_and_save():
                     with patch("orchestrator.init_db") as mock_init:
                         with patch("orchestrator.save_to_db") as mock_save_db:
                             with patch("orchestrator.print") as mock_print:
-                                run_scrape(article_url)
+                                ok = run_scrape(article_url)
 
     mock_meta.assert_called_once_with(article_url)
     mock_build.assert_not_called()
@@ -9046,6 +9404,7 @@ def test_run_scrape_denylist_skips_collection_and_save():
     mock_init.assert_not_called()
     mock_save_db.assert_not_called()
     mock_print.assert_any_call("Skipping article (high-volume).")
+    assert ok is False
 
 
 def test_run_scrape_cap_reached_saves_partial_and_logs():
@@ -9069,7 +9428,7 @@ def test_run_scrape_cap_reached_saves_partial_and_logs():
                     with patch("orchestrator.init_db", return_value=conn) as mock_init:
                         with patch("orchestrator.save_to_db") as mock_save_db:
                             with patch("orchestrator.print") as mock_print:
-                                run_scrape(article_url)
+                                ok = run_scrape(article_url)
 
     mock_meta.assert_called_once_with(article_url)
     mock_build.assert_called_once_with(article_url)
@@ -9096,6 +9455,7 @@ def test_run_scrape_cap_reached_saves_partial_and_logs():
     )
     assert "Response cap reached; saving partial responses" in joined_calls
     assert "3 items" in joined_calls
+    assert ok is True
 
 
 @pytest.mark.parametrize(
@@ -9154,7 +9514,7 @@ def test_run_scrape_representative_save_path_regression(
                     with patch("orchestrator.init_db", return_value=conn) as mock_init:
                         with patch("orchestrator.save_to_db") as mock_save_db:
                             with patch("orchestrator.print") as mock_print:
-                                run_scrape(article_url)
+                                ok = run_scrape(article_url)
 
     mock_meta.assert_called_once_with(article_url)
     mock_build.assert_called_once_with(article_url)
@@ -9177,6 +9537,7 @@ def test_run_scrape_representative_save_path_regression(
     )
     conn.close.assert_called_once_with()
     mock_print.assert_any_call("Saved to SQLite")
+    assert ok is True
 
     if expected_message is None:
         joined_calls = " ".join(
@@ -9227,7 +9588,7 @@ def test_run_scrape_representative_skip_path_regression(
                     with patch("orchestrator.init_db") as mock_init:
                         with patch("orchestrator.save_to_db") as mock_save_db:
                             with patch("orchestrator.print") as mock_print:
-                                run_scrape(article_url)
+                                ok = run_scrape(article_url)
 
     mock_meta.assert_called_once_with(article_url)
     mock_build.assert_not_called()
@@ -9236,6 +9597,7 @@ def test_run_scrape_representative_skip_path_regression(
     mock_init.assert_not_called()
     mock_save_db.assert_not_called()
     mock_print.assert_any_call(expected_message)
+    assert ok is False
 
 =============================
 FILE: ./cursor/tests/test_parser.py

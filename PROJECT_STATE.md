@@ -201,6 +201,26 @@ TASK013 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK014 has been completed.
+
+TASK014 result:
+
+• Cursor implementation was adopted
+• Copilot implementation was retained for comparison evidence
+• a bounded batch scrape command was added using the target list
+• batch execution remains serial and CLI-centered
+• existing single-article scrape flow is reused for each target
+• continue-on-error behavior was added at the batch layer
+• final non-zero exit is returned when any target fails
+• target-level success / failure visibility was added to CLI output
+• single-article save semantics were not redesigned
+• `main.py` was updated
+• `orchestrator.py` was minimally extended to support batch-facing success signaling
+• `tests/test_main.py` and `tests/test_orchestrator.py` were updated
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -314,7 +334,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK013 is complete.
+TASK014 is complete.
 
 Next task is not yet fixed.
 
