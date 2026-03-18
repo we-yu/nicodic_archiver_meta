@@ -61,32 +61,40 @@ Notes:
 
 ## Medium-term possible direction
 
-If the single-article scraping path becomes sufficiently stable, a natural next direction may be:
+With target-list loading, batch execution, run logging, periodic execution,
+archive export/readout, and add-target intake now established in bounded form,
+a natural next medium-term direction may be:
 
-- target-list definition
-- batch scrape command
-- periodic execution / scheduler integration
-- scrape status / log recording
+- whole-archive export / archive listing
+- provisional personal-use runtime separation from development workflow
+- practical repeated operation against a manually maintained target list
+- bounded seam preparation for later Web/API expansion
 
 Notes:
 
 - This is a plausible future direction, not a fixed plan.
-- Ordering may change depending on real implementation pressure.
-- Other operational or test tasks may be inserted between these items.
+- Ordering may still change depending on review evidence and implementation pressure.
+- The main medium-term objective should be:
+  **personal-use practicality before actual Web/API implementation**.
+- Keep tasks bounded and explainable.
 
 ## Long-term possible direction
 
-After batch and periodic execution become stable, a possible later direction may be:
+After the personal-use operational phase becomes sufficiently practical,
+a possible later direction may be:
 
-- export layer for archived content
-- availability / queue-insertion logic
 - Web/API layer for retrieval and request intake
+- richer export surface for archived content
+- availability / queue-insertion logic for not-yet-scraped articles
+- broader deployment/runtime formalization beyond the provisional profile
 
 Notes:
 
-- This section is the most speculative part of the roadmap.
+- This section remains speculative.
 - Treat this as high-level product direction only.
 - Do not treat this as current architecture.
+- Web/API work should be informed by the bounded seams clarified in the
+  preceding personal-use phase.
 
 ## Goal framing
 
@@ -100,14 +108,18 @@ This includes appropriate handling for cases such as:
 - other edge or failure cases that should be handled explicitly
 
 ### Second goal
-Based on a separately defined target list, periodically scrape listed articles every few hours.
+Based on a manually maintained target list, repeatedly collect listed articles
+every few hours in a practical personal-use runtime, with results accumulating
+in the current SQLite-centered store.
 
 ### Final goal
 Turn the system into a Web application where:
 
 - if a requested article is already scraped, the archived result can be returned
   in formats such as txt / html / md / csv
-- if a requested article is not yet scraped, it is added to future scrape targets
+- if a requested article is not yet scraped, it can be added to future scrape targets
+- the Web/API-facing behavior is built on bounded archive-read/export and
+  target-intake seams prepared earlier
 
 ## Maintenance note
 

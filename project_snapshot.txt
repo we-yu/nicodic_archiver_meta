@@ -1292,6 +1292,29 @@ TASK017 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK018 has been completed.
+
+TASK018 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• a bounded add-target intake command was added
+• target intake remains file/CLI-based
+• one target is added at a time
+• the plain-text target list remains the source of truth
+• exact duplicate targets are not added
+• minimal syntax validation is performed
+• online existence check was not introduced
+• `main.py` was updated
+• `target_list.py` was updated
+• `tests/test_main.py` was updated
+• `tests/test_target_list.py` was updated
+• no parser / storage / http_client redesign was introduced
+• no queue / DB-backed registry / Web / API expansion was introduced
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -1410,7 +1433,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK017 is complete.
+TASK018 is complete.
 
 Next task is not yet fixed.
 
@@ -3646,6 +3669,134 @@ Authoritative context should still be restored from:
 
 
 
+===== REVIEW LOG: META/review_log/TASK018_adoption.md =====
+# TASK018 Adoption Log
+
+## Task
+TASK018
+
+Add a bounded target intake / add-target command that allows a new scrape target
+to be appended to the plain-text target list from the CLI, while preserving the
+file/CLI-based model and avoiding target-management subsystem expansion.
+
+## Decision
+Adopted: **Copilot**
+
+Alternative reviewed:
+- Cursor implementation was retained as comparison evidence
+- Hybrid was considered but not selected
+
+## Final adopted shape
+Changed files:
+- `main.py`
+- `target_list.py`
+- `tests/test_main.py`
+- `tests/test_target_list.py`
+
+Production code outside the target-list / CLI entry path was not redesigned.
+
+## What changed in the adopted result
+The adopted result introduced a bounded add-target entrypoint for future scrape
+targets.
+
+Key behavior added:
+- `add-target` CLI entrypoint
+- one target URL appended at a time
+- plain-text target list reused as the source of truth
+- exact duplicate targets are not added
+- minimal syntax validation is performed
+- invalid permanent state is not stored
+- online existence check is intentionally not performed
+- bounded result messages for added / duplicate / invalid outcomes
+
+The adopted result remained file/CLI-based and did not expand into queue
+systems, DB-backed target registries, request platforms, Web/API work, or
+online validation design.
+
+## Why Copilot was adopted
+Primary reasons:
+
+1. It matched the fixed TASK018 semantics more directly.
+   - one target added at a time
+   - plain-text target list remained the source of truth
+   - duplicate handling was simple and bounded
+   - minimal syntax validation stayed minimal
+
+2. It stayed well bounded.
+   - changes remained centered in `target_list.py`, `main.py`, and focused tests
+   - no parser / storage / http_client redesign
+   - no queue / DB / Web / API expansion
+   - no online existence check
+
+3. It made the intended intake semantics easier to review.
+   - add / duplicate / invalid outcomes were explicit
+   - append behavior and no-write-on-invalid behavior were protected in tests
+   - the validation scope remained clearly minimal
+
+4. It passed validation cleanly after review.
+
+## Why Cursor was not adopted
+Cursor implementation was valid, bounded, and useful as comparison evidence.
+
+Observed strengths:
+- remained file/CLI-based
+- preserved bounded target intake scope
+- kept online validation out of the task
+
+Reasons it was not selected:
+- the adopted Copilot result aligned slightly more directly with the intended
+  minimal-intake shape
+- Cursor leaned a little further into validation strictness / reason taxonomy
+  than was necessary for this bounded task
+
+## Why Hybrid was not selected
+Hybrid was considered, but not selected because:
+- no narrow borrowed change clearly improved the adopted Copilot result enough
+  to justify a hybrid
+- Copilot already satisfied the intended TASK018 boundary well
+- merge-for-the-sake-of-merge was unnecessary
+- keeping the review memory simple is preferable
+
+## Validation result
+Validation was run with the established workflow:
+- `./validate_helix.sh` passed for both child repositories
+- post-adoption validation on converged `main` also passed
+
+## Convergence result
+- `./compare_helix.sh --all` passed after realignment
+- `copilot/` and `cursor/` matched on the adopted final state
+
+## Repository outcome
+- adopted implementation repository: `copilot/`
+- comparison-evidence repository: `cursor/`
+- optional adoption marker branch:
+  - `adopted/task018-add-target`
+- after product-repo integration, both child repositories were realigned to the
+  same adopted final state
+
+## Notes for future AI sessions
+Important interpretation:
+- TASK018 is complete
+- the project now has a bounded add-target intake command
+- target intake remains file/CLI-based
+- one target is added at a time
+- exact duplicate targets are not added
+- minimal syntax validation is performed
+- online existence check was not introduced in this task
+- no queue / DB-backed registry / Web / API expansion was introduced
+
+## Meta note
+This log is AI-readable review memory.
+It is not authoritative current state by itself.
+
+Authoritative context should still be restored from:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
+
+
+
 ===== REVIEW LOG: META/review_log/task008_review.md =====
 # TASK008 Review
 
@@ -3998,7 +4149,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Wed Mar 18 09:51:31 UTC 2026
+generated: Wed Mar 18 10:29:29 UTC 2026
 mode: full
 
 
@@ -7027,6 +7178,46 @@ tests added or updated
 any remaining judgment call worth noting briefly
 - txt and md layouts were kept intentionally simple and stdout-centered to avoid expanding into file-output design or broader formatting frameworks.
 =============================
+FILE: ./copilot/TASK018_report.txt
+=============================
+changed files
+- target_list.py
+- main.py
+- tests/test_main.py
+- tests/test_target_list.py
+
+why any non-main-target files were touched
+- tests/test_target_list.py was updated to cover the bounded validation and file-update behavior directly in target_list.py.
+
+how the add-target entrypoint was implemented
+- main.py now dispatches:
+  python main.py add-target <article_url> <target_list_path>
+- The dispatch calls target_list.add_target_url and prints a bounded result message for added, duplicate, or invalid input.
+
+how minimal syntax validation was handled
+- target_list.py added validate_target_url.
+- Validation is intentionally minimal: non-empty input, http/https scheme, dic.nicovideo.jp host, and a two-segment article path shape.
+- No online existence check is performed.
+
+how duplicate detection was handled
+- add_target_url loads existing targets from the plain-text list and rejects exact duplicate targets after trimming input whitespace.
+
+how the target list file update was performed
+- add_target_url appends one URL line to the plain-text target file.
+- When the file already ends with a newline, the append avoids inserting an extra blank line.
+- The file is created if needed, and invalid input is rejected before any write occurs.
+
+how online existence check was intentionally excluded
+- The implementation performs only local syntax validation.
+- It does not fetch the network, inspect remote availability, or persist invalid-state metadata.
+
+tests added or updated
+- tests/test_main.py updated for add-target CLI dispatch, duplicate reporting, invalid-input non-zero exit, usage handling, and usage text coverage.
+- tests/test_target_list.py updated for minimal validation, successful append, duplicate no-op, invalid no-write behavior, and blank-line-free append behavior.
+
+any remaining judgment call worth noting briefly
+- Duplicate detection is exact after trimming surrounding whitespace; no broader URL canonicalization was added to keep the behavior bounded and explainable.
+=============================
 FILE: ./copilot/cli.py
 =============================
 import sqlite3
@@ -7470,7 +7661,7 @@ from pathlib import Path
 
 from cli import export_article, inspect_article
 from orchestrator import run_scrape
-from target_list import load_target_urls
+from target_list import add_target_url, load_target_urls
 
 
 # ============================================================
@@ -7593,6 +7784,7 @@ def main():
         print("  python main.py inspect <article_id> <article_type> [--last N]")
         print("  python main.py export <article_id> <article_type> --format txt")
         print("  python main.py export <article_id> <article_type> --format md")
+        print("  python main.py add-target <article_url> <target_list_path>")
         print("  python main.py targets <target_list_path>")
         print("  python main.py batch <target_list_path>")
         print(
@@ -7632,6 +7824,23 @@ def main():
         if not export_article(article_id, article_type, output_format):
             sys.exit(1)
         return
+
+    if sys.argv[1] == "add-target":
+
+        if len(sys.argv) < 4:
+            print("Usage: add-target <article_url> <target_list_path>")
+            sys.exit(1)
+
+        result = add_target_url(sys.argv[2], sys.argv[3])
+        if result == "added":
+            print(f"Added target: {sys.argv[2]}")
+            return
+        if result == "duplicate":
+            print(f"Target already exists: {sys.argv[2]}")
+            return
+
+        print(f"Invalid target URL: {sys.argv[2]}")
+        sys.exit(1)
 
     if sys.argv[1] == "targets":
 
@@ -8122,6 +8331,7 @@ def save_json(article_id, article_type, title, article_url, responses):
 FILE: ./copilot/target_list.py
 =============================
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 # Temporary plain-text input source until a more structured target registry exists.
@@ -8144,6 +8354,55 @@ def load_target_urls(file_path: str) -> list[str]:
         targets.append(line)
 
     return targets
+
+
+def validate_target_url(article_url: str) -> bool:
+    candidate = article_url.strip()
+    if not candidate:
+        return False
+
+    parsed = urlparse(candidate)
+    if parsed.scheme not in {"http", "https"}:
+        return False
+    if parsed.netloc != "dic.nicovideo.jp":
+        return False
+
+    path_parts = [part for part in parsed.path.split("/") if part]
+    if len(path_parts) != 2:
+        return False
+
+    article_type, article_id = path_parts
+    if not article_type or not article_id:
+        return False
+
+    return True
+
+
+def add_target_url(article_url: str, target_list_path: str) -> str:
+    candidate = article_url.strip()
+    if not validate_target_url(candidate):
+        return "invalid"
+
+    target_path = Path(target_list_path)
+    existing_targets = []
+    if target_path.exists():
+        existing_targets = load_target_urls(target_list_path)
+
+    if candidate in existing_targets:
+        return "duplicate"
+
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    prefix = ""
+    if target_path.exists():
+        existing_text = target_path.read_text(encoding="utf-8")
+        if existing_text and not existing_text.endswith("\n"):
+            prefix = "\n"
+
+    with target_path.open("a", encoding="utf-8") as target_file:
+        target_file.write(f"{prefix}{candidate}\n")
+
+    return "added"
 
 =============================
 FILE: ./copilot/tests/conftest.py
@@ -8263,6 +8522,63 @@ def test_main_export_mode_calls_export_article(mock_export):
     mock_export.assert_called_once_with("12345", "a", "txt")
 
 
+@patch("main.add_target_url", return_value="added")
+def test_main_add_target_calls_add_target_url(mock_add_target, capsys):
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "add-target",
+            "https://dic.nicovideo.jp/a/12345",
+            "targets.txt",
+        ],
+    ):
+        main_module.main()
+
+    mock_add_target.assert_called_once_with(
+        "https://dic.nicovideo.jp/a/12345",
+        "targets.txt",
+    )
+    out = capsys.readouterr().out
+    assert "Added target: https://dic.nicovideo.jp/a/12345" in out
+
+
+@patch("main.add_target_url", return_value="duplicate")
+def test_main_add_target_reports_duplicate_without_error(mock_add_target, capsys):
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "add-target",
+            "https://dic.nicovideo.jp/a/12345",
+            "targets.txt",
+        ],
+    ):
+        main_module.main()
+
+    mock_add_target.assert_called_once_with(
+        "https://dic.nicovideo.jp/a/12345",
+        "targets.txt",
+    )
+    out = capsys.readouterr().out
+    assert "Target already exists: https://dic.nicovideo.jp/a/12345" in out
+
+
+@patch("main.add_target_url", return_value="invalid")
+def test_main_add_target_exits_non_zero_for_invalid_url(mock_add_target, capsys):
+    with patch(
+        "sys.argv",
+        ["main.py", "add-target", "not-a-url", "targets.txt"],
+    ):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    mock_add_target.assert_called_once_with("not-a-url", "targets.txt")
+    out = capsys.readouterr().out
+    assert "Invalid target URL: not-a-url" in out
+
+
 @patch("main.export_article", return_value=False)
 def test_main_export_mode_exits_non_zero_on_export_failure(mock_export):
     with patch(
@@ -8308,6 +8624,16 @@ def test_main_targets_without_path_exits_with_usage(capsys):
     assert "Usage: targets <target_list_path>" in out
 
 
+def test_main_add_target_without_required_args_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "add-target", "https://dic.nicovideo.jp/a/1"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "Usage: add-target <article_url> <target_list_path>" in out
+
+
 def test_main_export_without_required_args_exits_with_usage(capsys):
     with patch("sys.argv", ["main.py", "export", "12345", "a"]):
         with pytest.raises(SystemExit) as exc_info:
@@ -8328,6 +8654,7 @@ def test_main_too_few_args_exits_with_usage(capsys):
     assert "inspect" in out
     assert "export <article_id> <article_type> --format txt" in out
     assert "export <article_id> <article_type> --format md" in out
+    assert "add-target <article_url> <target_list_path>" in out
     assert "targets <target_list_path>" in out
     assert "batch <target_list_path>" in out
     assert (
@@ -9382,7 +9709,7 @@ def test_save_json_writes_json_and_sanitizes_title_in_filename(tmp_path, monkeyp
 =============================
 FILE: ./copilot/tests/test_target_list.py
 =============================
-from target_list import load_target_urls
+from target_list import add_target_url, load_target_urls, validate_target_url
 
 
 def test_load_target_urls_reads_plain_text_targets_stably(tmp_path):
@@ -9415,6 +9742,61 @@ def test_load_target_urls_ignores_duplicate_lines_while_preserving_order(tmp_pat
         "https://dic.nicovideo.jp/a/12345",
         "https://dic.nicovideo.jp/a/77777",
     ]
+
+
+def test_validate_target_url_accepts_minimally_valid_nicopedia_article_url():
+    assert validate_target_url("https://dic.nicovideo.jp/a/12345") is True
+
+
+def test_validate_target_url_rejects_non_article_shape():
+    assert validate_target_url("https://dic.nicovideo.jp/a/12345/extra") is False
+    assert validate_target_url("https://example.com/a/12345") is False
+    assert validate_target_url("not-a-url") is False
+
+
+def test_add_target_url_appends_valid_target_to_text_list(tmp_path):
+    target_file = tmp_path / "targets.txt"
+
+    result = add_target_url("https://dic.nicovideo.jp/a/12345", str(target_file))
+
+    assert result == "added"
+    assert target_file.read_text(encoding="utf-8") == (
+        "https://dic.nicovideo.jp/a/12345\n"
+    )
+
+
+def test_add_target_url_does_not_append_duplicate_target(tmp_path):
+    target_file = tmp_path / "targets.txt"
+    target_file.write_text("https://dic.nicovideo.jp/a/12345\n", encoding="utf-8")
+
+    result = add_target_url("https://dic.nicovideo.jp/a/12345", str(target_file))
+
+    assert result == "duplicate"
+    assert target_file.read_text(encoding="utf-8") == (
+        "https://dic.nicovideo.jp/a/12345\n"
+    )
+
+
+def test_add_target_url_appends_without_inserting_blank_line(tmp_path):
+    target_file = tmp_path / "targets.txt"
+    target_file.write_text("https://dic.nicovideo.jp/a/12345\n", encoding="utf-8")
+
+    result = add_target_url("https://dic.nicovideo.jp/a/77777", str(target_file))
+
+    assert result == "added"
+    assert target_file.read_text(encoding="utf-8") == (
+        "https://dic.nicovideo.jp/a/12345\n"
+        "https://dic.nicovideo.jp/a/77777\n"
+    )
+
+
+def test_add_target_url_rejects_invalid_target_without_writing(tmp_path):
+    target_file = tmp_path / "targets.txt"
+
+    result = add_target_url("not-a-url", str(target_file))
+
+    assert result == "invalid"
+    assert target_file.exists() is False
 
 =============================
 FILE: ./cursor/.cursor/rules/double-helix-workflow.mdc
@@ -9676,6 +10058,63 @@ TASK017 report
 - export のレイアウトは stdout-centered の human-readable を優先し、
   既存 inspect と責務が競合しないよう「inspect は閲覧、export は txt/md の整形出力」
   に寄せました。ファイル出力や CSV などへは広げていません。
+
+
+=============================
+FILE: ./cursor/TASK018_report.txt
+=============================
+TASK018 report
+
+1. changed files
+- target_list.py
+- main.py
+- tests/test_target_list.py
+- tests/test_main.py
+- TASK018_report.txt
+
+2. why any non-main-target files were touched
+- tests/test_target_list.py: target_list の validation / duplicate / 追記動作を focused に保護。
+- tests/test_main.py: add-target の CLI dispatch と usage/exit を focused に保護。
+- TASK018_report.txt: 指定された報告ファイル。
+
+3. how the add-target entrypoint was implemented
+- `python main.py add-target <article_url> <target_list_path>` を main.py に追加。
+- main.py は `target_list.add_target_url(article_url, target_list_path)` を呼び、
+  追加できた場合はメッセージを出して終了、できない場合は理由を表示して exit(1)。
+
+4. how minimal syntax validation was handled
+- target_list.py に `validate_article_url()` を追加し、以下の最小検証のみ実施:
+  - 空文字でない
+  - scheme が http/https
+  - host が存在
+  - path が `/a/<digits>` の形（article_type="a"、article_id が数字）
+- ネットワークアクセスによる存在確認は行わない。
+
+5. how duplicate detection was handled
+- 既存 target list は `load_target_urls()` で読み込み（空行/#コメント除外 + 重複除外）。
+- 追加対象 URL（strip 後）が既存に含まれる場合は `duplicate` として追記しない。
+
+6. how the target list file update was performed
+- バリデーション OK かつ duplicate でない場合のみ、target_list_path を append で開き、
+  末尾が改行でない場合は改行を補ってから URL 1行を追記する。
+- invalid の場合はファイルへ書き込まず、永続的な invalid state を作らない。
+
+7. how online existence check was intentionally excluded
+- `validate_article_url()` は URL 構文/パス形のみ検証し、HTTP fetch 等は一切行わない。
+
+8. tests added or updated
+- tests/test_target_list.py:
+  - validate_article_url の accept/reject
+  - add_target_url の append / duplicate skip / invalid reject（ファイル非作成）
+- tests/test_main.py:
+  - add-target が add_target_url を呼ぶこと
+  - add-target 失敗時に exit(1) になること
+  - add-target 引数不足時の usage
+  - usage 出力に add-target が含まれること
+
+9. any remaining judgment call worth noting briefly
+- validation は `/a/<digits>` の最小形に限定し、他の article_type を許容しないことで
+  task の「minimal validation」に留めつつ、将来の拡張余地を残しました。
 
 
 =============================
@@ -10122,7 +10561,7 @@ from pathlib import Path
 
 from cli import export_article, inspect_article
 from orchestrator import run_scrape
-from target_list import load_target_urls
+from target_list import add_target_url, load_target_urls
 
 
 # ============================================================
@@ -10245,6 +10684,7 @@ def main():
         print("  python main.py inspect <article_id> <article_type> [--last N]")
         print("  python main.py export <article_id> <article_type> --format txt")
         print("  python main.py export <article_id> <article_type> --format md")
+        print("  python main.py add-target <article_url> <target_list_path>")
         print("  python main.py targets <target_list_path>")
         print("  python main.py batch <target_list_path>")
         print(
@@ -10284,6 +10724,23 @@ def main():
         if not export_article(article_id, article_type, output_format):
             sys.exit(1)
         return
+
+    if sys.argv[1] == "add-target":
+
+        if len(sys.argv) < 4:
+            print("Usage: add-target <article_url> <target_list_path>")
+            sys.exit(1)
+
+        result = add_target_url(sys.argv[2], sys.argv[3])
+        if result == "added":
+            print(f"Added target: {sys.argv[2]}")
+            return
+        if result == "duplicate":
+            print(f"Target already exists: {sys.argv[2]}")
+            return
+
+        print(f"Invalid target URL: {sys.argv[2]}")
+        sys.exit(1)
 
     if sys.argv[1] == "targets":
 
@@ -10774,6 +11231,7 @@ def save_json(article_id, article_type, title, article_url, responses):
 FILE: ./cursor/target_list.py
 =============================
 from pathlib import Path
+from urllib.parse import urlparse
 
 
 # Temporary plain-text input source until a more structured target registry exists.
@@ -10796,6 +11254,55 @@ def load_target_urls(file_path: str) -> list[str]:
         targets.append(line)
 
     return targets
+
+
+def validate_target_url(article_url: str) -> bool:
+    candidate = article_url.strip()
+    if not candidate:
+        return False
+
+    parsed = urlparse(candidate)
+    if parsed.scheme not in {"http", "https"}:
+        return False
+    if parsed.netloc != "dic.nicovideo.jp":
+        return False
+
+    path_parts = [part for part in parsed.path.split("/") if part]
+    if len(path_parts) != 2:
+        return False
+
+    article_type, article_id = path_parts
+    if not article_type or not article_id:
+        return False
+
+    return True
+
+
+def add_target_url(article_url: str, target_list_path: str) -> str:
+    candidate = article_url.strip()
+    if not validate_target_url(candidate):
+        return "invalid"
+
+    target_path = Path(target_list_path)
+    existing_targets = []
+    if target_path.exists():
+        existing_targets = load_target_urls(target_list_path)
+
+    if candidate in existing_targets:
+        return "duplicate"
+
+    target_path.parent.mkdir(parents=True, exist_ok=True)
+
+    prefix = ""
+    if target_path.exists():
+        existing_text = target_path.read_text(encoding="utf-8")
+        if existing_text and not existing_text.endswith("\n"):
+            prefix = "\n"
+
+    with target_path.open("a", encoding="utf-8") as target_file:
+        target_file.write(f"{prefix}{candidate}\n")
+
+    return "added"
 
 =============================
 FILE: ./cursor/tests/conftest.py
@@ -10915,6 +11422,63 @@ def test_main_export_mode_calls_export_article(mock_export):
     mock_export.assert_called_once_with("12345", "a", "txt")
 
 
+@patch("main.add_target_url", return_value="added")
+def test_main_add_target_calls_add_target_url(mock_add_target, capsys):
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "add-target",
+            "https://dic.nicovideo.jp/a/12345",
+            "targets.txt",
+        ],
+    ):
+        main_module.main()
+
+    mock_add_target.assert_called_once_with(
+        "https://dic.nicovideo.jp/a/12345",
+        "targets.txt",
+    )
+    out = capsys.readouterr().out
+    assert "Added target: https://dic.nicovideo.jp/a/12345" in out
+
+
+@patch("main.add_target_url", return_value="duplicate")
+def test_main_add_target_reports_duplicate_without_error(mock_add_target, capsys):
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "add-target",
+            "https://dic.nicovideo.jp/a/12345",
+            "targets.txt",
+        ],
+    ):
+        main_module.main()
+
+    mock_add_target.assert_called_once_with(
+        "https://dic.nicovideo.jp/a/12345",
+        "targets.txt",
+    )
+    out = capsys.readouterr().out
+    assert "Target already exists: https://dic.nicovideo.jp/a/12345" in out
+
+
+@patch("main.add_target_url", return_value="invalid")
+def test_main_add_target_exits_non_zero_for_invalid_url(mock_add_target, capsys):
+    with patch(
+        "sys.argv",
+        ["main.py", "add-target", "not-a-url", "targets.txt"],
+    ):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    mock_add_target.assert_called_once_with("not-a-url", "targets.txt")
+    out = capsys.readouterr().out
+    assert "Invalid target URL: not-a-url" in out
+
+
 @patch("main.export_article", return_value=False)
 def test_main_export_mode_exits_non_zero_on_export_failure(mock_export):
     with patch(
@@ -10960,6 +11524,16 @@ def test_main_targets_without_path_exits_with_usage(capsys):
     assert "Usage: targets <target_list_path>" in out
 
 
+def test_main_add_target_without_required_args_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "add-target", "https://dic.nicovideo.jp/a/1"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "Usage: add-target <article_url> <target_list_path>" in out
+
+
 def test_main_export_without_required_args_exits_with_usage(capsys):
     with patch("sys.argv", ["main.py", "export", "12345", "a"]):
         with pytest.raises(SystemExit) as exc_info:
@@ -10980,6 +11554,7 @@ def test_main_too_few_args_exits_with_usage(capsys):
     assert "inspect" in out
     assert "export <article_id> <article_type> --format txt" in out
     assert "export <article_id> <article_type> --format md" in out
+    assert "add-target <article_url> <target_list_path>" in out
     assert "targets <target_list_path>" in out
     assert "batch <target_list_path>" in out
     assert (
@@ -12034,7 +12609,7 @@ def test_save_json_writes_json_and_sanitizes_title_in_filename(tmp_path, monkeyp
 =============================
 FILE: ./cursor/tests/test_target_list.py
 =============================
-from target_list import load_target_urls
+from target_list import add_target_url, load_target_urls, validate_target_url
 
 
 def test_load_target_urls_reads_plain_text_targets_stably(tmp_path):
@@ -12067,6 +12642,61 @@ def test_load_target_urls_ignores_duplicate_lines_while_preserving_order(tmp_pat
         "https://dic.nicovideo.jp/a/12345",
         "https://dic.nicovideo.jp/a/77777",
     ]
+
+
+def test_validate_target_url_accepts_minimally_valid_nicopedia_article_url():
+    assert validate_target_url("https://dic.nicovideo.jp/a/12345") is True
+
+
+def test_validate_target_url_rejects_non_article_shape():
+    assert validate_target_url("https://dic.nicovideo.jp/a/12345/extra") is False
+    assert validate_target_url("https://example.com/a/12345") is False
+    assert validate_target_url("not-a-url") is False
+
+
+def test_add_target_url_appends_valid_target_to_text_list(tmp_path):
+    target_file = tmp_path / "targets.txt"
+
+    result = add_target_url("https://dic.nicovideo.jp/a/12345", str(target_file))
+
+    assert result == "added"
+    assert target_file.read_text(encoding="utf-8") == (
+        "https://dic.nicovideo.jp/a/12345\n"
+    )
+
+
+def test_add_target_url_does_not_append_duplicate_target(tmp_path):
+    target_file = tmp_path / "targets.txt"
+    target_file.write_text("https://dic.nicovideo.jp/a/12345\n", encoding="utf-8")
+
+    result = add_target_url("https://dic.nicovideo.jp/a/12345", str(target_file))
+
+    assert result == "duplicate"
+    assert target_file.read_text(encoding="utf-8") == (
+        "https://dic.nicovideo.jp/a/12345\n"
+    )
+
+
+def test_add_target_url_appends_without_inserting_blank_line(tmp_path):
+    target_file = tmp_path / "targets.txt"
+    target_file.write_text("https://dic.nicovideo.jp/a/12345\n", encoding="utf-8")
+
+    result = add_target_url("https://dic.nicovideo.jp/a/77777", str(target_file))
+
+    assert result == "added"
+    assert target_file.read_text(encoding="utf-8") == (
+        "https://dic.nicovideo.jp/a/12345\n"
+        "https://dic.nicovideo.jp/a/77777\n"
+    )
+
+
+def test_add_target_url_rejects_invalid_target_without_writing(tmp_path):
+    target_file = tmp_path / "targets.txt"
+
+    result = add_target_url("not-a-url", str(target_file))
+
+    assert result == "invalid"
+    assert target_file.exists() is False
 
 =============================
 FILE: ./export_open_issues.sh

@@ -204,21 +204,126 @@ Preferred direction:
 - keep target management simple
 - defer generalized intake systems
 
-### TASK019 direction
-Bounded interface preparation for later Web/API expansion.
+### TASK019 ### TASK019 direction
+All-articles export / archive listing.
 
 Expected shape:
 
-- prepare cleaner seams for later external interfaces
-- remain strictly pre-Web and pre-API
-- do not introduce a full application framework yet
-- do not start platform expansion prematurely
+- make the saved archive usable at the whole-archive level
+- remain CLI-centered and output-focused
+- support bounded listing and/or export of multiple saved articles
+- no Web UI requirement yet
+- no API requirement yet
+- no presentation-layer framework yet
+- no storage redesign yet
 
 Preferred direction:
 
-- clarify boundaries that future interfaces will need
+- add practical whole-archive readout/export capability
+- preserve the already-adopted single-article export path
+- keep scope bounded and human-usable
+- support personal-use practicality before platform expansion
+
+### TASK020 direction
+Provisional production runtime / deployment profile.
+
+Expected shape:
+
+- define a practical runtime separate from the development container/profile
+- support personal-use operation with the current SQLite-centered baseline
+- keep deployment shape small and explainable
+- no large infrastructure design
+- no container-orchestration platform work
+- no premature production-platform abstraction
+
+Preferred direction:
+
+- provide a separate runtime/profile for provisional personal-use deployment
+- preserve the current project architecture
+- keep ops steps concrete and terminal-friendly
+- support later deployment evolution without overbuilding now
+
+### TASK021 direction
+Periodic operation packaging for personal-use runtime.
+
+Expected shape:
+
+- make the existing periodic execution entrypoint practical to run in the
+  provisional production runtime
+- support repeated operation against a manually maintained target list
+- remain compatible with lightweight external scheduling
+- do not expand into a scheduler framework
+- do not add full overlap/fairness policy design yet
+
+Preferred direction:
+
+- make “run every few hours against the current target list” practical
+- preserve the bounded CLI-centered periodic design already adopted
+- support accumulating results into the current SQLite-based storage
+- keep operational behavior explainable and reviewable
+
+### TASK022 direction
+Bounded interface seam preparation for later Web/API expansion.
+
+Expected shape:
+
+- prepare cleaner seams for later retrieval/export interfaces
+- remain strictly pre-Web and pre-API
+- do not introduce a full application framework yet
+- do not start platform expansion prematurely
+- keep compatibility with the already-adopted CLI/archive behavior
+
+Preferred direction:
+
+- clarify archive-read/export boundaries that future interfaces will need
+- clarify target-intake boundaries that future interfaces will need
 - keep current architecture stable
-- do only the minimum preparation justified by preceding tasks
+- do only the minimum preparation justified by the provisional personal-use phase
+
+--------------------------------------------------
+
+## Next medium-term phase framing
+
+The next medium-term phase should aim to make the system
+**practically usable for personal use** before starting actual Web/API work.
+
+Target outcome for this phase:
+
+- a provisional runtime separate from the development workflow exists
+- a manually maintained target list can drive repeated archive collection
+  every few hours
+- collected results continue to accumulate in the current SQLite-centered store
+- a specific saved article can be exported in practical text formats
+- the whole saved archive can also be listed and/or exported in bounded forms
+- later Web/API expansion is supported by cleaner seams, but is not yet started
+
+Interpretation note:
+
+- this phase framing is planning guidance, not authoritative current state
+- exact task boundaries may still be adjusted if review evidence suggests a
+  better bounded split
+- keep “personal-use practicality first, platform expansion later” as the main
+  directional rule
+
+--------------------------------------------------
+
+## Planning priority
+
+Recommended working order:
+
+1. `TASK019` all-articles export / archive listing
+2. `TASK020` provisional production runtime / deployment profile
+3. `TASK021` periodic operation packaging for personal-use runtime
+4. `TASK022` bounded interface seam preparation for later Web/API
+
+This order is recommended because it:
+
+- increases practical user value before interface/platform expansion
+- makes the already-adopted archive/export work more useful
+- supports real operational usage in a bounded way
+- preserves bounded task size
+- remains compatible with the Double Helix workflow
+- delays framework-level expansion until product seams are clearer
 
 --------------------------------------------------
 
