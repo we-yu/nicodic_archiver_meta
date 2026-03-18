@@ -292,6 +292,29 @@ TASK017 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK018 has been completed.
+
+TASK018 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• a bounded add-target intake command was added
+• target intake remains file/CLI-based
+• one target is added at a time
+• the plain-text target list remains the source of truth
+• exact duplicate targets are not added
+• minimal syntax validation is performed
+• online existence check was not introduced
+• `main.py` was updated
+• `target_list.py` was updated
+• `tests/test_main.py` was updated
+• `tests/test_target_list.py` was updated
+• no parser / storage / http_client redesign was introduced
+• no queue / DB-backed registry / Web / API expansion was introduced
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -410,7 +433,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK017 is complete.
+TASK018 is complete.
 
 Next task is not yet fixed.
 
