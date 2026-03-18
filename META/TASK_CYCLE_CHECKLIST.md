@@ -260,18 +260,31 @@ are explicitly included by the workflow helper's supported mechanism.
   - `taskNNN-topic-cursor`
 - Keep the original implementation branches for comparison evidence.
 
-## 9. Realign both repos
+## 9. Sync both child repos from `main`
 
-- Bring `copilot/` to the final adopted `main` state.
-- Bring `cursor/` to the same final adopted `main` state.
-- Confirm both repositories now match the post-adoption baseline.
+- Do not describe post-adoption synchronization as manual file copying.
+- The normal Double Helix completion path is:
+  1. push the adopted implementation branch
+  2. push the non-adopted implementation branch if it should remain as evidence
+  3. if used, push the optional adopted marker branch
+  4. integrate the adopted result into child-repo `main`
+     using the repository-compliant method
+  5. in both `copilot/` and `cursor/`, checkout `main`
+  6. pull the updated `main`
+- Treat this `main` pull step as the normal way to bring both child repos
+  to the same adopted final state.
+- Avoid instructing the user to manually copy adopted product files
+  between `copilot/` and `cursor/` as the standard post-adoption method.
+- After both child repos have pulled the adopted `main`,
+  confirm that the post-task baseline is shared.
 
 ## 10. Run convergence check
 
-- Run `./compare_helix.sh --all` from the workspace root.
-- Confirm the comparison passes after realignment.
-- If convergence fails, fix alignment before updating workflow memory.
-- Ensure new files relevant to comparison are already tracked before running `./compare_helix.sh --all`.
+- After both child repos have switched to `main` and pulled,
+  run `./compare_helix.sh --all`.
+- Confirm `copilot/` and `cursor/` match on the adopted final state.
+- Treat any unexpected drift after `main` pull as a workflow issue
+  to investigate.
 
 ## 11. Update review memory
 

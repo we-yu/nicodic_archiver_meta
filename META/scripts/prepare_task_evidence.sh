@@ -218,6 +218,11 @@ echo "Done."
 echo "Next suggested manual steps:"
 echo "  1. push adopted branch in ${ADOPTED_NAME}"
 echo "  2. push evidence branch in ${EVIDENCE_NAME} if desired"
-echo "  3. integrate adopted result into child-repo main using repository-compliant method"
-
-
+if [[ -n "${ADOPTED_MARKER_BRANCH}" ]]; then
+  echo "  3. push adopted marker branch in ${ADOPTED_NAME}: ${ADOPTED_MARKER_BRANCH}"
+  echo "  4. integrate the adopted result into child-repo main using the repository-compliant method"
+  echo "  5. in both child repos, checkout main and pull"
+else
+  echo "  3. integrate the adopted result into child-repo main using the repository-compliant method"
+  echo "  4. in both child repos, checkout main and pull"
+fi

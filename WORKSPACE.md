@@ -140,10 +140,21 @@ After a task is completed:
 
 1. compare Copilot and Cursor implementations
 2. choose winner or hybrid result
-3. merge the chosen result into main
-4. realign copilot/ and cursor/ to the same final state
-5. confirm convergence using compare_helix.sh
+3. prepare and commit task evidence in the child repos as needed
+4. push the adopted implementation branch
+5. push the non-adopted implementation branch if it should remain as evidence
+6. if used, push the optional adopted marker branch
+7. integrate the adopted result into child-repo `main`
+   using the repository-compliant method
+8. in both `copilot/` and `cursor/`, checkout `main` and pull
+9. confirm convergence using compare_helix.sh
 
+- In this project, post-adoption synchronization should normally happen
+  by integrating the adopted result into child-repo `main`
+  and then pulling `main` in both child repos.
+- Do not treat manual file copying between `copilot/` and `cursor/`
+  as the standard completion path.
+  
 After adoption, a short AI-readable review log may be stored
 under META/review_log/ for future sessions.
 

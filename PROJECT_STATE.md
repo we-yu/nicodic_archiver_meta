@@ -315,6 +315,38 @@ TASK018 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK019 has been completed.
+
+TASK019 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• a bounded whole-archive archive-read path was added
+• archive listing was added as the core capability
+• all-articles export was added as a paired bounded capability
+• archive readout remains CLI-centered
+• whole-archive export remains stdout-centered
+• listing includes:
+  - `article_id`
+  - `article_type`
+  - `title`
+  - `created_at`
+  - `response_count`
+• whole-archive export format is `txt` only in this task
+• export output is article-by-article and sectioned
+• existing single-article export remains available
+• `cli.py` was updated
+• `main.py` was updated
+• `tests/test_main.py` was updated
+• `tests/test_cli.py` was updated
+• no parser / storage / http_client / orchestrator redesign was introduced
+• no storage schema redesign was introduced
+• no file-output expansion was introduced
+• no Web UI / API / CSV / multi-format whole-archive expansion was introduced
+• both repositories now reflect the same adopted final state on `main`
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -435,36 +467,10 @@ It is not used as:
 
 NEXT TASK
 
-TASK018 is complete.
+TASK019 is complete.
 
 Next task is not yet fixed.
 
 A roadmap reference exists for future-direction context only:
 
 META/ROADMAP_REFERENCE.md
-
---------------------------------------------------
-
-AI RULE
-
-When starting a new AI session:
-
-1 read AI_CONTEXT.md
-2 read PROJECT_STATE.md
-3 read WORKSPACE.md
-4 read project_snapshot.txt
-5 read project_knowledge_snapshot.txt (From project 'Knowledge')
-
-If relevant review history exists, the AI may also read:
-
-META/review_log/*.md
-
-If workflow guidance is needed, also read:
-
-META/TASK_CYCLE_CHECKLIST.md
-META/EDITOR_PROMPT_TEMPLATE.md
-META/REPO_BOUNDARY_GUARDRAILS.md
-
-If the next few tasks are being planned, also read:
-
-META/MEDIUM_TERM_DIRECTION.md
