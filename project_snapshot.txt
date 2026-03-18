@@ -1271,6 +1271,27 @@ TASK016 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK017 has been completed.
+
+TASK017 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• a bounded archive export / readout command was added
+• export remains CLI-centered and stdout-centered
+• one saved article is exported at a time
+• target selection uses `article_id + article_type`
+• supported export formats are `txt` and `md`
+• `cli.py` was updated
+• `main.py` was updated
+• `tests/test_main.py` was updated
+• `tests/test_cli.py` was added
+• no parser / storage / http_client redesign was introduced
+• no Web UI / API / CSV / multi-article export expansion was introduced
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -1389,7 +1410,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK016 is complete.
+TASK017 is complete.
 
 Next task is not yet fixed.
 
@@ -1696,6 +1717,21 @@ For a reusable editor-prompt structure, also see:
 Use that file as workflow guidance for editor-facing implementation prompts.
 It complements this checklist, but does not replace task-specific definition work.
 
+### Optional editor-report artifact note
+
+When editor-AI copy/paste overhead becomes annoying,
+the human + advisor side may instruct the editor AI to write its final report
+to a child-repo-local text file such as:
+
+- `TASKNNN_report.txt`
+
+This should remain:
+- optional
+- child-repo-local
+- report-only
+
+Do not treat such files as authoritative project memory.
+Do not instruct editor AIs to write them into root/meta locations.
 
 ### Execution-boundary note for editor AI prompts
 
@@ -3463,6 +3499,136 @@ Authoritative context should still be restored from:
 
 
 
+===== REVIEW LOG: META/review_log/TASK017_adoption.md =====
+# TASK017 Adoption Log
+
+## Task
+TASK017
+
+Add a bounded archive export / readout command that allows a saved article
+archive to be exported from the CLI in practical text-based formats, while
+remaining stdout-centered and avoiding Web/API expansion.
+
+## Decision
+Adopted: **Copilot**
+
+Alternative reviewed:
+- Cursor implementation was retained as comparison evidence
+- Hybrid was considered but not selected
+
+## Final adopted shape
+Changed files:
+- `.gitignore`
+- `cli.py`
+- `main.py`
+- `tests/test_main.py`
+- `tests/test_cli.py`
+
+Production code outside the CLI/readout path was not redesigned.
+
+## What changed in the adopted result
+The adopted result introduced a bounded export/readout command for saved
+article archives.
+
+Key behavior added:
+- `export` CLI entrypoint
+- target specified by `article_id + article_type`
+- supported formats:
+  - `txt`
+  - `md`
+- stdout-centered output
+- saved article metadata + saved responses are rendered in human-readable form
+- unsupported format returns bounded failure
+- missing article returns bounded failure
+- existing scrape / save semantics were not redesigned
+- existing inspect command was preserved
+
+The adopted result remained CLI-centered and did not expand into Web UI, API,
+CSV support, multi-article export, parser/storage/http_client redesign, or
+broad presentation-layer framework work.
+
+## Why Copilot was adopted
+Primary reasons:
+
+1. It matched the fixed TASK017 semantics more directly.
+   - one saved article identified by `article_id + article_type`
+   - bounded stdout-centered export
+   - `txt` and `md` support without broader interface expansion
+
+2. It stayed well bounded.
+   - changes remained centered in `cli.py`, `main.py`, and focused tests
+   - no parser / storage / http_client redesign
+   - no Web/API/CSV expansion
+   - no multi-article export expansion
+
+3. It made the read path and export behavior easier to review.
+   - shared loader behavior in `cli.py` was clear
+   - error handling for unsupported format / missing article was explicit
+   - txt/md rendering remained practical and simple
+
+4. It passed validation cleanly after submission-quality cleanup.
+
+## Why Cursor was not adopted
+Cursor implementation was valid, bounded, and useful as comparison evidence.
+
+Observed strengths:
+- remained CLI-centered
+- used `article_id + article_type`
+- supported bounded txt/md export
+
+Reasons it was not selected:
+- the adopted Copilot result kept the export/readout path slightly more
+  direct and reviewable for the fixed TASK017 scope
+- Cursor leaned a little further into presentation details than was necessary
+  for this bounded task
+
+## Why Hybrid was not selected
+Hybrid was considered, but not selected because:
+- no narrow borrowed change clearly improved the adopted Copilot result enough
+  to justify a hybrid
+- Copilot already satisfied the intended TASK017 boundary well
+- merge-for-the-sake-of-merge was unnecessary
+- keeping the review memory simple is preferable
+
+## Validation result
+Validation was run with the established workflow:
+- `./validate_helix.sh` passed for both child repositories
+- post-adoption validation on converged `main` also passed
+
+## Convergence result
+- `./compare_helix.sh --all` passed after realignment
+- `copilot/` and `cursor/` matched on the adopted final state
+
+## Repository outcome
+- adopted implementation repository: `copilot/`
+- comparison-evidence repository: `cursor/`
+- optional adoption marker branch:
+  - `adopted/task017-archive-export`
+- after product-repo integration, both child repositories were realigned to the
+  same adopted final state
+
+## Notes for future AI sessions
+Important interpretation:
+- TASK017 is complete
+- the project now has a bounded archive export / readout command
+- export remains CLI-centered and stdout-centered
+- one saved article is exported at a time
+- target selection uses `article_id + article_type`
+- supported export formats are `txt` and `md`
+- no Web/API/CSV expansion was introduced in this task
+
+## Meta note
+This log is AI-readable review memory.
+It is not authoritative current state by itself.
+
+Authoritative context should still be restored from:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
+
+
+
 ===== REVIEW LOG: META/review_log/task008_review.md =====
 # TASK008 Review
 
@@ -3815,7 +3981,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Tue Mar 17 18:26:28 UTC 2026
+generated: Wed Mar 18 09:15:24 UTC 2026
 mode: full
 
 
@@ -3902,7 +4068,7 @@ FILE: ./Issues.txt
 =============================
 # Open Issues Export
 # Repository: we-yu/nicodic_archiver_meta
-# Generated at: 2026-03-17 13:25:44 UTC
+# Generated at: 2026-03-18 06:26:22 UTC
 
 ## Issue #11: Execution policy proposal: bounded batch run with per-article cap, skip-on-overlap, and rotating start index
 URL: https://github.com/we-yu/nicodic_archiver_meta/issues/11
@@ -4289,187 +4455,6 @@ This is intended as a workflow-improvement task for a future phase, not as an im
 
 ---
 
-## Issue #9: Test design hygiene: avoid unnecessary patch/mock usage that obscures fixture behavior
-URL: https://github.com/we-yu/nicodic_archiver_meta/issues/9
-
-## Summary
-
-Some AI-generated tests have used `patch()` in cases where the patched dependency was not actually needed for the tested branch.
-
-This can introduce fragile or misleading tests and may even interfere with pytest fixture behavior.
-
-Example pattern already observed:
-- `@patch("main.load_target_list")` applied to a branch where the loader should not be called
-- patched argument position unintentionally shadowing a pytest fixture such as `capsys`
-
-## Why this matters
-
-Unlike trailing newline or line length, this is not a purely mechanical formatting issue.
-It is a test-design quality issue.
-
-Unnecessary patch/mock usage can:
-- obscure the true behavior under test
-- increase brittleness
-- hide simpler test structure
-- create fixture collisions or misleading failures
-- make review harder by adding indirection with no behavioral value
-
-## Desired outcome
-
-Establish and later propagate a balanced rule:
-
-- Use patch/mock when the branch under test actually needs dependency isolation or interaction verification.
-- Do not introduce patch/mock preemptively when the dependency should not be reached in that test path.
-- Prefer simpler tests when the behavior can be asserted without mocking.
-
-## Important nuance
-
-This issue is **not** proposing a blanket ban on `patch()` or mocks.
-
-That would be too rigid and would produce worse tests in many cases.
-
-The intended policy direction is:
-
-- patch when it is necessary
-- avoid patch when it is unnecessary
-- be careful with pytest fixture interaction and decorator-injected arguments
-- keep test intent readable
-
-## Examples of good future guidance
-
-- If a branch should exit before dependency use, do not patch that dependency unless interaction itself is the assertion target.
-- If patch is needed, keep injected mock arguments explicit and ordered correctly.
-- Prefer direct fixture usage when mocking adds no value.
-
-## Scope of this issue
-
-This issue records the problem and prepares future guidance.
-It does **not** immediately change META files in this step.
-
-## Possible follow-up directions
-
-- Add AI guidance about patch necessity checks
-- Add review checklist wording for test simplicity and fixture safety
-- Add examples of “patch needed” vs “patch unnecessary”
-
-## Acceptance idea
-
-Future AI-generated tests should avoid unnecessary patch/mock usage, especially when it risks fixture confusion or hides a simpler direct test.
-
----
-
-## Issue #8: Validation hygiene: prevent avoidable line-length failures in AI-edited files
-URL: https://github.com/we-yu/nicodic_archiver_meta/issues/8
-
-## Summary
-
-Some AI-generated edits have failed validation because of avoidable overlong lines.
-
-These failures are usually minor and easy to fix, but they still create review noise and unnecessary rework.
-
-Examples already observed:
-- docstring/comment lines exceeding flake8 line length
-- test-side string/comment formatting that could have been wrapped earlier
-
-## Why this matters
-
-This is mostly not a design problem.
-It is a validation hygiene problem.
-
-In this workflow, avoidable line-length failures are costly because:
-- they interrupt comparison review
-- they force manual cleanup after otherwise acceptable edits
-- they reduce confidence in task completion quality
-
-## Desired outcome
-
-Establish and later propagate a practical rule:
-
-- AI-generated edits should avoid introducing lines that exceed the repository's enforced line-length policy.
-
-This should be treated as a default formatting discipline, especially for:
-- Python code
-- docstrings
-- comments
-- test messages / usage strings when practical
-
-## Important nuance
-
-This is not a request to aggressively reflow unrelated existing code.
-The focus is:
-
-- do not introduce new avoidable line-length failures
-- keep fixes bounded to touched areas
-- avoid task drift into unrelated formatting cleanup
-
-## Scope of this issue
-
-This issue records the problem and prepares for later guidance.
-It does **not** immediately change META files in this step.
-
-## Possible follow-up directions
-
-- Add explicit AI guidance about line-length discipline
-- Add review checklist wording
-- Optionally add formatter/linter-aware guardrails in future task support
-
-## Acceptance idea
-
-Future AI task outputs should not fail validation due to newly introduced avoidable long lines.
-
----
-
-## Issue #7: Test/workflow hygiene: require trailing newline at end of source files
-URL: https://github.com/we-yu/nicodic_archiver_meta/issues/7
-
-## Summary
-
-Some AI-generated files have failed validation only because they were saved without a trailing newline at EOF.
-
-This is a low-level formatting issue, but it causes avoidable flake8 failures and interrupts otherwise valid task review.
-
-Examples already observed:
-- Python source file without final newline
-- test file without final newline
-
-## Why this matters
-
-These failures are not about design or behavior.
-They create review noise, waste validation cycles, and reduce the signal quality of helix comparison.
-
-In this project, small avoidable formatting failures are worth preventing because:
-- they interrupt bounded task review
-- they create unnecessary manual cleanup
-- they can make a valid implementation appear weaker than it really is
-
-## Desired outcome
-
-Establish and later propagate a simple rule:
-
-- All generated source files must end with a trailing newline.
-
-This should apply especially to:
-- `.py`
-- config-like text files
-- markdown or other tracked text assets when relevant
-
-## Scope of this issue
-
-This issue is only for documenting the problem and deciding the future guidance.
-It does **not** immediately change META files in this step.
-
-## Possible follow-up directions
-
-- Add explicit guidance for AI-generated code/output
-- Add review checklist wording
-- Optionally add lightweight lint/editor/tooling guardrails if needed
-
-## Acceptance idea
-
-We should be able to say that future AI tasks no longer fail validation because of missing EOF newline alone.
-
----
-
 
 =============================
 FILE: ./META/EDITOR_PROMPT_TEMPLATE.md
@@ -4705,6 +4690,27 @@ Recommended base items:
 5. how save / stop / flow behavior was handled
 6. tests added or updated
 7. any remaining judgment call worth noting briefly
+
+### 13.5 Report delivery option
+
+Purpose:
+- reduce copy/paste overhead from editor AI responses
+- keep implementation reports available as child-repo-local artifacts
+
+Optional rule:
+- when useful, the editor prompt may instruct the editor AI to write its final report
+  to a child-repo-local text file such as:
+  - `TASKNNN_report.txt`
+
+Important constraints:
+- the report file should be written inside the current child repository only
+- do not instruct the editor AI to write reports into root/meta locations
+- this is a workflow convenience option, not a mandatory requirement for every task
+- if used, the prompt should still specify the required report contents explicitly
+- prefer simple text output that the human can inspect with `cat`
+
+Recommended wording example:
+- "At the end of your work, write your report to `TASKNNN_report.txt` in this repo root."
 
 ### 14. Final warnings
 Purpose:
@@ -6792,7 +6798,12 @@ data/
 export_project.sh
 project_summary.txt
 
+# For cursor setting
 .cursor/
+
+# Report file (this is temporary utility file) is unnecessary to version-control
+TASK*report.txt
+
 
 =============================
 FILE: ./copilot/Dockerfile
@@ -6864,9 +6875,181 @@ FILE: ./copilot/README.md
 To scrape and store Nicodic BBS comments
 
 =============================
+FILE: ./copilot/TASK017_report.txt
+=============================
+changed files
+- cli.py
+- main.py
+- tests/test_main.py
+- tests/test_cli.py
+
+why any non-main-target files were touched
+- tests/test_cli.py was added to cover stdout-centered export rendering and bounded error cases in cli.py directly.
+
+how the export entrypoint was implemented
+- main.py now dispatches export via:
+  python main.py export <article_id> <article_type> --format txt
+  python main.py export <article_id> <article_type> --format md
+- The dispatch calls cli.export_article and exits non-zero if export fails.
+
+how article_id + article_type lookup was handled
+- cli.py added a shared internal loader that queries articles and responses by article_id and article_type from the existing SQLite tables.
+- The same DB-side discriminator semantics already used by inspect are preserved.
+
+how txt output was rendered
+- txt export prints article metadata first, then response blocks in ascending response order.
+- The output is human-readable and stdout-centered.
+
+how md output was rendered
+- md export prints a Markdown title, metadata bullets, and per-response Markdown sections.
+- The output stays bounded to a single saved article archive.
+
+how missing article / unsupported format was handled
+- Missing article prints "Article not found in DB" and returns failure.
+- Unsupported format prints "Unsupported export format: <format>" and returns failure.
+- main.py turns those failures into exit code 1 for the export command.
+
+tests added or updated
+- tests/test_main.py updated for export CLI dispatch, export usage failure, and export non-zero exit on failure.
+- tests/test_cli.py added for txt export, md export, missing article, and unsupported format.
+
+any remaining judgment call worth noting briefly
+- txt and md layouts were kept intentionally simple and stdout-centered to avoid expanding into file-output design or broader formatting frameworks.
+=============================
 FILE: ./copilot/cli.py
 =============================
 import sqlite3
+
+
+def _load_article_archive(article_id, article_type, last_n=None):
+    conn = sqlite3.connect("data/nicodic.db")
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT title, canonical_url, created_at
+        FROM articles
+        WHERE article_id=? AND article_type=?
+        """,
+        (article_id, article_type),
+    )
+
+    article = cur.fetchone()
+    if not article:
+        conn.close()
+        return None
+
+    title, url, created_at = article
+
+    if last_n:
+        cur.execute(
+            """
+            SELECT res_no, poster_name, posted_at, id_hash, content_text
+            FROM responses
+            WHERE article_id=? AND article_type=?
+            ORDER BY res_no DESC
+            LIMIT ?
+            """,
+            (article_id, article_type, last_n),
+        )
+        rows = cur.fetchall()
+        rows.reverse()
+    else:
+        cur.execute(
+            """
+            SELECT res_no, poster_name, posted_at, id_hash, content_text
+            FROM responses
+            WHERE article_id=? AND article_type=?
+            ORDER BY res_no ASC
+            """,
+            (article_id, article_type),
+        )
+        rows = cur.fetchall()
+
+    conn.close()
+
+    return {
+        "article_id": article_id,
+        "article_type": article_type,
+        "title": title,
+        "url": url,
+        "created_at": created_at,
+        "responses": rows,
+    }
+
+
+def _render_txt_archive(archive):
+    lines = [
+        "=== ARTICLE META ===",
+        f"ID: {archive['article_id']}",
+        f"Type: {archive['article_type']}",
+        f"Title: {archive['title']}",
+        f"URL: {archive['url']}",
+        f"Created: {archive['created_at']}",
+        "",
+        "=== RESPONSES ===",
+    ]
+
+    for res_no, poster_name, posted_at, id_hash, content_text in archive["responses"]:
+        poster_name = poster_name or "unknown"
+        posted_at = posted_at or "unknown"
+        id_hash = id_hash or "unknown"
+
+        lines.append(f">{res_no} {poster_name} {posted_at} ID: {id_hash}")
+        lines.append(content_text or "")
+        lines.append("----")
+
+    return "\n".join(lines)
+
+
+def _render_md_archive(archive):
+    lines = [
+        f"# {archive['title']}",
+        "",
+        f"- Article ID: {archive['article_id']}",
+        f"- Article Type: {archive['article_type']}",
+        f"- URL: {archive['url']}",
+        f"- Created: {archive['created_at']}",
+        "",
+        "## Responses",
+    ]
+
+    for res_no, poster_name, posted_at, id_hash, content_text in archive["responses"]:
+        poster_name = poster_name or "unknown"
+        posted_at = posted_at or "unknown"
+        id_hash = id_hash or "unknown"
+
+        lines.extend(
+            [
+                "",
+                f"### Response {res_no}",
+                f"- Poster: {poster_name}",
+                f"- Posted At: {posted_at}",
+                f"- ID Hash: {id_hash}",
+                "",
+                content_text or "",
+            ]
+        )
+
+    return "\n".join(lines)
+
+
+def export_article(article_id, article_type, output_format):
+    archive = _load_article_archive(article_id, article_type)
+    if not archive:
+        print("Article not found in DB")
+        return False
+
+    if output_format == "txt":
+        print(_render_txt_archive(archive))
+        return True
+
+    if output_format == "md":
+        print(_render_md_archive(archive))
+        return True
+
+    print(f"Unsupported export format: {output_format}")
+    return False
 
 
 def inspect_article(article_id, article_type, last_n=None):
@@ -6874,51 +7057,20 @@ def inspect_article(article_id, article_type, last_n=None):
     DB内の記事・レスをCLI表示する。
     """
 
-    conn = sqlite3.connect("data/nicodic.db")
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT title, canonical_url, created_at
-        FROM articles
-        WHERE article_id=? AND article_type=?
-    """, (article_id, article_type))
-
-    article = cur.fetchone()
-    if not article:
+    archive = _load_article_archive(article_id, article_type, last_n=last_n)
+    if not archive:
         print("Article not found in DB")
-        conn.close()
         return
-
-    title, url, created_at = article
 
     print("=== ARTICLE META ===")
     print("ID:", article_id)
     print("Type:", article_type)
-    print("Title:", title)
-    print("URL:", url)
-    print("Created:", created_at)
-
-    if last_n:
-        cur.execute("""
-            SELECT res_no, poster_name, posted_at, id_hash, content_text
-            FROM responses
-            WHERE article_id=? AND article_type=?
-            ORDER BY res_no DESC
-            LIMIT ?
-        """, (article_id, article_type, last_n))
-        rows = cur.fetchall()
-        rows.reverse()
-    else:
-        cur.execute("""
-            SELECT res_no, poster_name, posted_at, id_hash, content_text
-            FROM responses
-            WHERE article_id=? AND article_type=?
-            ORDER BY res_no ASC
-        """, (article_id, article_type))
-        rows = cur.fetchall()
+    print("Title:", archive["title"])
+    print("URL:", archive["url"])
+    print("Created:", archive["created_at"])
 
     print("\n=== RESPONSES ===")
-    for res_no, poster_name, posted_at, id_hash, content_text in rows:
+    for res_no, poster_name, posted_at, id_hash, content_text in archive["responses"]:
         poster_name = poster_name or "unknown"
         posted_at = posted_at or "unknown"
         id_hash = id_hash or "unknown"
@@ -6926,8 +7078,6 @@ def inspect_article(article_id, article_type, last_n=None):
         print(f"＞{res_no}　{poster_name}　{posted_at} ID: {id_hash}")
         print(content_text or "")
         print("----")
-
-    conn.close()
 
 =============================
 FILE: ./copilot/docker-compose.yml
@@ -7207,7 +7357,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from cli import inspect_article
+from cli import export_article, inspect_article
 from orchestrator import run_scrape
 from target_list import load_target_urls
 
@@ -7330,6 +7480,8 @@ def main():
         print("Usage:")
         print("  python main.py <article_url>")
         print("  python main.py inspect <article_id> <article_type> [--last N]")
+        print("  python main.py export <article_id> <article_type> --format txt")
+        print("  python main.py export <article_id> <article_type> --format md")
         print("  python main.py targets <target_list_path>")
         print("  python main.py batch <target_list_path>")
         print(
@@ -7354,6 +7506,20 @@ def main():
             last_n = int(sys.argv[idx + 1])
 
         inspect_article(article_id, article_type, last_n)
+        return
+
+    if sys.argv[1] == "export":
+
+        if len(sys.argv) < 6 or sys.argv[4] != "--format":
+            print("Usage: export <article_id> <article_type> --format txt|md")
+            sys.exit(1)
+
+        article_id = sys.argv[2]
+        article_type = sys.argv[3]
+        output_format = sys.argv[5]
+
+        if not export_article(article_id, article_type, output_format):
+            sys.exit(1)
         return
 
     if sys.argv[1] == "targets":
@@ -7973,6 +8139,32 @@ def test_main_inspect_mode_calls_inspect_article(mock_inspect):
     mock_inspect.assert_called_once_with("12345", "a", None)
 
 
+@patch("main.export_article")
+def test_main_export_mode_calls_export_article(mock_export):
+    mock_export.return_value = True
+
+    with patch(
+        "sys.argv",
+        ["main.py", "export", "12345", "a", "--format", "txt"],
+    ):
+        main_module.main()
+
+    mock_export.assert_called_once_with("12345", "a", "txt")
+
+
+@patch("main.export_article", return_value=False)
+def test_main_export_mode_exits_non_zero_on_export_failure(mock_export):
+    with patch(
+        "sys.argv",
+        ["main.py", "export", "12345", "a", "--format", "md"],
+    ):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    mock_export.assert_called_once_with("12345", "a", "md")
+
+
 @patch("main.inspect_article")
 def test_main_inspect_mode_with_last_n(mock_inspect):
     with patch("sys.argv", ["main.py", "inspect", "12345", "a", "--last", "10"]):
@@ -8005,6 +8197,16 @@ def test_main_targets_without_path_exits_with_usage(capsys):
     assert "Usage: targets <target_list_path>" in out
 
 
+def test_main_export_without_required_args_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "export", "12345", "a"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "Usage: export <article_id> <article_type> --format txt|md" in out
+
+
 def test_main_too_few_args_exits_with_usage(capsys):
     with patch("sys.argv", ["main.py"]):
         with pytest.raises(SystemExit) as exc_info:
@@ -8013,6 +8215,8 @@ def test_main_too_few_args_exits_with_usage(capsys):
     out = capsys.readouterr().out
     assert "python main.py <article_url>" in out
     assert "inspect" in out
+    assert "export <article_id> <article_type> --format txt" in out
+    assert "export <article_id> <article_type> --format md" in out
     assert "targets <target_list_path>" in out
     assert "batch <target_list_path>" in out
     assert (
@@ -9218,7 +9422,12 @@ data/
 export_project.sh
 project_summary.txt
 
+# For cursor setting
 .cursor/
+
+# Report file (this is temporary utility file) is unnecessary to version-control
+TASK*report.txt
+
 
 =============================
 FILE: ./cursor/Dockerfile
@@ -9290,9 +9499,209 @@ FILE: ./cursor/README.md
 To scrape and store Nicodic BBS comments
 
 =============================
+FILE: ./cursor/TASK017_report.txt
+=============================
+TASK017 report
+
+1. changed files
+- cli.py
+- main.py
+- tests/test_main.py
+- tests/test_cli_export.py
+- TASK017_report.txt
+
+2. why any non-main-target files were touched
+- tests/test_main.py: main.py の export dispatch を focused に保護するため。
+- tests/test_cli_export.py: cli.py の export 出力（txt/md）とエラー処理を focused に保護するため。
+- TASK017_report.txt: 指定された報告ファイル。
+
+3. how the export entrypoint was implemented
+- main.py に `export` サブコマンドを追加し、`export <article_id> <article_type> --format txt|md`
+  の形で `cli.export_article(article_id, article_type, fmt)` を呼びます。
+- `export_article(...)` が False を返した場合は exit code を non-zero (1) にします。
+
+4. how `article_id + article_type` lookup was handled
+- cli.py 内で SQLite (`data/nicodic.db`) を開き、articles テーブルを
+  `WHERE article_id=? AND article_type=?` で 1件検索します。
+- 見つかった場合に responses テーブルを同じキーで抽出し、res_no 昇順で readout します。
+
+5. how txt output was rendered
+- stdout に以下の構造で出力します:
+  - "=== ARTICLE ===" の下に ID / Type / Title / URL / Created を表示
+  - "=== RESPONSES ===" の下に 1レスずつ
+    `>res_no poster_name posted_at ID: id_hash` のヘッダ
+    content_text（あれば）
+    content_html（あれば [html]...[/html] で囲む）
+    "----" 区切り
+
+6. how md output was rendered
+- stdout に以下の構造で出力します:
+  - `# <title>`
+  - メタ情報を箇条書き（ID/Type/URL/Created）
+  - "## Responses"
+  - 各レスを "### <res_no>" セクションで出し、
+    name / posted_at / id を箇条書き、
+    content_text を本文として出力（あれば）
+    content_html は ```html fenced block``` で出力（あれば）
+
+7. how missing article / unsupported format was handled
+- unsupported format: "Unsupported format: <fmt>" を stdout に出して False を返します。
+- missing article: "Article not found in DB" を stdout に出して False を返します。
+- main.py 側では export が False の場合 `sys.exit(1)` します。
+
+8. tests added or updated
+- tests/test_main.py:
+  - export の dispatch が `export_article` を呼ぶこと
+  - export が False の場合に non-zero exit になること
+  - --format 不足時に usage + exit(1) になること
+  - usage 出力に export の2行が含まれること
+- tests/test_cli_export.py (new):
+  - txt のレンダリング（メタ＋レス＋content_text/content_html）が出ること
+  - md のレンダリング（見出し＋html fenced）が出ること
+  - missing article が False を返しメッセージが出ること
+  - unsupported format が False を返しメッセージが出ること
+
+9. any remaining judgment call worth noting briefly
+- export のレイアウトは stdout-centered の human-readable を優先し、
+  既存 inspect と責務が競合しないよう「inspect は閲覧、export は txt/md の整形出力」
+  に寄せました。ファイル出力や CSV などへは広げていません。
+
+
+=============================
 FILE: ./cursor/cli.py
 =============================
 import sqlite3
+
+
+def _load_article_archive(article_id, article_type, last_n=None):
+    conn = sqlite3.connect("data/nicodic.db")
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT title, canonical_url, created_at
+        FROM articles
+        WHERE article_id=? AND article_type=?
+        """,
+        (article_id, article_type),
+    )
+
+    article = cur.fetchone()
+    if not article:
+        conn.close()
+        return None
+
+    title, url, created_at = article
+
+    if last_n:
+        cur.execute(
+            """
+            SELECT res_no, poster_name, posted_at, id_hash, content_text
+            FROM responses
+            WHERE article_id=? AND article_type=?
+            ORDER BY res_no DESC
+            LIMIT ?
+            """,
+            (article_id, article_type, last_n),
+        )
+        rows = cur.fetchall()
+        rows.reverse()
+    else:
+        cur.execute(
+            """
+            SELECT res_no, poster_name, posted_at, id_hash, content_text
+            FROM responses
+            WHERE article_id=? AND article_type=?
+            ORDER BY res_no ASC
+            """,
+            (article_id, article_type),
+        )
+        rows = cur.fetchall()
+
+    conn.close()
+
+    return {
+        "article_id": article_id,
+        "article_type": article_type,
+        "title": title,
+        "url": url,
+        "created_at": created_at,
+        "responses": rows,
+    }
+
+
+def _render_txt_archive(archive):
+    lines = [
+        "=== ARTICLE META ===",
+        f"ID: {archive['article_id']}",
+        f"Type: {archive['article_type']}",
+        f"Title: {archive['title']}",
+        f"URL: {archive['url']}",
+        f"Created: {archive['created_at']}",
+        "",
+        "=== RESPONSES ===",
+    ]
+
+    for res_no, poster_name, posted_at, id_hash, content_text in archive["responses"]:
+        poster_name = poster_name or "unknown"
+        posted_at = posted_at or "unknown"
+        id_hash = id_hash or "unknown"
+
+        lines.append(f">{res_no} {poster_name} {posted_at} ID: {id_hash}")
+        lines.append(content_text or "")
+        lines.append("----")
+
+    return "\n".join(lines)
+
+
+def _render_md_archive(archive):
+    lines = [
+        f"# {archive['title']}",
+        "",
+        f"- Article ID: {archive['article_id']}",
+        f"- Article Type: {archive['article_type']}",
+        f"- URL: {archive['url']}",
+        f"- Created: {archive['created_at']}",
+        "",
+        "## Responses",
+    ]
+
+    for res_no, poster_name, posted_at, id_hash, content_text in archive["responses"]:
+        poster_name = poster_name or "unknown"
+        posted_at = posted_at or "unknown"
+        id_hash = id_hash or "unknown"
+
+        lines.extend(
+            [
+                "",
+                f"### Response {res_no}",
+                f"- Poster: {poster_name}",
+                f"- Posted At: {posted_at}",
+                f"- ID Hash: {id_hash}",
+                "",
+                content_text or "",
+            ]
+        )
+
+    return "\n".join(lines)
+
+
+def export_article(article_id, article_type, output_format):
+    archive = _load_article_archive(article_id, article_type)
+    if not archive:
+        print("Article not found in DB")
+        return False
+
+    if output_format == "txt":
+        print(_render_txt_archive(archive))
+        return True
+
+    if output_format == "md":
+        print(_render_md_archive(archive))
+        return True
+
+    print(f"Unsupported export format: {output_format}")
+    return False
 
 
 def inspect_article(article_id, article_type, last_n=None):
@@ -9300,51 +9709,20 @@ def inspect_article(article_id, article_type, last_n=None):
     DB内の記事・レスをCLI表示する。
     """
 
-    conn = sqlite3.connect("data/nicodic.db")
-    cur = conn.cursor()
-
-    cur.execute("""
-        SELECT title, canonical_url, created_at
-        FROM articles
-        WHERE article_id=? AND article_type=?
-    """, (article_id, article_type))
-
-    article = cur.fetchone()
-    if not article:
+    archive = _load_article_archive(article_id, article_type, last_n=last_n)
+    if not archive:
         print("Article not found in DB")
-        conn.close()
         return
-
-    title, url, created_at = article
 
     print("=== ARTICLE META ===")
     print("ID:", article_id)
     print("Type:", article_type)
-    print("Title:", title)
-    print("URL:", url)
-    print("Created:", created_at)
-
-    if last_n:
-        cur.execute("""
-            SELECT res_no, poster_name, posted_at, id_hash, content_text
-            FROM responses
-            WHERE article_id=? AND article_type=?
-            ORDER BY res_no DESC
-            LIMIT ?
-        """, (article_id, article_type, last_n))
-        rows = cur.fetchall()
-        rows.reverse()
-    else:
-        cur.execute("""
-            SELECT res_no, poster_name, posted_at, id_hash, content_text
-            FROM responses
-            WHERE article_id=? AND article_type=?
-            ORDER BY res_no ASC
-        """, (article_id, article_type))
-        rows = cur.fetchall()
+    print("Title:", archive["title"])
+    print("URL:", archive["url"])
+    print("Created:", archive["created_at"])
 
     print("\n=== RESPONSES ===")
-    for res_no, poster_name, posted_at, id_hash, content_text in rows:
+    for res_no, poster_name, posted_at, id_hash, content_text in archive["responses"]:
         poster_name = poster_name or "unknown"
         posted_at = posted_at or "unknown"
         id_hash = id_hash or "unknown"
@@ -9352,8 +9730,6 @@ def inspect_article(article_id, article_type, last_n=None):
         print(f"＞{res_no}　{poster_name}　{posted_at} ID: {id_hash}")
         print(content_text or "")
         print("----")
-
-    conn.close()
 
 =============================
 FILE: ./cursor/docker-compose.yml
@@ -9633,7 +10009,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
-from cli import inspect_article
+from cli import export_article, inspect_article
 from orchestrator import run_scrape
 from target_list import load_target_urls
 
@@ -9756,6 +10132,8 @@ def main():
         print("Usage:")
         print("  python main.py <article_url>")
         print("  python main.py inspect <article_id> <article_type> [--last N]")
+        print("  python main.py export <article_id> <article_type> --format txt")
+        print("  python main.py export <article_id> <article_type> --format md")
         print("  python main.py targets <target_list_path>")
         print("  python main.py batch <target_list_path>")
         print(
@@ -9780,6 +10158,20 @@ def main():
             last_n = int(sys.argv[idx + 1])
 
         inspect_article(article_id, article_type, last_n)
+        return
+
+    if sys.argv[1] == "export":
+
+        if len(sys.argv) < 6 or sys.argv[4] != "--format":
+            print("Usage: export <article_id> <article_type> --format txt|md")
+            sys.exit(1)
+
+        article_id = sys.argv[2]
+        article_type = sys.argv[3]
+        output_format = sys.argv[5]
+
+        if not export_article(article_id, article_type, output_format):
+            sys.exit(1)
         return
 
     if sys.argv[1] == "targets":
@@ -10399,6 +10791,32 @@ def test_main_inspect_mode_calls_inspect_article(mock_inspect):
     mock_inspect.assert_called_once_with("12345", "a", None)
 
 
+@patch("main.export_article")
+def test_main_export_mode_calls_export_article(mock_export):
+    mock_export.return_value = True
+
+    with patch(
+        "sys.argv",
+        ["main.py", "export", "12345", "a", "--format", "txt"],
+    ):
+        main_module.main()
+
+    mock_export.assert_called_once_with("12345", "a", "txt")
+
+
+@patch("main.export_article", return_value=False)
+def test_main_export_mode_exits_non_zero_on_export_failure(mock_export):
+    with patch(
+        "sys.argv",
+        ["main.py", "export", "12345", "a", "--format", "md"],
+    ):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    mock_export.assert_called_once_with("12345", "a", "md")
+
+
 @patch("main.inspect_article")
 def test_main_inspect_mode_with_last_n(mock_inspect):
     with patch("sys.argv", ["main.py", "inspect", "12345", "a", "--last", "10"]):
@@ -10431,6 +10849,16 @@ def test_main_targets_without_path_exits_with_usage(capsys):
     assert "Usage: targets <target_list_path>" in out
 
 
+def test_main_export_without_required_args_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "export", "12345", "a"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "Usage: export <article_id> <article_type> --format txt|md" in out
+
+
 def test_main_too_few_args_exits_with_usage(capsys):
     with patch("sys.argv", ["main.py"]):
         with pytest.raises(SystemExit) as exc_info:
@@ -10439,6 +10867,8 @@ def test_main_too_few_args_exits_with_usage(capsys):
     out = capsys.readouterr().out
     assert "python main.py <article_url>" in out
     assert "inspect" in out
+    assert "export <article_id> <article_type> --format txt" in out
+    assert "export <article_id> <article_type> --format md" in out
     assert "targets <target_list_path>" in out
     assert "batch <target_list_path>" in out
     assert (

@@ -271,6 +271,27 @@ TASK016 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK017 has been completed.
+
+TASK017 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• a bounded archive export / readout command was added
+• export remains CLI-centered and stdout-centered
+• one saved article is exported at a time
+• target selection uses `article_id + article_type`
+• supported export formats are `txt` and `md`
+• `cli.py` was updated
+• `main.py` was updated
+• `tests/test_main.py` was updated
+• `tests/test_cli.py` was added
+• no parser / storage / http_client redesign was introduced
+• no Web UI / API / CSV / multi-article export expansion was introduced
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -389,7 +410,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK016 is complete.
+TASK017 is complete.
 
 Next task is not yet fixed.
 
