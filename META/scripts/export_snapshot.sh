@@ -106,14 +106,14 @@ echo "mode: ${MODE}" >> "$MAIN_OUT"
 echo "" >> "$MAIN_OUT"
 
 if [[ "$MODE" == "full" ]]; then
-  find . -type f ! -path "*/.git/*" ! -path "*/example_webpage/*" ! -path "*/data/*" ! -path "*/__pycache__/*" ! -path "*/.pytest_cache/*" ! -path "*/.venv/*" ! -path "*/venv/*" ! -path "*/.mypy_cache/*" ! -path "*/.ruff_cache/*" ! -path "*/.cache/*" ! -path "*/node_modules/*" ! -name "*.pyc" ! -name ".DS_Store" ! -name "project_snapshot.txt" ! -name "project_knowledge_snapshot.txt" ! -name "review_snapshot.txt" ! -name "review_snapshot_*.txt" ! -name "git_snapshot.txt" ! -name "git_snapshot_*.txt" ! -name "project_summary.txt" ! -path "./META/out/*" ! -name "AI_BOOTSTRAP.md" ! -name "AI_CONTEXT.md" ! -name "_AI_EXECUTION_PROTOCOL.md" ! -name "_AI_RULES.md" ! -name "_AI_DEVELOPMENT_MODEL.md" ! -name "_AI_ORCHESTRATION_VISION.md" ! -name "PROJECT_STATE.md" ! -name "WORKSPACE.md" ! -path "./META/TASK_CYCLE_CHECKLIST.md" ! -path "./META/ARCHITECTURE.md" ! -path "./META/review_log/*" | sort | while IFS= read -r file
+find . -type f ! -path "*/.git/*" ! -path "*/example_webpage/*" ! -path "*/data/*" ! -path "*/__pycache__/*" ! -path "*/.pytest_cache/*" ! -path "*/.venv/*" ! -path "*/venv/*" ! -path "*/.mypy_cache/*" ! -path "*/.ruff_cache/*" ! -path "*/.cache/*" ! -path "*/node_modules/*" ! -name "*.pyc" ! -name ".DS_Store" ! -name "project_snapshot.txt" ! -name "project_knowledge_snapshot.txt" ! -name "review_snapshot.txt" ! -name "review_snapshot_*.txt" ! -name "git_snapshot.txt" ! -name "git_snapshot_*.txt" ! -name "project_summary.txt" ! -name "TASK*_report.txt" ! -path "./META/out/*" ! -name "AI_BOOTSTRAP.md" ! -name "AI_CONTEXT.md" ! -name "_AI_EXECUTION_PROTOCOL.md" ! -name "_AI_RULES.md" ! -name "_AI_DEVELOPMENT_MODEL.md" ! -name "_AI_ORCHESTRATION_VISION.md" ! -name "PROJECT_STATE.md" ! -name "WORKSPACE.md" ! -path "./META/TASK_CYCLE_CHECKLIST.md" ! -path "./META/ARCHITECTURE.md" ! -path "./META/review_log/*" | sort | while IFS= read -r file
   do
     append_snapshot_file "$file"
   done
 fi
 
 if [[ "$MODE" == "meta-only" ]]; then
-  find . -maxdepth 1 -type f ! -name "project_snapshot.txt" ! -name "project_knowledge_snapshot.txt" ! -name "review_snapshot.txt" ! -name "review_snapshot_*.txt" ! -name "git_snapshot.txt" ! -name "git_snapshot_*.txt" ! -name "project_summary.txt" ! -name "AI_BOOTSTRAP.md" ! -name "AI_CONTEXT.md" ! -name "_AI_EXECUTION_PROTOCOL.md" ! -name "_AI_RULES.md" ! -name "_AI_DEVELOPMENT_MODEL.md" ! -name "_AI_ORCHESTRATION_VISION.md" ! -name "PROJECT_STATE.md" ! -name "WORKSPACE.md" | sort | while IFS= read -r file
+find . -maxdepth 1 -type f ! -name "project_snapshot.txt" ! -name "project_knowledge_snapshot.txt" ! -name "review_snapshot.txt" ! -name "review_snapshot_*.txt" ! -name "git_snapshot.txt" ! -name "git_snapshot_*.txt" ! -name "project_summary.txt" ! -name "TASK*_report.txt" ! -name "AI_BOOTSTRAP.md" ! -name "AI_CONTEXT.md" ! -name "_AI_EXECUTION_PROTOCOL.md" ! -name "_AI_RULES.md" ! -name "_AI_DEVELOPMENT_MODEL.md" ! -name "_AI_ORCHESTRATION_VISION.md" ! -name "PROJECT_STATE.md" ! -name "WORKSPACE.md" | sort | while IFS= read -r file
   do
     append_snapshot_file "${file#./}"
   done

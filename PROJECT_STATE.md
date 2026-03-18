@@ -333,6 +333,8 @@ tests/test_main.py
 tests/test_orchestrator.py
 tests/test_parser.py
 tests/test_storage.py
+tests/test_target_list.py
+tests/test_cli.py
 
 Additional helper scripts exist:
 

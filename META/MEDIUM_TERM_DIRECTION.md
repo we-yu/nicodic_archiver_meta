@@ -204,7 +204,7 @@ Preferred direction:
 - keep target management simple
 - defer generalized intake systems
 
-### TASK019 ### TASK019 direction
+### TASK019 direction
 All-articles export / archive listing.
 
 Expected shape:
@@ -307,25 +307,6 @@ Interpretation note:
 
 --------------------------------------------------
 
-## Planning priority
-
-Recommended working order:
-
-1. `TASK019` all-articles export / archive listing
-2. `TASK020` provisional production runtime / deployment profile
-3. `TASK021` periodic operation packaging for personal-use runtime
-4. `TASK022` bounded interface seam preparation for later Web/API
-
-This order is recommended because it:
-
-- increases practical user value before interface/platform expansion
-- makes the already-adopted archive/export work more useful
-- supports real operational usage in a bounded way
-- preserves bounded task size
-- remains compatible with the Double Helix workflow
-- delays framework-level expansion until product seams are clearer
-
---------------------------------------------------
 
 ## Planning priority
 
@@ -339,6 +320,9 @@ Recommended working order:
 6. `TASK017` archive export / readout command
 7. `TASK018` target intake / add-target minimal command
 8. `TASK019` bounded interface preparation for later Web/API
+9. `TASK020` provisional production runtime / deployment profile
+10. `TASK021` periodic operation packaging for personal-use runtime
+11. `TASK022` bounded interface seam preparation for later Web/API
 
 This order is recommended because it:
 

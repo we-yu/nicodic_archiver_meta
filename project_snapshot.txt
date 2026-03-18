@@ -1333,6 +1333,7 @@ tests/test_main.py
 tests/test_orchestrator.py
 tests/test_parser.py
 tests/test_storage.py
+tests/test_target_list.py
 
 Additional helper scripts exist:
 
@@ -4149,7 +4150,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Wed Mar 18 10:29:29 UTC 2026
+generated: Wed Mar 18 13:50:19 UTC 2026
 mode: full
 
 
@@ -5237,22 +5238,108 @@ Preferred direction:
 - defer generalized intake systems
 
 ### TASK019 direction
-Bounded interface preparation for later Web/API expansion.
+All-articles export / archive listing.
 
 Expected shape:
 
-- prepare cleaner seams for later external interfaces
-- remain strictly pre-Web and pre-API
-- do not introduce a full application framework yet
-- do not start platform expansion prematurely
+- make the saved archive usable at the whole-archive level
+- remain CLI-centered and output-focused
+- support bounded listing and/or export of multiple saved articles
+- no Web UI requirement yet
+- no API requirement yet
+- no presentation-layer framework yet
+- no storage redesign yet
 
 Preferred direction:
 
-- clarify boundaries that future interfaces will need
+- add practical whole-archive readout/export capability
+- preserve the already-adopted single-article export path
+- keep scope bounded and human-usable
+- support personal-use practicality before platform expansion
+
+### TASK020 direction
+Provisional production runtime / deployment profile.
+
+Expected shape:
+
+- define a practical runtime separate from the development container/profile
+- support personal-use operation with the current SQLite-centered baseline
+- keep deployment shape small and explainable
+- no large infrastructure design
+- no container-orchestration platform work
+- no premature production-platform abstraction
+
+Preferred direction:
+
+- provide a separate runtime/profile for provisional personal-use deployment
+- preserve the current project architecture
+- keep ops steps concrete and terminal-friendly
+- support later deployment evolution without overbuilding now
+
+### TASK021 direction
+Periodic operation packaging for personal-use runtime.
+
+Expected shape:
+
+- make the existing periodic execution entrypoint practical to run in the
+  provisional production runtime
+- support repeated operation against a manually maintained target list
+- remain compatible with lightweight external scheduling
+- do not expand into a scheduler framework
+- do not add full overlap/fairness policy design yet
+
+Preferred direction:
+
+- make “run every few hours against the current target list” practical
+- preserve the bounded CLI-centered periodic design already adopted
+- support accumulating results into the current SQLite-based storage
+- keep operational behavior explainable and reviewable
+
+### TASK022 direction
+Bounded interface seam preparation for later Web/API expansion.
+
+Expected shape:
+
+- prepare cleaner seams for later retrieval/export interfaces
+- remain strictly pre-Web and pre-API
+- do not introduce a full application framework yet
+- do not start platform expansion prematurely
+- keep compatibility with the already-adopted CLI/archive behavior
+
+Preferred direction:
+
+- clarify archive-read/export boundaries that future interfaces will need
+- clarify target-intake boundaries that future interfaces will need
 - keep current architecture stable
-- do only the minimum preparation justified by preceding tasks
+- do only the minimum preparation justified by the provisional personal-use phase
 
 --------------------------------------------------
+
+## Next medium-term phase framing
+
+The next medium-term phase should aim to make the system
+**practically usable for personal use** before starting actual Web/API work.
+
+Target outcome for this phase:
+
+- a provisional runtime separate from the development workflow exists
+- a manually maintained target list can drive repeated archive collection
+  every few hours
+- collected results continue to accumulate in the current SQLite-centered store
+- a specific saved article can be exported in practical text formats
+- the whole saved archive can also be listed and/or exported in bounded forms
+- later Web/API expansion is supported by cleaner seams, but is not yet started
+
+Interpretation note:
+
+- this phase framing is planning guidance, not authoritative current state
+- exact task boundaries may still be adjusted if review evidence suggests a
+  better bounded split
+- keep “personal-use practicality first, platform expansion later” as the main
+  directional rule
+
+--------------------------------------------------
+
 
 ## Planning priority
 
@@ -5266,6 +5353,9 @@ Recommended working order:
 6. `TASK017` archive export / readout command
 7. `TASK018` target intake / add-target minimal command
 8. `TASK019` bounded interface preparation for later Web/API
+9. `TASK020` provisional production runtime / deployment profile
+10. `TASK021` periodic operation packaging for personal-use runtime
+11. `TASK022` bounded interface seam preparation for later Web/API
 
 This order is recommended because it:
 
@@ -5594,32 +5684,40 @@ Notes:
 
 ## Medium-term possible direction
 
-If the single-article scraping path becomes sufficiently stable, a natural next direction may be:
+With target-list loading, batch execution, run logging, periodic execution,
+archive export/readout, and add-target intake now established in bounded form,
+a natural next medium-term direction may be:
 
-- target-list definition
-- batch scrape command
-- periodic execution / scheduler integration
-- scrape status / log recording
+- whole-archive export / archive listing
+- provisional personal-use runtime separation from development workflow
+- practical repeated operation against a manually maintained target list
+- bounded seam preparation for later Web/API expansion
 
 Notes:
 
 - This is a plausible future direction, not a fixed plan.
-- Ordering may change depending on real implementation pressure.
-- Other operational or test tasks may be inserted between these items.
+- Ordering may still change depending on review evidence and implementation pressure.
+- The main medium-term objective should be:
+  **personal-use practicality before actual Web/API implementation**.
+- Keep tasks bounded and explainable.
 
 ## Long-term possible direction
 
-After batch and periodic execution become stable, a possible later direction may be:
+After the personal-use operational phase becomes sufficiently practical,
+a possible later direction may be:
 
-- export layer for archived content
-- availability / queue-insertion logic
 - Web/API layer for retrieval and request intake
+- richer export surface for archived content
+- availability / queue-insertion logic for not-yet-scraped articles
+- broader deployment/runtime formalization beyond the provisional profile
 
 Notes:
 
-- This section is the most speculative part of the roadmap.
+- This section remains speculative.
 - Treat this as high-level product direction only.
 - Do not treat this as current architecture.
+- Web/API work should be informed by the bounded seams clarified in the
+  preceding personal-use phase.
 
 ## Goal framing
 
@@ -5633,14 +5731,18 @@ This includes appropriate handling for cases such as:
 - other edge or failure cases that should be handled explicitly
 
 ### Second goal
-Based on a separately defined target list, periodically scrape listed articles every few hours.
+Based on a manually maintained target list, repeatedly collect listed articles
+every few hours in a practical personal-use runtime, with results accumulating
+in the current SQLite-centered store.
 
 ### Final goal
 Turn the system into a Web application where:
 
 - if a requested article is already scraped, the archived result can be returned
   in formats such as txt / html / md / csv
-- if a requested article is not yet scraped, it is added to future scrape targets
+- if a requested article is not yet scraped, it can be added to future scrape targets
+- the Web/API-facing behavior is built on bounded archive-read/export and
+  target-intake seams prepared earlier
 
 ## Maintenance note
 
@@ -6320,14 +6422,14 @@ echo "mode: ${MODE}" >> "$MAIN_OUT"
 echo "" >> "$MAIN_OUT"
 
 if [[ "$MODE" == "full" ]]; then
-  find . -type f ! -path "*/.git/*" ! -path "*/example_webpage/*" ! -path "*/data/*" ! -path "*/__pycache__/*" ! -path "*/.pytest_cache/*" ! -path "*/.venv/*" ! -path "*/venv/*" ! -path "*/.mypy_cache/*" ! -path "*/.ruff_cache/*" ! -path "*/.cache/*" ! -path "*/node_modules/*" ! -name "*.pyc" ! -name ".DS_Store" ! -name "project_snapshot.txt" ! -name "project_knowledge_snapshot.txt" ! -name "review_snapshot.txt" ! -name "review_snapshot_*.txt" ! -name "git_snapshot.txt" ! -name "git_snapshot_*.txt" ! -name "project_summary.txt" ! -path "./META/out/*" ! -name "AI_BOOTSTRAP.md" ! -name "AI_CONTEXT.md" ! -name "_AI_EXECUTION_PROTOCOL.md" ! -name "_AI_RULES.md" ! -name "_AI_DEVELOPMENT_MODEL.md" ! -name "_AI_ORCHESTRATION_VISION.md" ! -name "PROJECT_STATE.md" ! -name "WORKSPACE.md" ! -path "./META/TASK_CYCLE_CHECKLIST.md" ! -path "./META/ARCHITECTURE.md" ! -path "./META/review_log/*" | sort | while IFS= read -r file
+find . -type f ! -path "*/.git/*" ! -path "*/example_webpage/*" ! -path "*/data/*" ! -path "*/__pycache__/*" ! -path "*/.pytest_cache/*" ! -path "*/.venv/*" ! -path "*/venv/*" ! -path "*/.mypy_cache/*" ! -path "*/.ruff_cache/*" ! -path "*/.cache/*" ! -path "*/node_modules/*" ! -name "*.pyc" ! -name ".DS_Store" ! -name "project_snapshot.txt" ! -name "project_knowledge_snapshot.txt" ! -name "review_snapshot.txt" ! -name "review_snapshot_*.txt" ! -name "git_snapshot.txt" ! -name "git_snapshot_*.txt" ! -name "project_summary.txt" ! -name "TASK*_report.txt" ! -path "./META/out/*" ! -name "AI_BOOTSTRAP.md" ! -name "AI_CONTEXT.md" ! -name "_AI_EXECUTION_PROTOCOL.md" ! -name "_AI_RULES.md" ! -name "_AI_DEVELOPMENT_MODEL.md" ! -name "_AI_ORCHESTRATION_VISION.md" ! -name "PROJECT_STATE.md" ! -name "WORKSPACE.md" ! -path "./META/TASK_CYCLE_CHECKLIST.md" ! -path "./META/ARCHITECTURE.md" ! -path "./META/review_log/*" | sort | while IFS= read -r file
   do
     append_snapshot_file "$file"
   done
 fi
 
 if [[ "$MODE" == "meta-only" ]]; then
-  find . -maxdepth 1 -type f ! -name "project_snapshot.txt" ! -name "project_knowledge_snapshot.txt" ! -name "review_snapshot.txt" ! -name "review_snapshot_*.txt" ! -name "git_snapshot.txt" ! -name "git_snapshot_*.txt" ! -name "project_summary.txt" ! -name "AI_BOOTSTRAP.md" ! -name "AI_CONTEXT.md" ! -name "_AI_EXECUTION_PROTOCOL.md" ! -name "_AI_RULES.md" ! -name "_AI_DEVELOPMENT_MODEL.md" ! -name "_AI_ORCHESTRATION_VISION.md" ! -name "PROJECT_STATE.md" ! -name "WORKSPACE.md" | sort | while IFS= read -r file
+find . -maxdepth 1 -type f ! -name "project_snapshot.txt" ! -name "project_knowledge_snapshot.txt" ! -name "review_snapshot.txt" ! -name "review_snapshot_*.txt" ! -name "git_snapshot.txt" ! -name "git_snapshot_*.txt" ! -name "project_summary.txt" ! -name "TASK*_report.txt" ! -name "AI_BOOTSTRAP.md" ! -name "AI_CONTEXT.md" ! -name "_AI_EXECUTION_PROTOCOL.md" ! -name "_AI_RULES.md" ! -name "_AI_DEVELOPMENT_MODEL.md" ! -name "_AI_ORCHESTRATION_VISION.md" ! -name "PROJECT_STATE.md" ! -name "WORKSPACE.md" | sort | while IFS= read -r file
   do
     append_snapshot_file "${file#./}"
   done
@@ -7136,87 +7238,6 @@ FILE: ./copilot/README.md
 # nicodic_archiver
 To scrape and store Nicodic BBS comments
 
-=============================
-FILE: ./copilot/TASK017_report.txt
-=============================
-changed files
-- cli.py
-- main.py
-- tests/test_main.py
-- tests/test_cli.py
-
-why any non-main-target files were touched
-- tests/test_cli.py was added to cover stdout-centered export rendering and bounded error cases in cli.py directly.
-
-how the export entrypoint was implemented
-- main.py now dispatches export via:
-  python main.py export <article_id> <article_type> --format txt
-  python main.py export <article_id> <article_type> --format md
-- The dispatch calls cli.export_article and exits non-zero if export fails.
-
-how article_id + article_type lookup was handled
-- cli.py added a shared internal loader that queries articles and responses by article_id and article_type from the existing SQLite tables.
-- The same DB-side discriminator semantics already used by inspect are preserved.
-
-how txt output was rendered
-- txt export prints article metadata first, then response blocks in ascending response order.
-- The output is human-readable and stdout-centered.
-
-how md output was rendered
-- md export prints a Markdown title, metadata bullets, and per-response Markdown sections.
-- The output stays bounded to a single saved article archive.
-
-how missing article / unsupported format was handled
-- Missing article prints "Article not found in DB" and returns failure.
-- Unsupported format prints "Unsupported export format: <format>" and returns failure.
-- main.py turns those failures into exit code 1 for the export command.
-
-tests added or updated
-- tests/test_main.py updated for export CLI dispatch, export usage failure, and export non-zero exit on failure.
-- tests/test_cli.py added for txt export, md export, missing article, and unsupported format.
-
-any remaining judgment call worth noting briefly
-- txt and md layouts were kept intentionally simple and stdout-centered to avoid expanding into file-output design or broader formatting frameworks.
-=============================
-FILE: ./copilot/TASK018_report.txt
-=============================
-changed files
-- target_list.py
-- main.py
-- tests/test_main.py
-- tests/test_target_list.py
-
-why any non-main-target files were touched
-- tests/test_target_list.py was updated to cover the bounded validation and file-update behavior directly in target_list.py.
-
-how the add-target entrypoint was implemented
-- main.py now dispatches:
-  python main.py add-target <article_url> <target_list_path>
-- The dispatch calls target_list.add_target_url and prints a bounded result message for added, duplicate, or invalid input.
-
-how minimal syntax validation was handled
-- target_list.py added validate_target_url.
-- Validation is intentionally minimal: non-empty input, http/https scheme, dic.nicovideo.jp host, and a two-segment article path shape.
-- No online existence check is performed.
-
-how duplicate detection was handled
-- add_target_url loads existing targets from the plain-text list and rejects exact duplicate targets after trimming input whitespace.
-
-how the target list file update was performed
-- add_target_url appends one URL line to the plain-text target file.
-- When the file already ends with a newline, the append avoids inserting an extra blank line.
-- The file is created if needed, and invalid input is rejected before any write occurs.
-
-how online existence check was intentionally excluded
-- The implementation performs only local syntax validation.
-- It does not fetch the network, inspect remote availability, or persist invalid-state metadata.
-
-tests added or updated
-- tests/test_main.py updated for add-target CLI dispatch, duplicate reporting, invalid-input non-zero exit, usage handling, and usage text coverage.
-- tests/test_target_list.py updated for minimal validation, successful append, duplicate no-op, invalid no-write behavior, and blank-line-free append behavior.
-
-any remaining judgment call worth noting briefly
-- Duplicate detection is exact after trimming surrounding whitespace; no broader URL canonicalization was added to keep the behavior bounded and explainable.
 =============================
 FILE: ./copilot/cli.py
 =============================
@@ -9990,132 +10011,6 @@ FILE: ./cursor/README.md
 =============================
 # nicodic_archiver
 To scrape and store Nicodic BBS comments
-
-=============================
-FILE: ./cursor/TASK017_report.txt
-=============================
-TASK017 report
-
-1. changed files
-- cli.py
-- main.py
-- tests/test_main.py
-- tests/test_cli_export.py
-- TASK017_report.txt
-
-2. why any non-main-target files were touched
-- tests/test_main.py: main.py の export dispatch を focused に保護するため。
-- tests/test_cli_export.py: cli.py の export 出力（txt/md）とエラー処理を focused に保護するため。
-- TASK017_report.txt: 指定された報告ファイル。
-
-3. how the export entrypoint was implemented
-- main.py に `export` サブコマンドを追加し、`export <article_id> <article_type> --format txt|md`
-  の形で `cli.export_article(article_id, article_type, fmt)` を呼びます。
-- `export_article(...)` が False を返した場合は exit code を non-zero (1) にします。
-
-4. how `article_id + article_type` lookup was handled
-- cli.py 内で SQLite (`data/nicodic.db`) を開き、articles テーブルを
-  `WHERE article_id=? AND article_type=?` で 1件検索します。
-- 見つかった場合に responses テーブルを同じキーで抽出し、res_no 昇順で readout します。
-
-5. how txt output was rendered
-- stdout に以下の構造で出力します:
-  - "=== ARTICLE ===" の下に ID / Type / Title / URL / Created を表示
-  - "=== RESPONSES ===" の下に 1レスずつ
-    `>res_no poster_name posted_at ID: id_hash` のヘッダ
-    content_text（あれば）
-    content_html（あれば [html]...[/html] で囲む）
-    "----" 区切り
-
-6. how md output was rendered
-- stdout に以下の構造で出力します:
-  - `# <title>`
-  - メタ情報を箇条書き（ID/Type/URL/Created）
-  - "## Responses"
-  - 各レスを "### <res_no>" セクションで出し、
-    name / posted_at / id を箇条書き、
-    content_text を本文として出力（あれば）
-    content_html は ```html fenced block``` で出力（あれば）
-
-7. how missing article / unsupported format was handled
-- unsupported format: "Unsupported format: <fmt>" を stdout に出して False を返します。
-- missing article: "Article not found in DB" を stdout に出して False を返します。
-- main.py 側では export が False の場合 `sys.exit(1)` します。
-
-8. tests added or updated
-- tests/test_main.py:
-  - export の dispatch が `export_article` を呼ぶこと
-  - export が False の場合に non-zero exit になること
-  - --format 不足時に usage + exit(1) になること
-  - usage 出力に export の2行が含まれること
-- tests/test_cli_export.py (new):
-  - txt のレンダリング（メタ＋レス＋content_text/content_html）が出ること
-  - md のレンダリング（見出し＋html fenced）が出ること
-  - missing article が False を返しメッセージが出ること
-  - unsupported format が False を返しメッセージが出ること
-
-9. any remaining judgment call worth noting briefly
-- export のレイアウトは stdout-centered の human-readable を優先し、
-  既存 inspect と責務が競合しないよう「inspect は閲覧、export は txt/md の整形出力」
-  に寄せました。ファイル出力や CSV などへは広げていません。
-
-
-=============================
-FILE: ./cursor/TASK018_report.txt
-=============================
-TASK018 report
-
-1. changed files
-- target_list.py
-- main.py
-- tests/test_target_list.py
-- tests/test_main.py
-- TASK018_report.txt
-
-2. why any non-main-target files were touched
-- tests/test_target_list.py: target_list の validation / duplicate / 追記動作を focused に保護。
-- tests/test_main.py: add-target の CLI dispatch と usage/exit を focused に保護。
-- TASK018_report.txt: 指定された報告ファイル。
-
-3. how the add-target entrypoint was implemented
-- `python main.py add-target <article_url> <target_list_path>` を main.py に追加。
-- main.py は `target_list.add_target_url(article_url, target_list_path)` を呼び、
-  追加できた場合はメッセージを出して終了、できない場合は理由を表示して exit(1)。
-
-4. how minimal syntax validation was handled
-- target_list.py に `validate_article_url()` を追加し、以下の最小検証のみ実施:
-  - 空文字でない
-  - scheme が http/https
-  - host が存在
-  - path が `/a/<digits>` の形（article_type="a"、article_id が数字）
-- ネットワークアクセスによる存在確認は行わない。
-
-5. how duplicate detection was handled
-- 既存 target list は `load_target_urls()` で読み込み（空行/#コメント除外 + 重複除外）。
-- 追加対象 URL（strip 後）が既存に含まれる場合は `duplicate` として追記しない。
-
-6. how the target list file update was performed
-- バリデーション OK かつ duplicate でない場合のみ、target_list_path を append で開き、
-  末尾が改行でない場合は改行を補ってから URL 1行を追記する。
-- invalid の場合はファイルへ書き込まず、永続的な invalid state を作らない。
-
-7. how online existence check was intentionally excluded
-- `validate_article_url()` は URL 構文/パス形のみ検証し、HTTP fetch 等は一切行わない。
-
-8. tests added or updated
-- tests/test_target_list.py:
-  - validate_article_url の accept/reject
-  - add_target_url の append / duplicate skip / invalid reject（ファイル非作成）
-- tests/test_main.py:
-  - add-target が add_target_url を呼ぶこと
-  - add-target 失敗時に exit(1) になること
-  - add-target 引数不足時の usage
-  - usage 出力に add-target が含まれること
-
-9. any remaining judgment call worth noting briefly
-- validation は `/a/<digits>` の最小形に限定し、他の article_type を許容しないことで
-  task の「minimal validation」に留めつつ、将来の拡張余地を残しました。
-
 
 =============================
 FILE: ./cursor/cli.py
