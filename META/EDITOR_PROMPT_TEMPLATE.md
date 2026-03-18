@@ -230,6 +230,27 @@ Recommended base items:
 6. tests added or updated
 7. any remaining judgment call worth noting briefly
 
+### 13.5 Report delivery option
+
+Purpose:
+- reduce copy/paste overhead from editor AI responses
+- keep implementation reports available as child-repo-local artifacts
+
+Optional rule:
+- when useful, the editor prompt may instruct the editor AI to write its final report
+  to a child-repo-local text file such as:
+  - `TASKNNN_report.txt`
+
+Important constraints:
+- the report file should be written inside the current child repository only
+- do not instruct the editor AI to write reports into root/meta locations
+- this is a workflow convenience option, not a mandatory requirement for every task
+- if used, the prompt should still specify the required report contents explicitly
+- prefer simple text output that the human can inspect with `cat`
+
+Recommended wording example:
+- "At the end of your work, write your report to `TASKNNN_report.txt` in this repo root."
+
 ### 14. Final warnings
 Purpose:
 - repeat the most important drift-prevention rules

@@ -55,6 +55,21 @@ For a reusable editor-prompt structure, also see:
 Use that file as workflow guidance for editor-facing implementation prompts.
 It complements this checklist, but does not replace task-specific definition work.
 
+### Optional editor-report artifact note
+
+When editor-AI copy/paste overhead becomes annoying,
+the human + advisor side may instruct the editor AI to write its final report
+to a child-repo-local text file such as:
+
+- `TASKNNN_report.txt`
+
+This should remain:
+- optional
+- child-repo-local
+- report-only
+
+Do not treat such files as authoritative project memory.
+Do not instruct editor AIs to write them into root/meta locations.
 
 ### Execution-boundary note for editor AI prompts
 
