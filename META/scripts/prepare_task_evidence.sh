@@ -4,18 +4,25 @@ set -euo pipefail
 usage() {
   cat <<'EOF'
 Usage:
-  ./prepare_task_evidence.sh <adopted_repo> <task_branch_topic> <adopted_commit_msg> <evidence_commit_msg> [--adopted-branch-name <name>]
+  ./prepare_task_evidence.sh <adopted_repo> <task_branch_topic> <adopted_commit_msg> <evidence_commit_msg> [--adopted-branch-name <name>] [--include-file <repo:path>]...
 
 Example:
-  ./prepare_task_evidence.sh cursor task015-run-logging "TASK015: add batch run logging" "TASK015: batch run logging candidate" --adopted-branch-name adopted/task015-run-logging
+  ./prepare_task_evidence.sh cursor task015-run-logging "TASK015: add batch run logging" "TASK015: batch run logging candidate" --adopted-branch-name adopted/task015-run-logging --include-file cursor:tests/test_new_case.py --include-file copilot:tests/test_other_case.py
 
 Behavior:
   - adopted_repo must be: copilot or cursor
   - commits tracked changes in both child repos
+  - stages explicitly included untracked files via --include-file
+  - fails if any non-ignored untracked files remain that were not explicitly included
   - creates an optional adopted marker branch in the adopted repo
   - does NOT push
   - does NOT merge into main
   - does NOT touch the root meta repository
+
+Notes:
+  - use repo:path form for --include-file
+  - repo must be: copilot or cursor
+  - path is relative to that child repo root
 EOF
 }
 
@@ -40,11 +47,16 @@ EVIDENCE_COMMIT_MSG="$4"
 shift 4
 
 ADOPTED_MARKER_BRANCH=""
+INCLUDE_FILES=()
 
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --adopted-branch-name)
       ADOPTED_MARKER_BRANCH="${2:-}"
+      shift 2
+      ;;
+    --include-file)
+      INCLUDE_FILES+=("${2:-}")
       shift 2
       ;;
     *)
@@ -97,17 +109,81 @@ need_clean_branch_name_match() {
 need_clean_branch_name_match "${COPILOT_DIR}" "copilot"
 need_clean_branch_name_match "${CURSOR_DIR}" "cursor"
 
+parse_include_file() {
+  local spec="$1"
+  local repo_part path_part
+
+  if [[ "$spec" != *:* ]]; then
+    echo "ERROR: --include-file must be in repo:path form. Got: ${spec}" >&2
+    exit 2
+  fi
+
+  repo_part="${spec%%:*}"
+  path_part="${spec#*:}"
+
+  if [[ "$repo_part" != "copilot" && "$repo_part" != "cursor" ]]; then
+    echo "ERROR: --include-file repo must be copilot or cursor. Got: ${repo_part}" >&2
+    exit 2
+  fi
+
+  if [[ -z "$path_part" ]]; then
+    echo "ERROR: --include-file path must not be empty. Got: ${spec}" >&2
+    exit 2
+  fi
+
+  printf '%s\n%s\n' "$repo_part" "$path_part"
+}
+
+stage_explicit_untracked_for_repo() {
+  local repo_dir="$1"
+  local repo_name="$2"
+  local spec parsed_repo parsed_path
+
+  for spec in "${INCLUDE_FILES[@]}"; do
+    mapfile -t _parsed < <(parse_include_file "$spec")
+    parsed_repo="${_parsed[0]}"
+    parsed_path="${_parsed[1]}"
+
+    if [[ "$parsed_repo" != "$repo_name" ]]; then
+      continue
+    fi
+
+    if [[ ! -e "${repo_dir}/${parsed_path}" ]]; then
+      echo "ERROR: included file not found in ${repo_name}: ${parsed_path}" >&2
+      exit 2
+    fi
+
+    git -C "${repo_dir}" add -- "${parsed_path}"
+  done
+}
+
+fail_on_remaining_untracked() {
+  local repo_dir="$1"
+  local repo_name="$2"
+  mapfile -t _remaining < <(git -C "${repo_dir}" ls-files --others --exclude-standard)
+
+  if [[ "${#_remaining[@]}" -gt 0 ]]; then
+    echo "ERROR: ${repo_name} still has untracked files not explicitly included:" >&2
+    printf '  %s\n' "${_remaining[@]}" >&2
+    echo "Use --include-file ${repo_name}:<path> for required new files, or clean them first." >&2
+    exit 2
+  fi
+}
+
 commit_repo_if_needed() {
   local repo_dir="$1"
   local repo_name="$2"
   local commit_msg="$3"
 
+  stage_explicit_untracked_for_repo "${repo_dir}" "${repo_name}"
+  fail_on_remaining_untracked "${repo_dir}" "${repo_name}"
+
   if git -C "${repo_dir}" diff --quiet && git -C "${repo_dir}" diff --cached --quiet; then
-    echo "[${repo_name}] No tracked changes to commit."
+    echo "[${repo_name}] No changes to commit."
     return
   fi
 
-  echo "[${repo_name}] Committing tracked changes..."
+  echo "[${repo_name}] Committing prepared changes..."
   git -C "${repo_dir}" status --short
   git -C "${repo_dir}" add -u
   git -C "${repo_dir}" commit -m "${commit_msg}"

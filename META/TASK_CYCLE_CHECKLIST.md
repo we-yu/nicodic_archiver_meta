@@ -175,6 +175,23 @@ Hard rule:
 - product code and tests must never be adopted into the root meta repository
 - if repository ownership is unclear, stop and resolve it before continuing
 
+### Evidence-commit reminder for newly created files
+
+When using `./prepare_task_evidence.sh`, explicitly think about newly created
+child-repo files before execution.
+
+If the task created new files that must be part of the evidence commit
+(example: new focused tests), the human + advisor side should present the
+command with explicit include arguments for those files.
+
+Example shape:
+
+- `--include-file copilot:tests/test_xxx.py`
+- `--include-file cursor:tests/test_yyy.py`
+
+Do not assume newly created files will be committed automatically unless they
+are explicitly included by the workflow helper's supported mechanism.
+
 ## 7. Commit and push
 
 - Commit the selected implementation in the adopted repo.

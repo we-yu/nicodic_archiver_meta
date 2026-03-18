@@ -251,6 +251,24 @@ Important constraints:
 Recommended wording example:
 - "At the end of your work, write your report to `TASKNNN_report.txt` in this repo root."
 
+### 13.6 New-file handoff reminder
+
+If the task is likely to create new child-repo files
+(example: new focused test files), the human + advisor side should remember
+that later evidence-preparation commands may need explicit include arguments
+for those files.
+
+When presenting `prepare_task_evidence.sh` usage to the user, include any
+required new child-repo files in the command arguments if the helper supports
+explicit new-file inclusion.
+
+Do not assume new files will be committed automatically.
+
+Purpose:
+- reduce missed-file commits
+- keep evidence preparation reproducible
+- prevent silent omission of newly added focused tests
+
 ### 14. Final warnings
 Purpose:
 - repeat the most important drift-prevention rules
