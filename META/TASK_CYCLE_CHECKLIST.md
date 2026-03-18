@@ -71,6 +71,35 @@ This should remain:
 Do not treat such files as authoritative project memory.
 Do not instruct editor AIs to write them into root/meta locations.
 
+### Evidence-commit exclusion rule for review/report artifacts
+
+When preparing evidence commits with `./prepare_task_evidence.sh`,
+do not include review-only or report-only artifacts via `--include-file`
+unless there is an explicit, task-specific decision to preserve them
+as committed evidence.
+
+Default rule:
+
+- do NOT include `TASKNNN_report.txt`
+- do NOT include `META/out/review_snapshot*.txt`
+- do NOT include other review-only comparison artifacts
+
+Treat the following as the normal `--include-file` targets instead:
+
+- newly created product tests that must be committed
+- newly created product fixtures that must be committed
+- other newly created child-repo-local product files that are part of
+  the implementation result
+
+Practical interpretation:
+
+- `TASKNNN_report.txt` is child-repo-local and useful for review,
+  but is report-only by default
+- `META/out/review_snapshot*.txt` is comparison material only by default
+- if either artifact should be committed in an exceptional case,
+  the human + advisor side must state that exception explicitly
+  before giving the command
+
 ### Execution-boundary note for editor AI prompts
 
 - Prompts for editor AIs in `copilot/` and `cursor/` should normally avoid requiring ad-hoc execution.

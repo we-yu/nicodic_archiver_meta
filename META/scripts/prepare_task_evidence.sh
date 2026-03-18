@@ -23,6 +23,10 @@ Notes:
   - use repo:path form for --include-file
   - repo must be: copilot or cursor
   - path is relative to that child repo root
+  - include only newly created child-repo product files that must be committed
+  - do NOT include child-repo report files such as TASKNNN_report.txt by default
+  - do NOT include root/meta review artifacts such as META/out/review_snapshot*.txt
+  - review/report artifacts are comparison material by default, not evidence-commit targets
 EOF
 }
 
@@ -165,7 +169,8 @@ fail_on_remaining_untracked() {
   if [[ "${#_remaining[@]}" -gt 0 ]]; then
     echo "ERROR: ${repo_name} still has untracked files not explicitly included:" >&2
     printf '  %s\n' "${_remaining[@]}" >&2
-    echo "Use --include-file ${repo_name}:<path> for required new files, or clean them first." >&2
+    echo "Use --include-file ${repo_name}:<path> only for required new product files (for example focused tests), or clean them first." >&2
+    echo "Do not include report-only or review-only artifacts by default." >&2  
     exit 2
   fi
 }

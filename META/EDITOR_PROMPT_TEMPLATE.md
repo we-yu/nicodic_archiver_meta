@@ -269,6 +269,25 @@ Purpose:
 - keep evidence preparation reproducible
 - prevent silent omission of newly added focused tests
 
+### 13.7 Report artifact handling note
+
+Purpose:
+- prevent accidental promotion of editor report files into evidence commits
+- keep report artifacts clearly separated from product deliverables
+
+Recommended wording:
+- if the editor is instructed to write `TASKNNN_report.txt`,
+  state that the file is review-oriented and report-only by default
+- do not treat `TASKNNN_report.txt` as a product deliverable
+- do not assume `TASKNNN_report.txt` should be included in
+  `./prepare_task_evidence.sh --include-file ...`
+- only include such a file in a commit when the human explicitly decides
+  that preserving the exact report artifact is necessary
+
+Suggested prompt sentence:
+- `Write TASKNNN_report.txt to the child repo root for review convenience only.
+   Treat it as report-only by default, not as a commit-target artifact.`
+
 ### 14. Final warnings
 Purpose:
 - repeat the most important drift-prevention rules
