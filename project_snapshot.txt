@@ -1221,6 +1221,56 @@ TASK014 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK015 has been completed.
+
+TASK015 result:
+
+• Cursor implementation was adopted
+• Copilot implementation was retained for comparison evidence
+• minimal batch-run logging / status recording was added
+• logging is batch-only
+• run logs are stored as text `.log` files
+• each batch run records:
+  - a start marker
+  - an end summary
+  - failure-only detail entries
+• success targets are not individually persisted in run logs
+• final status is recorded as:
+  - `success`
+  - `partial_failure`
+  - `failure`
+• `main.py` was updated
+• `tests/test_main.py` was updated
+• no parser / storage / http_client redesign was introduced
+• no scheduler / overlap / retry-backoff expansion was introduced
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
+TASK016 has been completed.
+
+TASK016 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• a bounded periodic execution entrypoint was added
+• periodic execution remains CLI-centered
+• one periodic cycle processes the full target list once
+• existing batch scrape behavior is reused for each cycle
+• existing batch run logging is reused as-is
+• periodic-specific logging format was not added
+• interval is provided by CLI argument
+• optional `--max-runs` is supported
+• cycle-level `partial_failure` / `failure` does not stop later cycles
+• safe `Ctrl+C` exit handling was added
+• `main.py` was updated
+• `tests/test_main.py` was updated
+• no parser / storage / http_client redesign was introduced
+• no scheduler / overlap / retry-backoff / fairness / deployment expansion was introduced
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -1339,7 +1389,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK014 is complete.
+TASK016 is complete.
 
 Next task is not yet fixed.
 
@@ -3161,6 +3211,258 @@ Authoritative context should still be restored from:
 
 
 
+===== REVIEW LOG: META/review_log/TASK015_adoption.md =====
+# TASK015 Adoption Log
+
+## Task
+TASK015
+
+Add minimal batch-run logging / status recording for the existing batch scrape
+command, while preserving current batch semantics and avoiding heavy logging
+framework expansion.
+
+## Decision
+Adopted: **Cursor**
+
+Alternative reviewed:
+- Copilot implementation was retained as comparison evidence
+- Hybrid was considered but not selected
+
+## Final adopted shape
+Changed files:
+- `main.py`
+- `tests/test_main.py`
+
+Production code outside the batch entry layer was not redesigned.
+
+## What changed in the adopted result
+The adopted result introduced bounded run-level logging for batch scrape runs.
+
+Key behavior added:
+- batch-only `.log` persistence
+- one start marker per run
+- one end summary per run
+- failure-only detail persistence
+- no per-target persistence for success cases
+- final status recorded as:
+  - `success`
+  - `partial_failure`
+  - `failure`
+
+The adopted result remained CLI-centered and did not expand into a DB-backed
+run table, scheduler behavior, overlap policy, or heavy observability design.
+
+## Why Cursor was adopted
+Primary reasons:
+
+1. It matched the fixed TASK015 semantics directly.
+   - start marker and end summary were both present
+   - failure-only detail was preserved
+   - success targets were not individually persisted
+   - final status used the intended three-valued semantics
+
+2. It stayed well bounded.
+   - no parser / storage / http_client redesign
+   - no scheduler expansion
+   - no retry / backoff expansion
+   - no DB run table
+   - no full audit-log expansion
+
+3. It remained small and reviewable.
+   - implementation was centered in the batch entry path
+   - tests made the intended logging semantics easy to inspect
+
+4. It passed validation cleanly in the review workflow.
+
+## Why Copilot was not adopted
+Copilot implementation was substantively valid and useful as comparison evidence.
+
+Observed strengths:
+- clean helper-level separation for batch logging
+- the intended run-log semantics were implemented in a clear structure
+
+Reasons it was not selected:
+- validation initially failed due to submission-quality issues in touched files
+- even after separating those failures from implementation substance, Cursor
+  still provided the more direct and lower-friction adopted result for this task
+
+## Why Hybrid was not selected
+Hybrid was considered, but not selected because:
+- the practical difference was not a narrow one-line improvement
+- Cursor already satisfied the intended TASK015 boundary well
+- merge-for-the-sake-of-merge was unnecessary
+- keeping the review memory simple is preferable
+
+## Validation result
+Validation was run with the established workflow:
+- `./validate_helix.sh` was used during review
+- adopted final state passed post-adoption validation on converged `main`
+
+## Convergence result
+- `./compare_helix.sh --all` passed after realignment
+- `copilot/` and `cursor/` matched on the adopted final state
+
+## Repository outcome
+- adopted implementation repository: `cursor/`
+- comparison-evidence repository: `copilot/`
+- optional adoption marker branch:
+  - `adopted/task015-run-logging`
+- after integration, both child repositories were realigned to the same adopted
+  final state
+
+## Notes for future AI sessions
+Important interpretation:
+- TASK015 is complete
+- the project now has minimal batch-run logging / status recording
+- logging remains batch-only and text-log based
+- success targets are not individually persisted in run logs
+- failure-only detail is persisted
+- final status is recorded as `success`, `partial_failure`, or `failure`
+- no scheduler / overlap / DB-backed logging expansion was introduced
+
+## Meta note
+This log is AI-readable review memory.
+It is not authoritative current state by itself.
+
+Authoritative context should still be restored from:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
+
+
+
+===== REVIEW LOG: META/review_log/TASK016_adoption.md =====
+# TASK016 Adoption Log
+
+## Task
+TASK016
+
+Add a bounded periodic execution entrypoint that reuses the existing batch
+scrape command and existing batch run logging, while preserving CLI-centered
+operation and avoiding scheduler-framework expansion.
+
+## Decision
+Adopted: **Copilot**
+
+Alternative reviewed:
+- Cursor implementation was retained as comparison evidence
+- Hybrid was considered but not selected
+
+## Final adopted shape
+Changed files:
+- `main.py`
+- `tests/test_main.py`
+
+Production code outside the CLI / batch-entry layer was not redesigned.
+
+## What changed in the adopted result
+The adopted result introduced a bounded periodic execution entrypoint centered
+on the CLI/application entry layer.
+
+Key behavior added:
+- `periodic` CLI entrypoint
+- interval specified by CLI argument
+- optional `--max-runs`
+- one periodic cycle = process the full target list once
+- per-article continue-on-error preserved within each cycle
+- existing batch scrape command reused as the per-cycle execution unit
+- existing batch run logging reused without introducing a new periodic-only
+  log format
+- safe exit on `Ctrl+C`
+- periodic loop continues to the next cycle even when a cycle result is
+  `partial_failure` or `failure`
+
+The adopted result remained CLI-centered and did not expand into scheduler
+framework design, overlap policy, fairness policy, retry/backoff expansion,
+deployment architecture work, or DB-backed job management.
+
+## Why Copilot was adopted
+Primary reasons:
+
+1. It matched the fixed TASK016 semantics more directly.
+   - one cycle = full target list processed once
+   - existing batch scrape flow was reused clearly
+   - existing batch run logging was reused clearly
+   - periodic-specific logging was not added
+
+2. It stayed well bounded.
+   - changes remained in `main.py` and focused `tests/test_main.py`
+   - no parser / storage / http_client redesign
+   - no scheduler-framework expansion
+   - no overlap / fairness / rotating-start policy expansion
+
+3. It made the intended periodic semantics easier to review.
+   - cycle boundaries were explicit
+   - continuation after `partial_failure` / `failure` was visible
+   - safe `Ctrl+C` exit behavior was explicitly protected in tests
+
+4. It passed validation cleanly after submission-quality cleanup.
+
+## Why Cursor was not adopted
+Cursor implementation was valid, bounded, and useful as comparison evidence.
+
+Observed strengths:
+- remained CLI-centered
+- reused the existing batch execution/logging path
+- stayed within the intended task boundary
+
+Reasons it was not selected:
+- the adopted Copilot result made the fixed TASK016 semantics slightly more
+  explicit and easier to review, especially around:
+  - cycle-as-a-unit behavior
+  - continuation across non-success cycle results
+  - `Ctrl+C` handling visibility in tests
+
+## Why Hybrid was not selected
+Hybrid was considered, but not selected because:
+- no narrow borrowed change clearly improved the adopted Copilot result enough
+  to justify a hybrid
+- Copilot already satisfied the intended TASK016 boundary well
+- merge-for-the-sake-of-merge was unnecessary
+- keeping the review memory simple is preferable
+
+## Validation result
+Validation was run with the established workflow:
+- `./validate_helix.sh` passed for both child repositories
+- post-adoption validation on converged `main` also passed
+
+## Convergence result
+- `./compare_helix.sh --all` passed after realignment
+- `copilot/` and `cursor/` matched on the adopted final state
+
+## Repository outcome
+- adopted implementation repository: `copilot/`
+- comparison-evidence repository: `cursor/`
+- optional adoption marker branch:
+  - `adopted/task016-periodic-entrypoint`
+- after product-repo integration, both child repositories were realigned to the
+  same adopted final state
+
+## Notes for future AI sessions
+Important interpretation:
+- TASK016 is complete
+- the project now has a bounded periodic execution entrypoint
+- periodic execution remains CLI-centered
+- one cycle processes the full target list once
+- existing batch scrape behavior is reused per cycle
+- existing batch run logging is reused as-is
+- periodic-specific logging format was not added
+- no scheduler / overlap / fairness / retry-backoff / deployment expansion was
+  introduced
+
+## Meta note
+This log is AI-readable review memory.
+It is not authoritative current state by itself.
+
+Authoritative context should still be restored from:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
+
+
+
 ===== REVIEW LOG: META/review_log/task008_review.md =====
 # TASK008 Review
 
@@ -3513,7 +3815,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Tue Mar 17 16:03:53 UTC 2026
+generated: Tue Mar 17 18:26:28 UTC 2026
 mode: full
 
 
@@ -5988,6 +6290,152 @@ echo "  copilot current branch: $(git -C "${COPILOT_DIR}" branch --show-current)
 echo "  cursor  current branch: $(git -C "${CURSOR_DIR}" branch --show-current)"
 
 =============================
+FILE: ./META/scripts/prepare_task_evidence.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+usage() {
+  cat <<'EOF'
+Usage:
+  ./prepare_task_evidence.sh <adopted_repo> <task_branch_topic> <adopted_commit_msg> <evidence_commit_msg> [--adopted-branch-name <name>]
+
+Example:
+  ./prepare_task_evidence.sh cursor task015-run-logging "TASK015: add batch run logging" "TASK015: batch run logging candidate" --adopted-branch-name adopted/task015-run-logging
+
+Behavior:
+  - adopted_repo must be: copilot or cursor
+  - commits tracked changes in both child repos
+  - creates an optional adopted marker branch in the adopted repo
+  - does NOT push
+  - does NOT merge into main
+  - does NOT touch the root meta repository
+EOF
+}
+
+if [[ "${1:-}" == "--help" || "${1:-}" == "-h" ]]; then
+  usage
+  exit 0
+fi
+
+if [[ $# -lt 4 ]]; then
+  usage
+  exit 1
+fi
+
+ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+COPILOT_DIR="${ROOT_DIR}/copilot"
+CURSOR_DIR="${ROOT_DIR}/cursor"
+
+ADOPTED_REPO="$1"
+TASK_BRANCH_TOPIC="$2"
+ADOPTED_COMMIT_MSG="$3"
+EVIDENCE_COMMIT_MSG="$4"
+shift 4
+
+ADOPTED_MARKER_BRANCH=""
+
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --adopted-branch-name)
+      ADOPTED_MARKER_BRANCH="${2:-}"
+      shift 2
+      ;;
+    *)
+      echo "ERROR: unknown argument: $1" >&2
+      usage
+      exit 2
+      ;;
+  esac
+done
+
+if [[ "${ADOPTED_REPO}" != "copilot" && "${ADOPTED_REPO}" != "cursor" ]]; then
+  echo "ERROR: adopted_repo must be 'copilot' or 'cursor'" >&2
+  exit 2
+fi
+
+if [[ ! -d "${COPILOT_DIR}/.git" ]]; then
+  echo "ERROR: missing repo: ${COPILOT_DIR}" >&2
+  exit 2
+fi
+
+if [[ ! -d "${CURSOR_DIR}/.git" ]]; then
+  echo "ERROR: missing repo: ${CURSOR_DIR}" >&2
+  exit 2
+fi
+
+if [[ "${ADOPTED_REPO}" == "copilot" ]]; then
+  ADOPTED_DIR="${COPILOT_DIR}"
+  ADOPTED_NAME="copilot"
+  EVIDENCE_DIR="${CURSOR_DIR}"
+  EVIDENCE_NAME="cursor"
+else
+  ADOPTED_DIR="${CURSOR_DIR}"
+  ADOPTED_NAME="cursor"
+  EVIDENCE_DIR="${COPILOT_DIR}"
+  EVIDENCE_NAME="copilot"
+fi
+
+need_clean_branch_name_match() {
+  local repo_dir="$1"
+  local repo_name="$2"
+  local current_branch
+  current_branch="$(git -C "${repo_dir}" branch --show-current)"
+  if [[ "${current_branch}" != "${TASK_BRANCH_TOPIC}-${repo_name}" ]]; then
+    echo "ERROR: unexpected branch in ${repo_name}: ${current_branch}" >&2
+    echo "Expected: ${TASK_BRANCH_TOPIC}-${repo_name}" >&2
+    exit 2
+  fi
+}
+
+need_clean_branch_name_match "${COPILOT_DIR}" "copilot"
+need_clean_branch_name_match "${CURSOR_DIR}" "cursor"
+
+commit_repo_if_needed() {
+  local repo_dir="$1"
+  local repo_name="$2"
+  local commit_msg="$3"
+
+  if git -C "${repo_dir}" diff --quiet && git -C "${repo_dir}" diff --cached --quiet; then
+    echo "[${repo_name}] No tracked changes to commit."
+    return
+  fi
+
+  echo "[${repo_name}] Committing tracked changes..."
+  git -C "${repo_dir}" status --short
+  git -C "${repo_dir}" add -u
+  git -C "${repo_dir}" commit -m "${commit_msg}"
+}
+
+echo "== Prepare task evidence =="
+echo "root            : ${ROOT_DIR}"
+echo "adopted repo    : ${ADOPTED_NAME}"
+echo "evidence repo   : ${EVIDENCE_NAME}"
+echo "expected branch : ${TASK_BRANCH_TOPIC}-{copilot|cursor}"
+echo
+
+commit_repo_if_needed "${ADOPTED_DIR}" "${ADOPTED_NAME}" "${ADOPTED_COMMIT_MSG}"
+commit_repo_if_needed "${EVIDENCE_DIR}" "${EVIDENCE_NAME}" "${EVIDENCE_COMMIT_MSG}"
+
+if [[ -n "${ADOPTED_MARKER_BRANCH}" ]]; then
+  if git -C "${ADOPTED_DIR}" show-ref --verify --quiet "refs/heads/${ADOPTED_MARKER_BRANCH}"; then
+    echo "[${ADOPTED_NAME}] adopted marker branch already exists: ${ADOPTED_MARKER_BRANCH}"
+  else
+    git -C "${ADOPTED_DIR}" branch "${ADOPTED_MARKER_BRANCH}"
+    echo "[${ADOPTED_NAME}] created adopted marker branch: ${ADOPTED_MARKER_BRANCH}"
+  fi
+fi
+
+echo
+echo "Done."
+echo "Next suggested manual steps:"
+echo "  1. push adopted branch in ${ADOPTED_NAME}"
+echo "  2. push evidence branch in ${EVIDENCE_NAME} if desired"
+echo "  3. integrate adopted result into child-repo main using repository-compliant method"
+
+
+
+=============================
 FILE: ./META/scripts/publish_snapshots.sh
 =============================
 #!/usr/bin/env bash
@@ -6270,16 +6718,22 @@ FILE: ./copilot/.github/copilot-instructions.md
 - **No automation outside edits**: Do not propose shell commands, venv creation, pytest runs, or validation commands.
 - **Bounded changes**: Keep changes small and focused. Avoid redesign of parser, storage, or `http_client` unless explicitly requested.
 - **Submission-quality only**:
-  - Do not introduce avoidable line-length violations in newly added or edited lines.
+  - Treat the repository flake8 limit as a hard rule: **every newly added or edited Python line must be 88 characters or fewer**.
+  - Do not leave any touched line in a state that would fail flake8 E501.
+  - Before finishing, re-check the exact touched lines for line length, especially:
+    - usage strings
+    - print lines
+    - assert lines
+    - decorator lines
+    - long function calls
   - All newly created or edited text/source files must end with a trailing newline.
   - Do not perform unrelated formatting-only cleanup outside touched areas.
+  - If asked to do a line-length-only fix, change **only** the minimum lines required for E501 resolution and do not change logic, wording, assertions, or control flow.
 
 ## In Practice
 
 - Implement what’s asked in the relevant module and its tests only.
 - Do not refactor unrelated code or suggest global validation steps.
-
-
 
 =============================
 FILE: ./copilot/.github/workflows/ci.yml
@@ -6749,6 +7203,7 @@ FILE: ./copilot/main.py
 import os
 import sys
 import uuid
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -6760,6 +7215,109 @@ from target_list import load_target_urls
 # ============================================================
 # エントリポイント
 # ============================================================
+
+
+def run_batch_scrape(target_list_path: str) -> tuple[str, int]:
+    """Run one full batch pass and return (final_status, failed_targets)."""
+
+    targets = load_target_urls(target_list_path)
+
+    print(f"Loaded {len(targets)} scrape target(s) from {target_list_path}")
+
+    run_id = uuid.uuid4().hex[:12]
+    started_at = datetime.now(timezone.utc).isoformat()
+    log_dir = Path(os.environ.get("BATCH_LOG_DIR", "data/batch_runs"))
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / f"batch_{run_id}.log"
+
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write("BATCH_RUN_START\n")
+        f.write(f"run_id={run_id}\n")
+        f.write(f"started_at={started_at}\n")
+        f.write(f"target_list_path={target_list_path}\n")
+        f.write(f"total_targets={len(targets)}\n")
+
+    failed_targets = 0
+    for idx, target in enumerate(targets, start=1):
+        print(f"[{idx}/{len(targets)}] Scraping: {target}")
+        try:
+            ok = run_scrape(target)
+        except Exception as exc:
+            failed_targets += 1
+            print(f"[FAIL] {target} ({type(exc).__name__}: {exc})")
+            with log_path.open("a", encoding="utf-8") as f:
+                f.write("FAIL\n")
+                f.write(f"target={target}\n")
+                f.write(f"short_reason={type(exc).__name__}: {exc}\n")
+            continue
+
+        if ok is False:
+            failed_targets += 1
+            print(f"[FAIL] {target}")
+            with log_path.open("a", encoding="utf-8") as f:
+                f.write("FAIL\n")
+                f.write(f"target={target}\n")
+                f.write("short_reason=run_scrape_returned_false\n")
+            continue
+
+        print(f"[OK] {target}")
+
+    ended_at = datetime.now(timezone.utc).isoformat()
+    total_targets = len(targets)
+    if failed_targets == 0:
+        final_status = "success"
+    elif failed_targets == total_targets:
+        final_status = "failure"
+    else:
+        final_status = "partial_failure"
+
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write("BATCH_RUN_END\n")
+        f.write(f"run_id={run_id}\n")
+        f.write(f"started_at={started_at}\n")
+        f.write(f"ended_at={ended_at}\n")
+        f.write(f"total_targets={total_targets}\n")
+        f.write(f"failed_targets={failed_targets}\n")
+        f.write(f"final_status={final_status}\n")
+
+    return final_status, failed_targets
+
+
+def run_periodic_scrape(
+    target_list_path: str,
+    interval_seconds: float,
+    max_runs: int | None = None,
+) -> None:
+    """Run full batch passes repeatedly with a fixed sleep interval."""
+
+    completed_runs = 0
+
+    while max_runs is None or completed_runs < max_runs:
+        run_number = completed_runs + 1
+        print(f"[periodic] Run {run_number} starting")
+
+        try:
+            final_status, failed_targets = run_batch_scrape(target_list_path)
+        except KeyboardInterrupt:
+            print("Periodic execution interrupted. Exiting safely.")
+            return
+
+        print(
+            f"[periodic] Run {run_number} finished "
+            f"with status={final_status} failed_targets={failed_targets}"
+        )
+
+        completed_runs += 1
+        if max_runs is not None and completed_runs >= max_runs:
+            return
+
+        print(f"[periodic] Sleeping {interval_seconds} second(s)")
+        try:
+            time.sleep(interval_seconds)
+        except KeyboardInterrupt:
+            print("Periodic execution interrupted. Exiting safely.")
+            return
+
 
 def main():
     """
@@ -6774,6 +7332,10 @@ def main():
         print("  python main.py inspect <article_id> <article_type> [--last N]")
         print("  python main.py targets <target_list_path>")
         print("  python main.py batch <target_list_path>")
+        print(
+            "  python main.py periodic <target_list_path> <interval_seconds> "
+            "[--max-runs N]"
+        )
         sys.exit(1)
 
     # inspectモード
@@ -6814,71 +7376,30 @@ def main():
             print("Usage: batch <target_list_path>")
             sys.exit(1)
 
-        target_list_path = sys.argv[2]
-        targets = load_target_urls(target_list_path)
+        _, failed_targets = run_batch_scrape(sys.argv[2])
 
-        print(f"Loaded {len(targets)} scrape target(s) from {target_list_path}")
-
-        run_id = uuid.uuid4().hex[:12]
-        started_at = datetime.now(timezone.utc).isoformat()
-        log_dir = Path(os.environ.get("BATCH_LOG_DIR", "data/batch_runs"))
-        log_dir.mkdir(parents=True, exist_ok=True)
-        log_path = log_dir / f"batch_{run_id}.log"
-
-        with log_path.open("a", encoding="utf-8") as f:
-            f.write("BATCH_RUN_START\n")
-            f.write(f"run_id={run_id}\n")
-            f.write(f"started_at={started_at}\n")
-            f.write(f"target_list_path={target_list_path}\n")
-            f.write(f"total_targets={len(targets)}\n")
-
-        any_failed = False
-        failed_targets = 0
-        for idx, target in enumerate(targets, start=1):
-            print(f"[{idx}/{len(targets)}] Scraping: {target}")
-            try:
-                ok = run_scrape(target)
-            except Exception as exc:
-                any_failed = True
-                failed_targets += 1
-                print(f"[FAIL] {target} ({type(exc).__name__}: {exc})")
-                with log_path.open("a", encoding="utf-8") as f:
-                    f.write("FAIL\n")
-                    f.write(f"target={target}\n")
-                    f.write(f"short_reason={type(exc).__name__}: {exc}\n")
-                continue
-
-            if ok:
-                print(f"[OK] {target}")
-            else:
-                any_failed = True
-                failed_targets += 1
-                print(f"[FAIL] {target}")
-                with log_path.open("a", encoding="utf-8") as f:
-                    f.write("FAIL\n")
-                    f.write(f"target={target}\n")
-                    f.write("short_reason=run_scrape_returned_false\n")
-
-        ended_at = datetime.now(timezone.utc).isoformat()
-        total_targets = len(targets)
-        if failed_targets == 0:
-            final_status = "success"
-        elif failed_targets == total_targets:
-            final_status = "failure"
-        else:
-            final_status = "partial_failure"
-
-        with log_path.open("a", encoding="utf-8") as f:
-            f.write("BATCH_RUN_END\n")
-            f.write(f"run_id={run_id}\n")
-            f.write(f"started_at={started_at}\n")
-            f.write(f"ended_at={ended_at}\n")
-            f.write(f"total_targets={total_targets}\n")
-            f.write(f"failed_targets={failed_targets}\n")
-            f.write(f"final_status={final_status}\n")
-
-        if any_failed:
+        if failed_targets:
             sys.exit(1)
+        return
+
+    if sys.argv[1] == "periodic":
+
+        if len(sys.argv) < 4:
+            print(
+                "Usage: periodic <target_list_path> <interval_seconds> "
+                "[--max-runs N]"
+            )
+            sys.exit(1)
+
+        target_list_path = sys.argv[2]
+        interval_seconds = float(sys.argv[3])
+
+        max_runs = None
+        if "--max-runs" in sys.argv:
+            idx = sys.argv.index("--max-runs")
+            max_runs = int(sys.argv[idx + 1])
+
+        run_periodic_scrape(target_list_path, interval_seconds, max_runs=max_runs)
         return
 
     # 通常スクレイプモード
@@ -7429,9 +7950,8 @@ def test_fetch_page_wraps_request_exception_with_runtime_error():
 FILE: ./copilot/tests/test_main.py
 =============================
 """Unit tests for main.py: CLI dispatch (inspect vs scrape, usage/exit)."""
-from unittest.mock import patch
+from unittest.mock import call, patch
 
-import os
 from pathlib import Path
 
 import pytest
@@ -7495,6 +8015,9 @@ def test_main_too_few_args_exits_with_usage(capsys):
     assert "inspect" in out
     assert "targets <target_list_path>" in out
     assert "batch <target_list_path>" in out
+    assert (
+        "periodic <target_list_path> <interval_seconds> [--max-runs N]" in out
+    )
 
 
 def test_main_inspect_without_id_type_exits_with_usage(capsys):
@@ -7512,9 +8035,9 @@ def test_main_inspect_without_id_type_exits_with_usage(capsys):
 ])
 @patch("main.run_scrape", side_effect=[True, True])
 def test_main_batch_all_success_exits_zero(
-    mock_run_scrape, mock_load_targets, tmp_path, capsys
+    mock_run_scrape, mock_load_targets, tmp_path, capsys, monkeypatch
 ):
-    os.environ["BATCH_LOG_DIR"] = str(tmp_path)
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
     with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
         main_module.main()
 
@@ -7542,9 +8065,9 @@ def test_main_batch_all_success_exits_zero(
 ])
 @patch("main.run_scrape", side_effect=[False, True])
 def test_main_batch_failure_sets_nonzero_exit_and_continues(
-    mock_run_scrape, mock_load_targets, tmp_path, capsys
+    mock_run_scrape, mock_load_targets, tmp_path, capsys, monkeypatch
 ):
-    os.environ["BATCH_LOG_DIR"] = str(tmp_path)
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
     with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
         with pytest.raises(SystemExit) as exc_info:
             main_module.main()
@@ -7573,9 +8096,9 @@ def test_main_batch_failure_sets_nonzero_exit_and_continues(
 ])
 @patch("main.run_scrape", side_effect=[RuntimeError("boom"), True])
 def test_main_batch_exception_sets_nonzero_exit_and_continues(
-    mock_run_scrape, mock_load_targets, tmp_path, capsys
+    mock_run_scrape, mock_load_targets, tmp_path, capsys, monkeypatch
 ):
-    os.environ["BATCH_LOG_DIR"] = str(tmp_path)
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
     with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
         with pytest.raises(SystemExit) as exc_info:
             main_module.main()
@@ -7605,6 +8128,99 @@ def test_main_batch_without_path_exits_with_usage(capsys):
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
     assert "Usage: batch <target_list_path>" in out
+
+
+@patch(
+    "main.run_batch_scrape",
+    side_effect=[("success", 0), ("partial_failure", 1)],
+)
+@patch("main.time.sleep")
+def test_main_periodic_runs_full_batch_per_cycle_and_honors_max_runs(
+    mock_sleep, mock_run_batch, capsys
+):
+    with patch(
+        "sys.argv",
+        ["main.py", "periodic", "targets.txt", "30", "--max-runs", "2"],
+    ):
+        main_module.main()
+
+    assert mock_run_batch.call_args_list == [
+        call("targets.txt"),
+        call("targets.txt"),
+    ]
+    mock_sleep.assert_called_once_with(30.0)
+
+    out = capsys.readouterr().out
+    assert "[periodic] Run 1 starting" in out
+    assert "[periodic] Run 1 finished with status=success failed_targets=0" in out
+    assert "[periodic] Sleeping 30.0 second(s)" in out
+    assert "[periodic] Run 2 starting" in out
+    assert (
+        "[periodic] Run 2 finished with status=partial_failure failed_targets=1"
+        in out
+    )
+
+
+@patch(
+    "main.run_batch_scrape",
+    side_effect=[("failure", 2), ("success", 0)],
+)
+@patch("main.time.sleep")
+def test_main_periodic_continues_after_failure_statuses(
+    mock_sleep, mock_run_batch, capsys
+):
+    with patch(
+        "sys.argv",
+        ["main.py", "periodic", "targets.txt", "5", "--max-runs", "2"],
+    ):
+        main_module.main()
+
+    assert mock_run_batch.call_args_list == [
+        call("targets.txt"),
+        call("targets.txt"),
+    ]
+    mock_sleep.assert_called_once_with(5.0)
+
+    out = capsys.readouterr().out
+    assert "status=failure failed_targets=2" in out
+    assert "status=success failed_targets=0" in out
+
+
+@patch("main.run_batch_scrape", return_value=("success", 0))
+@patch("main.time.sleep", side_effect=KeyboardInterrupt)
+def test_main_periodic_exits_safely_on_ctrl_c_during_sleep(
+    mock_sleep, mock_run_batch, capsys
+):
+    with patch("sys.argv", ["main.py", "periodic", "targets.txt", "5"]):
+        main_module.main()
+
+    mock_run_batch.assert_called_once_with("targets.txt")
+    mock_sleep.assert_called_once_with(5.0)
+    out = capsys.readouterr().out
+    assert "Periodic execution interrupted. Exiting safely." in out
+
+
+@patch("main.run_batch_scrape", side_effect=KeyboardInterrupt)
+def test_main_periodic_exits_safely_on_ctrl_c_during_run(mock_run_batch, capsys):
+    with patch("sys.argv", ["main.py", "periodic", "targets.txt", "5"]):
+        main_module.main()
+
+    mock_run_batch.assert_called_once_with("targets.txt")
+    out = capsys.readouterr().out
+    assert "Periodic execution interrupted. Exiting safely." in out
+
+
+def test_main_periodic_without_required_args_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "periodic", "targets.txt"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert (
+        "Usage: periodic <target_list_path> <interval_seconds> [--max-runs N]"
+        in out
+    )
 
 =============================
 FILE: ./copilot/tests/test_orchestrator.py
@@ -8526,11 +9142,17 @@ alwaysApply: true
 
 Apply only lightweight, mechanical guardrails.
 
-- Do not introduce avoidable line-length violations in newly added or edited lines.
+- Treat the repository flake8 limit as a hard rule: **every newly added or edited Python line must be 88 characters or fewer**.
+- Do not leave any touched line in a state that would fail flake8 E501.
+- Before finishing, re-check the exact touched lines for line length, especially:
+  - usage strings
+  - print lines
+  - assert lines
+  - decorator lines
+  - long function calls
 - All newly created or edited text/source files must end with a trailing newline.
 - Do not perform unrelated formatting-only cleanup outside touched areas.
-
-
+- If the task is a line-length-only fix, change only the minimum lines required for E501 resolution and do not change logic, wording, assertions, or control flow.
 
 =============================
 FILE: ./cursor/.flake8
@@ -9007,6 +9629,7 @@ FILE: ./cursor/main.py
 import os
 import sys
 import uuid
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -9018,6 +9641,109 @@ from target_list import load_target_urls
 # ============================================================
 # エントリポイント
 # ============================================================
+
+
+def run_batch_scrape(target_list_path: str) -> tuple[str, int]:
+    """Run one full batch pass and return (final_status, failed_targets)."""
+
+    targets = load_target_urls(target_list_path)
+
+    print(f"Loaded {len(targets)} scrape target(s) from {target_list_path}")
+
+    run_id = uuid.uuid4().hex[:12]
+    started_at = datetime.now(timezone.utc).isoformat()
+    log_dir = Path(os.environ.get("BATCH_LOG_DIR", "data/batch_runs"))
+    log_dir.mkdir(parents=True, exist_ok=True)
+    log_path = log_dir / f"batch_{run_id}.log"
+
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write("BATCH_RUN_START\n")
+        f.write(f"run_id={run_id}\n")
+        f.write(f"started_at={started_at}\n")
+        f.write(f"target_list_path={target_list_path}\n")
+        f.write(f"total_targets={len(targets)}\n")
+
+    failed_targets = 0
+    for idx, target in enumerate(targets, start=1):
+        print(f"[{idx}/{len(targets)}] Scraping: {target}")
+        try:
+            ok = run_scrape(target)
+        except Exception as exc:
+            failed_targets += 1
+            print(f"[FAIL] {target} ({type(exc).__name__}: {exc})")
+            with log_path.open("a", encoding="utf-8") as f:
+                f.write("FAIL\n")
+                f.write(f"target={target}\n")
+                f.write(f"short_reason={type(exc).__name__}: {exc}\n")
+            continue
+
+        if ok is False:
+            failed_targets += 1
+            print(f"[FAIL] {target}")
+            with log_path.open("a", encoding="utf-8") as f:
+                f.write("FAIL\n")
+                f.write(f"target={target}\n")
+                f.write("short_reason=run_scrape_returned_false\n")
+            continue
+
+        print(f"[OK] {target}")
+
+    ended_at = datetime.now(timezone.utc).isoformat()
+    total_targets = len(targets)
+    if failed_targets == 0:
+        final_status = "success"
+    elif failed_targets == total_targets:
+        final_status = "failure"
+    else:
+        final_status = "partial_failure"
+
+    with log_path.open("a", encoding="utf-8") as f:
+        f.write("BATCH_RUN_END\n")
+        f.write(f"run_id={run_id}\n")
+        f.write(f"started_at={started_at}\n")
+        f.write(f"ended_at={ended_at}\n")
+        f.write(f"total_targets={total_targets}\n")
+        f.write(f"failed_targets={failed_targets}\n")
+        f.write(f"final_status={final_status}\n")
+
+    return final_status, failed_targets
+
+
+def run_periodic_scrape(
+    target_list_path: str,
+    interval_seconds: float,
+    max_runs: int | None = None,
+) -> None:
+    """Run full batch passes repeatedly with a fixed sleep interval."""
+
+    completed_runs = 0
+
+    while max_runs is None or completed_runs < max_runs:
+        run_number = completed_runs + 1
+        print(f"[periodic] Run {run_number} starting")
+
+        try:
+            final_status, failed_targets = run_batch_scrape(target_list_path)
+        except KeyboardInterrupt:
+            print("Periodic execution interrupted. Exiting safely.")
+            return
+
+        print(
+            f"[periodic] Run {run_number} finished "
+            f"with status={final_status} failed_targets={failed_targets}"
+        )
+
+        completed_runs += 1
+        if max_runs is not None and completed_runs >= max_runs:
+            return
+
+        print(f"[periodic] Sleeping {interval_seconds} second(s)")
+        try:
+            time.sleep(interval_seconds)
+        except KeyboardInterrupt:
+            print("Periodic execution interrupted. Exiting safely.")
+            return
+
 
 def main():
     """
@@ -9032,6 +9758,10 @@ def main():
         print("  python main.py inspect <article_id> <article_type> [--last N]")
         print("  python main.py targets <target_list_path>")
         print("  python main.py batch <target_list_path>")
+        print(
+            "  python main.py periodic <target_list_path> <interval_seconds> "
+            "[--max-runs N]"
+        )
         sys.exit(1)
 
     # inspectモード
@@ -9072,71 +9802,30 @@ def main():
             print("Usage: batch <target_list_path>")
             sys.exit(1)
 
-        target_list_path = sys.argv[2]
-        targets = load_target_urls(target_list_path)
+        _, failed_targets = run_batch_scrape(sys.argv[2])
 
-        print(f"Loaded {len(targets)} scrape target(s) from {target_list_path}")
-
-        run_id = uuid.uuid4().hex[:12]
-        started_at = datetime.now(timezone.utc).isoformat()
-        log_dir = Path(os.environ.get("BATCH_LOG_DIR", "data/batch_runs"))
-        log_dir.mkdir(parents=True, exist_ok=True)
-        log_path = log_dir / f"batch_{run_id}.log"
-
-        with log_path.open("a", encoding="utf-8") as f:
-            f.write("BATCH_RUN_START\n")
-            f.write(f"run_id={run_id}\n")
-            f.write(f"started_at={started_at}\n")
-            f.write(f"target_list_path={target_list_path}\n")
-            f.write(f"total_targets={len(targets)}\n")
-
-        any_failed = False
-        failed_targets = 0
-        for idx, target in enumerate(targets, start=1):
-            print(f"[{idx}/{len(targets)}] Scraping: {target}")
-            try:
-                ok = run_scrape(target)
-            except Exception as exc:
-                any_failed = True
-                failed_targets += 1
-                print(f"[FAIL] {target} ({type(exc).__name__}: {exc})")
-                with log_path.open("a", encoding="utf-8") as f:
-                    f.write("FAIL\n")
-                    f.write(f"target={target}\n")
-                    f.write(f"short_reason={type(exc).__name__}: {exc}\n")
-                continue
-
-            if ok:
-                print(f"[OK] {target}")
-            else:
-                any_failed = True
-                failed_targets += 1
-                print(f"[FAIL] {target}")
-                with log_path.open("a", encoding="utf-8") as f:
-                    f.write("FAIL\n")
-                    f.write(f"target={target}\n")
-                    f.write("short_reason=run_scrape_returned_false\n")
-
-        ended_at = datetime.now(timezone.utc).isoformat()
-        total_targets = len(targets)
-        if failed_targets == 0:
-            final_status = "success"
-        elif failed_targets == total_targets:
-            final_status = "failure"
-        else:
-            final_status = "partial_failure"
-
-        with log_path.open("a", encoding="utf-8") as f:
-            f.write("BATCH_RUN_END\n")
-            f.write(f"run_id={run_id}\n")
-            f.write(f"started_at={started_at}\n")
-            f.write(f"ended_at={ended_at}\n")
-            f.write(f"total_targets={total_targets}\n")
-            f.write(f"failed_targets={failed_targets}\n")
-            f.write(f"final_status={final_status}\n")
-
-        if any_failed:
+        if failed_targets:
             sys.exit(1)
+        return
+
+    if sys.argv[1] == "periodic":
+
+        if len(sys.argv) < 4:
+            print(
+                "Usage: periodic <target_list_path> <interval_seconds> "
+                "[--max-runs N]"
+            )
+            sys.exit(1)
+
+        target_list_path = sys.argv[2]
+        interval_seconds = float(sys.argv[3])
+
+        max_runs = None
+        if "--max-runs" in sys.argv:
+            idx = sys.argv.index("--max-runs")
+            max_runs = int(sys.argv[idx + 1])
+
+        run_periodic_scrape(target_list_path, interval_seconds, max_runs=max_runs)
         return
 
     # 通常スクレイプモード
@@ -9687,9 +10376,8 @@ def test_fetch_page_wraps_request_exception_with_runtime_error():
 FILE: ./cursor/tests/test_main.py
 =============================
 """Unit tests for main.py: CLI dispatch (inspect vs scrape, usage/exit)."""
-from unittest.mock import patch
+from unittest.mock import call, patch
 
-import os
 from pathlib import Path
 
 import pytest
@@ -9753,6 +10441,9 @@ def test_main_too_few_args_exits_with_usage(capsys):
     assert "inspect" in out
     assert "targets <target_list_path>" in out
     assert "batch <target_list_path>" in out
+    assert (
+        "periodic <target_list_path> <interval_seconds> [--max-runs N]" in out
+    )
 
 
 def test_main_inspect_without_id_type_exits_with_usage(capsys):
@@ -9770,9 +10461,9 @@ def test_main_inspect_without_id_type_exits_with_usage(capsys):
 ])
 @patch("main.run_scrape", side_effect=[True, True])
 def test_main_batch_all_success_exits_zero(
-    mock_run_scrape, mock_load_targets, tmp_path, capsys
+    mock_run_scrape, mock_load_targets, tmp_path, capsys, monkeypatch
 ):
-    os.environ["BATCH_LOG_DIR"] = str(tmp_path)
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
     with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
         main_module.main()
 
@@ -9800,9 +10491,9 @@ def test_main_batch_all_success_exits_zero(
 ])
 @patch("main.run_scrape", side_effect=[False, True])
 def test_main_batch_failure_sets_nonzero_exit_and_continues(
-    mock_run_scrape, mock_load_targets, tmp_path, capsys
+    mock_run_scrape, mock_load_targets, tmp_path, capsys, monkeypatch
 ):
-    os.environ["BATCH_LOG_DIR"] = str(tmp_path)
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
     with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
         with pytest.raises(SystemExit) as exc_info:
             main_module.main()
@@ -9831,9 +10522,9 @@ def test_main_batch_failure_sets_nonzero_exit_and_continues(
 ])
 @patch("main.run_scrape", side_effect=[RuntimeError("boom"), True])
 def test_main_batch_exception_sets_nonzero_exit_and_continues(
-    mock_run_scrape, mock_load_targets, tmp_path, capsys
+    mock_run_scrape, mock_load_targets, tmp_path, capsys, monkeypatch
 ):
-    os.environ["BATCH_LOG_DIR"] = str(tmp_path)
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
     with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
         with pytest.raises(SystemExit) as exc_info:
             main_module.main()
@@ -9863,6 +10554,99 @@ def test_main_batch_without_path_exits_with_usage(capsys):
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
     assert "Usage: batch <target_list_path>" in out
+
+
+@patch(
+    "main.run_batch_scrape",
+    side_effect=[("success", 0), ("partial_failure", 1)],
+)
+@patch("main.time.sleep")
+def test_main_periodic_runs_full_batch_per_cycle_and_honors_max_runs(
+    mock_sleep, mock_run_batch, capsys
+):
+    with patch(
+        "sys.argv",
+        ["main.py", "periodic", "targets.txt", "30", "--max-runs", "2"],
+    ):
+        main_module.main()
+
+    assert mock_run_batch.call_args_list == [
+        call("targets.txt"),
+        call("targets.txt"),
+    ]
+    mock_sleep.assert_called_once_with(30.0)
+
+    out = capsys.readouterr().out
+    assert "[periodic] Run 1 starting" in out
+    assert "[periodic] Run 1 finished with status=success failed_targets=0" in out
+    assert "[periodic] Sleeping 30.0 second(s)" in out
+    assert "[periodic] Run 2 starting" in out
+    assert (
+        "[periodic] Run 2 finished with status=partial_failure failed_targets=1"
+        in out
+    )
+
+
+@patch(
+    "main.run_batch_scrape",
+    side_effect=[("failure", 2), ("success", 0)],
+)
+@patch("main.time.sleep")
+def test_main_periodic_continues_after_failure_statuses(
+    mock_sleep, mock_run_batch, capsys
+):
+    with patch(
+        "sys.argv",
+        ["main.py", "periodic", "targets.txt", "5", "--max-runs", "2"],
+    ):
+        main_module.main()
+
+    assert mock_run_batch.call_args_list == [
+        call("targets.txt"),
+        call("targets.txt"),
+    ]
+    mock_sleep.assert_called_once_with(5.0)
+
+    out = capsys.readouterr().out
+    assert "status=failure failed_targets=2" in out
+    assert "status=success failed_targets=0" in out
+
+
+@patch("main.run_batch_scrape", return_value=("success", 0))
+@patch("main.time.sleep", side_effect=KeyboardInterrupt)
+def test_main_periodic_exits_safely_on_ctrl_c_during_sleep(
+    mock_sleep, mock_run_batch, capsys
+):
+    with patch("sys.argv", ["main.py", "periodic", "targets.txt", "5"]):
+        main_module.main()
+
+    mock_run_batch.assert_called_once_with("targets.txt")
+    mock_sleep.assert_called_once_with(5.0)
+    out = capsys.readouterr().out
+    assert "Periodic execution interrupted. Exiting safely." in out
+
+
+@patch("main.run_batch_scrape", side_effect=KeyboardInterrupt)
+def test_main_periodic_exits_safely_on_ctrl_c_during_run(mock_run_batch, capsys):
+    with patch("sys.argv", ["main.py", "periodic", "targets.txt", "5"]):
+        main_module.main()
+
+    mock_run_batch.assert_called_once_with("targets.txt")
+    out = capsys.readouterr().out
+    assert "Periodic execution interrupted. Exiting safely." in out
+
+
+def test_main_periodic_without_required_args_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "periodic", "targets.txt"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert (
+        "Usage: periodic <target_list_path> <interval_seconds> [--max-runs N]"
+        in out
+    )
 
 =============================
 FILE: ./cursor/tests/test_orchestrator.py
@@ -10777,6 +11561,14 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 exec "${ROOT_DIR}/META/scripts/new_task_branches.sh" "$@"
+
+=============================
+FILE: ./prepare_task_evidence.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/META/scripts/prepare_task_evidence.sh" "$@"
+
 
 =============================
 FILE: ./publish_snapshots.sh

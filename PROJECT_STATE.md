@@ -247,6 +247,30 @@ TASK015 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK016 has been completed.
+
+TASK016 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• a bounded periodic execution entrypoint was added
+• periodic execution remains CLI-centered
+• one periodic cycle processes the full target list once
+• existing batch scrape behavior is reused for each cycle
+• existing batch run logging is reused as-is
+• periodic-specific logging format was not added
+• interval is provided by CLI argument
+• optional `--max-runs` is supported
+• cycle-level `partial_failure` / `failure` does not stop later cycles
+• safe `Ctrl+C` exit handling was added
+• `main.py` was updated
+• `tests/test_main.py` was updated
+• no parser / storage / http_client redesign was introduced
+• no scheduler / overlap / retry-backoff / fairness / deployment expansion was introduced
+• both repositories were realigned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -365,7 +389,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK015 is complete.
+TASK016 is complete.
 
 Next task is not yet fixed.
 
