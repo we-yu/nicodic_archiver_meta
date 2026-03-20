@@ -347,6 +347,40 @@ TASK019 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK020 has been completed.
+
+TASK020 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• a bounded provisional personal-use runtime profile was added
+• minimal runtime operations documentation was added
+• the runtime profile remains separate from development usage
+• the runtime profile remains Docker/Compose-centered and terminal-friendly
+• child-repo-local persistence anchors were introduced for:
+  - targets
+  - SQLite / archive data
+  - logs
+• host UID/GID-aware runtime handling guidance was added
+• an initial smoke-test flow was documented
+• product semantics were not changed
+• no cron packaging was introduced
+• no overlap / lock policy was introduced
+• no target-registry migration was introduced
+• no Web / API / orchestration-platform expansion was introduced
+• both repositories now reflect the same adopted final state on `main`
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
+Current application structure remains:
+
+main.py
+orchestrator.py
+cli.py
+http_client.py
+parser.py
+storage.py
+
 Current application structure:
 
 main.py
@@ -467,7 +501,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK019 is complete.
+TASK020 is complete.
 
 Next task is not yet fixed.
 

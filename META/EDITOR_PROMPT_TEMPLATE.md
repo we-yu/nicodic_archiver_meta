@@ -214,6 +214,34 @@ Recommended wording should explicitly include:
 - human will validate later using the established workflow
 - focus on file editing and repo-local consistency
 
+### 12.5 Final quality gate
+
+Purpose:
+- reduce last-minute submission-quality failures
+- make editor-AI outputs more robust before human validation
+- explicitly require a final file-level self-check without shifting validation
+  ownership away from the human
+
+Freedom level:
+- almost fixed
+
+Recommended wording should explicitly include:
+- before reporting completion, review every edited or newly created file
+- treat repo-local validation constraints as a completion gate
+- do not leave any touched line above the repo-local line-length limit
+- ensure every edited or newly created file ends with a trailing newline at EOF
+- if any violation is found, fix it before reporting completion
+- do not interpret this as permission to run ad-hoc shell validation commands
+- keep the check file-focused and repo-local
+
+Recommended wording example:
+- "Final validation pass:
+  Before reporting completion, review every edited or newly created file and
+  make sure it satisfies the repo-local validation constraints.
+  In particular, keep all lines within the 88-character limit and ensure every
+  file ends with a trailing newline at EOF.
+  If you find any violation, fix it before completing the task."
+  
 ### 13. Report format
 Purpose:
 - standardize comparison output

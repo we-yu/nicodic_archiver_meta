@@ -48,6 +48,15 @@ Keep the topic short, clear, and implementation-neutral.
   - define `What` and review criteria clearly
   - leave reasonable freedom in `How`
 
+- Ensure the editor prompt includes a final quality gate.
+  The gate should require a last pass over every edited or newly created file
+  before completion is reported.
+  At minimum, it should explicitly require:
+  - repo-local line-length compliance
+  - trailing newline at EOF for every edited or newly created file
+  - fixing any such issue before the task is treated as complete
+  - no ad-hoc shell validation command assumptions
+
 For a reusable editor-prompt structure, also see:
 
 - `META/EDITOR_PROMPT_TEMPLATE.md`
