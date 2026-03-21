@@ -392,6 +392,26 @@ TASK021 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK022 has been completed.
+
+TASK022 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• a bounded archive read / export seam was added
+• archive-facing read responsibilities were moved out of `cli.py` into `archive_read.py`
+• `cli.py` remains responsible for CLI formatting and stdout emission
+• existing single-article export behavior was preserved
+• existing whole-archive listing / export behavior was preserved
+• the task remained pre-Web / pre-API
+• no target-registry redesign was introduced
+• no storage schema redesign was introduced
+• no archive-write redesign was introduced
+• no Web / API expansion was introduced
+• both repositories now reflect the same adopted final state on `main`
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure remains:
 
 main.py
@@ -521,7 +541,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK021 is complete.
+TASK022 is complete.
 
 Next task is not yet fixed.
 
