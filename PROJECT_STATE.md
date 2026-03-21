@@ -372,6 +372,26 @@ TASK020 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK021 has been completed.
+
+TASK021 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• a bounded periodic operation packaging path was added for the provisional personal-use runtime
+• the existing periodic execution entrypoint is now practical to run through a host-side one-shot wrapper
+• simple lock + skip overlap handling was added in bounded form
+• the plain-text target list remains the source of truth
+• runtime operations documentation was extended
+• a dedicated smoke-test helper was not added
+• container-internal cron was not introduced
+• no scheduler framework / advanced overlap-fairness policy was introduced
+• no target-registry migration was introduced
+• no Web / API expansion was introduced
+• both repositories now reflect the same adopted final state on `main`
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure remains:
 
 main.py
@@ -501,10 +521,14 @@ It is not used as:
 
 NEXT TASK
 
-TASK020 is complete.
+TASK021 is complete.
 
 Next task is not yet fixed.
 
 A roadmap reference exists for future-direction context only:
 
 META/ROADMAP_REFERENCE.md
+
+A medium-term direction reference also exists for near-term planning continuity:
+
+META/MEDIUM_TERM_DIRECTION.md

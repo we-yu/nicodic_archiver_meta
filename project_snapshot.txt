@@ -1786,6 +1786,15 @@ Keep the topic short, clear, and implementation-neutral.
   - define `What` and review criteria clearly
   - leave reasonable freedom in `How`
 
+- Ensure the editor prompt includes a final quality gate.
+  The gate should require a last pass over every edited or newly created file
+  before completion is reported.
+  At minimum, it should explicitly require:
+  - repo-local line-length compliance
+  - trailing newline at EOF for every edited or newly created file
+  - fixing any such issue before the task is treated as complete
+  - no ad-hoc shell validation command assumptions
+
 For a reusable editor-prompt structure, also see:
 
 - `META/EDITOR_PROMPT_TEMPLATE.md`
@@ -4509,7 +4518,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Wed Mar 18 19:06:23 UTC 2026
+generated: Fri Mar 20 18:41:08 UTC 2026
 mode: full
 
 
@@ -5203,6 +5212,34 @@ Recommended wording should explicitly include:
 - human will validate later using the established workflow
 - focus on file editing and repo-local consistency
 
+### 12.5 Final quality gate
+
+Purpose:
+- reduce last-minute submission-quality failures
+- make editor-AI outputs more robust before human validation
+- explicitly require a final file-level self-check without shifting validation
+  ownership away from the human
+
+Freedom level:
+- almost fixed
+
+Recommended wording should explicitly include:
+- before reporting completion, review every edited or newly created file
+- treat repo-local validation constraints as a completion gate
+- do not leave any touched line above the repo-local line-length limit
+- ensure every edited or newly created file ends with a trailing newline at EOF
+- if any violation is found, fix it before reporting completion
+- do not interpret this as permission to run ad-hoc shell validation commands
+- keep the check file-focused and repo-local
+
+Recommended wording example:
+- "Final validation pass:
+  Before reporting completion, review every edited or newly created file and
+  make sure it satisfies the repo-local validation constraints.
+  In particular, keep all lines within the 88-character limit and ensure every
+  file ends with a trailing newline at EOF.
+  If you find any violation, fix it before completing the task."
+  
 ### 13. Report format
 Purpose:
 - standardize comparison output
@@ -8100,8 +8137,12 @@ What this profile does:
 
 What this profile does not do yet:
 - cron or repeated scheduling inside the container
-- overlap or lock policy
 - target storage migration away from the text file
+
+What this profile now adds for periodic operation:
+- a host-side one-shot wrapper that calls the existing periodic path
+- simple lock + skip handling to avoid overlap
+- a scheduler-friendly non-interactive invocation shape
 
 ## Mounted Paths
 
@@ -8186,6 +8227,24 @@ Run the current periodic CLI entrypoint manually:
 
 `docker compose -f docker-compose.runtime.yml exec personal_runtime python main.py periodic /runtime/targets/targets.txt 300`
 
+Run one scheduler-friendly periodic cycle through the wrapper:
+
+`./runtime/periodic_once.sh`
+
+The wrapper acquires a simple host-side lock under `runtime/logs`. If another
+run is already active, it prints a skip message and exits without starting a
+second overlapping periodic pass.
+
+Useful environment overrides for external schedulers:
+- `TARGET_LIST_PATH` defaults to `/runtime/targets/targets.txt`
+- `COMPOSE_FILE_PATH` defaults to `docker-compose.runtime.yml`
+- `COMPOSE_SERVICE_NAME` defaults to `personal_runtime`
+- `LOCK_DIR_PATH` defaults to `runtime/logs/periodic_once.lock`
+
+Example scheduler-facing invocation shape:
+
+`TARGET_LIST_PATH=/runtime/targets/targets.txt ./runtime/periodic_once.sh`
+
 List saved articles:
 
 `docker compose -f docker-compose.runtime.yml exec personal_runtime python main.py list-articles`
@@ -8219,6 +8278,7 @@ runtime profile:
 
 These directories are included only as a provisional runtime shape. A later
 task can package scheduling or host deployment more tightly if needed.
+
 
 =============================
 FILE: ./copilot/docs/WORKFLOW.md
@@ -8515,6 +8575,12 @@ def run_periodic_scrape(
             return
 
 
+def run_periodic_once(target_list_path: str) -> None:
+    """Run one periodic cycle without requiring a sleep interval argument."""
+
+    run_periodic_scrape(target_list_path, 0.0, max_runs=1)
+
+
 def main():
     """
     CLIエントリポイント。
@@ -8533,6 +8599,7 @@ def main():
         print("  python main.py add-target <article_url> <target_list_path>")
         print("  python main.py targets <target_list_path>")
         print("  python main.py batch <target_list_path>")
+        print("  python main.py periodic-once <target_list_path>")
         print(
             "  python main.py periodic <target_list_path> <interval_seconds> "
             "[--max-runs N]"
@@ -8626,6 +8693,15 @@ def main():
 
         if failed_targets:
             sys.exit(1)
+        return
+
+    if sys.argv[1] == "periodic-once":
+
+        if len(sys.argv) < 3:
+            print("Usage: periodic-once <target_list_path>")
+            sys.exit(1)
+
+        run_periodic_once(sys.argv[2])
         return
 
     if sys.argv[1] == "periodic":
@@ -8972,6 +9048,36 @@ echo "=== TEST COMPLETE ==="
 =============================
 FILE: ./copilot/runtime/logs/.gitkeep
 =============================
+
+
+=============================
+FILE: ./copilot/runtime/periodic_once.sh
+=============================
+#!/bin/bash
+set -eu
+
+COMPOSE_FILE_PATH=${COMPOSE_FILE_PATH:-docker-compose.runtime.yml}
+COMPOSE_SERVICE_NAME=${COMPOSE_SERVICE_NAME:-personal_runtime}
+TARGET_LIST_PATH=${TARGET_LIST_PATH:-/runtime/targets/targets.txt}
+LOCK_DIR_PATH=${LOCK_DIR_PATH:-runtime/logs/periodic_once.lock}
+
+mkdir -p "$(dirname "$LOCK_DIR_PATH")"
+
+if mkdir "$LOCK_DIR_PATH" 2>/dev/null; then
+  trap 'rm -rf "$LOCK_DIR_PATH"' EXIT INT TERM
+  printf '%s\n' "$$" > "$LOCK_DIR_PATH/pid"
+else
+  echo "[periodic-once] Skip: lock already held at $LOCK_DIR_PATH"
+  exit 0
+fi
+
+echo "[periodic-once] Starting one periodic cycle"
+echo "[periodic-once] target_list_path=$TARGET_LIST_PATH"
+
+docker compose -f "$COMPOSE_FILE_PATH" exec -T "$COMPOSE_SERVICE_NAME" \
+  python main.py periodic-once "$TARGET_LIST_PATH"
+
+echo "[periodic-once] Finished one periodic cycle"
 
 
 =============================
@@ -9583,6 +9689,7 @@ def test_main_too_few_args_exits_with_usage(capsys):
     assert "add-target <article_url> <target_list_path>" in out
     assert "targets <target_list_path>" in out
     assert "batch <target_list_path>" in out
+    assert "periodic-once <target_list_path>" in out
     assert (
         "periodic <target_list_path> <interval_seconds> [--max-runs N]" in out
     )
@@ -9696,6 +9803,37 @@ def test_main_batch_without_path_exits_with_usage(capsys):
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
     assert "Usage: batch <target_list_path>" in out
+
+
+@patch("main.run_periodic_once")
+def test_main_periodic_once_calls_run_periodic_once(mock_run_periodic_once):
+    with patch("sys.argv", ["main.py", "periodic-once", "targets.txt"]):
+        main_module.main()
+
+    mock_run_periodic_once.assert_called_once_with("targets.txt")
+
+
+def test_main_periodic_once_without_path_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "periodic-once"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "Usage: periodic-once <target_list_path>" in out
+
+
+@patch("main.run_periodic_scrape")
+def test_run_periodic_once_delegates_to_single_periodic_cycle(
+    mock_run_periodic_scrape,
+):
+    main_module.run_periodic_once("targets.txt")
+
+    mock_run_periodic_scrape.assert_called_once_with(
+        "targets.txt",
+        0.0,
+        max_runs=1,
+    )
 
 
 @patch(
@@ -11391,8 +11529,12 @@ What this profile does:
 
 What this profile does not do yet:
 - cron or repeated scheduling inside the container
-- overlap or lock policy
 - target storage migration away from the text file
+
+What this profile now adds for periodic operation:
+- a host-side one-shot wrapper that calls the existing periodic path
+- simple lock + skip handling to avoid overlap
+- a scheduler-friendly non-interactive invocation shape
 
 ## Mounted Paths
 
@@ -11477,6 +11619,24 @@ Run the current periodic CLI entrypoint manually:
 
 `docker compose -f docker-compose.runtime.yml exec personal_runtime python main.py periodic /runtime/targets/targets.txt 300`
 
+Run one scheduler-friendly periodic cycle through the wrapper:
+
+`./runtime/periodic_once.sh`
+
+The wrapper acquires a simple host-side lock under `runtime/logs`. If another
+run is already active, it prints a skip message and exits without starting a
+second overlapping periodic pass.
+
+Useful environment overrides for external schedulers:
+- `TARGET_LIST_PATH` defaults to `/runtime/targets/targets.txt`
+- `COMPOSE_FILE_PATH` defaults to `docker-compose.runtime.yml`
+- `COMPOSE_SERVICE_NAME` defaults to `personal_runtime`
+- `LOCK_DIR_PATH` defaults to `runtime/logs/periodic_once.lock`
+
+Example scheduler-facing invocation shape:
+
+`TARGET_LIST_PATH=/runtime/targets/targets.txt ./runtime/periodic_once.sh`
+
 List saved articles:
 
 `docker compose -f docker-compose.runtime.yml exec personal_runtime python main.py list-articles`
@@ -11510,6 +11670,7 @@ runtime profile:
 
 These directories are included only as a provisional runtime shape. A later
 task can package scheduling or host deployment more tightly if needed.
+
 
 =============================
 FILE: ./cursor/docs/WORKFLOW.md
@@ -11806,6 +11967,12 @@ def run_periodic_scrape(
             return
 
 
+def run_periodic_once(target_list_path: str) -> None:
+    """Run one periodic cycle without requiring a sleep interval argument."""
+
+    run_periodic_scrape(target_list_path, 0.0, max_runs=1)
+
+
 def main():
     """
     CLIエントリポイント。
@@ -11824,6 +11991,7 @@ def main():
         print("  python main.py add-target <article_url> <target_list_path>")
         print("  python main.py targets <target_list_path>")
         print("  python main.py batch <target_list_path>")
+        print("  python main.py periodic-once <target_list_path>")
         print(
             "  python main.py periodic <target_list_path> <interval_seconds> "
             "[--max-runs N]"
@@ -11917,6 +12085,15 @@ def main():
 
         if failed_targets:
             sys.exit(1)
+        return
+
+    if sys.argv[1] == "periodic-once":
+
+        if len(sys.argv) < 3:
+            print("Usage: periodic-once <target_list_path>")
+            sys.exit(1)
+
+        run_periodic_once(sys.argv[2])
         return
 
     if sys.argv[1] == "periodic":
@@ -12263,6 +12440,36 @@ echo "=== TEST COMPLETE ==="
 =============================
 FILE: ./cursor/runtime/logs/.gitkeep
 =============================
+
+
+=============================
+FILE: ./cursor/runtime/periodic_once.sh
+=============================
+#!/bin/bash
+set -eu
+
+COMPOSE_FILE_PATH=${COMPOSE_FILE_PATH:-docker-compose.runtime.yml}
+COMPOSE_SERVICE_NAME=${COMPOSE_SERVICE_NAME:-personal_runtime}
+TARGET_LIST_PATH=${TARGET_LIST_PATH:-/runtime/targets/targets.txt}
+LOCK_DIR_PATH=${LOCK_DIR_PATH:-runtime/logs/periodic_once.lock}
+
+mkdir -p "$(dirname "$LOCK_DIR_PATH")"
+
+if mkdir "$LOCK_DIR_PATH" 2>/dev/null; then
+  trap 'rm -rf "$LOCK_DIR_PATH"' EXIT INT TERM
+  printf '%s\n' "$$" > "$LOCK_DIR_PATH/pid"
+else
+  echo "[periodic-once] Skip: lock already held at $LOCK_DIR_PATH"
+  exit 0
+fi
+
+echo "[periodic-once] Starting one periodic cycle"
+echo "[periodic-once] target_list_path=$TARGET_LIST_PATH"
+
+docker compose -f "$COMPOSE_FILE_PATH" exec -T "$COMPOSE_SERVICE_NAME" \
+  python main.py periodic-once "$TARGET_LIST_PATH"
+
+echo "[periodic-once] Finished one periodic cycle"
 
 
 =============================
@@ -12874,6 +13081,7 @@ def test_main_too_few_args_exits_with_usage(capsys):
     assert "add-target <article_url> <target_list_path>" in out
     assert "targets <target_list_path>" in out
     assert "batch <target_list_path>" in out
+    assert "periodic-once <target_list_path>" in out
     assert (
         "periodic <target_list_path> <interval_seconds> [--max-runs N]" in out
     )
@@ -12987,6 +13195,37 @@ def test_main_batch_without_path_exits_with_usage(capsys):
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
     assert "Usage: batch <target_list_path>" in out
+
+
+@patch("main.run_periodic_once")
+def test_main_periodic_once_calls_run_periodic_once(mock_run_periodic_once):
+    with patch("sys.argv", ["main.py", "periodic-once", "targets.txt"]):
+        main_module.main()
+
+    mock_run_periodic_once.assert_called_once_with("targets.txt")
+
+
+def test_main_periodic_once_without_path_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "periodic-once"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "Usage: periodic-once <target_list_path>" in out
+
+
+@patch("main.run_periodic_scrape")
+def test_run_periodic_once_delegates_to_single_periodic_cycle(
+    mock_run_periodic_scrape,
+):
+    main_module.run_periodic_once("targets.txt")
+
+    mock_run_periodic_scrape.assert_called_once_with(
+        "targets.txt",
+        0.0,
+        max_runs=1,
+    )
 
 
 @patch(
