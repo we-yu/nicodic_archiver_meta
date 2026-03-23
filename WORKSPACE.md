@@ -132,6 +132,20 @@ Architecture document handling:
 - Avoid mixing architecture-copy synchronization noise into unrelated task commits.
 - If architecture-copy handling repeatedly creates status noise, treat that as a separate workflow issue and review it explicitly.
 
+Provisional runtime operation checkout:
+- In addition to this workspace root, a separate sibling checkout may be used for
+  provisional personal-use runtime operation.
+- Current known runtime-operation checkout:
+  - `/home/manage/product/nicodic_archiver_runtime`
+- This sibling checkout is not part of the root meta repository.
+- It is not a child comparison repository like `copilot/` or `cursor/`.
+- Its role is operational / dogfooding use of the adopted product `main` state.
+- Keep product development / review work in:
+  - `nicodic_archiver/`
+  - `copilot/`
+  - `cursor/`
+- Keep provisional runtime operation separate in the sibling runtime checkout.
+
 --------------------------------------------------
 
 TASK COMPLETION FLOW

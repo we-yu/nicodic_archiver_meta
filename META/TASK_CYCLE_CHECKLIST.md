@@ -57,6 +57,28 @@ Keep the topic short, clear, and implementation-neutral.
   - fixing any such issue before the task is treated as complete
   - no ad-hoc shell validation command assumptions
 
+### Editor-prompt locality note
+
+When preparing prompts for editor AIs, keep the prompt local to the repository
+the editor will actually modify.
+
+Do not add unnecessary governance or meta-workflow framing such as:
+- whether the task is only a candidate in current planning
+- authoritative-vs-planning status explanations
+- root/meta repository politics
+- sibling-repository comparison mechanics
+- adoption-process commentary
+
+For editor-facing prompts, prefer:
+- repository-local task wording
+- direct implementation scope
+- clear non-goals
+- explicit acceptance criteria
+- explicit quality gate
+
+The editor AI should receive only the context that materially helps it perform
+bounded implementation work inside its own repository.
+
 For a reusable editor-prompt structure, also see:
 
 - `META/EDITOR_PROMPT_TEMPLATE.md`

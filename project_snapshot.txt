@@ -1412,6 +1412,22 @@ TASK022 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+Operational note:
+
+• a separate sibling checkout for provisional personal-use runtime operation now exists outside this workspace root:
+  - `/home/manage/product/nicodic_archiver_runtime`
+• this runtime checkout is being used as a provisional dogfooding / personal-use operation instance
+• it is intentionally separate from the `nicodic_archiver/` development + meta workspace
+• the runtime instance uses the adopted product `main` baseline
+• manually maintained scrape targets are stored under:
+  - `runtime/targets/targets.txt`
+• runtime data/log persistence continues under:
+  - `runtime/data/`
+  - `runtime/logs/`
+• periodic operation is still intended to be driven by lightweight external scheduling
+  through `runtime/periodic_once.sh`
+• container-internal cron is still not part of the adopted product design
+
 Current application structure remains:
 
 main.py
@@ -1688,6 +1704,20 @@ Architecture document handling:
 - Those child-repo copies exist for readability, not as source-of-truth files.
 - Avoid mixing architecture-copy synchronization noise into unrelated task commits.
 - If architecture-copy handling repeatedly creates status noise, treat that as a separate workflow issue and review it explicitly.
+
+Provisional runtime operation checkout:
+- In addition to this workspace root, a separate sibling checkout may be used for
+  provisional personal-use runtime operation.
+- Current known runtime-operation checkout:
+  - `/home/manage/product/nicodic_archiver_runtime`
+- This sibling checkout is not part of the root meta repository.
+- It is not a child comparison repository like `copilot/` or `cursor/`.
+- Its role is operational / dogfooding use of the adopted product `main` state.
+- Keep product development / review work in:
+  - `nicodic_archiver/`
+  - `copilot/`
+  - `cursor/`
+- Keep provisional runtime operation separate in the sibling runtime checkout.
 
 --------------------------------------------------
 
@@ -4848,7 +4878,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Sat Mar 21 21:07:06 UTC 2026
+generated: Sun Mar 22 18:32:53 UTC 2026
 mode: full
 
 

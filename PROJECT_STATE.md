@@ -412,6 +412,22 @@ TASK022 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+Operational note:
+
+• a separate sibling checkout for provisional personal-use runtime operation now exists outside this workspace root:
+  - `/home/manage/product/nicodic_archiver_runtime`
+• this runtime checkout is being used as a provisional dogfooding / personal-use operation instance
+• it is intentionally separate from the `nicodic_archiver/` development + meta workspace
+• the runtime instance uses the adopted product `main` baseline
+• manually maintained scrape targets are stored under:
+  - `runtime/targets/targets.txt`
+• runtime data/log persistence continues under:
+  - `runtime/data/`
+  - `runtime/logs/`
+• periodic operation is still intended to be driven by lightweight external scheduling
+  through `runtime/periodic_once.sh`
+• container-internal cron is still not part of the adopted product design
+
 Current application structure remains:
 
 main.py

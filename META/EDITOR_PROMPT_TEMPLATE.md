@@ -53,6 +53,38 @@ These rules are normally included with little or no change.
 - Validation ownership remains on the human side.
 - The human will run the established validation workflow separately.
 
+### Prompt-locality rule
+
+Editor-facing prompts must be written from the editor AI's local repository
+perspective.
+
+Do NOT include prompt text that depends on repository-external governance
+context when that context does not help the editor perform the implementation.
+
+In particular, avoid including unnecessary meta / political / workflow-framing
+statements such as:
+
+- whether the task is only a candidate in broader planning
+- authoritative-vs-planning-governance discussion
+- root/meta repository operational politics
+- sibling repository comparison workflow details
+- adoption/judgment process explanations
+- references to files or directories the editor AI is not supposed to read
+
+Practical rule:
+- if the editor AI only needs to edit files in its own repository,
+  the prompt should be written as if that repository is the whole working
+  world for the implementation task
+- define the task, scope, non-goals, acceptance criteria, and quality gate
+  directly
+- do not add extra governance framing unless it materially changes the code
+  work to be performed
+
+This rule exists because editor AIs operate most reliably when the prompt is:
+- repository-local
+- implementation-directed
+- free of unnecessary project-governance noise
+
 --------------------------------------------------
 
 ## Prompt sections
