@@ -1441,6 +1441,45 @@ TASK023 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed for the adopted final state
 
+TASK024 has been completed.
+
+TASK024 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• a bounded article input resolution seam was added
+• `article_resolver.py` was added
+• the resolver accepts:
+  - article top full URL
+  - full article title
+• canonical target now includes:
+  - `article_url`
+  - `article_id`
+  - `article_type`
+• success result envelope now includes:
+  - `title`
+  - `matched_by`
+  - `normalized_input`
+• title input resolution remains bounded:
+  - search first page only
+  - exact title match only
+  - `not_found` on zero exact matches
+  - `ambiguous` on multiple exact matches
+• failure taxonomy remains bounded:
+  - `invalid_input`
+  - `not_found`
+  - `ambiguous`
+• a minimal operator-facing `resolve-article` entry was added in bounded form
+• the operator entry remains a thin wrapper over the same resolver path
+• no Web / API expansion was introduced
+• no queue persistence / drain was introduced
+• no scheduler framework was introduced
+• no storage schema redesign was introduced
+• no target-registry redesign was introduced
+• both repositories were later aligned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Operational note:
 
 • a separate sibling checkout for provisional personal-use runtime operation now exists outside this workspace root:
@@ -1463,6 +1502,7 @@ main.py
 orchestrator.py
 cli.py
 archive_read.py
+article_resolver.py
 http_client.py
 parser.py
 storage.py
@@ -1479,6 +1519,7 @@ tests/test_parser.py
 tests/test_storage.py
 tests/test_target_list.py
 tests/test_cli.py
+tests/test_article_resolver.py
 
 Additional helper scripts exist:
 
@@ -4700,6 +4741,144 @@ Authoritative context should still be restored from:
 
 
 
+===== REVIEW LOG: META/review_log/TASK024_adoption.md =====
+# TASK024 Adoption Log
+
+## Task
+TASK024
+
+Add a bounded article input resolution seam that accepts either
+a full article top URL or a full article title and resolves that input
+into a reusable canonical article target, while keeping the task pre-Web,
+pre-queue, and limited to a thin operator-facing entry.
+
+## Decision
+Adopted: **Copilot**
+
+Alternative reviewed:
+- Cursor implementation was retained as comparison evidence
+- Hybrid was considered but not selected
+
+## Final adopted shape
+Changed files:
+- `article_resolver.py`
+- `main.py`
+- `tests/test_article_resolver.py`
+- `tests/test_main.py`
+
+## What changed in the adopted result
+The adopted result introduced a bounded article input resolution seam.
+
+Key behavior added:
+- accepts one user-provided input in either of these forms:
+  - full article top URL
+  - full article title
+- resolves input into a canonical target containing:
+  - `article_url`
+  - `article_id`
+  - `article_type`
+- returns a success result envelope containing:
+  - `title`
+  - `matched_by`
+  - `normalized_input`
+- keeps failure taxonomy bounded to:
+  - `invalid_input`
+  - `not_found`
+  - `ambiguous`
+- keeps title-input resolution bounded to:
+  - first-page-only search handling
+  - exact-title matching only
+- adds a minimal operator-facing CLI entry:
+  - `resolve-article`
+- keeps the operator-facing entry as a thin wrapper over the same resolver path
+
+The adopted result remained pre-Web / pre-queue and did not introduce:
+- Web UI / Web routes
+- queue persistence / queue drain
+- export format expansion
+- scheduler framework changes
+- storage schema redesign
+- target-registry redesign
+
+## Why Copilot was adopted
+Primary reasons:
+
+1. It matched the TASK024 definition more directly.
+   - canonical target and result envelope were separated clearly
+   - `title` remained a meaningful success-envelope field rather than a fallback input echo
+
+2. It kept the title-input method bounded while still producing a more useful resolved result.
+   - first-page-only
+   - exact-title-only
+   - final target was resolved through the common URL path
+
+3. The minimal operator-facing entry stayed thin and task-aligned.
+   - `main.py` only gained a bounded `resolve-article` wrapper
+   - existing scrape / archive-read / runtime responsibilities were preserved
+
+4. It preserved boundedness well.
+   - no Web / queue / scheduler / storage redesign drift
+   - no broad neighboring refactor
+
+## Why Cursor was not adopted
+Cursor implementation was valid, bounded, and useful as comparison evidence.
+
+Observed strengths:
+- conservative scope
+- first-page-only exact-title handling remained bounded
+- thin wrapper shape was preserved
+- final validation passed
+
+Reasons it was not selected:
+- the success-envelope handling was slightly weaker for URL-based success
+- compared with Copilot, the adopted result provided a more useful and more task-faithful resolved result without widening scope
+
+## Why Hybrid was not selected
+Hybrid was considered, but not selected because:
+- Copilot already satisfied the intended TASK024 boundary well on its own
+- no narrow borrowed Cursor adjustment clearly improved the adopted result enough to justify a hybrid
+- merge-for-the-sake-of-merge was unnecessary
+- keeping the review memory simple is preferable
+
+## Validation result
+Validation was run with the established workflow:
+- initial Copilot validation failed only due to missing trailing newline at EOF in touched files
+- that localized submission-quality issue was corrected immediately
+- final `./validate_helix.sh` passed for both child repositories
+
+## Convergence result
+- `./compare_helix.sh --all` passed after adoption and synchronization
+- `copilot/` and `cursor/` matched on the adopted final state
+
+## Repository outcome
+- adopted implementation repository: `copilot/`
+- comparison-evidence repository: `cursor/`
+- optional adoption marker branch may be used as:
+  - `adopted/task024-article-input-resolution`
+- after product-repo integration, both child repositories were realigned to the same adopted final state
+
+## Notes for future AI sessions
+Important interpretation:
+- TASK024 is complete
+- the project now has a bounded article input resolution seam
+- a minimal operator-facing `resolve-article` entry exists as a thin wrapper
+- title-input resolution remains bounded and pre-search-platform
+- the task remains pre-Web / pre-queue
+- future work may build on this seam, but should not retroactively widen TASK024
+
+## Meta note
+This log is AI-readable review memory.
+It is not authoritative current state by itself.
+
+Authoritative context should still be restored from:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
+
+
+
+
 ===== REVIEW LOG: META/review_log/task008_review.md =====
 # TASK008 Review
 
@@ -5052,7 +5231,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Tue Mar 24 01:48:22 UTC 2026
+generated: Tue Mar 24 10:54:08 UTC 2026
 mode: full
 
 
@@ -6058,291 +6237,221 @@ Current baseline:
 
 - `main.py` = CLI entry
 - `orchestrator.py` = scraping flow / save-order orchestration
+- `archive_read.py` = archive-facing read / export seam
 - `http_client.py` = HTTP fetch layer
 - `parser.py` = HTML parsing
 - `storage.py` = persistence
+- `target_list.py` = plain-text target source handling
 
-The current near-term product direction remains:
-
-> save bulletin-board comments correctly for a broad range of Nico Nico Pedia articles
-
-The next planning phase should now shift from repeated single-article hardening
-toward **bounded functional expansion**.
+The current near-term product direction should now shift from
+personal-use CLI/runtime practicality toward a **bounded Web publication phase**.
 
 Priority for the next medium-term phase:
 
-1. preserve already-adopted single-article correctness
-2. move into practical user-facing functionality
-3. support real operational usage
-4. preserve Double Helix comparison value
-5. avoid endless infrastructure-first hardening
+1. preserve already-adopted scrape / archive correctness
+2. reuse the current scrape and archive-read seams rather than redesign them
+3. enable a minimal Web-facing request / retrieval flow
+4. keep the phase practical and single-operator-friendly first
+5. defer broader public-platform concerns until after bounded Web publication exists
 
 This means the project should now prefer:
 
-- representative regression protection
-- target-list based operation
-- batch execution
-- run visibility
-- periodic execution entrypoints
-- usable archive readout / export
+- article-input resolution
+- non-CLI reuse of archive-read / export behavior
+- minimal request queue persistence
+- bounded queue-drain execution reusing current scrape flow
+- minimal Web UI / frontend
+- saved-article TXT download
+- bounded Web runtime / publication packaging
 
 over:
 
-- broad frameworkization
-- large retry/backoff systems
-- full failure-taxonomy expansion
-- heavy scheduler design
-- speculative security/platform work not yet required
-- premature Web/API formalization
+- broad frameworkization before the core flow exists
+- auth / account systems
+- multi-tenant or public-abuse policy design
+- immediate multi-format export expansion
+- storage redesign
+- advanced scheduler / worker-platform design
+- speculative platform abstraction not yet required
 
 --------------------------------------------------
 
 ## Near-term task direction
 
-### TASK012 direction
-Representative regression protection strengthening for the
-already-adopted main single-article path.
+### TASK024 direction
+Article input resolution seam.
 
 Expected shape:
 
-- focused regression coverage
-- tied directly to already-adopted production behavior
-- centered mainly on `tests/test_orchestrator.py`
-- no test-only drift
-- no broad redesign
-
-Main representative coverage should include:
-
-- article not found
-- no-BBS / zero-response
-- later-page interruption
-- known high-volume skip
-- response-cap reached
-- normal save path
-
-### TASK013 direction
-Target-list definition and loading.
-
-Expected shape:
-
-- introduce a minimal target-list format for practical use
-- keep the format simple and human-editable
-- support bounded loading into the current CLI/application flow
-- no general config framework yet
-- no scheduler expansion yet
+- define a bounded resolution path from human input to a canonical article target
+- support the future Web input shape:
+  - article name text input
+  - article URL input
+- normalize successful resolution into data that existing scrape/read paths can use
+- keep the task centered on resolution semantics rather than Web UI implementation
+- do not turn the task into broad search-platform design
 
 Preferred direction:
 
-- start with a small file-based target list
-- keep required fields minimal
-- favor practical operation over abstract flexibility
+- make exact or practical bounded article resolution possible
+- keep the output shape explainable and reusable
+- prepare for later Web input without starting the Web app yet
 
-### TASK014 direction
-Batch scrape command.
-
-Expected shape:
-
-- bounded multi-target execution using the target list
-- reuse the existing single-article scrape flow
-- no parallel/distributed execution yet
-- no retry framework expansion yet
-- keep behavior reviewable and CLI-centered
-
-Preferred direction:
-
-- add a practical batch entrypoint
-- keep execution flow simple
-- preserve child-repo reviewability under Double Helix
-
-### TASK015 direction
-Scrape run logging / status recording.
+### TASK025 direction
+Archive-read / export reuse for non-CLI consumers.
 
 Expected shape:
 
-- minimal run-level recordkeeping
-- enough visibility for practical repeated usage
-- no heavy observability framework
-- no logging subsystem redesign
+- make the already-adopted archive-read behavior easier to call outside the CLI
+- support bounded checks such as:
+  - is this article already saved?
+  - if saved, return bounded TXT export content for one article
+- keep the task centered on reuse of the current read seam
+- do not broaden into multi-format export yet
 
 Preferred direction:
 
-- store only the minimum useful run facts
-- make later inspection practical
-- support future periodic execution without overbuilding
+- reuse `archive_read.py` more cleanly from later Web-facing code
+- make saved-article TXT retrieval practical
+- stay pre-frontend and pre-route for this task
 
-### TASK016 direction
-Periodic execution entrypoint.
+### TASK026 direction
+Minimal request queue persistence.
 
 Expected shape:
 
-- provide a stable entrypoint for repeated execution
-- remain compatible with lightweight external scheduling
-- do not expand into a large scheduler framework
-- do not turn this task into deployment architecture work
+- introduce a bounded persistence path for not-yet-saved article requests
+- keep queue state minimal and explainable
+- handle duplicate-enqueue concerns in bounded form
+- keep the task small and avoid turning it into a job platform
 
 Preferred direction:
 
-- support “run this set regularly”
-- keep implementation bounded and CLI-oriented
-- defer complex scheduling policy
+- support “unsaved article → queue request” as a concrete next capability
+- preserve the current architecture as much as possible
+- defer advanced queue policy
 
-### TASK017 direction
-Archive export / readout command.
+### TASK027 direction
+Queue-drain execution path.
 
 Expected shape:
 
-- make saved data easier to use directly
-- provide one or more practical export/readout forms
-- no Web UI requirement yet
-- no presentation-layer framework yet
+- provide a bounded way to drain queued article requests
+- reuse the current scrape path for actual collection
+- remain single-process / bounded in behavior
+- do not introduce distributed worker design
+- do not expand into scheduler-framework design
 
 Preferred direction:
 
-- improve actual usability of saved archives
-- support human inspection and downstream use
-- keep scope bounded and output-focused
+- make the queue operational rather than conceptual
+- keep execution flow explainable
+- preserve current scrape semantics
 
-### TASK018 direction
-Target intake / add-target minimal command.
+### TASK028 direction
+Minimal Web app skeleton and frontend.
 
 Expected shape:
 
-- provide a minimal way to add future scrape targets
-- remain bounded and file/CLI-based at first
-- no queue system yet
-- no request platform yet
+- introduce a minimal Web-facing UI / frontend
+- include:
+  - article-name / article-URL input
+  - submit button
+  - bounded result display
+- keep the UI practical and simple
+- do not turn this into full design-system work
+- do not introduce auth / account / public-product concerns yet
 
 Preferred direction:
 
-- support real project usage
-- keep target management simple
-- defer generalized intake systems
+- make the product visibly usable as a Web app
+- keep the frontend/operator flow very small
+- defer visual polish and broader productization
 
-### TASK019 direction
-All-articles export / archive listing.
+### TASK029 direction
+Saved → TXT download / unsaved → enqueue end-to-end flow.
 
 Expected shape:
 
-- make the saved archive usable at the whole-archive level
-- remain CLI-centered and output-focused
-- support bounded listing and/or export of multiple saved articles
-- no Web UI requirement yet
-- no API requirement yet
-- no presentation-layer framework yet
-- no storage redesign yet
+- implement the main bounded Web UX:
+  - if already scraped, return TXT download
+  - if not yet scraped, enqueue the request
+- keep output format to `txt` only in this phase
+- provide bounded user feedback for both outcomes
+- do not expand into CSV / JSON / MD / HTML selection yet
 
 Preferred direction:
 
-- add practical whole-archive readout/export capability
-- preserve the already-adopted single-article export path
-- keep scope bounded and human-usable
-- support personal-use practicality before platform expansion
+- complete the core request/result loop
+- keep the phase focused on one practical end-to-end behavior
+- preserve boundedness over feature breadth
 
-### TASK020 direction
-Provisional production runtime / deployment profile.
+### TASK030 direction
+Bounded Web runtime / publication packaging.
 
 Expected shape:
 
-- define a practical runtime separate from the development container/profile
-- support personal-use operation with the current SQLite-centered baseline
-- keep deployment shape small and explainable
-- no large infrastructure design
-- no container-orchestration platform work
-- no premature production-platform abstraction
+- package the minimal Web app into a practical runtime/publication baseline
+- support a small deployable shape for the current single-operator phase
+- keep the deployment/runtime story concrete and explainable
+- do not turn this into cloud-platform abstraction
+- do not turn this into heavy ops/platform design
 
 Preferred direction:
 
-- provide a separate runtime/profile for provisional personal-use deployment
-- preserve the current project architecture
-- keep ops steps concrete and terminal-friendly
-- support later deployment evolution without overbuilding now
-
-### TASK021 direction
-Periodic operation packaging for personal-use runtime.
-
-Expected shape:
-
-- make the existing periodic execution entrypoint practical to run in the
-  provisional production runtime
-- support repeated operation against a manually maintained target list
-- remain compatible with lightweight external scheduling
-- do not expand into a scheduler framework
-- do not add full overlap/fairness policy design yet
-
-Preferred direction:
-
-- make “run every few hours against the current target list” practical
-- preserve the bounded CLI-centered periodic design already adopted
-- support accumulating results into the current SQLite-based storage
-- keep operational behavior explainable and reviewable
-
-### TASK022 direction
-Bounded interface seam preparation for later Web/API expansion.
-
-Expected shape:
-
-- prepare cleaner seams for later retrieval/export interfaces
-- remain strictly pre-Web and pre-API
-- do not introduce a full application framework yet
-- do not start platform expansion prematurely
-- keep compatibility with the already-adopted CLI/archive behavior
-
-Preferred direction:
-
-- clarify archive-read/export boundaries that future interfaces will need
-- clarify target-intake boundaries that future interfaces will need
-- keep current architecture stable
-- do only the minimum preparation justified by the provisional personal-use phase
+- make the bounded Web app actually publishable
+- preserve the current project scale
+- defer broader production-platform formalization until later
 
 --------------------------------------------------
 
 ## Next medium-term phase framing
 
 The next medium-term phase should aim to make the system
-**practically usable for personal use** before starting actual Web/API work.
+**publishable as a bounded Web application**.
 
 Target outcome for this phase:
 
-- a provisional runtime separate from the development workflow exists
-- a manually maintained target list can drive repeated archive collection
-  every few hours
-- collected results continue to accumulate in the current SQLite-centered store
-- a specific saved article can be exported in practical text formats
-- the whole saved archive can also be listed and/or exported in bounded forms
-- later Web/API expansion is supported by cleaner seams, but is not yet started
+- a minimal Web app exists
+- the UI includes an article-name or article-URL input path
+- the UI includes a submit action
+- if the requested article is already saved, the archive can be returned as
+  a `txt` download
+- if the requested article is not yet saved, the request can be queued
+- queued requests can be drained using a bounded execution path that reuses
+  the adopted scraping baseline
+- the published runtime remains small, explainable, and operator-friendly
+- broader third-party/public policy questions may remain undecided
+- richer export formats such as `md`, `json`, `csv`, or simple `html`
+  remain deferred until after the bounded Web baseline exists
 
 Interpretation note:
 
 - this phase framing is planning guidance, not authoritative current state
 - exact task boundaries may still be adjusted if review evidence suggests a
   better bounded split
-- keep “personal-use practicality first, platform expansion later” as the main
-  directional rule
+- keep “bounded Web publication first, broader platform concerns later”
+  as the main directional rule
 
 --------------------------------------------------
-
 
 ## Planning priority
 
 Recommended working order:
 
-1. `TASK012` representative regression protection strengthening
-2. `TASK013` target-list definition and loading
-3. `TASK014` batch scrape command
-4. `TASK015` scrape run logging / status recording
-5. `TASK016` periodic execution entrypoint
-6. `TASK017` archive export / readout command
-7. `TASK018` target intake / add-target minimal command
-8. `TASK019` bounded interface preparation for later Web/API
-9. `TASK020` provisional production runtime / deployment profile
-10. `TASK021` periodic operation packaging for personal-use runtime
-11. `TASK022` bounded interface seam preparation for later Web/API
+1. `TASK024` article input resolution seam
+2. `TASK025` archive-read / export reuse for non-CLI consumers
+3. `TASK026` minimal request queue persistence
+4. `TASK027` queue-drain execution path
+5. `TASK028` minimal Web app skeleton and frontend
+6. `TASK029` saved → TXT download / unsaved → enqueue flow
+7. `TASK030` bounded Web runtime / publication packaging
 
 This order is recommended because it:
 
-- closes the main single-article path first
-- moves quickly into practical functionality
-- supports real usage before platform expansion
+- reuses the already-adopted CLI/runtime/archive baseline
+- prepares Web behavior by seam and flow rather than by premature framework-first work
+- delivers a usable Web app in bounded increments
 - preserves bounded task size
 - remains compatible with the Double Helix workflow
 
@@ -6355,18 +6464,18 @@ When defining the next task, prefer:
 - small bounded tasks
 - production-facing progress over abstract cleanup
 - explicit scope / non-goals
-- preservation of current architecture
+- preservation of current architecture unless a task explicitly changes it
 - reviewable changes that fit the Double Helix model
-- practical functionality before platform expansion
+- practical Web-facing functionality before broader platform expansion
 
 Avoid:
 
 - cross-layer redesign
 - framework-first abstraction
 - broad speculative refactors
-- turning every follow-up into a test-only task
 - silently widening the task after implementation starts
-- endless hardening before useful features exist
+- premature public-platform hardening before the bounded Web baseline exists
+- multi-format feature expansion before the saved→TXT / unsaved→queue flow exists
 
 --------------------------------------------------
 
@@ -6419,8 +6528,6 @@ A good rule of thumb:
 - roadmap = broad reference
 - medium-term direction = working near-term plan
 - state files + snapshots = authoritative truth
-
-
 
 =============================
 FILE: ./META/README.md
@@ -8370,6 +8477,195 @@ def read_article_summaries():
     ]
 
 =============================
+FILE: ./copilot/article_resolver.py
+=============================
+from urllib.parse import quote, urlparse
+
+from http_client import fetch_page
+
+
+NICO_TOP_URL = "https://dic.nicovideo.jp"
+
+
+def normalize_article_input(raw_input: str) -> str:
+    return raw_input.strip()
+
+
+def _build_success_result(
+    article_url: str,
+    article_id: str,
+    article_type: str,
+    title: str,
+    matched_by: str,
+    normalized_input: str,
+) -> dict:
+    return {
+        "ok": True,
+        "canonical_target": {
+            "article_url": article_url,
+            "article_id": article_id,
+            "article_type": article_type,
+        },
+        "title": title,
+        "matched_by": matched_by,
+        "normalized_input": normalized_input,
+    }
+
+
+def _build_failure_result(failure_kind: str, normalized_input: str) -> dict:
+    return {
+        "ok": False,
+        "failure_kind": failure_kind,
+        "normalized_input": normalized_input,
+    }
+
+
+def _looks_like_url_input(normalized_input: str) -> bool:
+    parsed = urlparse(normalized_input)
+    return bool(parsed.scheme or parsed.netloc)
+
+
+def _extract_title_from_soup(soup) -> str | None:
+    title_tag = soup.find("meta", property="og:title")
+    if title_tag is None:
+        return None
+
+    title = title_tag.get("content", "").strip()
+    if not title:
+        return None
+
+    return title.split("とは")[0]
+
+
+def _normalize_candidate_url(candidate_url: str) -> str | None:
+    parsed = urlparse(candidate_url)
+
+    if parsed.scheme not in {"http", "https"}:
+        return None
+    if parsed.netloc != "dic.nicovideo.jp":
+        return None
+
+    path_parts = [part for part in parsed.path.split("/") if part]
+    if len(path_parts) != 2:
+        return None
+
+    article_type, article_slug = path_parts
+    if not article_type or not article_slug:
+        return None
+
+    return f"{parsed.scheme}://{parsed.netloc}/{article_type}/{article_slug}"
+
+
+def _extract_canonical_target_from_url(article_url: str) -> dict | None:
+    normalized_url = _normalize_candidate_url(article_url)
+    if normalized_url is None:
+        return None
+
+    parsed = urlparse(normalized_url)
+    article_type, article_id = [part for part in parsed.path.split("/") if part]
+
+    return {
+        "article_url": normalized_url,
+        "article_id": article_id,
+        "article_type": article_type,
+    }
+
+
+def _resolve_from_article_url(
+    article_url: str,
+    normalized_input: str,
+    matched_by: str,
+) -> dict:
+    try:
+        soup = fetch_page(article_url)
+    except RuntimeError as exc:
+        if "status=404" in str(exc):
+            return _build_failure_result("not_found", normalized_input)
+        raise
+
+    og_url = soup.find("meta", property="og:url")
+    canonical_url = og_url.get("content", "").strip() if og_url else ""
+    canonical_target = _extract_canonical_target_from_url(canonical_url)
+    title = _extract_title_from_soup(soup)
+
+    if canonical_target is None or title is None:
+        return _build_failure_result("not_found", normalized_input)
+
+    return _build_success_result(
+        article_url=canonical_target["article_url"],
+        article_id=canonical_target["article_id"],
+        article_type=canonical_target["article_type"],
+        title=title,
+        matched_by=matched_by,
+        normalized_input=normalized_input,
+    )
+
+
+def _build_title_search_url(normalized_title: str) -> str:
+    return f"{NICO_TOP_URL}/search/{quote(normalized_title)}"
+
+
+def _extract_exact_title_candidate_urls(soup, normalized_title: str) -> list[str]:
+    candidate_urls = []
+    seen_urls = set()
+
+    for anchor in soup.find_all("a", href=True):
+        candidate_title = anchor.get_text(strip=True)
+        if candidate_title != normalized_title:
+            continue
+
+        href = anchor["href"].strip()
+        if href.startswith("/"):
+            href = f"{NICO_TOP_URL}{href}"
+
+        normalized_url = _normalize_candidate_url(href)
+        if normalized_url is None:
+            continue
+        if normalized_url in seen_urls:
+            continue
+
+        seen_urls.add(normalized_url)
+        candidate_urls.append(normalized_url)
+
+    return candidate_urls
+
+
+def _resolve_from_exact_title(normalized_title: str) -> dict:
+    search_url = _build_title_search_url(normalized_title)
+    soup = fetch_page(search_url)
+    candidate_urls = _extract_exact_title_candidate_urls(soup, normalized_title)
+
+    if not candidate_urls:
+        return _build_failure_result("not_found", normalized_title)
+    if len(candidate_urls) >= 2:
+        return _build_failure_result("ambiguous", normalized_title)
+
+    return _resolve_from_article_url(
+        candidate_urls[0],
+        normalized_input=normalized_title,
+        matched_by="exact_title",
+    )
+
+
+def resolve_article_input(article_input: str) -> dict:
+    normalized_input = normalize_article_input(article_input)
+    if not normalized_input:
+        return _build_failure_result("invalid_input", normalized_input)
+
+    if _looks_like_url_input(normalized_input):
+        normalized_url = _normalize_candidate_url(normalized_input)
+        if normalized_url is None:
+            return _build_failure_result("invalid_input", normalized_input)
+
+        return _resolve_from_article_url(
+            normalized_url,
+            normalized_input=normalized_input,
+            matched_by="article_url",
+        )
+
+    return _resolve_from_exact_title(normalized_input)
+
+=============================
 FILE: ./copilot/cli.py
 =============================
 from datetime import datetime, timezone
@@ -9035,6 +9331,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from article_resolver import resolve_article_input
 from cli import export_all_articles, export_article, inspect_article, list_articles
 from orchestrator import run_scrape
 from target_list import add_target_url, load_target_urls
@@ -9169,6 +9466,7 @@ def main():
         print("  python main.py list-articles")
         print("  python main.py export-all-articles --format txt")
         print("  python main.py add-target <article_url> <target_list_path>")
+        print("  python main.py resolve-article <article_url_or_full_title>")
         print("  python main.py targets <target_list_path>")
         print("  python main.py batch <target_list_path>")
         print("  python main.py periodic-once <target_list_path>")
@@ -9240,6 +9538,27 @@ def main():
 
         print(f"Invalid target URL: {sys.argv[2]}")
         sys.exit(1)
+
+    if sys.argv[1] == "resolve-article":
+
+        if len(sys.argv) < 3:
+            print("Usage: resolve-article <article_url_or_full_title>")
+            sys.exit(1)
+
+        result = resolve_article_input(sys.argv[2])
+        if not result["ok"]:
+            print(f"Article resolution failed: {result['failure_kind']}")
+            print(f"Input: {result['normalized_input']}")
+            sys.exit(1)
+
+        print("Resolved article target")
+        print(f"Input: {result['normalized_input']}")
+        print(f"Matched By: {result['matched_by']}")
+        print(f"Title: {result['title']}")
+        print(f"URL: {result['canonical_target']['article_url']}")
+        print(f"ID: {result['canonical_target']['article_id']}")
+        print(f"Type: {result['canonical_target']['article_type']}")
+        return
 
     if sys.argv[1] == "targets":
 
@@ -9981,6 +10300,132 @@ if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
 =============================
+FILE: ./copilot/tests/test_article_resolver.py
+=============================
+from unittest.mock import patch
+
+from bs4 import BeautifulSoup
+
+from article_resolver import resolve_article_input
+
+
+def test_resolve_article_input_succeeds_for_full_article_url():
+    soup = BeautifulSoup(
+        """
+        <html><head>
+        <meta property="og:title" content="Fooとは">
+        <meta property="og:url" content="https://dic.nicovideo.jp/a/12345">
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    with patch("article_resolver.fetch_page", return_value=soup) as mock_fetch:
+        result = resolve_article_input(" https://dic.nicovideo.jp/a/Foo ")
+
+    mock_fetch.assert_called_once_with("https://dic.nicovideo.jp/a/Foo")
+    assert result == {
+        "ok": True,
+        "canonical_target": {
+            "article_url": "https://dic.nicovideo.jp/a/12345",
+            "article_id": "12345",
+            "article_type": "a",
+        },
+        "title": "Foo",
+        "matched_by": "article_url",
+        "normalized_input": "https://dic.nicovideo.jp/a/Foo",
+    }
+
+
+def test_resolve_article_input_succeeds_for_exact_title_first_page_only():
+    search_soup = BeautifulSoup(
+        """
+        <html><body>
+        <a href="/a/12345">Foo</a>
+        <a href="/a/99999">Foo Extra</a>
+        </body></html>
+        """,
+        "lxml",
+    )
+    article_soup = BeautifulSoup(
+        """
+        <html><head>
+        <meta property="og:title" content="Fooとは">
+        <meta property="og:url" content="https://dic.nicovideo.jp/a/12345">
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    with patch(
+        "article_resolver.fetch_page",
+        side_effect=[search_soup, article_soup],
+    ) as mock_fetch:
+        result = resolve_article_input("Foo")
+
+    assert mock_fetch.call_count == 2
+    assert result["ok"] is True
+    assert result["canonical_target"] == {
+        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_id": "12345",
+        "article_type": "a",
+    }
+    assert result["title"] == "Foo"
+    assert result["matched_by"] == "exact_title"
+    assert result["normalized_input"] == "Foo"
+
+
+def test_resolve_article_input_rejects_invalid_url_shape():
+    result = resolve_article_input("https://example.com/a/12345")
+
+    assert result == {
+        "ok": False,
+        "failure_kind": "invalid_input",
+        "normalized_input": "https://example.com/a/12345",
+    }
+
+
+def test_resolve_article_input_returns_not_found_for_missing_exact_title():
+    search_soup = BeautifulSoup(
+        """
+        <html><body>
+        <a href="/a/12345">Other</a>
+        </body></html>
+        """,
+        "lxml",
+    )
+
+    with patch("article_resolver.fetch_page", return_value=search_soup):
+        result = resolve_article_input("Foo")
+
+    assert result == {
+        "ok": False,
+        "failure_kind": "not_found",
+        "normalized_input": "Foo",
+    }
+
+
+def test_resolve_article_input_returns_ambiguous_for_multiple_exact_titles():
+    search_soup = BeautifulSoup(
+        """
+        <html><body>
+        <a href="/a/12345">Foo</a>
+        <a href="/a/67890">Foo</a>
+        </body></html>
+        """,
+        "lxml",
+    )
+
+    with patch("article_resolver.fetch_page", return_value=search_soup):
+        result = resolve_article_input("Foo")
+
+    assert result == {
+        "ok": False,
+        "failure_kind": "ambiguous",
+        "normalized_input": "Foo",
+    }
+
+=============================
 FILE: ./copilot/tests/test_basic.py
 =============================
 def test_dummy():
@@ -10315,6 +10760,55 @@ def test_main_add_target_calls_add_target_url(mock_add_target, capsys):
     assert "Added target: https://dic.nicovideo.jp/a/12345" in out
 
 
+@patch("main.resolve_article_input")
+def test_main_resolve_article_calls_resolver_and_prints_success(
+    mock_resolve_article_input,
+    capsys,
+):
+    mock_resolve_article_input.return_value = {
+        "ok": True,
+        "canonical_target": {
+            "article_url": "https://dic.nicovideo.jp/a/12345",
+            "article_id": "12345",
+            "article_type": "a",
+        },
+        "title": "Foo",
+        "matched_by": "exact_title",
+        "normalized_input": "Foo",
+    }
+
+    with patch("sys.argv", ["main.py", "resolve-article", "Foo"]):
+        main_module.main()
+
+    mock_resolve_article_input.assert_called_once_with("Foo")
+    out = capsys.readouterr().out
+    assert "Resolved article target" in out
+    assert "Matched By: exact_title" in out
+    assert "URL: https://dic.nicovideo.jp/a/12345" in out
+
+
+@patch("main.resolve_article_input")
+def test_main_resolve_article_exits_non_zero_on_resolution_failure(
+    mock_resolve_article_input,
+    capsys,
+):
+    mock_resolve_article_input.return_value = {
+        "ok": False,
+        "failure_kind": "not_found",
+        "normalized_input": "Foo",
+    }
+
+    with patch("sys.argv", ["main.py", "resolve-article", "Foo"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    mock_resolve_article_input.assert_called_once_with("Foo")
+    out = capsys.readouterr().out
+    assert "Article resolution failed: not_found" in out
+    assert "Input: Foo" in out
+
+
 @patch("main.add_target_url", return_value="duplicate")
 def test_main_add_target_reports_duplicate_without_error(mock_add_target, capsys):
     with patch(
@@ -10419,6 +10913,16 @@ def test_main_add_target_without_required_args_exits_with_usage(capsys):
     assert "Usage: add-target <article_url> <target_list_path>" in out
 
 
+def test_main_resolve_article_without_required_args_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "resolve-article"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "Usage: resolve-article <article_url_or_full_title>" in out
+
+
 def test_main_export_without_required_args_exits_with_usage(capsys):
     with patch("sys.argv", ["main.py", "export", "12345", "a"]):
         with pytest.raises(SystemExit) as exc_info:
@@ -10442,6 +10946,7 @@ def test_main_too_few_args_exits_with_usage(capsys):
     assert "list-articles" in out
     assert "export-all-articles --format txt" in out
     assert "add-target <article_url> <target_list_path>" in out
+    assert "resolve-article <article_url_or_full_title>" in out
     assert "targets <target_list_path>" in out
     assert "batch <target_list_path>" in out
     assert "periodic-once <target_list_path>" in out
@@ -12231,6 +12736,195 @@ def read_article_summaries():
     ]
 
 =============================
+FILE: ./cursor/article_resolver.py
+=============================
+from urllib.parse import quote, urlparse
+
+from http_client import fetch_page
+
+
+NICO_TOP_URL = "https://dic.nicovideo.jp"
+
+
+def normalize_article_input(raw_input: str) -> str:
+    return raw_input.strip()
+
+
+def _build_success_result(
+    article_url: str,
+    article_id: str,
+    article_type: str,
+    title: str,
+    matched_by: str,
+    normalized_input: str,
+) -> dict:
+    return {
+        "ok": True,
+        "canonical_target": {
+            "article_url": article_url,
+            "article_id": article_id,
+            "article_type": article_type,
+        },
+        "title": title,
+        "matched_by": matched_by,
+        "normalized_input": normalized_input,
+    }
+
+
+def _build_failure_result(failure_kind: str, normalized_input: str) -> dict:
+    return {
+        "ok": False,
+        "failure_kind": failure_kind,
+        "normalized_input": normalized_input,
+    }
+
+
+def _looks_like_url_input(normalized_input: str) -> bool:
+    parsed = urlparse(normalized_input)
+    return bool(parsed.scheme or parsed.netloc)
+
+
+def _extract_title_from_soup(soup) -> str | None:
+    title_tag = soup.find("meta", property="og:title")
+    if title_tag is None:
+        return None
+
+    title = title_tag.get("content", "").strip()
+    if not title:
+        return None
+
+    return title.split("とは")[0]
+
+
+def _normalize_candidate_url(candidate_url: str) -> str | None:
+    parsed = urlparse(candidate_url)
+
+    if parsed.scheme not in {"http", "https"}:
+        return None
+    if parsed.netloc != "dic.nicovideo.jp":
+        return None
+
+    path_parts = [part for part in parsed.path.split("/") if part]
+    if len(path_parts) != 2:
+        return None
+
+    article_type, article_slug = path_parts
+    if not article_type or not article_slug:
+        return None
+
+    return f"{parsed.scheme}://{parsed.netloc}/{article_type}/{article_slug}"
+
+
+def _extract_canonical_target_from_url(article_url: str) -> dict | None:
+    normalized_url = _normalize_candidate_url(article_url)
+    if normalized_url is None:
+        return None
+
+    parsed = urlparse(normalized_url)
+    article_type, article_id = [part for part in parsed.path.split("/") if part]
+
+    return {
+        "article_url": normalized_url,
+        "article_id": article_id,
+        "article_type": article_type,
+    }
+
+
+def _resolve_from_article_url(
+    article_url: str,
+    normalized_input: str,
+    matched_by: str,
+) -> dict:
+    try:
+        soup = fetch_page(article_url)
+    except RuntimeError as exc:
+        if "status=404" in str(exc):
+            return _build_failure_result("not_found", normalized_input)
+        raise
+
+    og_url = soup.find("meta", property="og:url")
+    canonical_url = og_url.get("content", "").strip() if og_url else ""
+    canonical_target = _extract_canonical_target_from_url(canonical_url)
+    title = _extract_title_from_soup(soup)
+
+    if canonical_target is None or title is None:
+        return _build_failure_result("not_found", normalized_input)
+
+    return _build_success_result(
+        article_url=canonical_target["article_url"],
+        article_id=canonical_target["article_id"],
+        article_type=canonical_target["article_type"],
+        title=title,
+        matched_by=matched_by,
+        normalized_input=normalized_input,
+    )
+
+
+def _build_title_search_url(normalized_title: str) -> str:
+    return f"{NICO_TOP_URL}/search/{quote(normalized_title)}"
+
+
+def _extract_exact_title_candidate_urls(soup, normalized_title: str) -> list[str]:
+    candidate_urls = []
+    seen_urls = set()
+
+    for anchor in soup.find_all("a", href=True):
+        candidate_title = anchor.get_text(strip=True)
+        if candidate_title != normalized_title:
+            continue
+
+        href = anchor["href"].strip()
+        if href.startswith("/"):
+            href = f"{NICO_TOP_URL}{href}"
+
+        normalized_url = _normalize_candidate_url(href)
+        if normalized_url is None:
+            continue
+        if normalized_url in seen_urls:
+            continue
+
+        seen_urls.add(normalized_url)
+        candidate_urls.append(normalized_url)
+
+    return candidate_urls
+
+
+def _resolve_from_exact_title(normalized_title: str) -> dict:
+    search_url = _build_title_search_url(normalized_title)
+    soup = fetch_page(search_url)
+    candidate_urls = _extract_exact_title_candidate_urls(soup, normalized_title)
+
+    if not candidate_urls:
+        return _build_failure_result("not_found", normalized_title)
+    if len(candidate_urls) >= 2:
+        return _build_failure_result("ambiguous", normalized_title)
+
+    return _resolve_from_article_url(
+        candidate_urls[0],
+        normalized_input=normalized_title,
+        matched_by="exact_title",
+    )
+
+
+def resolve_article_input(article_input: str) -> dict:
+    normalized_input = normalize_article_input(article_input)
+    if not normalized_input:
+        return _build_failure_result("invalid_input", normalized_input)
+
+    if _looks_like_url_input(normalized_input):
+        normalized_url = _normalize_candidate_url(normalized_input)
+        if normalized_url is None:
+            return _build_failure_result("invalid_input", normalized_input)
+
+        return _resolve_from_article_url(
+            normalized_url,
+            normalized_input=normalized_input,
+            matched_by="article_url",
+        )
+
+    return _resolve_from_exact_title(normalized_input)
+
+=============================
 FILE: ./cursor/cli.py
 =============================
 from datetime import datetime, timezone
@@ -12896,6 +13590,7 @@ import time
 from datetime import datetime, timezone
 from pathlib import Path
 
+from article_resolver import resolve_article_input
 from cli import export_all_articles, export_article, inspect_article, list_articles
 from orchestrator import run_scrape
 from target_list import add_target_url, load_target_urls
@@ -13030,6 +13725,7 @@ def main():
         print("  python main.py list-articles")
         print("  python main.py export-all-articles --format txt")
         print("  python main.py add-target <article_url> <target_list_path>")
+        print("  python main.py resolve-article <article_url_or_full_title>")
         print("  python main.py targets <target_list_path>")
         print("  python main.py batch <target_list_path>")
         print("  python main.py periodic-once <target_list_path>")
@@ -13101,6 +13797,27 @@ def main():
 
         print(f"Invalid target URL: {sys.argv[2]}")
         sys.exit(1)
+
+    if sys.argv[1] == "resolve-article":
+
+        if len(sys.argv) < 3:
+            print("Usage: resolve-article <article_url_or_full_title>")
+            sys.exit(1)
+
+        result = resolve_article_input(sys.argv[2])
+        if not result["ok"]:
+            print(f"Article resolution failed: {result['failure_kind']}")
+            print(f"Input: {result['normalized_input']}")
+            sys.exit(1)
+
+        print("Resolved article target")
+        print(f"Input: {result['normalized_input']}")
+        print(f"Matched By: {result['matched_by']}")
+        print(f"Title: {result['title']}")
+        print(f"URL: {result['canonical_target']['article_url']}")
+        print(f"ID: {result['canonical_target']['article_id']}")
+        print(f"Type: {result['canonical_target']['article_type']}")
+        return
 
     if sys.argv[1] == "targets":
 
@@ -13842,6 +14559,132 @@ if str(_root) not in sys.path:
     sys.path.insert(0, str(_root))
 
 =============================
+FILE: ./cursor/tests/test_article_resolver.py
+=============================
+from unittest.mock import patch
+
+from bs4 import BeautifulSoup
+
+from article_resolver import resolve_article_input
+
+
+def test_resolve_article_input_succeeds_for_full_article_url():
+    soup = BeautifulSoup(
+        """
+        <html><head>
+        <meta property="og:title" content="Fooとは">
+        <meta property="og:url" content="https://dic.nicovideo.jp/a/12345">
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    with patch("article_resolver.fetch_page", return_value=soup) as mock_fetch:
+        result = resolve_article_input(" https://dic.nicovideo.jp/a/Foo ")
+
+    mock_fetch.assert_called_once_with("https://dic.nicovideo.jp/a/Foo")
+    assert result == {
+        "ok": True,
+        "canonical_target": {
+            "article_url": "https://dic.nicovideo.jp/a/12345",
+            "article_id": "12345",
+            "article_type": "a",
+        },
+        "title": "Foo",
+        "matched_by": "article_url",
+        "normalized_input": "https://dic.nicovideo.jp/a/Foo",
+    }
+
+
+def test_resolve_article_input_succeeds_for_exact_title_first_page_only():
+    search_soup = BeautifulSoup(
+        """
+        <html><body>
+        <a href="/a/12345">Foo</a>
+        <a href="/a/99999">Foo Extra</a>
+        </body></html>
+        """,
+        "lxml",
+    )
+    article_soup = BeautifulSoup(
+        """
+        <html><head>
+        <meta property="og:title" content="Fooとは">
+        <meta property="og:url" content="https://dic.nicovideo.jp/a/12345">
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    with patch(
+        "article_resolver.fetch_page",
+        side_effect=[search_soup, article_soup],
+    ) as mock_fetch:
+        result = resolve_article_input("Foo")
+
+    assert mock_fetch.call_count == 2
+    assert result["ok"] is True
+    assert result["canonical_target"] == {
+        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_id": "12345",
+        "article_type": "a",
+    }
+    assert result["title"] == "Foo"
+    assert result["matched_by"] == "exact_title"
+    assert result["normalized_input"] == "Foo"
+
+
+def test_resolve_article_input_rejects_invalid_url_shape():
+    result = resolve_article_input("https://example.com/a/12345")
+
+    assert result == {
+        "ok": False,
+        "failure_kind": "invalid_input",
+        "normalized_input": "https://example.com/a/12345",
+    }
+
+
+def test_resolve_article_input_returns_not_found_for_missing_exact_title():
+    search_soup = BeautifulSoup(
+        """
+        <html><body>
+        <a href="/a/12345">Other</a>
+        </body></html>
+        """,
+        "lxml",
+    )
+
+    with patch("article_resolver.fetch_page", return_value=search_soup):
+        result = resolve_article_input("Foo")
+
+    assert result == {
+        "ok": False,
+        "failure_kind": "not_found",
+        "normalized_input": "Foo",
+    }
+
+
+def test_resolve_article_input_returns_ambiguous_for_multiple_exact_titles():
+    search_soup = BeautifulSoup(
+        """
+        <html><body>
+        <a href="/a/12345">Foo</a>
+        <a href="/a/67890">Foo</a>
+        </body></html>
+        """,
+        "lxml",
+    )
+
+    with patch("article_resolver.fetch_page", return_value=search_soup):
+        result = resolve_article_input("Foo")
+
+    assert result == {
+        "ok": False,
+        "failure_kind": "ambiguous",
+        "normalized_input": "Foo",
+    }
+
+=============================
 FILE: ./cursor/tests/test_basic.py
 =============================
 def test_dummy():
@@ -14176,6 +15019,55 @@ def test_main_add_target_calls_add_target_url(mock_add_target, capsys):
     assert "Added target: https://dic.nicovideo.jp/a/12345" in out
 
 
+@patch("main.resolve_article_input")
+def test_main_resolve_article_calls_resolver_and_prints_success(
+    mock_resolve_article_input,
+    capsys,
+):
+    mock_resolve_article_input.return_value = {
+        "ok": True,
+        "canonical_target": {
+            "article_url": "https://dic.nicovideo.jp/a/12345",
+            "article_id": "12345",
+            "article_type": "a",
+        },
+        "title": "Foo",
+        "matched_by": "exact_title",
+        "normalized_input": "Foo",
+    }
+
+    with patch("sys.argv", ["main.py", "resolve-article", "Foo"]):
+        main_module.main()
+
+    mock_resolve_article_input.assert_called_once_with("Foo")
+    out = capsys.readouterr().out
+    assert "Resolved article target" in out
+    assert "Matched By: exact_title" in out
+    assert "URL: https://dic.nicovideo.jp/a/12345" in out
+
+
+@patch("main.resolve_article_input")
+def test_main_resolve_article_exits_non_zero_on_resolution_failure(
+    mock_resolve_article_input,
+    capsys,
+):
+    mock_resolve_article_input.return_value = {
+        "ok": False,
+        "failure_kind": "not_found",
+        "normalized_input": "Foo",
+    }
+
+    with patch("sys.argv", ["main.py", "resolve-article", "Foo"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    mock_resolve_article_input.assert_called_once_with("Foo")
+    out = capsys.readouterr().out
+    assert "Article resolution failed: not_found" in out
+    assert "Input: Foo" in out
+
+
 @patch("main.add_target_url", return_value="duplicate")
 def test_main_add_target_reports_duplicate_without_error(mock_add_target, capsys):
     with patch(
@@ -14280,6 +15172,16 @@ def test_main_add_target_without_required_args_exits_with_usage(capsys):
     assert "Usage: add-target <article_url> <target_list_path>" in out
 
 
+def test_main_resolve_article_without_required_args_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "resolve-article"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "Usage: resolve-article <article_url_or_full_title>" in out
+
+
 def test_main_export_without_required_args_exits_with_usage(capsys):
     with patch("sys.argv", ["main.py", "export", "12345", "a"]):
         with pytest.raises(SystemExit) as exc_info:
@@ -14303,6 +15205,7 @@ def test_main_too_few_args_exits_with_usage(capsys):
     assert "list-articles" in out
     assert "export-all-articles --format txt" in out
     assert "add-target <article_url> <target_list_path>" in out
+    assert "resolve-article <article_url_or_full_title>" in out
     assert "targets <target_list_path>" in out
     assert "batch <target_list_path>" in out
     assert "periodic-once <target_list_path>" in out

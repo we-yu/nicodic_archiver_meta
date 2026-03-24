@@ -441,6 +441,45 @@ TASK023 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed for the adopted final state
 
+TASK024 has been completed.
+
+TASK024 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• a bounded article input resolution seam was added
+• `article_resolver.py` was added
+• the resolver accepts:
+  - article top full URL
+  - full article title
+• canonical target now includes:
+  - `article_url`
+  - `article_id`
+  - `article_type`
+• success result envelope now includes:
+  - `title`
+  - `matched_by`
+  - `normalized_input`
+• title input resolution remains bounded:
+  - search first page only
+  - exact title match only
+  - `not_found` on zero exact matches
+  - `ambiguous` on multiple exact matches
+• failure taxonomy remains bounded:
+  - `invalid_input`
+  - `not_found`
+  - `ambiguous`
+• a minimal operator-facing `resolve-article` entry was added in bounded form
+• the operator entry remains a thin wrapper over the same resolver path
+• no Web / API expansion was introduced
+• no queue persistence / drain was introduced
+• no scheduler framework was introduced
+• no storage schema redesign was introduced
+• no target-registry redesign was introduced
+• both repositories were later aligned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Operational note:
 
 • a separate sibling checkout for provisional personal-use runtime operation now exists outside this workspace root:
@@ -463,6 +502,7 @@ main.py
 orchestrator.py
 cli.py
 archive_read.py
+article_resolver.py
 http_client.py
 parser.py
 storage.py
@@ -479,6 +519,7 @@ tests/test_parser.py
 tests/test_storage.py
 tests/test_target_list.py
 tests/test_cli.py
+tests/test_article_resolver.py
 
 Additional helper scripts exist:
 
