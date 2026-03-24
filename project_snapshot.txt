@@ -1412,6 +1412,35 @@ TASK022 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK023 has been completed.
+
+TASK023 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• a bounded incremental fetch path was added for saved articles
+• saved articles now resume from the page containing `max_saved_res_no`
+• on the resume page, `res_no <= max_saved_res_no` is treated as already existing
+• on the resume page, only `res_no > max_saved_res_no` is treated as new candidates
+• only later pages that are actually needed are fetched
+• unsaved articles still use the existing full-fetch path
+• zero-new results are now treated as success-class behavior
+• prior partial / interrupted / capped saved articles reuse the same
+  `max_saved_res_no` anchor-resume rule
+• existing high-volume / capped policy was preserved
+• plain-text target-list usability was improved in bounded form:
+  - ignore comment lines beginning with `#`
+  - ignore blank lines
+  - trim surrounding whitespace
+• no scheduler framework was introduced
+• no Web / API expansion was introduced
+• no storage schema redesign was introduced
+• no target-registry redesign was introduced
+• no archive-write redesign was introduced
+• both repositories now reflect the same adopted final state on `main`
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed for the adopted final state
+
 Operational note:
 
 • a separate sibling checkout for provisional personal-use runtime operation now exists outside this workspace root:
@@ -1428,23 +1457,16 @@ Operational note:
   through `runtime/periodic_once.sh`
 • container-internal cron is still not part of the adopted product design
 
-Current application structure remains:
-
-main.py
-orchestrator.py
-cli.py
-http_client.py
-parser.py
-storage.py
-
 Current application structure:
 
 main.py
 orchestrator.py
 cli.py
+archive_read.py
 http_client.py
 parser.py
 storage.py
+target_list.py
 
 Current test structure includes:
 
@@ -1557,7 +1579,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK022 is complete.
+TASK023 is complete.
 
 Next task is not yet fixed.
 
@@ -5030,7 +5052,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Mon Mar 23 06:08:34 UTC 2026
+generated: Tue Mar 24 01:48:22 UTC 2026
 mode: full
 
 

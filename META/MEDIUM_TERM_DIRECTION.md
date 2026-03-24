@@ -44,291 +44,221 @@ Current baseline:
 
 - `main.py` = CLI entry
 - `orchestrator.py` = scraping flow / save-order orchestration
+- `archive_read.py` = archive-facing read / export seam
 - `http_client.py` = HTTP fetch layer
 - `parser.py` = HTML parsing
 - `storage.py` = persistence
+- `target_list.py` = plain-text target source handling
 
-The current near-term product direction remains:
-
-> save bulletin-board comments correctly for a broad range of Nico Nico Pedia articles
-
-The next planning phase should now shift from repeated single-article hardening
-toward **bounded functional expansion**.
+The current near-term product direction should now shift from
+personal-use CLI/runtime practicality toward a **bounded Web publication phase**.
 
 Priority for the next medium-term phase:
 
-1. preserve already-adopted single-article correctness
-2. move into practical user-facing functionality
-3. support real operational usage
-4. preserve Double Helix comparison value
-5. avoid endless infrastructure-first hardening
+1. preserve already-adopted scrape / archive correctness
+2. reuse the current scrape and archive-read seams rather than redesign them
+3. enable a minimal Web-facing request / retrieval flow
+4. keep the phase practical and single-operator-friendly first
+5. defer broader public-platform concerns until after bounded Web publication exists
 
 This means the project should now prefer:
 
-- representative regression protection
-- target-list based operation
-- batch execution
-- run visibility
-- periodic execution entrypoints
-- usable archive readout / export
+- article-input resolution
+- non-CLI reuse of archive-read / export behavior
+- minimal request queue persistence
+- bounded queue-drain execution reusing current scrape flow
+- minimal Web UI / frontend
+- saved-article TXT download
+- bounded Web runtime / publication packaging
 
 over:
 
-- broad frameworkization
-- large retry/backoff systems
-- full failure-taxonomy expansion
-- heavy scheduler design
-- speculative security/platform work not yet required
-- premature Web/API formalization
+- broad frameworkization before the core flow exists
+- auth / account systems
+- multi-tenant or public-abuse policy design
+- immediate multi-format export expansion
+- storage redesign
+- advanced scheduler / worker-platform design
+- speculative platform abstraction not yet required
 
 --------------------------------------------------
 
 ## Near-term task direction
 
-### TASK012 direction
-Representative regression protection strengthening for the
-already-adopted main single-article path.
+### TASK024 direction
+Article input resolution seam.
 
 Expected shape:
 
-- focused regression coverage
-- tied directly to already-adopted production behavior
-- centered mainly on `tests/test_orchestrator.py`
-- no test-only drift
-- no broad redesign
-
-Main representative coverage should include:
-
-- article not found
-- no-BBS / zero-response
-- later-page interruption
-- known high-volume skip
-- response-cap reached
-- normal save path
-
-### TASK013 direction
-Target-list definition and loading.
-
-Expected shape:
-
-- introduce a minimal target-list format for practical use
-- keep the format simple and human-editable
-- support bounded loading into the current CLI/application flow
-- no general config framework yet
-- no scheduler expansion yet
+- define a bounded resolution path from human input to a canonical article target
+- support the future Web input shape:
+  - article name text input
+  - article URL input
+- normalize successful resolution into data that existing scrape/read paths can use
+- keep the task centered on resolution semantics rather than Web UI implementation
+- do not turn the task into broad search-platform design
 
 Preferred direction:
 
-- start with a small file-based target list
-- keep required fields minimal
-- favor practical operation over abstract flexibility
+- make exact or practical bounded article resolution possible
+- keep the output shape explainable and reusable
+- prepare for later Web input without starting the Web app yet
 
-### TASK014 direction
-Batch scrape command.
-
-Expected shape:
-
-- bounded multi-target execution using the target list
-- reuse the existing single-article scrape flow
-- no parallel/distributed execution yet
-- no retry framework expansion yet
-- keep behavior reviewable and CLI-centered
-
-Preferred direction:
-
-- add a practical batch entrypoint
-- keep execution flow simple
-- preserve child-repo reviewability under Double Helix
-
-### TASK015 direction
-Scrape run logging / status recording.
+### TASK025 direction
+Archive-read / export reuse for non-CLI consumers.
 
 Expected shape:
 
-- minimal run-level recordkeeping
-- enough visibility for practical repeated usage
-- no heavy observability framework
-- no logging subsystem redesign
+- make the already-adopted archive-read behavior easier to call outside the CLI
+- support bounded checks such as:
+  - is this article already saved?
+  - if saved, return bounded TXT export content for one article
+- keep the task centered on reuse of the current read seam
+- do not broaden into multi-format export yet
 
 Preferred direction:
 
-- store only the minimum useful run facts
-- make later inspection practical
-- support future periodic execution without overbuilding
+- reuse `archive_read.py` more cleanly from later Web-facing code
+- make saved-article TXT retrieval practical
+- stay pre-frontend and pre-route for this task
 
-### TASK016 direction
-Periodic execution entrypoint.
+### TASK026 direction
+Minimal request queue persistence.
 
 Expected shape:
 
-- provide a stable entrypoint for repeated execution
-- remain compatible with lightweight external scheduling
-- do not expand into a large scheduler framework
-- do not turn this task into deployment architecture work
+- introduce a bounded persistence path for not-yet-saved article requests
+- keep queue state minimal and explainable
+- handle duplicate-enqueue concerns in bounded form
+- keep the task small and avoid turning it into a job platform
 
 Preferred direction:
 
-- support “run this set regularly”
-- keep implementation bounded and CLI-oriented
-- defer complex scheduling policy
+- support “unsaved article → queue request” as a concrete next capability
+- preserve the current architecture as much as possible
+- defer advanced queue policy
 
-### TASK017 direction
-Archive export / readout command.
+### TASK027 direction
+Queue-drain execution path.
 
 Expected shape:
 
-- make saved data easier to use directly
-- provide one or more practical export/readout forms
-- no Web UI requirement yet
-- no presentation-layer framework yet
+- provide a bounded way to drain queued article requests
+- reuse the current scrape path for actual collection
+- remain single-process / bounded in behavior
+- do not introduce distributed worker design
+- do not expand into scheduler-framework design
 
 Preferred direction:
 
-- improve actual usability of saved archives
-- support human inspection and downstream use
-- keep scope bounded and output-focused
+- make the queue operational rather than conceptual
+- keep execution flow explainable
+- preserve current scrape semantics
 
-### TASK018 direction
-Target intake / add-target minimal command.
+### TASK028 direction
+Minimal Web app skeleton and frontend.
 
 Expected shape:
 
-- provide a minimal way to add future scrape targets
-- remain bounded and file/CLI-based at first
-- no queue system yet
-- no request platform yet
+- introduce a minimal Web-facing UI / frontend
+- include:
+  - article-name / article-URL input
+  - submit button
+  - bounded result display
+- keep the UI practical and simple
+- do not turn this into full design-system work
+- do not introduce auth / account / public-product concerns yet
 
 Preferred direction:
 
-- support real project usage
-- keep target management simple
-- defer generalized intake systems
+- make the product visibly usable as a Web app
+- keep the frontend/operator flow very small
+- defer visual polish and broader productization
 
-### TASK019 direction
-All-articles export / archive listing.
+### TASK029 direction
+Saved → TXT download / unsaved → enqueue end-to-end flow.
 
 Expected shape:
 
-- make the saved archive usable at the whole-archive level
-- remain CLI-centered and output-focused
-- support bounded listing and/or export of multiple saved articles
-- no Web UI requirement yet
-- no API requirement yet
-- no presentation-layer framework yet
-- no storage redesign yet
+- implement the main bounded Web UX:
+  - if already scraped, return TXT download
+  - if not yet scraped, enqueue the request
+- keep output format to `txt` only in this phase
+- provide bounded user feedback for both outcomes
+- do not expand into CSV / JSON / MD / HTML selection yet
 
 Preferred direction:
 
-- add practical whole-archive readout/export capability
-- preserve the already-adopted single-article export path
-- keep scope bounded and human-usable
-- support personal-use practicality before platform expansion
+- complete the core request/result loop
+- keep the phase focused on one practical end-to-end behavior
+- preserve boundedness over feature breadth
 
-### TASK020 direction
-Provisional production runtime / deployment profile.
+### TASK030 direction
+Bounded Web runtime / publication packaging.
 
 Expected shape:
 
-- define a practical runtime separate from the development container/profile
-- support personal-use operation with the current SQLite-centered baseline
-- keep deployment shape small and explainable
-- no large infrastructure design
-- no container-orchestration platform work
-- no premature production-platform abstraction
+- package the minimal Web app into a practical runtime/publication baseline
+- support a small deployable shape for the current single-operator phase
+- keep the deployment/runtime story concrete and explainable
+- do not turn this into cloud-platform abstraction
+- do not turn this into heavy ops/platform design
 
 Preferred direction:
 
-- provide a separate runtime/profile for provisional personal-use deployment
-- preserve the current project architecture
-- keep ops steps concrete and terminal-friendly
-- support later deployment evolution without overbuilding now
-
-### TASK021 direction
-Periodic operation packaging for personal-use runtime.
-
-Expected shape:
-
-- make the existing periodic execution entrypoint practical to run in the
-  provisional production runtime
-- support repeated operation against a manually maintained target list
-- remain compatible with lightweight external scheduling
-- do not expand into a scheduler framework
-- do not add full overlap/fairness policy design yet
-
-Preferred direction:
-
-- make “run every few hours against the current target list” practical
-- preserve the bounded CLI-centered periodic design already adopted
-- support accumulating results into the current SQLite-based storage
-- keep operational behavior explainable and reviewable
-
-### TASK022 direction
-Bounded interface seam preparation for later Web/API expansion.
-
-Expected shape:
-
-- prepare cleaner seams for later retrieval/export interfaces
-- remain strictly pre-Web and pre-API
-- do not introduce a full application framework yet
-- do not start platform expansion prematurely
-- keep compatibility with the already-adopted CLI/archive behavior
-
-Preferred direction:
-
-- clarify archive-read/export boundaries that future interfaces will need
-- clarify target-intake boundaries that future interfaces will need
-- keep current architecture stable
-- do only the minimum preparation justified by the provisional personal-use phase
+- make the bounded Web app actually publishable
+- preserve the current project scale
+- defer broader production-platform formalization until later
 
 --------------------------------------------------
 
 ## Next medium-term phase framing
 
 The next medium-term phase should aim to make the system
-**practically usable for personal use** before starting actual Web/API work.
+**publishable as a bounded Web application**.
 
 Target outcome for this phase:
 
-- a provisional runtime separate from the development workflow exists
-- a manually maintained target list can drive repeated archive collection
-  every few hours
-- collected results continue to accumulate in the current SQLite-centered store
-- a specific saved article can be exported in practical text formats
-- the whole saved archive can also be listed and/or exported in bounded forms
-- later Web/API expansion is supported by cleaner seams, but is not yet started
+- a minimal Web app exists
+- the UI includes an article-name or article-URL input path
+- the UI includes a submit action
+- if the requested article is already saved, the archive can be returned as
+  a `txt` download
+- if the requested article is not yet saved, the request can be queued
+- queued requests can be drained using a bounded execution path that reuses
+  the adopted scraping baseline
+- the published runtime remains small, explainable, and operator-friendly
+- broader third-party/public policy questions may remain undecided
+- richer export formats such as `md`, `json`, `csv`, or simple `html`
+  remain deferred until after the bounded Web baseline exists
 
 Interpretation note:
 
 - this phase framing is planning guidance, not authoritative current state
 - exact task boundaries may still be adjusted if review evidence suggests a
   better bounded split
-- keep “personal-use practicality first, platform expansion later” as the main
-  directional rule
+- keep “bounded Web publication first, broader platform concerns later”
+  as the main directional rule
 
 --------------------------------------------------
-
 
 ## Planning priority
 
 Recommended working order:
 
-1. `TASK012` representative regression protection strengthening
-2. `TASK013` target-list definition and loading
-3. `TASK014` batch scrape command
-4. `TASK015` scrape run logging / status recording
-5. `TASK016` periodic execution entrypoint
-6. `TASK017` archive export / readout command
-7. `TASK018` target intake / add-target minimal command
-8. `TASK019` bounded interface preparation for later Web/API
-9. `TASK020` provisional production runtime / deployment profile
-10. `TASK021` periodic operation packaging for personal-use runtime
-11. `TASK022` bounded interface seam preparation for later Web/API
+1. `TASK024` article input resolution seam
+2. `TASK025` archive-read / export reuse for non-CLI consumers
+3. `TASK026` minimal request queue persistence
+4. `TASK027` queue-drain execution path
+5. `TASK028` minimal Web app skeleton and frontend
+6. `TASK029` saved → TXT download / unsaved → enqueue flow
+7. `TASK030` bounded Web runtime / publication packaging
 
 This order is recommended because it:
 
-- closes the main single-article path first
-- moves quickly into practical functionality
-- supports real usage before platform expansion
+- reuses the already-adopted CLI/runtime/archive baseline
+- prepares Web behavior by seam and flow rather than by premature framework-first work
+- delivers a usable Web app in bounded increments
 - preserves bounded task size
 - remains compatible with the Double Helix workflow
 
@@ -341,18 +271,18 @@ When defining the next task, prefer:
 - small bounded tasks
 - production-facing progress over abstract cleanup
 - explicit scope / non-goals
-- preservation of current architecture
+- preservation of current architecture unless a task explicitly changes it
 - reviewable changes that fit the Double Helix model
-- practical functionality before platform expansion
+- practical Web-facing functionality before broader platform expansion
 
 Avoid:
 
 - cross-layer redesign
 - framework-first abstraction
 - broad speculative refactors
-- turning every follow-up into a test-only task
 - silently widening the task after implementation starts
-- endless hardening before useful features exist
+- premature public-platform hardening before the bounded Web baseline exists
+- multi-format feature expansion before the saved→TXT / unsaved→queue flow exists
 
 --------------------------------------------------
 
@@ -405,5 +335,3 @@ A good rule of thumb:
 - roadmap = broad reference
 - medium-term direction = working near-term plan
 - state files + snapshots = authoritative truth
-
-
