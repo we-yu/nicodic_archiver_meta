@@ -480,6 +480,26 @@ TASK024 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK025 has been completed.
+
+TASK025 result:
+
+• Cursor implementation was adopted
+• Copilot implementation was retained for comparison evidence
+• the archive-read seam was extended for bounded non-CLI reuse
+• a bounded saved-article existence check was added
+• a bounded one-article TXT retrieval path was added
+• missing article handling is now exposed in bounded non-CLI-facing form
+• existing CLI txt export now reuses the read-side seam
+• existing CLI-visible export/list behavior was preserved
+• the task remained pre-Web / pre-route / pre-queue
+• no multi-format expansion was introduced
+• no storage schema redesign was introduced
+• no archive-write redesign was introduced
+• both repositories were later aligned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Operational note:
 
 • a separate sibling checkout for provisional personal-use runtime operation now exists outside this workspace root:
@@ -520,6 +540,7 @@ tests/test_storage.py
 tests/test_target_list.py
 tests/test_cli.py
 tests/test_article_resolver.py
+tests/test_archive_read.py
 
 Additional helper scripts exist:
 
@@ -620,9 +641,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK023 is complete.
-
-Next task is not yet fixed.
+TASK025 is complete.
 
 A roadmap reference exists for future-direction context only:
 
