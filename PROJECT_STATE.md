@@ -500,6 +500,26 @@ TASK025 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK026 has been completed.
+
+TASK026 result:
+
+• Cursor implementation was adopted
+• Copilot implementation was retained for comparison evidence
+• a bounded request queue persistence seam was added
+• resolved canonical article targets can now be persisted as queued requests
+• duplicate enqueue handling was added in bounded form
+• queue identity is based on canonical article identity
+• queue persistence remains minimal and explainable
+• the task remained pre-drain / pre-Web / pre-scheduler
+• no queue-drain execution was introduced
+• no scrape execution redesign was introduced
+• no Web / API expansion was introduced
+• no broad storage schema redesign was introduced
+• both repositories were later aligned again at the same code state
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Operational note:
 
 • a separate sibling checkout for provisional personal-use runtime operation now exists outside this workspace root:
@@ -641,7 +661,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK025 is complete.
+TASK026 is complete.
 
 A roadmap reference exists for future-direction context only:
 
