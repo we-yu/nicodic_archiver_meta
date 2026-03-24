@@ -536,6 +536,26 @@ Operational note:
   through `runtime/periodic_once.sh`
 • container-internal cron is still not part of the adopted product design
 
+TASK027 has been completed.
+
+TASK027 result:
+
+• Cursor implementation was adopted
+• Copilot implementation was retained for comparison evidence
+• a bounded queue-drain execution path was added
+• queue-drain reuses the current scrape path with explicit queue-drain-only cap plumbing
+• a named per-article response cap was added for queue-drain execution
+• success-class terminal outcomes now dequeue queued requests
+• unexpected failures now leave queued requests in place
+• no broad queue status model was introduced
+• `orchestrator.py` was updated
+• `storage.py` was updated
+• `tests/test_orchestrator.py` was updated
+• `tests/test_storage.py` was updated
+• both repositories now reflect the same adopted final state on `main`
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -661,7 +681,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK026 is complete.
+TASK027 is complete.
 
 A roadmap reference exists for future-direction context only:
 
