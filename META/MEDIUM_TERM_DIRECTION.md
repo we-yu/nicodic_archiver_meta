@@ -139,13 +139,16 @@ Preferred direction:
 - defer advanced queue policy
 
 ### TASK027 direction
-Queue-drain execution path.
+Queue-drain execution path with bounded per-article cap.
 
 Expected shape:
 
 - provide a bounded way to drain queued article requests
 - reuse the current scrape path for actual collection
 - remain single-process / bounded in behavior
+- include a bounded per-article response cap for drain / batch-like execution
+- keep the cap as a named policy constant rather than a magic number
+- treat cap-reached results as bounded partial-save / success-class behavior
 - do not introduce distributed worker design
 - do not expand into scheduler-framework design
 
@@ -153,7 +156,9 @@ Preferred direction:
 
 - make the queue operational rather than conceptual
 - keep execution flow explainable
-- preserve current scrape semantics
+- prevent one large article from monopolizing one drain pass
+- preserve current scrape semantics as much as possible
+- allow the cap value to be revised later without redesign
 
 ### TASK028 direction
 Minimal Web app skeleton and frontend.
