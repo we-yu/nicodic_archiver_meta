@@ -215,6 +215,33 @@ Preferred direction:
 - preserve the current project scale
 - defer broader production-platform formalization until later
 
+### TASK031 direction
+Bounded observability / log hygiene follow-up.
+
+Expected shape:
+
+- add a bounded operator-facing observability layer for repeated runs
+- make it easier to identify:
+  - stalled articles
+  - repeatedly interrupted articles
+  - skip-affected runs
+  - articles whose saved progress does not move despite observed totals
+- allow practical export to `csv` for spreadsheet inspection
+- treat `csv` as a derived export, not as the primary source of truth
+- include bounded log-hygiene handling for older runtime logs
+  such as retention / compression / rotation in practical form
+- keep the task single-operator-friendly and explainable
+- do not turn this into a dashboard / analytics platform / alerting system
+- do not redesign the main archive source of truth
+
+Preferred direction:
+
+- place this after the bounded Web publication baseline exists
+- treat it as an observability improvement, not as the core Web request flow
+- prefer append-only or near-append-only telemetry semantics internally
+- keep text logs available unless replacement is clearly justified
+- keep exports practical and operator-oriented
+
 --------------------------------------------------
 
 ## Next medium-term phase framing
@@ -237,6 +264,16 @@ Target outcome for this phase:
 - richer export formats such as `md`, `json`, `csv`, or simple `html`
   remain deferred until after the bounded Web baseline exists
 
+Post-baseline note:
+
+- after the bounded Web publication baseline exists, a bounded follow-up task
+  may improve operator observability and runtime log hygiene
+- examples may include:
+  - run/article telemetry
+  - derived `csv` export for spreadsheet inspection
+  - practical retention / compression / rotation handling for older logs
+- this follow-up is not part of the bounded Web baseline itself
+
 Interpretation note:
 
 - this phase framing is planning guidance, not authoritative current state
@@ -258,6 +295,7 @@ Recommended working order:
 5. `TASK028` minimal Web app skeleton and frontend
 6. `TASK029` saved → TXT download / unsaved → enqueue flow
 7. `TASK030` bounded Web runtime / publication packaging
+8. `TASK031` bounded observability / log hygiene follow-up
 
 This order is recommended because it:
 
