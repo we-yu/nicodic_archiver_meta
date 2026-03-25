@@ -79,6 +79,35 @@ Hybrid was considered, but not selected because:
 Validation was run with the established workflow:
 - final `./validate_helix.sh` passed for both child repositories
 
+## Review-path note
+
+Review opinion was initially split.
+
+Earlier review emphasis favored the Copilot shape because:
+- queue-drain responsibility was easier to spot as a task-local unit
+- the dedicated `queue_drain.py` module made the drain path easy to review
+
+The final adoption decision favored Cursor after narrowing the comparison
+to one concrete implementation trade-off:
+
+1. queue-drain-only task-local boundedness
+2. scrape-path reuse shape and maintainability under queue-drain-only cap handling
+
+The final decision gave more weight to the second point.
+
+Why Cursor won on that narrowed comparison:
+- queue-drain passed the response cap explicitly through the scrape path
+- no temporary global `RESPONSE_CAP` mutation was required
+- the adopted result was judged to be the more natural reusable baseline for
+  this task's queue-drain execution policy
+
+Interpretation:
+- the disagreement was not mainly about broad task drift
+- it was mainly about the trade-off between:
+  - localized queue-drain isolation
+  - explicit scrape-path parameter plumbing
+- final adoption selected Cursor without requiring a hybrid
+
 ## Convergence result
 - `./compare_helix.sh --all` passed after adoption and synchronization
 - `copilot/` and `cursor/` matched on the adopted final state
