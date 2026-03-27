@@ -586,6 +586,29 @@ TASK028 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK029 has been completed.
+
+TASK029 result:
+
+• Cursor implementation was adopted
+• Copilot implementation was retained for comparison evidence
+• the existing minimal Web-facing archive-check UI gained bounded next actions
+• saved results can now return a one-article Web TXT download
+• unsaved results can now enqueue a request using the existing queue persistence baseline
+• duplicate enqueue remains success-class at the user-facing level
+• follow-up actions reuse the existing message area
+• bounded action-time recheck was added for follow-up actions
+• UI changes remained minimal
+• `web_app.py` was updated
+• `tests/test_web_app.py` was updated
+• no auth / account / public-abuse design was introduced
+• no CSV / JSON / MD / HTML Web implementation was introduced
+• no queue / scheduler / worker redesign was introduced
+• no broad runtime / deploy redesign was introduced
+• both repositories now reflect the same adopted final state on `main`
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -711,7 +734,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK028 is complete.
+TASK029 is complete.
 
 A roadmap reference exists for future-direction context only:
 
