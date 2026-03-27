@@ -1556,6 +1556,36 @@ TASK027 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK028 has been completed.
+
+TASK028 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• a minimal Web-facing archive-check UI was added
+• the UI now provides an article-name / article-URL input, a submit button,
+  and a bounded result display
+• `main.py` now exposes a bounded Web app entrypoint
+• `web_app.py` was added
+• `archive_read.py` was extended for bounded saved-article summary lookup from
+  Web-facing code
+• the adopted-side review path included narrow follow-up fixes for title-input
+  behavior before close-out
+• title-input ordinary misses no longer leak RuntimeError from the title-search
+  path
+• the archive-check UX now supports local saved-title lookup before falling
+  back to broader resolution behavior
+• local saved-title lookup now supports a bounded case-insensitive title match
+  for visitor-facing parity such as `G123` / `g123`
+• representative browser smoke checks succeeded for saved URL/title inputs on
+  the adopted-side candidate
+• no TXT download or enqueue behavior was added yet
+• `tests/test_web_app.py` was added
+• archive-read / resolver / main tests were updated
+• both repositories now reflect the same adopted final state on `main`
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -1681,7 +1711,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK027 is complete.
+TASK028 is complete.
 
 A roadmap reference exists for future-direction context only:
 
@@ -5242,6 +5272,35 @@ Hybrid was considered, but not selected because:
 Validation was run with the established workflow:
 - final `./validate_helix.sh` passed for both child repositories
 
+## Review-path note
+
+Review opinion was initially split.
+
+Earlier review emphasis favored the Copilot shape because:
+- queue-drain responsibility was easier to spot as a task-local unit
+- the dedicated `queue_drain.py` module made the drain path easy to review
+
+The final adoption decision favored Cursor after narrowing the comparison
+to one concrete implementation trade-off:
+
+1. queue-drain-only task-local boundedness
+2. scrape-path reuse shape and maintainability under queue-drain-only cap handling
+
+The final decision gave more weight to the second point.
+
+Why Cursor won on that narrowed comparison:
+- queue-drain passed the response cap explicitly through the scrape path
+- no temporary global `RESPONSE_CAP` mutation was required
+- the adopted result was judged to be the more natural reusable baseline for
+  this task's queue-drain execution policy
+
+Interpretation:
+- the disagreement was not mainly about broad task drift
+- it was mainly about the trade-off between:
+  - localized queue-drain isolation
+  - explicit scrape-path parameter plumbing
+- final adoption selected Cursor without requiring a hybrid
+
 ## Convergence result
 - `./compare_helix.sh --all` passed after adoption and synchronization
 - `copilot/` and `cursor/` matched on the adopted final state
@@ -5260,6 +5319,209 @@ Important interpretation:
 - cap-reached behavior remains success-class partial-save
 - queue persistence still remains minimal and explainable
 - the task remained pre-Web / pre-route / pre-worker-framework
+
+## Meta note
+This log is AI-readable review memory.
+It is not authoritative current state by itself.
+
+Authoritative context should still be restored from:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
+
+
+
+
+===== REVIEW LOG: META/review_log/TASK028_adoption.md =====
+# TASK028 Adoption Log
+
+## Task
+TASK028
+
+Minimal Web app skeleton and frontend.
+
+## Decision
+Adopted: **Copilot**
+
+Alternative reviewed:
+- Cursor implementation was retained for comparison evidence
+- Hybrid was considered but not selected
+
+## Final adopted shape
+Changed files:
+- `archive_read.py`
+- `article_resolver.py`
+- `main.py`
+- `web_app.py`
+- `tests/test_archive_read.py`
+- `tests/test_article_resolver.py`
+- `tests/test_main.py`
+- `tests/test_web_app.py`
+
+## What changed in the adopted result
+The adopted result introduced a bounded Web-facing archive-check UI.
+
+Key behavior added:
+- a minimal Web page now exists
+- the UI accepts article-name or article-URL input
+- the UI includes a submit action
+- the UI returns a bounded result display
+- `main.py` now exposes a bounded Web app entrypoint
+- archive-read reuse was extended for Web-facing saved-article summary checks
+- local saved-title lookup was added for the archive-check UX
+- a bounded case-insensitive local saved-title fallback was added for visitor-
+  facing parity such as `G123` / `g123`
+- ordinary title-path misses no longer leak RuntimeError as the normal outcome
+- no TXT download behavior was added yet
+- no enqueue behavior was added yet
+
+The adopted result did not introduce:
+- saved → TXT download
+- unsaved → enqueue
+- auth / account / public-product concerns
+- broad frameworkization
+- broad resolver redesign
+- public runtime / publication packaging
+- multi-format export expansion
+
+## Why Copilot was adopted
+Primary reasons:
+
+1. It produced the more complete bounded Web skeleton.
+   - it added a clearer Web-facing page and route shape
+   - it added a bounded `main.py` entrypoint for browser smoke checks
+   - it reused archive-read more richly for saved-state reporting
+
+2. It was more review-friendly for the archive-check UX.
+   - browser smoke checks were practical on the adopted-side candidate
+   - the page exposed saved result details in a bounded, explainable form
+
+3. After narrow follow-up fixes, it met the intended TASK028 UX better.
+   - title-input RuntimeError was removed as the normal failure shape
+   - local saved-title lookup was added without broadening into TASK029
+
+## Why Cursor was not adopted
+Cursor implementation was valid, bounded, and useful as comparison evidence.
+
+Observed strengths:
+- very small diff surface
+- simple stdlib WSGI shape
+- bounded Web loop with focused tests
+
+Reasons it was not selected:
+- it remained thinner as a Web-facing archive-check surface
+- it exposed less archive-check detail than the adopted result
+- once the adopted-side candidate was repaired narrowly, Cursor no longer had
+  the stronger overall case for TASK028
+
+## Why Hybrid was not selected
+Hybrid was considered, but not selected because:
+- Copilot already satisfied the intended TASK028 shape after narrow fixes
+- no narrow borrowed Cursor change clearly improved the adopted result enough
+  to justify a hybrid
+- merge-for-the-sake-of-merge was unnecessary
+
+## Review-path note
+Review did not close immediately after the first browser smoke check.
+
+Initial browser observations:
+- URL input behaved broadly as expected on both implementations
+- title input on both implementations initially failed in practice
+- the shared failure shape suggested a common path issue rather than a clean
+  differentiator between the two implementations
+
+Because of that:
+- TASK028 was intentionally not closed at that point
+- Copilot was kept as the provisional adopted-side candidate
+- an adopted-side-only diagnostic path was used before final adoption
+
+## Adopted-side-only diagnostic note
+A temporary local diagnostic helper path was used on the adopted-side candidate.
+
+Shape of that diagnostic work:
+- temporary `front_test/` helpers seeded deterministic local data in
+  `copilot/data/`
+- no product code was changed by that seed itself
+- the purpose was to separate data-shape issues from title-path code issues
+
+What the seeded checks showed:
+- URL input could reach saved results
+- saved-archive lookup itself was working
+- title input was still the remaining problem
+
+Interpretation:
+- the remaining issue was in the title-input path / archive-check behavior
+- the problem was not primarily that local saved data could not be found
+
+## Follow-up fixes before close-out
+The adopted-side candidate then received narrow follow-up fixes before close-out.
+
+### 1. title-path ordinary miss fix
+- ordinary title-search 404 behavior was mapped to bounded `not_found`
+- unexpected non-404 failures remained internal_error
+
+### 2. local saved-title archive-check fix
+- for non-URL input, the Web archive-check path now checks for a locally saved
+  title hit before falling back to broader resolution behavior
+- this made saved title input behave like the equivalent saved URL input for
+  exact local title hits
+
+### 3. bounded case-insensitive local title lookup
+- a narrow local title fallback was added for case-insensitive lookup
+- this was chosen for visitor-facing parity such as `G123` / `g123`
+- fuzzy matching and broader search expansion were intentionally not added
+
+## Browser verification note
+Representative adopted-side browser smoke checks succeeded for saved cases such
+as:
+- article URL input for `g123`
+- article URL input for `G123`
+- article URL input for the Hetalia article
+- article title input for `プロイセン(APヘタリア)`
+
+Additional bounded local title parity handling was implemented for the archive-
+check UX.
+
+## Validation result
+Validation was run with the established workflow:
+- final `./validate_helix.sh` passed for both child repositories
+
+Observed final validation state:
+- `copilot`: PASS
+- `cursor`: PASS
+
+## Convergence result
+- `./compare_helix.sh --all` passed after adoption and synchronization
+- `copilot/` and `cursor/` matched on the adopted final state
+
+## Repository outcome
+- adopted implementation repository: `copilot`
+- comparison-evidence repository: `cursor`
+- optional adoption marker branch:
+  - `adopted/task028-web-skeleton-frontend`
+
+## Front-check helper note
+Temporary front-check helpers were useful during review.
+
+However:
+- they were treated as local workflow support
+- they were not part of the adopted product diff itself
+- they were not required to close TASK028
+
+If browser-smoke helper formalization is desired later, it should be handled as
+a separate root-helper improvement rather than by retroactively widening TASK028.
+
+## Notes for future AI sessions
+Important interpretation:
+- TASK028 is complete
+- a bounded Web archive-check UI now exists
+- browser smoke checks were used as part of the review path
+- title-input behavior required adopted-side-only follow-up fixes before final
+  closure
+- local saved-title lookup now exists for the archive-check UX
+- bounded case-insensitive local title lookup was added
+- saved → TXT download and unsaved → enqueue remain for later tasks
 
 ## Meta note
 This log is AI-readable review memory.
@@ -5626,7 +5888,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Tue Mar 24 18:35:46 UTC 2026
+generated: Thu Mar 26 17:00:24 UTC 2026
 mode: full
 
 
@@ -6803,6 +7065,33 @@ Preferred direction:
 - preserve the current project scale
 - defer broader production-platform formalization until later
 
+### TASK031 direction
+Bounded observability / log hygiene follow-up.
+
+Expected shape:
+
+- add a bounded operator-facing observability layer for repeated runs
+- make it easier to identify:
+  - stalled articles
+  - repeatedly interrupted articles
+  - skip-affected runs
+  - articles whose saved progress does not move despite observed totals
+- allow practical export to `csv` for spreadsheet inspection
+- treat `csv` as a derived export, not as the primary source of truth
+- include bounded log-hygiene handling for older runtime logs
+  such as retention / compression / rotation in practical form
+- keep the task single-operator-friendly and explainable
+- do not turn this into a dashboard / analytics platform / alerting system
+- do not redesign the main archive source of truth
+
+Preferred direction:
+
+- place this after the bounded Web publication baseline exists
+- treat it as an observability improvement, not as the core Web request flow
+- prefer append-only or near-append-only telemetry semantics internally
+- keep text logs available unless replacement is clearly justified
+- keep exports practical and operator-oriented
+
 --------------------------------------------------
 
 ## Next medium-term phase framing
@@ -6825,6 +7114,16 @@ Target outcome for this phase:
 - richer export formats such as `md`, `json`, `csv`, or simple `html`
   remain deferred until after the bounded Web baseline exists
 
+Post-baseline note:
+
+- after the bounded Web publication baseline exists, a bounded follow-up task
+  may improve operator observability and runtime log hygiene
+- examples may include:
+  - run/article telemetry
+  - derived `csv` export for spreadsheet inspection
+  - practical retention / compression / rotation handling for older logs
+- this follow-up is not part of the bounded Web baseline itself
+
 Interpretation note:
 
 - this phase framing is planning guidance, not authoritative current state
@@ -6846,6 +7145,7 @@ Recommended working order:
 5. `TASK028` minimal Web app skeleton and frontend
 6. `TASK029` saved → TXT download / unsaved → enqueue flow
 7. `TASK030` bounded Web runtime / publication packaging
+8. `TASK031` bounded observability / log hygiene follow-up
 
 This order is recommended because it:
 
@@ -8770,6 +9070,65 @@ FILE: ./copilot/archive_read.py
 import sqlite3
 
 
+def _count_saved_responses(cur, article_id, article_type):
+    cur.execute(
+        """
+        SELECT COUNT(*)
+        FROM responses
+        WHERE article_id=? AND article_type=?
+        """,
+        (article_id, article_type),
+    )
+    return cur.fetchone()[0]
+
+
+def _build_saved_article_summary(
+    article_id,
+    article_type,
+    title,
+    url,
+    created_at,
+    response_count,
+):
+    return {
+        "found": True,
+        "article_id": article_id,
+        "article_type": article_type,
+        "title": title,
+        "url": url,
+        "created_at": created_at,
+        "response_count": response_count,
+    }
+
+
+def _find_saved_article_by_title_lookup(cur, title):
+    cur.execute(
+        """
+        SELECT article_id, article_type, title, canonical_url, created_at
+        FROM articles
+        WHERE title=?
+        ORDER BY created_at ASC, article_id ASC, article_type ASC
+        LIMIT 1
+        """,
+        (title,),
+    )
+    article = cur.fetchone()
+    if article is not None:
+        return article
+
+    cur.execute(
+        """
+        SELECT article_id, article_type, title, canonical_url, created_at
+        FROM articles
+        WHERE title = ? COLLATE NOCASE
+        ORDER BY created_at ASC, article_id ASC, article_type ASC
+        LIMIT 1
+        """,
+        (title,),
+    )
+    return cur.fetchone()
+
+
 def has_saved_article(article_id, article_type):
     """Return True when the article exists in saved archive."""
 
@@ -8844,6 +9203,82 @@ def read_article_archive(article_id, article_type, last_n=None):
         "created_at": created_at,
         "responses": rows,
     }
+
+
+def get_saved_article_summary(article_id, article_type):
+    """Return bounded metadata for non-CLI consumers checking archive status."""
+
+    conn = sqlite3.connect("data/nicodic.db")
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT title, canonical_url, created_at
+        FROM articles
+        WHERE article_id=? AND article_type=?
+        """,
+        (article_id, article_type),
+    )
+
+    article = cur.fetchone()
+    if not article:
+        conn.close()
+        return {
+            "found": False,
+            "article_id": article_id,
+            "article_type": article_type,
+            "title": None,
+            "url": None,
+            "created_at": None,
+            "response_count": 0,
+        }
+
+    title, url, created_at = article
+    response_count = _count_saved_responses(cur, article_id, article_type)
+    conn.close()
+
+    return _build_saved_article_summary(
+        article_id,
+        article_type,
+        title,
+        url,
+        created_at,
+        response_count,
+    )
+
+
+def get_saved_article_summary_by_exact_title(title):
+    """Return bounded metadata for a saved-title lookup."""
+
+    conn = sqlite3.connect("data/nicodic.db")
+    cur = conn.cursor()
+
+    article = _find_saved_article_by_title_lookup(cur, title)
+
+    if not article:
+        conn.close()
+        return {
+            "found": False,
+            "article_id": None,
+            "article_type": None,
+            "title": None,
+            "url": None,
+            "created_at": None,
+            "response_count": 0,
+        }
+
+    article_id, article_type, saved_title, url, created_at = article
+    response_count = _count_saved_responses(cur, article_id, article_type)
+    conn.close()
+
+    return _build_saved_article_summary(
+        article_id,
+        article_type,
+        saved_title,
+        url,
+        created_at,
+        response_count,
+    )
 
 
 def _render_txt_archive(archive):
@@ -8995,6 +9430,10 @@ def _build_failure_result(failure_kind: str, normalized_input: str) -> dict:
     }
 
 
+def _is_not_found_runtime_error(exc: RuntimeError) -> bool:
+    return "status=404" in str(exc)
+
+
 def _looks_like_url_input(normalized_input: str) -> bool:
     parsed = urlparse(normalized_input)
     return bool(parsed.scheme or parsed.netloc)
@@ -9054,7 +9493,7 @@ def _resolve_from_article_url(
     try:
         soup = fetch_page(article_url)
     except RuntimeError as exc:
-        if "status=404" in str(exc):
+        if _is_not_found_runtime_error(exc):
             return _build_failure_result("not_found", normalized_input)
         raise
 
@@ -9107,7 +9546,13 @@ def _extract_exact_title_candidate_urls(soup, normalized_title: str) -> list[str
 
 def _resolve_from_exact_title(normalized_title: str) -> dict:
     search_url = _build_title_search_url(normalized_title)
-    soup = fetch_page(search_url)
+    try:
+        soup = fetch_page(search_url)
+    except RuntimeError as exc:
+        if _is_not_found_runtime_error(exc):
+            return _build_failure_result("not_found", normalized_title)
+        raise
+
     candidate_urls = _extract_exact_title_candidate_urls(soup, normalized_title)
 
     if not candidate_urls:
@@ -9785,6 +10230,7 @@ from article_resolver import resolve_article_input
 from cli import export_all_articles, export_article, inspect_article, list_articles
 from orchestrator import run_scrape
 from target_list import add_target_url, load_target_urls
+from web_app import serve_web_app
 
 
 # ============================================================
@@ -9920,6 +10366,7 @@ def main():
         print("  python main.py targets <target_list_path>")
         print("  python main.py batch <target_list_path>")
         print("  python main.py periodic-once <target_list_path>")
+        print("  python main.py web [--host HOST] [--port PORT]")
         print(
             "  python main.py periodic <target_list_path> <interval_seconds> "
             "[--max-runs N]"
@@ -10063,6 +10510,21 @@ def main():
             max_runs = int(sys.argv[idx + 1])
 
         run_periodic_scrape(target_list_path, interval_seconds, max_runs=max_runs)
+        return
+
+    if sys.argv[1] == "web":
+        host = "127.0.0.1"
+        port = 8000
+
+        if "--host" in sys.argv:
+            idx = sys.argv.index("--host")
+            host = sys.argv[idx + 1]
+
+        if "--port" in sys.argv:
+            idx = sys.argv.index("--port")
+            port = int(sys.argv[idx + 1])
+
+        serve_web_app(host=host, port=port)
         return
 
     # 通常スクレイプモード
@@ -10928,7 +11390,12 @@ if str(_root) not in sys.path:
 =============================
 FILE: ./copilot/tests/test_archive_read.py
 =============================
-from archive_read import get_saved_article_txt, has_saved_article
+from archive_read import (
+    get_saved_article_summary,
+    get_saved_article_summary_by_exact_title,
+    get_saved_article_txt,
+    has_saved_article,
+)
 from storage import init_db, save_to_db
 
 
@@ -11004,12 +11471,132 @@ def test_get_saved_article_txt_returns_missing_shape_for_missing_article(
         "article_type": "a",
     }
 
+
+def test_get_saved_article_summary_returns_bounded_metadata_for_existing_article(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = get_saved_article_summary("12345", "a")
+
+    assert result == {
+        "found": True,
+        "article_id": "12345",
+        "article_type": "a",
+        "title": "First Title",
+        "url": "https://dic.nicovideo.jp/a/12345",
+        "created_at": result["created_at"],
+        "response_count": 1,
+    }
+    assert result["created_at"]
+
+
+def test_get_saved_article_summary_returns_missing_shape_for_missing_article(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = get_saved_article_summary("99999", "a")
+
+    assert result == {
+        "found": False,
+        "article_id": "99999",
+        "article_type": "a",
+        "title": None,
+        "url": None,
+        "created_at": None,
+        "response_count": 0,
+    }
+
+
+def test_get_saved_article_summary_by_exact_title_returns_existing_article(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = get_saved_article_summary_by_exact_title("First Title")
+
+    assert result == {
+        "found": True,
+        "article_id": "12345",
+        "article_type": "a",
+        "title": "First Title",
+        "url": "https://dic.nicovideo.jp/a/12345",
+        "created_at": result["created_at"],
+        "response_count": 1,
+    }
+    assert result["created_at"]
+
+
+def test_get_saved_article_summary_by_exact_title_returns_missing_shape(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = get_saved_article_summary_by_exact_title("Missing Title")
+
+    assert result == {
+        "found": False,
+        "article_id": None,
+        "article_type": None,
+        "title": None,
+        "url": None,
+        "created_at": None,
+        "response_count": 0,
+    }
+
+
+def test_get_saved_article_summary_by_exact_title_returns_ascii_case_insensitive_hit(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "5587284",
+            "id",
+            "G123",
+            "https://dic.nicovideo.jp/id/5587284",
+            [
+                {
+                    "res_no": 1,
+                    "id_hash": "g123001",
+                    "poster_name": "Alice",
+                    "posted_at": "2025-01-01 00:00",
+                    "content": "First response",
+                    "content_html": "<p>First response</p>",
+                }
+            ],
+        )
+    finally:
+        conn.close()
+
+    result = get_saved_article_summary_by_exact_title("g123")
+
+    assert result == {
+        "found": True,
+        "article_id": "5587284",
+        "article_type": "id",
+        "title": "G123",
+        "url": "https://dic.nicovideo.jp/id/5587284",
+        "created_at": result["created_at"],
+        "response_count": 1,
+    }
+    assert result["created_at"]
+
 =============================
 FILE: ./copilot/tests/test_article_resolver.py
 =============================
 from unittest.mock import patch
 
 from bs4 import BeautifulSoup
+import pytest
 
 from article_resolver import resolve_article_input
 
@@ -11129,6 +11716,36 @@ def test_resolve_article_input_returns_ambiguous_for_multiple_exact_titles():
         "failure_kind": "ambiguous",
         "normalized_input": "Foo",
     }
+
+
+def test_resolve_article_input_returns_not_found_when_title_search_is_404():
+    with patch(
+        "article_resolver.fetch_page",
+        side_effect=RuntimeError(
+            "Failed to fetch https://dic.nicovideo.jp/search/Foo (status=404)"
+        ),
+    ):
+        result = resolve_article_input("Foo")
+
+    assert result == {
+        "ok": False,
+        "failure_kind": "not_found",
+        "normalized_input": "Foo",
+    }
+
+
+def test_resolve_article_input_still_raises_unexpected_title_search_errors():
+    with patch(
+        "article_resolver.fetch_page",
+        side_effect=RuntimeError(
+            "Failed to fetch https://dic.nicovideo.jp/search/Foo "
+            "(timeout=10s)"
+        ),
+    ):
+        with pytest.raises(RuntimeError) as exc_info:
+            resolve_article_input("Foo")
+
+    assert "timeout=10s" in str(exc_info.value)
 
 =============================
 FILE: ./copilot/tests/test_basic.py
@@ -11643,6 +12260,25 @@ def test_main_export_without_required_args_exits_with_usage(capsys):
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
     assert "Usage: export <article_id> <article_type> --format txt|md" in out
+
+
+@patch("main.serve_web_app")
+def test_main_web_mode_calls_serve_web_app_with_defaults(mock_serve_web_app):
+    with patch("sys.argv", ["main.py", "web"]):
+        main_module.main()
+
+    mock_serve_web_app.assert_called_once_with(host="127.0.0.1", port=8000)
+
+
+@patch("main.serve_web_app")
+def test_main_web_mode_allows_host_and_port_override(mock_serve_web_app):
+    with patch(
+        "sys.argv",
+        ["main.py", "web", "--host", "0.0.0.0", "--port", "9001"],
+    ):
+        main_module.main()
+
+    mock_serve_web_app.assert_called_once_with(host="0.0.0.0", port=9001)
 
 
 def test_main_too_few_args_exits_with_usage(capsys):
@@ -13389,6 +14025,640 @@ def test_add_target_url_rejects_invalid_target_without_writing(tmp_path):
     assert target_file.exists() is False
 
 =============================
+FILE: ./copilot/tests/test_web_app.py
+=============================
+from io import BytesIO
+from unittest.mock import patch
+
+from web_app import application, check_article_status
+
+
+def _run_wsgi_request(method, path="/", body=""):
+    encoded_body = body.encode("utf-8")
+    captured = {}
+
+    def start_response(status, headers):
+        captured["status"] = status
+        captured["headers"] = headers
+
+    response = application(
+        {
+            "REQUEST_METHOD": method,
+            "PATH_INFO": path,
+            "CONTENT_LENGTH": str(len(encoded_body)),
+            "CONTENT_TYPE": "application/x-www-form-urlencoded",
+            "wsgi.input": BytesIO(encoded_body),
+        },
+        start_response,
+    )
+    captured["body"] = b"".join(response).decode("utf-8")
+    return captured
+
+
+def test_check_article_status_returns_resolution_failure():
+    with patch(
+        "web_app.get_saved_article_summary_by_exact_title",
+        return_value={
+            "found": False,
+            "article_id": None,
+            "article_type": None,
+            "title": None,
+            "url": None,
+            "created_at": None,
+            "response_count": 0,
+        },
+    ):
+        with patch(
+            "web_app.resolve_article_input",
+            return_value={
+                "ok": False,
+                "failure_kind": "ambiguous",
+                "normalized_input": "Foo",
+            },
+        ):
+            result = check_article_status("Foo")
+
+    assert result == {
+        "status": "resolution_failure",
+        "input": "Foo",
+        "failure_kind": "ambiguous",
+        "message": "Could not resolve the input (ambiguous).",
+    }
+
+
+def test_check_article_status_returns_saved_result_for_local_title_lookup():
+    with patch(
+        "web_app.get_saved_article_summary_by_exact_title",
+        return_value={
+            "found": True,
+            "article_id": "5587284",
+            "article_type": "id",
+            "title": "G123",
+            "url": "https://dic.nicovideo.jp/id/5587284",
+            "created_at": "2026-03-25T00:00:00+00:00",
+            "response_count": 42,
+        },
+    ):
+        with patch("web_app.resolve_article_input") as mock_resolve:
+            result = check_article_status("g123")
+
+    mock_resolve.assert_not_called()
+    assert result == {
+        "status": "saved",
+        "input": "g123",
+        "title": "G123",
+        "matched_by": "local_title_lookup",
+        "article_url": "https://dic.nicovideo.jp/id/5587284",
+        "article_id": "5587284",
+        "article_type": "id",
+        "response_count": 42,
+        "message": "Saved archive found for the resolved article.",
+    }
+
+
+def test_check_article_status_returns_saved_result_after_resolution():
+    resolution = {
+        "ok": True,
+        "canonical_target": {
+            "article_url": "https://dic.nicovideo.jp/a/12345",
+            "article_id": "12345",
+            "article_type": "a",
+        },
+        "title": "Foo",
+        "matched_by": "exact_title",
+        "normalized_input": "Foo",
+    }
+    summary = {
+        "found": True,
+        "article_id": "12345",
+        "article_type": "a",
+        "title": "Foo",
+        "url": "https://dic.nicovideo.jp/a/12345",
+        "created_at": "2026-03-25T00:00:00+00:00",
+        "response_count": 42,
+    }
+
+    with patch(
+        "web_app.get_saved_article_summary_by_exact_title",
+        return_value={
+            "found": False,
+            "article_id": None,
+            "article_type": None,
+            "title": None,
+            "url": None,
+            "created_at": None,
+            "response_count": 0,
+        },
+    ):
+        with patch("web_app.resolve_article_input", return_value=resolution):
+            with patch("web_app.get_saved_article_summary", return_value=summary):
+                result = check_article_status("Foo")
+
+    assert result == {
+        "status": "saved",
+        "input": "Foo",
+        "title": "Foo",
+        "matched_by": "exact_title",
+        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_id": "12345",
+        "article_type": "a",
+        "response_count": 42,
+        "message": "Saved archive found for the resolved article.",
+    }
+
+
+def test_check_article_status_returns_unsaved_result():
+    resolution = {
+        "ok": True,
+        "canonical_target": {
+            "article_url": "https://dic.nicovideo.jp/a/12345",
+            "article_id": "12345",
+            "article_type": "a",
+        },
+        "title": "Foo",
+        "matched_by": "article_url",
+        "normalized_input": "https://dic.nicovideo.jp/a/Foo",
+    }
+    summary = {
+        "found": False,
+        "article_id": "12345",
+        "article_type": "a",
+        "title": None,
+        "url": None,
+        "created_at": None,
+        "response_count": 0,
+    }
+
+    with patch("web_app.resolve_article_input", return_value=resolution):
+        with patch("web_app.get_saved_article_summary", return_value=summary):
+            result = check_article_status("https://dic.nicovideo.jp/a/Foo")
+
+    assert result == {
+        "status": "unsaved",
+        "input": "https://dic.nicovideo.jp/a/Foo",
+        "title": "Foo",
+        "matched_by": "article_url",
+        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_id": "12345",
+        "article_type": "a",
+        "message": "Resolved article, but no saved archive was found yet.",
+    }
+
+
+def test_check_article_status_returns_internal_error_on_unexpected_exception():
+    with patch(
+        "web_app.get_saved_article_summary_by_exact_title",
+        return_value={
+            "found": False,
+            "article_id": None,
+            "article_type": None,
+            "title": None,
+            "url": None,
+            "created_at": None,
+            "response_count": 0,
+        },
+    ):
+        with patch(
+            "web_app.resolve_article_input",
+            side_effect=RuntimeError("boom"),
+        ):
+            result = check_article_status("Foo")
+
+    assert result == {
+        "status": "internal_error",
+        "input": "Foo",
+        "error_kind": "RuntimeError",
+        "message": "Internal error while checking article status.",
+    }
+
+
+def test_check_article_status_url_input_still_uses_resolver_path():
+    resolution = {
+        "ok": True,
+        "canonical_target": {
+            "article_url": "https://dic.nicovideo.jp/a/12345",
+            "article_id": "12345",
+            "article_type": "a",
+        },
+        "title": "Foo",
+        "matched_by": "article_url",
+        "normalized_input": "https://dic.nicovideo.jp/a/g123",
+    }
+    summary = {
+        "found": True,
+        "article_id": "12345",
+        "article_type": "a",
+        "title": "Foo",
+        "url": "https://dic.nicovideo.jp/a/12345",
+        "created_at": "2026-03-25T00:00:00+00:00",
+        "response_count": 42,
+    }
+
+    with patch("web_app.get_saved_article_summary_by_exact_title") as mock_local:
+        with patch("web_app.resolve_article_input", return_value=resolution):
+            with patch("web_app.get_saved_article_summary", return_value=summary):
+                result = check_article_status("https://dic.nicovideo.jp/a/g123")
+
+    mock_local.assert_not_called()
+    assert result["status"] == "saved"
+    assert result["matched_by"] == "article_url"
+
+
+def test_application_get_renders_form_and_message_area():
+    response = _run_wsgi_request("GET")
+
+    assert response["status"] == "200 OK"
+    assert "Article name or article URL" in response["body"]
+    assert "Check archive status" in response["body"]
+    assert "Submit an article name or article URL" in response["body"]
+
+
+def test_application_post_renders_saved_result_message():
+    result = {
+        "status": "saved",
+        "input": "Foo",
+        "title": "Foo",
+        "matched_by": "exact_title",
+        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_id": "12345",
+        "article_type": "a",
+        "response_count": 42,
+        "message": "Saved archive found for the resolved article.",
+    }
+
+    with patch("web_app.check_article_status", return_value=result):
+        response = _run_wsgi_request("POST", body="article_input=Foo")
+
+    assert response["status"] == "200 OK"
+    assert "Saved archive found for the resolved article." in response["body"]
+    assert "Canonical target: a/12345" in response["body"]
+    assert "Saved response count: 42" in response["body"]
+
+
+def test_application_post_renders_title_resolution_failure_message():
+    result = {
+        "status": "resolution_failure",
+        "input": "Foo",
+        "failure_kind": "not_found",
+        "message": "Could not resolve the input (not_found).",
+    }
+
+    with patch("web_app.check_article_status", return_value=result):
+        response = _run_wsgi_request("POST", body="article_input=Foo")
+
+    assert response["status"] == "200 OK"
+    assert "Could not resolve the input (not_found)." in response["body"]
+    assert "Resolution status: <strong>not_found</strong>" in response["body"]
+
+
+def test_application_returns_not_found_for_unknown_path():
+    response = _run_wsgi_request("GET", path="/missing")
+
+    assert response["status"] == "404 Not Found"
+    assert response["body"] == "Not Found"
+
+=============================
+FILE: ./copilot/web_app.py
+=============================
+from html import escape
+from urllib.parse import parse_qs
+from urllib.parse import urlparse
+from wsgiref.simple_server import make_server
+
+from archive_read import (
+    get_saved_article_summary,
+    get_saved_article_summary_by_exact_title,
+)
+from article_resolver import resolve_article_input
+
+
+def _normalize_web_input(article_input: str) -> str:
+    return article_input.strip()
+
+
+def _looks_like_url_input(article_input: str) -> bool:
+    parsed = urlparse(article_input)
+    return bool(parsed.scheme or parsed.netloc)
+
+
+def check_article_status(article_input: str) -> dict:
+    """Resolve input and return a bounded archive status result for the web UI."""
+
+    try:
+        normalized_input = _normalize_web_input(article_input)
+        if normalized_input and not _looks_like_url_input(normalized_input):
+            archive_summary = get_saved_article_summary_by_exact_title(
+                normalized_input
+            )
+            if archive_summary["found"]:
+                return {
+                    "status": "saved",
+                    "input": normalized_input,
+                    "title": archive_summary["title"],
+                    "matched_by": "local_title_lookup",
+                    "article_url": archive_summary["url"],
+                    "article_id": archive_summary["article_id"],
+                    "article_type": archive_summary["article_type"],
+                    "response_count": archive_summary["response_count"],
+                    "message": "Saved archive found for the resolved article.",
+                }
+
+        resolution = resolve_article_input(article_input)
+        if not resolution["ok"]:
+            failure_kind = resolution["failure_kind"]
+            return {
+                "status": "resolution_failure",
+                "input": resolution["normalized_input"],
+                "failure_kind": failure_kind,
+                "message": f"Could not resolve the input ({failure_kind}).",
+            }
+
+        canonical_target = resolution["canonical_target"]
+        archive_summary = get_saved_article_summary(
+            canonical_target["article_id"],
+            canonical_target["article_type"],
+        )
+
+        if archive_summary["found"]:
+            return {
+                "status": "saved",
+                "input": resolution["normalized_input"],
+                "title": archive_summary["title"] or resolution["title"],
+                "matched_by": resolution["matched_by"],
+                "article_url": canonical_target["article_url"],
+                "article_id": canonical_target["article_id"],
+                "article_type": canonical_target["article_type"],
+                "response_count": archive_summary["response_count"],
+                "message": "Saved archive found for the resolved article.",
+            }
+
+        return {
+            "status": "unsaved",
+            "input": resolution["normalized_input"],
+            "title": resolution["title"],
+            "matched_by": resolution["matched_by"],
+            "article_url": canonical_target["article_url"],
+            "article_id": canonical_target["article_id"],
+            "article_type": canonical_target["article_type"],
+            "message": "Resolved article, but no saved archive was found yet.",
+        }
+    except Exception as exc:
+        return {
+            "status": "internal_error",
+            "input": _normalize_web_input(article_input),
+            "error_kind": type(exc).__name__,
+            "message": "Internal error while checking article status.",
+        }
+
+
+def _read_post_input(environ: dict) -> str:
+    content_length = environ.get("CONTENT_LENGTH", "0").strip()
+    try:
+        body_size = int(content_length)
+    except ValueError:
+        body_size = 0
+
+    body = environ["wsgi.input"].read(body_size).decode("utf-8")
+    form_data = parse_qs(body, keep_blank_values=True)
+    return form_data.get("article_input", [""])[0]
+
+
+def _render_message_area(result: dict | None) -> str:
+    if result is None:
+        return (
+            '<section class="message-area empty">'
+            "<h2>Result</h2>"
+            "<p>"
+            "Submit an article name or article URL to check whether it "
+            "is already saved."
+            "</p>"
+            "</section>"
+        )
+
+    status = escape(result["status"])
+    message = escape(result["message"])
+    lines = [
+        f'<section class="message-area {status}">',
+        "<h2>Result</h2>",
+        f'<p class="status-line">{message}</p>',
+    ]
+
+    if result["status"] == "resolution_failure":
+        lines.append(
+            "<p>Resolution status: "
+            f"<strong>{escape(result['failure_kind'])}</strong></p>"
+        )
+
+    if result["status"] == "internal_error":
+        lines.append(
+            "<p>Error type: "
+            f"<strong>{escape(result['error_kind'])}</strong></p>"
+        )
+
+    if result["status"] in {"saved", "unsaved"}:
+        lines.extend(
+            [
+                f"<p>Title: <strong>{escape(result['title'])}</strong></p>",
+                (
+                    "<p>Canonical target: "
+                    f"{escape(result['article_type'])}/"
+                    f"{escape(result['article_id'])}</p>"
+                ),
+                f"<p>Matched by: {escape(result['matched_by'])}</p>",
+                f"<p>URL: {escape(result['article_url'])}</p>",
+            ]
+        )
+
+    if result["status"] == "saved":
+        lines.append(
+            "<p>Saved response count: "
+            f"{escape(str(result['response_count']))}</p>"
+        )
+
+    lines.append("</section>")
+    return "".join(lines)
+
+
+def _render_page(article_input: str, result: dict | None = None) -> bytes:
+    safe_input = escape(article_input)
+    message_area = _render_message_area(result)
+    html = f"""<!doctype html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"utf-8\">
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
+  <title>Nicodic Archive Checker</title>
+  <style>
+    :root {{
+      color-scheme: light;
+      --bg: #f4efe5;
+      --panel: #fffaf2;
+      --ink: #1f2430;
+      --accent: #0f766e;
+      --border: #d9ccb4;
+      --muted: #6b7280;
+      --saved: #14532d;
+      --unsaved: #92400e;
+      --failure: #9f1239;
+      --error: #991b1b;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top, rgba(15, 118, 110, 0.12), transparent 35%),
+        linear-gradient(180deg, #efe6d7 0%, var(--bg) 100%);
+    }}
+    main {{
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 48px 20px 64px;
+    }}
+    .panel {{
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(31, 36, 48, 0.08);
+    }}
+    h1 {{
+      margin: 0 0 12px;
+      font-size: clamp(2rem, 4vw, 3rem);
+      line-height: 1.05;
+    }}
+    p {{ line-height: 1.5; }}
+    .lede {{ color: var(--muted); margin: 0 0 24px; }}
+    form {{ display: grid; gap: 12px; }}
+    label {{ font-weight: 700; }}
+    input[type=\"text\"] {{
+      width: 100%;
+      padding: 14px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font: inherit;
+    }}
+    button {{
+      width: fit-content;
+      padding: 12px 18px;
+      border: 0;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      cursor: pointer;
+    }}
+    .message-area {{
+      margin-top: 24px;
+      padding: 18px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.72);
+    }}
+    .message-area h2 {{ margin-top: 0; font-size: 1.2rem; }}
+    .message-area.empty {{ color: var(--muted); }}
+    .message-area.saved .status-line {{ color: var(--saved); }}
+    .message-area.unsaved .status-line {{ color: var(--unsaved); }}
+    .message-area.resolution_failure .status-line {{ color: var(--failure); }}
+    .message-area.internal_error .status-line {{ color: var(--error); }}
+    @media (max-width: 640px) {{
+      main {{ padding: 24px 14px 36px; }}
+      .panel {{ padding: 18px; }}
+      button {{ width: 100%; }}
+    }}
+  </style>
+</head>
+<body>
+  <main>
+    <section class=\"panel\">
+      <h1>Archive Checker</h1>
+      <p class=\"lede\">
+        Enter an article name or article URL to see whether a saved
+        archive already exists.
+      </p>
+      <form method=\"post\" action=\"/\">
+        <label for=\"article_input\">Article name or article URL</label>
+        <input
+          id=\"article_input\"
+          name=\"article_input\"
+          type=\"text\"
+          value=\"{safe_input}\"
+          placeholder=\"https://dic.nicovideo.jp/a/... or exact title\"
+        >
+        <button type=\"submit\">Check archive status</button>
+      </form>
+      {message_area}
+    </section>
+  </main>
+</body>
+</html>
+"""
+    return html.encode("utf-8")
+
+
+def create_app():
+    def app(environ, start_response):
+        method = environ.get("REQUEST_METHOD", "GET").upper()
+        path = environ.get("PATH_INFO", "/")
+
+        if path != "/":
+            body = b"Not Found"
+            start_response(
+                "404 Not Found",
+                [
+                    ("Content-Type", "text/plain; charset=utf-8"),
+                    ("Content-Length", str(len(body))),
+                ],
+            )
+            return [body]
+
+        if method == "GET":
+            body = _render_page("")
+            start_response(
+                "200 OK",
+                [
+                    ("Content-Type", "text/html; charset=utf-8"),
+                    ("Content-Length", str(len(body))),
+                ],
+            )
+            return [body]
+
+        if method == "POST":
+            article_input = _read_post_input(environ)
+            body = _render_page(article_input, check_article_status(article_input))
+            start_response(
+                "200 OK",
+                [
+                    ("Content-Type", "text/html; charset=utf-8"),
+                    ("Content-Length", str(len(body))),
+                ],
+            )
+            return [body]
+
+        body = b"Method Not Allowed"
+        start_response(
+            "405 Method Not Allowed",
+            [
+                ("Content-Type", "text/plain; charset=utf-8"),
+                ("Content-Length", str(len(body))),
+            ],
+        )
+        return [body]
+
+    return app
+
+
+application = create_app()
+
+
+def serve_web_app(host: str = "127.0.0.1", port: int = 8000) -> None:
+    with make_server(host, port, application) as server:
+        print(f"Serving web app at http://{host}:{port}")
+        server.serve_forever()
+
+=============================
 FILE: ./cursor/.cursor/rules/double-helix-workflow.mdc
 =============================
 ---
@@ -13615,6 +14885,65 @@ FILE: ./cursor/archive_read.py
 import sqlite3
 
 
+def _count_saved_responses(cur, article_id, article_type):
+    cur.execute(
+        """
+        SELECT COUNT(*)
+        FROM responses
+        WHERE article_id=? AND article_type=?
+        """,
+        (article_id, article_type),
+    )
+    return cur.fetchone()[0]
+
+
+def _build_saved_article_summary(
+    article_id,
+    article_type,
+    title,
+    url,
+    created_at,
+    response_count,
+):
+    return {
+        "found": True,
+        "article_id": article_id,
+        "article_type": article_type,
+        "title": title,
+        "url": url,
+        "created_at": created_at,
+        "response_count": response_count,
+    }
+
+
+def _find_saved_article_by_title_lookup(cur, title):
+    cur.execute(
+        """
+        SELECT article_id, article_type, title, canonical_url, created_at
+        FROM articles
+        WHERE title=?
+        ORDER BY created_at ASC, article_id ASC, article_type ASC
+        LIMIT 1
+        """,
+        (title,),
+    )
+    article = cur.fetchone()
+    if article is not None:
+        return article
+
+    cur.execute(
+        """
+        SELECT article_id, article_type, title, canonical_url, created_at
+        FROM articles
+        WHERE title = ? COLLATE NOCASE
+        ORDER BY created_at ASC, article_id ASC, article_type ASC
+        LIMIT 1
+        """,
+        (title,),
+    )
+    return cur.fetchone()
+
+
 def has_saved_article(article_id, article_type):
     """Return True when the article exists in saved archive."""
 
@@ -13689,6 +15018,82 @@ def read_article_archive(article_id, article_type, last_n=None):
         "created_at": created_at,
         "responses": rows,
     }
+
+
+def get_saved_article_summary(article_id, article_type):
+    """Return bounded metadata for non-CLI consumers checking archive status."""
+
+    conn = sqlite3.connect("data/nicodic.db")
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT title, canonical_url, created_at
+        FROM articles
+        WHERE article_id=? AND article_type=?
+        """,
+        (article_id, article_type),
+    )
+
+    article = cur.fetchone()
+    if not article:
+        conn.close()
+        return {
+            "found": False,
+            "article_id": article_id,
+            "article_type": article_type,
+            "title": None,
+            "url": None,
+            "created_at": None,
+            "response_count": 0,
+        }
+
+    title, url, created_at = article
+    response_count = _count_saved_responses(cur, article_id, article_type)
+    conn.close()
+
+    return _build_saved_article_summary(
+        article_id,
+        article_type,
+        title,
+        url,
+        created_at,
+        response_count,
+    )
+
+
+def get_saved_article_summary_by_exact_title(title):
+    """Return bounded metadata for a saved-title lookup."""
+
+    conn = sqlite3.connect("data/nicodic.db")
+    cur = conn.cursor()
+
+    article = _find_saved_article_by_title_lookup(cur, title)
+
+    if not article:
+        conn.close()
+        return {
+            "found": False,
+            "article_id": None,
+            "article_type": None,
+            "title": None,
+            "url": None,
+            "created_at": None,
+            "response_count": 0,
+        }
+
+    article_id, article_type, saved_title, url, created_at = article
+    response_count = _count_saved_responses(cur, article_id, article_type)
+    conn.close()
+
+    return _build_saved_article_summary(
+        article_id,
+        article_type,
+        saved_title,
+        url,
+        created_at,
+        response_count,
+    )
 
 
 def _render_txt_archive(archive):
@@ -13840,6 +15245,10 @@ def _build_failure_result(failure_kind: str, normalized_input: str) -> dict:
     }
 
 
+def _is_not_found_runtime_error(exc: RuntimeError) -> bool:
+    return "status=404" in str(exc)
+
+
 def _looks_like_url_input(normalized_input: str) -> bool:
     parsed = urlparse(normalized_input)
     return bool(parsed.scheme or parsed.netloc)
@@ -13899,7 +15308,7 @@ def _resolve_from_article_url(
     try:
         soup = fetch_page(article_url)
     except RuntimeError as exc:
-        if "status=404" in str(exc):
+        if _is_not_found_runtime_error(exc):
             return _build_failure_result("not_found", normalized_input)
         raise
 
@@ -13952,7 +15361,13 @@ def _extract_exact_title_candidate_urls(soup, normalized_title: str) -> list[str
 
 def _resolve_from_exact_title(normalized_title: str) -> dict:
     search_url = _build_title_search_url(normalized_title)
-    soup = fetch_page(search_url)
+    try:
+        soup = fetch_page(search_url)
+    except RuntimeError as exc:
+        if _is_not_found_runtime_error(exc):
+            return _build_failure_result("not_found", normalized_title)
+        raise
+
     candidate_urls = _extract_exact_title_candidate_urls(soup, normalized_title)
 
     if not candidate_urls:
@@ -14630,6 +16045,7 @@ from article_resolver import resolve_article_input
 from cli import export_all_articles, export_article, inspect_article, list_articles
 from orchestrator import run_scrape
 from target_list import add_target_url, load_target_urls
+from web_app import serve_web_app
 
 
 # ============================================================
@@ -14765,6 +16181,7 @@ def main():
         print("  python main.py targets <target_list_path>")
         print("  python main.py batch <target_list_path>")
         print("  python main.py periodic-once <target_list_path>")
+        print("  python main.py web [--host HOST] [--port PORT]")
         print(
             "  python main.py periodic <target_list_path> <interval_seconds> "
             "[--max-runs N]"
@@ -14908,6 +16325,21 @@ def main():
             max_runs = int(sys.argv[idx + 1])
 
         run_periodic_scrape(target_list_path, interval_seconds, max_runs=max_runs)
+        return
+
+    if sys.argv[1] == "web":
+        host = "127.0.0.1"
+        port = 8000
+
+        if "--host" in sys.argv:
+            idx = sys.argv.index("--host")
+            host = sys.argv[idx + 1]
+
+        if "--port" in sys.argv:
+            idx = sys.argv.index("--port")
+            port = int(sys.argv[idx + 1])
+
+        serve_web_app(host=host, port=port)
         return
 
     # 通常スクレイプモード
@@ -15773,7 +17205,12 @@ if str(_root) not in sys.path:
 =============================
 FILE: ./cursor/tests/test_archive_read.py
 =============================
-from archive_read import get_saved_article_txt, has_saved_article
+from archive_read import (
+    get_saved_article_summary,
+    get_saved_article_summary_by_exact_title,
+    get_saved_article_txt,
+    has_saved_article,
+)
 from storage import init_db, save_to_db
 
 
@@ -15849,12 +17286,132 @@ def test_get_saved_article_txt_returns_missing_shape_for_missing_article(
         "article_type": "a",
     }
 
+
+def test_get_saved_article_summary_returns_bounded_metadata_for_existing_article(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = get_saved_article_summary("12345", "a")
+
+    assert result == {
+        "found": True,
+        "article_id": "12345",
+        "article_type": "a",
+        "title": "First Title",
+        "url": "https://dic.nicovideo.jp/a/12345",
+        "created_at": result["created_at"],
+        "response_count": 1,
+    }
+    assert result["created_at"]
+
+
+def test_get_saved_article_summary_returns_missing_shape_for_missing_article(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = get_saved_article_summary("99999", "a")
+
+    assert result == {
+        "found": False,
+        "article_id": "99999",
+        "article_type": "a",
+        "title": None,
+        "url": None,
+        "created_at": None,
+        "response_count": 0,
+    }
+
+
+def test_get_saved_article_summary_by_exact_title_returns_existing_article(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = get_saved_article_summary_by_exact_title("First Title")
+
+    assert result == {
+        "found": True,
+        "article_id": "12345",
+        "article_type": "a",
+        "title": "First Title",
+        "url": "https://dic.nicovideo.jp/a/12345",
+        "created_at": result["created_at"],
+        "response_count": 1,
+    }
+    assert result["created_at"]
+
+
+def test_get_saved_article_summary_by_exact_title_returns_missing_shape(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = get_saved_article_summary_by_exact_title("Missing Title")
+
+    assert result == {
+        "found": False,
+        "article_id": None,
+        "article_type": None,
+        "title": None,
+        "url": None,
+        "created_at": None,
+        "response_count": 0,
+    }
+
+
+def test_get_saved_article_summary_by_exact_title_returns_ascii_case_insensitive_hit(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "5587284",
+            "id",
+            "G123",
+            "https://dic.nicovideo.jp/id/5587284",
+            [
+                {
+                    "res_no": 1,
+                    "id_hash": "g123001",
+                    "poster_name": "Alice",
+                    "posted_at": "2025-01-01 00:00",
+                    "content": "First response",
+                    "content_html": "<p>First response</p>",
+                }
+            ],
+        )
+    finally:
+        conn.close()
+
+    result = get_saved_article_summary_by_exact_title("g123")
+
+    assert result == {
+        "found": True,
+        "article_id": "5587284",
+        "article_type": "id",
+        "title": "G123",
+        "url": "https://dic.nicovideo.jp/id/5587284",
+        "created_at": result["created_at"],
+        "response_count": 1,
+    }
+    assert result["created_at"]
+
 =============================
 FILE: ./cursor/tests/test_article_resolver.py
 =============================
 from unittest.mock import patch
 
 from bs4 import BeautifulSoup
+import pytest
 
 from article_resolver import resolve_article_input
 
@@ -15974,6 +17531,36 @@ def test_resolve_article_input_returns_ambiguous_for_multiple_exact_titles():
         "failure_kind": "ambiguous",
         "normalized_input": "Foo",
     }
+
+
+def test_resolve_article_input_returns_not_found_when_title_search_is_404():
+    with patch(
+        "article_resolver.fetch_page",
+        side_effect=RuntimeError(
+            "Failed to fetch https://dic.nicovideo.jp/search/Foo (status=404)"
+        ),
+    ):
+        result = resolve_article_input("Foo")
+
+    assert result == {
+        "ok": False,
+        "failure_kind": "not_found",
+        "normalized_input": "Foo",
+    }
+
+
+def test_resolve_article_input_still_raises_unexpected_title_search_errors():
+    with patch(
+        "article_resolver.fetch_page",
+        side_effect=RuntimeError(
+            "Failed to fetch https://dic.nicovideo.jp/search/Foo "
+            "(timeout=10s)"
+        ),
+    ):
+        with pytest.raises(RuntimeError) as exc_info:
+            resolve_article_input("Foo")
+
+    assert "timeout=10s" in str(exc_info.value)
 
 =============================
 FILE: ./cursor/tests/test_basic.py
@@ -16488,6 +18075,25 @@ def test_main_export_without_required_args_exits_with_usage(capsys):
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
     assert "Usage: export <article_id> <article_type> --format txt|md" in out
+
+
+@patch("main.serve_web_app")
+def test_main_web_mode_calls_serve_web_app_with_defaults(mock_serve_web_app):
+    with patch("sys.argv", ["main.py", "web"]):
+        main_module.main()
+
+    mock_serve_web_app.assert_called_once_with(host="127.0.0.1", port=8000)
+
+
+@patch("main.serve_web_app")
+def test_main_web_mode_allows_host_and_port_override(mock_serve_web_app):
+    with patch(
+        "sys.argv",
+        ["main.py", "web", "--host", "0.0.0.0", "--port", "9001"],
+    ):
+        main_module.main()
+
+    mock_serve_web_app.assert_called_once_with(host="0.0.0.0", port=9001)
 
 
 def test_main_too_few_args_exits_with_usage(capsys):
@@ -18232,6 +19838,640 @@ def test_add_target_url_rejects_invalid_target_without_writing(tmp_path):
 
     assert result == "invalid"
     assert target_file.exists() is False
+
+=============================
+FILE: ./cursor/tests/test_web_app.py
+=============================
+from io import BytesIO
+from unittest.mock import patch
+
+from web_app import application, check_article_status
+
+
+def _run_wsgi_request(method, path="/", body=""):
+    encoded_body = body.encode("utf-8")
+    captured = {}
+
+    def start_response(status, headers):
+        captured["status"] = status
+        captured["headers"] = headers
+
+    response = application(
+        {
+            "REQUEST_METHOD": method,
+            "PATH_INFO": path,
+            "CONTENT_LENGTH": str(len(encoded_body)),
+            "CONTENT_TYPE": "application/x-www-form-urlencoded",
+            "wsgi.input": BytesIO(encoded_body),
+        },
+        start_response,
+    )
+    captured["body"] = b"".join(response).decode("utf-8")
+    return captured
+
+
+def test_check_article_status_returns_resolution_failure():
+    with patch(
+        "web_app.get_saved_article_summary_by_exact_title",
+        return_value={
+            "found": False,
+            "article_id": None,
+            "article_type": None,
+            "title": None,
+            "url": None,
+            "created_at": None,
+            "response_count": 0,
+        },
+    ):
+        with patch(
+            "web_app.resolve_article_input",
+            return_value={
+                "ok": False,
+                "failure_kind": "ambiguous",
+                "normalized_input": "Foo",
+            },
+        ):
+            result = check_article_status("Foo")
+
+    assert result == {
+        "status": "resolution_failure",
+        "input": "Foo",
+        "failure_kind": "ambiguous",
+        "message": "Could not resolve the input (ambiguous).",
+    }
+
+
+def test_check_article_status_returns_saved_result_for_local_title_lookup():
+    with patch(
+        "web_app.get_saved_article_summary_by_exact_title",
+        return_value={
+            "found": True,
+            "article_id": "5587284",
+            "article_type": "id",
+            "title": "G123",
+            "url": "https://dic.nicovideo.jp/id/5587284",
+            "created_at": "2026-03-25T00:00:00+00:00",
+            "response_count": 42,
+        },
+    ):
+        with patch("web_app.resolve_article_input") as mock_resolve:
+            result = check_article_status("g123")
+
+    mock_resolve.assert_not_called()
+    assert result == {
+        "status": "saved",
+        "input": "g123",
+        "title": "G123",
+        "matched_by": "local_title_lookup",
+        "article_url": "https://dic.nicovideo.jp/id/5587284",
+        "article_id": "5587284",
+        "article_type": "id",
+        "response_count": 42,
+        "message": "Saved archive found for the resolved article.",
+    }
+
+
+def test_check_article_status_returns_saved_result_after_resolution():
+    resolution = {
+        "ok": True,
+        "canonical_target": {
+            "article_url": "https://dic.nicovideo.jp/a/12345",
+            "article_id": "12345",
+            "article_type": "a",
+        },
+        "title": "Foo",
+        "matched_by": "exact_title",
+        "normalized_input": "Foo",
+    }
+    summary = {
+        "found": True,
+        "article_id": "12345",
+        "article_type": "a",
+        "title": "Foo",
+        "url": "https://dic.nicovideo.jp/a/12345",
+        "created_at": "2026-03-25T00:00:00+00:00",
+        "response_count": 42,
+    }
+
+    with patch(
+        "web_app.get_saved_article_summary_by_exact_title",
+        return_value={
+            "found": False,
+            "article_id": None,
+            "article_type": None,
+            "title": None,
+            "url": None,
+            "created_at": None,
+            "response_count": 0,
+        },
+    ):
+        with patch("web_app.resolve_article_input", return_value=resolution):
+            with patch("web_app.get_saved_article_summary", return_value=summary):
+                result = check_article_status("Foo")
+
+    assert result == {
+        "status": "saved",
+        "input": "Foo",
+        "title": "Foo",
+        "matched_by": "exact_title",
+        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_id": "12345",
+        "article_type": "a",
+        "response_count": 42,
+        "message": "Saved archive found for the resolved article.",
+    }
+
+
+def test_check_article_status_returns_unsaved_result():
+    resolution = {
+        "ok": True,
+        "canonical_target": {
+            "article_url": "https://dic.nicovideo.jp/a/12345",
+            "article_id": "12345",
+            "article_type": "a",
+        },
+        "title": "Foo",
+        "matched_by": "article_url",
+        "normalized_input": "https://dic.nicovideo.jp/a/Foo",
+    }
+    summary = {
+        "found": False,
+        "article_id": "12345",
+        "article_type": "a",
+        "title": None,
+        "url": None,
+        "created_at": None,
+        "response_count": 0,
+    }
+
+    with patch("web_app.resolve_article_input", return_value=resolution):
+        with patch("web_app.get_saved_article_summary", return_value=summary):
+            result = check_article_status("https://dic.nicovideo.jp/a/Foo")
+
+    assert result == {
+        "status": "unsaved",
+        "input": "https://dic.nicovideo.jp/a/Foo",
+        "title": "Foo",
+        "matched_by": "article_url",
+        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_id": "12345",
+        "article_type": "a",
+        "message": "Resolved article, but no saved archive was found yet.",
+    }
+
+
+def test_check_article_status_returns_internal_error_on_unexpected_exception():
+    with patch(
+        "web_app.get_saved_article_summary_by_exact_title",
+        return_value={
+            "found": False,
+            "article_id": None,
+            "article_type": None,
+            "title": None,
+            "url": None,
+            "created_at": None,
+            "response_count": 0,
+        },
+    ):
+        with patch(
+            "web_app.resolve_article_input",
+            side_effect=RuntimeError("boom"),
+        ):
+            result = check_article_status("Foo")
+
+    assert result == {
+        "status": "internal_error",
+        "input": "Foo",
+        "error_kind": "RuntimeError",
+        "message": "Internal error while checking article status.",
+    }
+
+
+def test_check_article_status_url_input_still_uses_resolver_path():
+    resolution = {
+        "ok": True,
+        "canonical_target": {
+            "article_url": "https://dic.nicovideo.jp/a/12345",
+            "article_id": "12345",
+            "article_type": "a",
+        },
+        "title": "Foo",
+        "matched_by": "article_url",
+        "normalized_input": "https://dic.nicovideo.jp/a/g123",
+    }
+    summary = {
+        "found": True,
+        "article_id": "12345",
+        "article_type": "a",
+        "title": "Foo",
+        "url": "https://dic.nicovideo.jp/a/12345",
+        "created_at": "2026-03-25T00:00:00+00:00",
+        "response_count": 42,
+    }
+
+    with patch("web_app.get_saved_article_summary_by_exact_title") as mock_local:
+        with patch("web_app.resolve_article_input", return_value=resolution):
+            with patch("web_app.get_saved_article_summary", return_value=summary):
+                result = check_article_status("https://dic.nicovideo.jp/a/g123")
+
+    mock_local.assert_not_called()
+    assert result["status"] == "saved"
+    assert result["matched_by"] == "article_url"
+
+
+def test_application_get_renders_form_and_message_area():
+    response = _run_wsgi_request("GET")
+
+    assert response["status"] == "200 OK"
+    assert "Article name or article URL" in response["body"]
+    assert "Check archive status" in response["body"]
+    assert "Submit an article name or article URL" in response["body"]
+
+
+def test_application_post_renders_saved_result_message():
+    result = {
+        "status": "saved",
+        "input": "Foo",
+        "title": "Foo",
+        "matched_by": "exact_title",
+        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_id": "12345",
+        "article_type": "a",
+        "response_count": 42,
+        "message": "Saved archive found for the resolved article.",
+    }
+
+    with patch("web_app.check_article_status", return_value=result):
+        response = _run_wsgi_request("POST", body="article_input=Foo")
+
+    assert response["status"] == "200 OK"
+    assert "Saved archive found for the resolved article." in response["body"]
+    assert "Canonical target: a/12345" in response["body"]
+    assert "Saved response count: 42" in response["body"]
+
+
+def test_application_post_renders_title_resolution_failure_message():
+    result = {
+        "status": "resolution_failure",
+        "input": "Foo",
+        "failure_kind": "not_found",
+        "message": "Could not resolve the input (not_found).",
+    }
+
+    with patch("web_app.check_article_status", return_value=result):
+        response = _run_wsgi_request("POST", body="article_input=Foo")
+
+    assert response["status"] == "200 OK"
+    assert "Could not resolve the input (not_found)." in response["body"]
+    assert "Resolution status: <strong>not_found</strong>" in response["body"]
+
+
+def test_application_returns_not_found_for_unknown_path():
+    response = _run_wsgi_request("GET", path="/missing")
+
+    assert response["status"] == "404 Not Found"
+    assert response["body"] == "Not Found"
+
+=============================
+FILE: ./cursor/web_app.py
+=============================
+from html import escape
+from urllib.parse import parse_qs
+from urllib.parse import urlparse
+from wsgiref.simple_server import make_server
+
+from archive_read import (
+    get_saved_article_summary,
+    get_saved_article_summary_by_exact_title,
+)
+from article_resolver import resolve_article_input
+
+
+def _normalize_web_input(article_input: str) -> str:
+    return article_input.strip()
+
+
+def _looks_like_url_input(article_input: str) -> bool:
+    parsed = urlparse(article_input)
+    return bool(parsed.scheme or parsed.netloc)
+
+
+def check_article_status(article_input: str) -> dict:
+    """Resolve input and return a bounded archive status result for the web UI."""
+
+    try:
+        normalized_input = _normalize_web_input(article_input)
+        if normalized_input and not _looks_like_url_input(normalized_input):
+            archive_summary = get_saved_article_summary_by_exact_title(
+                normalized_input
+            )
+            if archive_summary["found"]:
+                return {
+                    "status": "saved",
+                    "input": normalized_input,
+                    "title": archive_summary["title"],
+                    "matched_by": "local_title_lookup",
+                    "article_url": archive_summary["url"],
+                    "article_id": archive_summary["article_id"],
+                    "article_type": archive_summary["article_type"],
+                    "response_count": archive_summary["response_count"],
+                    "message": "Saved archive found for the resolved article.",
+                }
+
+        resolution = resolve_article_input(article_input)
+        if not resolution["ok"]:
+            failure_kind = resolution["failure_kind"]
+            return {
+                "status": "resolution_failure",
+                "input": resolution["normalized_input"],
+                "failure_kind": failure_kind,
+                "message": f"Could not resolve the input ({failure_kind}).",
+            }
+
+        canonical_target = resolution["canonical_target"]
+        archive_summary = get_saved_article_summary(
+            canonical_target["article_id"],
+            canonical_target["article_type"],
+        )
+
+        if archive_summary["found"]:
+            return {
+                "status": "saved",
+                "input": resolution["normalized_input"],
+                "title": archive_summary["title"] or resolution["title"],
+                "matched_by": resolution["matched_by"],
+                "article_url": canonical_target["article_url"],
+                "article_id": canonical_target["article_id"],
+                "article_type": canonical_target["article_type"],
+                "response_count": archive_summary["response_count"],
+                "message": "Saved archive found for the resolved article.",
+            }
+
+        return {
+            "status": "unsaved",
+            "input": resolution["normalized_input"],
+            "title": resolution["title"],
+            "matched_by": resolution["matched_by"],
+            "article_url": canonical_target["article_url"],
+            "article_id": canonical_target["article_id"],
+            "article_type": canonical_target["article_type"],
+            "message": "Resolved article, but no saved archive was found yet.",
+        }
+    except Exception as exc:
+        return {
+            "status": "internal_error",
+            "input": _normalize_web_input(article_input),
+            "error_kind": type(exc).__name__,
+            "message": "Internal error while checking article status.",
+        }
+
+
+def _read_post_input(environ: dict) -> str:
+    content_length = environ.get("CONTENT_LENGTH", "0").strip()
+    try:
+        body_size = int(content_length)
+    except ValueError:
+        body_size = 0
+
+    body = environ["wsgi.input"].read(body_size).decode("utf-8")
+    form_data = parse_qs(body, keep_blank_values=True)
+    return form_data.get("article_input", [""])[0]
+
+
+def _render_message_area(result: dict | None) -> str:
+    if result is None:
+        return (
+            '<section class="message-area empty">'
+            "<h2>Result</h2>"
+            "<p>"
+            "Submit an article name or article URL to check whether it "
+            "is already saved."
+            "</p>"
+            "</section>"
+        )
+
+    status = escape(result["status"])
+    message = escape(result["message"])
+    lines = [
+        f'<section class="message-area {status}">',
+        "<h2>Result</h2>",
+        f'<p class="status-line">{message}</p>',
+    ]
+
+    if result["status"] == "resolution_failure":
+        lines.append(
+            "<p>Resolution status: "
+            f"<strong>{escape(result['failure_kind'])}</strong></p>"
+        )
+
+    if result["status"] == "internal_error":
+        lines.append(
+            "<p>Error type: "
+            f"<strong>{escape(result['error_kind'])}</strong></p>"
+        )
+
+    if result["status"] in {"saved", "unsaved"}:
+        lines.extend(
+            [
+                f"<p>Title: <strong>{escape(result['title'])}</strong></p>",
+                (
+                    "<p>Canonical target: "
+                    f"{escape(result['article_type'])}/"
+                    f"{escape(result['article_id'])}</p>"
+                ),
+                f"<p>Matched by: {escape(result['matched_by'])}</p>",
+                f"<p>URL: {escape(result['article_url'])}</p>",
+            ]
+        )
+
+    if result["status"] == "saved":
+        lines.append(
+            "<p>Saved response count: "
+            f"{escape(str(result['response_count']))}</p>"
+        )
+
+    lines.append("</section>")
+    return "".join(lines)
+
+
+def _render_page(article_input: str, result: dict | None = None) -> bytes:
+    safe_input = escape(article_input)
+    message_area = _render_message_area(result)
+    html = f"""<!doctype html>
+<html lang=\"en\">
+<head>
+  <meta charset=\"utf-8\">
+  <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
+  <title>Nicodic Archive Checker</title>
+  <style>
+    :root {{
+      color-scheme: light;
+      --bg: #f4efe5;
+      --panel: #fffaf2;
+      --ink: #1f2430;
+      --accent: #0f766e;
+      --border: #d9ccb4;
+      --muted: #6b7280;
+      --saved: #14532d;
+      --unsaved: #92400e;
+      --failure: #9f1239;
+      --error: #991b1b;
+    }}
+    * {{ box-sizing: border-box; }}
+    body {{
+      margin: 0;
+      font-family: Georgia, "Times New Roman", serif;
+      color: var(--ink);
+      background:
+        radial-gradient(circle at top, rgba(15, 118, 110, 0.12), transparent 35%),
+        linear-gradient(180deg, #efe6d7 0%, var(--bg) 100%);
+    }}
+    main {{
+      max-width: 760px;
+      margin: 0 auto;
+      padding: 48px 20px 64px;
+    }}
+    .panel {{
+      background: var(--panel);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 24px;
+      box-shadow: 0 20px 40px rgba(31, 36, 48, 0.08);
+    }}
+    h1 {{
+      margin: 0 0 12px;
+      font-size: clamp(2rem, 4vw, 3rem);
+      line-height: 1.05;
+    }}
+    p {{ line-height: 1.5; }}
+    .lede {{ color: var(--muted); margin: 0 0 24px; }}
+    form {{ display: grid; gap: 12px; }}
+    label {{ font-weight: 700; }}
+    input[type=\"text\"] {{
+      width: 100%;
+      padding: 14px 16px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font: inherit;
+    }}
+    button {{
+      width: fit-content;
+      padding: 12px 18px;
+      border: 0;
+      border-radius: 999px;
+      background: var(--accent);
+      color: #fff;
+      font: inherit;
+      cursor: pointer;
+    }}
+    .message-area {{
+      margin-top: 24px;
+      padding: 18px;
+      border-radius: 14px;
+      border: 1px solid var(--border);
+      background: rgba(255, 255, 255, 0.72);
+    }}
+    .message-area h2 {{ margin-top: 0; font-size: 1.2rem; }}
+    .message-area.empty {{ color: var(--muted); }}
+    .message-area.saved .status-line {{ color: var(--saved); }}
+    .message-area.unsaved .status-line {{ color: var(--unsaved); }}
+    .message-area.resolution_failure .status-line {{ color: var(--failure); }}
+    .message-area.internal_error .status-line {{ color: var(--error); }}
+    @media (max-width: 640px) {{
+      main {{ padding: 24px 14px 36px; }}
+      .panel {{ padding: 18px; }}
+      button {{ width: 100%; }}
+    }}
+  </style>
+</head>
+<body>
+  <main>
+    <section class=\"panel\">
+      <h1>Archive Checker</h1>
+      <p class=\"lede\">
+        Enter an article name or article URL to see whether a saved
+        archive already exists.
+      </p>
+      <form method=\"post\" action=\"/\">
+        <label for=\"article_input\">Article name or article URL</label>
+        <input
+          id=\"article_input\"
+          name=\"article_input\"
+          type=\"text\"
+          value=\"{safe_input}\"
+          placeholder=\"https://dic.nicovideo.jp/a/... or exact title\"
+        >
+        <button type=\"submit\">Check archive status</button>
+      </form>
+      {message_area}
+    </section>
+  </main>
+</body>
+</html>
+"""
+    return html.encode("utf-8")
+
+
+def create_app():
+    def app(environ, start_response):
+        method = environ.get("REQUEST_METHOD", "GET").upper()
+        path = environ.get("PATH_INFO", "/")
+
+        if path != "/":
+            body = b"Not Found"
+            start_response(
+                "404 Not Found",
+                [
+                    ("Content-Type", "text/plain; charset=utf-8"),
+                    ("Content-Length", str(len(body))),
+                ],
+            )
+            return [body]
+
+        if method == "GET":
+            body = _render_page("")
+            start_response(
+                "200 OK",
+                [
+                    ("Content-Type", "text/html; charset=utf-8"),
+                    ("Content-Length", str(len(body))),
+                ],
+            )
+            return [body]
+
+        if method == "POST":
+            article_input = _read_post_input(environ)
+            body = _render_page(article_input, check_article_status(article_input))
+            start_response(
+                "200 OK",
+                [
+                    ("Content-Type", "text/html; charset=utf-8"),
+                    ("Content-Length", str(len(body))),
+                ],
+            )
+            return [body]
+
+        body = b"Method Not Allowed"
+        start_response(
+            "405 Method Not Allowed",
+            [
+                ("Content-Type", "text/plain; charset=utf-8"),
+                ("Content-Length", str(len(body))),
+            ],
+        )
+        return [body]
+
+    return app
+
+
+application = create_app()
+
+
+def serve_web_app(host: str = "127.0.0.1", port: int = 8000) -> None:
+    with make_server(host, port, application) as server:
+        print(f"Serving web app at http://{host}:{port}")
+        server.serve_forever()
 
 =============================
 FILE: ./export_open_issues.sh

@@ -556,6 +556,36 @@ TASK027 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK028 has been completed.
+
+TASK028 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• a minimal Web-facing archive-check UI was added
+• the UI now provides an article-name / article-URL input, a submit button,
+  and a bounded result display
+• `main.py` now exposes a bounded Web app entrypoint
+• `web_app.py` was added
+• `archive_read.py` was extended for bounded saved-article summary lookup from
+  Web-facing code
+• the adopted-side review path included narrow follow-up fixes for title-input
+  behavior before close-out
+• title-input ordinary misses no longer leak RuntimeError from the title-search
+  path
+• the archive-check UX now supports local saved-title lookup before falling
+  back to broader resolution behavior
+• local saved-title lookup now supports a bounded case-insensitive title match
+  for visitor-facing parity such as `G123` / `g123`
+• representative browser smoke checks succeeded for saved URL/title inputs on
+  the adopted-side candidate
+• no TXT download or enqueue behavior was added yet
+• `tests/test_web_app.py` was added
+• archive-read / resolver / main tests were updated
+• both repositories now reflect the same adopted final state on `main`
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -681,7 +711,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK027 is complete.
+TASK028 is complete.
 
 A roadmap reference exists for future-direction context only:
 
