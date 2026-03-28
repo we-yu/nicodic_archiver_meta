@@ -1609,6 +1609,37 @@ TASK029 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK030 has been completed.
+
+TASK030 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• the existing bounded Web app was packaged into a practical single-operator runtime/publication baseline
+• the runtime profile now starts the Web app directly
+• the runtime profile now publishes the Web app on a host-visible IP:port
+• `main.py` web mode now accepts a bounded target-list-path option
+• the runtime profile now wires the Web app to the mounted plain-text target list
+• Web-side registration now adds only the canonical article URL to the existing plain-text target list
+• Web-side registration does not enqueue work
+• Web-side registration does not trigger immediate scrape execution
+• actual scrape execution remains delegated to later periodic or batch runs
+• saved article TXT download remains available from the Web UI
+• `docker-compose.runtime.yml` was updated
+• `docs/PERSONAL_RUNTIME.md` was updated
+• `main.py` was updated
+• `web_app.py` was updated
+• `tests/test_main.py` was updated
+• `tests/test_web_app.py` was updated
+• no target source-of-truth DB migration was introduced
+• no `targets.txt` format change was introduced
+• no auth / account / public-abuse design was introduced
+• no broad deploy / cloud-platform redesign was introduced
+• no queue / scheduler / worker redesign was introduced
+• both repositories now reflect the same adopted final state on `main`
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -1734,7 +1765,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK029 is complete.
+TASK030 is complete.
 
 A roadmap reference exists for future-direction context only:
 
@@ -5560,8 +5591,6 @@ Authoritative context should still be restored from:
 
 
 ===== REVIEW LOG: META/review_log/TASK029_adoption.md =====
-cd /home/manage/product/nicodic_archiver
-cat > META/review_log/TASK029_adoption.md <<'EOF'
 # TASK029 Adoption Log
 
 ## Task
@@ -5686,6 +5715,141 @@ Authoritative context should still be restored from:
 - `PROJECT_STATE.md`
 - `WORKSPACE.md`
 - `project_snapshot.txt`
+
+
+
+===== REVIEW LOG: META/review_log/TASK030_adoption.md =====
+# TASK030 Adoption Log
+
+## Task
+TASK030
+
+Package the existing bounded Web app into a practical single-operator Web
+runtime/publication baseline, while keeping target registration text-based and
+separating Web-side registration from scheduled scrape execution.
+
+## Decision
+Adopted: **Copilot**
+
+Alternative reviewed:
+- Cursor implementation was retained as comparison evidence
+- A narrow hybrid was considered during review
+- Final adopted result uses the Copilot runtime/publication baseline
+
+## Final adopted shape
+Changed files:
+- `docker-compose.runtime.yml`
+- `docs/PERSONAL_RUNTIME.md`
+- `main.py`
+- `tests/test_main.py`
+- `tests/test_web_app.py`
+- `web_app.py`
+
+## What changed in the adopted result
+The adopted result packaged the existing bounded Web app into a practical
+single-operator runtime/publication baseline.
+
+Key behavior added:
+- the runtime profile now starts the existing Web app directly
+- the runtime profile now publishes the Web app on a host-visible IP:port
+- `main.py web` now accepts a bounded target-list-path option
+- the runtime profile wires the Web app to the mounted text target list
+- Web-side registration now adds only the canonical article URL to the
+  existing plain-text target list
+- Web-side registration does not enqueue work
+- Web-side registration does not trigger immediate scrape execution
+- actual scrape execution remains delegated to later periodic or batch runs
+- saved article TXT download remains available from the Web UI
+- the task remains single-operator-friendly and bounded
+
+The adopted result did not introduce:
+- DB source-of-truth migration for targets
+- `targets.txt` format changes
+- auth / account
+- public-abuse policy
+- broad deploy / cloud-platform redesign
+- queue / scheduler / worker redesign
+- rich UI / design-system expansion
+- CSV / JSON / MD / HTML implementation
+
+## Why Copilot was adopted
+Primary reasons:
+
+1. It matched the TASK030 center more directly.
+   - the runtime/publication packaging was more concrete
+   - the Web app became directly usable through the runtime profile
+
+2. It made the IP:port access story clearer.
+   - compose wiring, runtime startup, and operator-facing docs were more
+     explicit and easier to use
+
+3. After adopted-side narrowing, it matched the final meaning more closely.
+   - Web-side behavior is limited to bounded validation, target registration,
+     and saved TXT download
+   - immediate enqueue / immediate scrape is not part of the normal Web flow
+
+4. It remained bounded.
+   - target registration stays text-based in this task
+   - future DB migration remains possible without forcing it into TASK030
+
+## Why Cursor was not adopted
+Cursor implementation was valid and useful as comparison evidence.
+
+Observed strengths:
+- clean target-registration seam
+- good future-facing shape for later target-storage evolution
+
+Reasons it was not selected:
+- the runtime/publication packaging was less concrete than the adopted result
+- the adopted Copilot result better expressed the practical single-operator
+  Web runtime baseline targeted by TASK030
+
+## Why Hybrid was not selected
+A narrow hybrid was considered during review.
+
+However:
+- the adopted Copilot runtime/publication baseline already satisfied the task
+  well after the adopted-side narrowing
+- no additional borrowed Cursor change was necessary to make the adopted
+  result valid and explainable
+- merge-for-the-sake-of-merge was unnecessary
+
+## Validation result
+Validation was run with the established workflow:
+- `./validate_helix.sh` passed for both child repositories on the final state
+
+## Convergence result
+- `./compare_helix.sh --all` passed after adoption and synchronization
+- `copilot/` and `cursor/` matched on the adopted final state
+
+## Repository outcome
+- adopted implementation repository: `copilot/`
+- comparison-evidence repository: `cursor/`
+- optional adoption marker branch:
+  - `adopted/task030-web-runtime-beta`
+- after product-repo integration, both child repositories were realigned to the
+  same adopted final state
+
+## Notes for future AI sessions
+Important interpretation:
+- TASK030 is complete
+- the project now has a bounded single-operator Web runtime/publication
+  baseline
+- the runtime profile can expose the Web app on a host-visible IP:port
+- Web-side registration updates only the plain-text target list in this task
+- actual scrape execution remains periodic/batch driven
+- target-storage DB migration remains deferred for a later bounded task
+
+## Meta note
+This log is AI-readable review memory.
+It is not authoritative current state by itself.
+
+Authoritative context should still be restored from:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
+
 
 
 
@@ -6041,7 +6205,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Fri Mar 27 17:58:21 UTC 2026
+generated: Sat Mar 28 06:40:10 UTC 2026
 mode: full
 
 
@@ -9931,13 +10095,27 @@ services:
     working_dir: /app
     environment:
       BATCH_LOG_DIR: /runtime/logs/batch_runs
+      TARGET_LIST_PATH: /runtime/targets/targets.txt
     volumes:
       - ./runtime/targets:/runtime/targets
       - ./runtime/data:/app/data
       - ./runtime/logs:/runtime/logs
+    ports:
+      - "${WEB_BIND_HOST:-127.0.0.1}:${WEB_PORT:-8000}:8000"
     stdin_open: true
     tty: true
-    command: ["tail", "-f", "/dev/null"]
+    command:
+      [
+        "python",
+        "main.py",
+        "web",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--target-list-path",
+        "/runtime/targets/targets.txt",
+      ]
 
 
 =============================
@@ -10048,7 +10226,7 @@ intended to keep a long-lived container available for manual CLI use.
 
 What this profile does:
 - builds a runtime image from Dockerfile.runtime
-- keeps one terminal-friendly container running
+- keeps one single-operator web runtime running on a host IP:port
 - preserves targets, SQLite data, archives, and batch logs through mounts
 
 What this profile does not do yet:
@@ -10059,6 +10237,11 @@ What this profile now adds for periodic operation:
 - a host-side one-shot wrapper that calls the existing periodic path
 - simple lock + skip handling to avoid overlap
 - a scheduler-friendly non-interactive invocation shape
+
+What this profile now adds for web operation:
+- starts the existing web app inside the runtime container
+- publishes the web app on a host-visible IP:port mapping
+- keeps target intake bounded to canonical article URLs in the text target list
 
 ## Mounted Paths
 
@@ -10076,6 +10259,9 @@ Because the application already reads and writes under data/ and uses the
 BATCH_LOG_DIR environment variable for batch logs, no product behavior needs
 to change.
 
+The runtime profile also sets TARGET_LIST_PATH to /runtime/targets/targets.txt
+for the web process.
+
 ## Host UID/GID Handling
 
 To keep generated files writable from the host shell, pass the host UID/GID
@@ -10083,7 +10269,10 @@ only when starting the runtime container.
 
 Recommended start command:
 
-`LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) docker compose -f docker-compose.runtime.yml up -d --build`
+```sh
+LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) \
+	docker compose -f docker-compose.runtime.yml up -d --build
+```
 
 This avoids relying on persistent host-side environment variable setup.
 The values are resolved from the current host at container start time.
@@ -10092,10 +10281,34 @@ The values are resolved from the current host at container start time.
 
 Build and start the provisional runtime container:
 
-`LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) docker compose -f docker-compose.runtime.yml up -d --build`
+```sh
+LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) \
+	docker compose -f docker-compose.runtime.yml up -d --build
+```
 
-The container stays running with a simple foreground process so that human
-operators can execute the existing CLI commands inside it.
+The container starts the existing web app on port 8000 inside the container.
+By default, docker-compose.runtime.yml publishes that as 127.0.0.1:8000 on
+the host.
+
+Open the web UI from the host browser at:
+
+`http://127.0.0.1:8000`
+
+To bind a different host IP or port without editing files:
+
+```sh
+WEB_BIND_HOST=0.0.0.0 WEB_PORT=8010 \
+LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) \
+	docker compose -f docker-compose.runtime.yml up -d --build
+```
+
+The web app remains a thin entrypoint. A web-side registration adds only the
+canonical article URL to runtime/targets/targets.txt. It does not enqueue or
+scrape immediately; the next periodic or batch pass performs the actual scrape.
+
+The web UI is intentionally separated from immediate execution. It performs
+bounded validation / existence checks, target-list registration, and saved
+article TXT download only.
 
 ## Stop
 
@@ -10111,6 +10324,9 @@ Create or edit the target list at:
 
 That file remains a human-editable plain text target source.
 
+The web UI writes the same file when a resolved article is added through the
+Add To Target List action.
+
 ## Initial Smoke Test
 
 On a fresh runtime data directory, run one scrape or batch pass before using
@@ -10123,25 +10339,52 @@ Reason:
 
 Recommended first-pass smoke test:
 
-`docker compose -f docker-compose.runtime.yml exec personal_runtime python main.py batch /runtime/targets/targets.txt`
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py batch /runtime/targets/targets.txt
+```
 
 After that, this command should work as expected:
 
-`docker compose -f docker-compose.runtime.yml exec personal_runtime python main.py list-articles`
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py list-articles
+```
 
 ## Common Commands
 
+Follow the published web runtime logs:
+
+`docker compose -f docker-compose.runtime.yml logs -f personal_runtime`
+
 Show the target list currently mounted into the runtime:
 
-`docker compose -f docker-compose.runtime.yml exec personal_runtime python main.py targets /runtime/targets/targets.txt`
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py targets /runtime/targets/targets.txt
+```
 
 Run one batch pass:
 
-`docker compose -f docker-compose.runtime.yml exec personal_runtime python main.py batch /runtime/targets/targets.txt`
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py batch /runtime/targets/targets.txt
+```
 
 Run the current periodic CLI entrypoint manually:
 
-`docker compose -f docker-compose.runtime.yml exec personal_runtime python main.py periodic /runtime/targets/targets.txt 300`
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py periodic /runtime/targets/targets.txt 300
+```
+
+Run the web app manually with an explicit target list path if needed:
+
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py web --host 0.0.0.0 --port 8000 \
+	--target-list-path /runtime/targets/targets.txt
+```
 
 Run one scheduler-friendly periodic cycle through the wrapper:
 
@@ -10163,11 +10406,17 @@ Example scheduler-facing invocation shape:
 
 List saved articles:
 
-`docker compose -f docker-compose.runtime.yml exec personal_runtime python main.py list-articles`
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py list-articles
+```
 
 Export all saved articles:
 
-`docker compose -f docker-compose.runtime.yml exec personal_runtime python main.py export-all-articles --format txt`
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py export-all-articles --format txt
+```
 
 ## Cleanup After A Smoke Test
 
@@ -10194,7 +10443,6 @@ runtime profile:
 
 These directories are included only as a provisional runtime shape. A later
 task can package scheduling or host deployment more tightly if needed.
-
 
 =============================
 FILE: ./copilot/docs/WORKFLOW.md
@@ -10519,7 +10767,10 @@ def main():
         print("  python main.py targets <target_list_path>")
         print("  python main.py batch <target_list_path>")
         print("  python main.py periodic-once <target_list_path>")
-        print("  python main.py web [--host HOST] [--port PORT]")
+        print(
+            "  python main.py web [--host HOST] [--port PORT] "
+            "[--target-list-path PATH]"
+        )
         print(
             "  python main.py periodic <target_list_path> <interval_seconds> "
             "[--max-runs N]"
@@ -10668,6 +10919,10 @@ def main():
     if sys.argv[1] == "web":
         host = "127.0.0.1"
         port = 8000
+        target_list_path = os.environ.get(
+            "TARGET_LIST_PATH",
+            "runtime/targets/targets.txt",
+        )
 
         if "--host" in sys.argv:
             idx = sys.argv.index("--host")
@@ -10677,7 +10932,15 @@ def main():
             idx = sys.argv.index("--port")
             port = int(sys.argv[idx + 1])
 
-        serve_web_app(host=host, port=port)
+        if "--target-list-path" in sys.argv:
+            idx = sys.argv.index("--target-list-path")
+            target_list_path = sys.argv[idx + 1]
+
+        serve_web_app(
+            host=host,
+            port=port,
+            target_list_path=target_list_path,
+        )
         return
 
     # 通常スクレイプモード
@@ -12420,18 +12683,35 @@ def test_main_web_mode_calls_serve_web_app_with_defaults(mock_serve_web_app):
     with patch("sys.argv", ["main.py", "web"]):
         main_module.main()
 
-    mock_serve_web_app.assert_called_once_with(host="127.0.0.1", port=8000)
+    mock_serve_web_app.assert_called_once_with(
+        host="127.0.0.1",
+        port=8000,
+        target_list_path="runtime/targets/targets.txt",
+    )
 
 
 @patch("main.serve_web_app")
 def test_main_web_mode_allows_host_and_port_override(mock_serve_web_app):
     with patch(
         "sys.argv",
-        ["main.py", "web", "--host", "0.0.0.0", "--port", "9001"],
+        [
+            "main.py",
+            "web",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "9001",
+            "--target-list-path",
+            "/runtime/targets/custom.txt",
+        ],
     ):
         main_module.main()
 
-    mock_serve_web_app.assert_called_once_with(host="0.0.0.0", port=9001)
+    mock_serve_web_app.assert_called_once_with(
+        host="0.0.0.0",
+        port=9001,
+        target_list_path="/runtime/targets/custom.txt",
+    )
 
 
 def test_main_too_few_args_exits_with_usage(capsys):
@@ -12451,6 +12731,7 @@ def test_main_too_few_args_exits_with_usage(capsys):
     assert "targets <target_list_path>" in out
     assert "batch <target_list_path>" in out
     assert "periodic-once <target_list_path>" in out
+    assert "web [--host HOST] [--port PORT] [--target-list-path PATH]" in out
     assert (
         "periodic <target_list_path> <interval_seconds> [--max-runs N]" in out
     )
@@ -14183,10 +14464,10 @@ FILE: ./copilot/tests/test_web_app.py
 from io import BytesIO
 from unittest.mock import patch
 
-from web_app import application, check_article_status
+from web_app import application, check_article_status, create_app
 
 
-def _run_wsgi_request(method, path="/", body=""):
+def _run_wsgi_request(method, path="/", body="", app=None):
     encoded_body = body.encode("utf-8")
     captured = {}
 
@@ -14194,7 +14475,7 @@ def _run_wsgi_request(method, path="/", body=""):
         captured["status"] = status
         captured["headers"] = headers
 
-    response = application(
+    response = (app or application)(
         {
             "REQUEST_METHOD": method,
             "PATH_INFO": path,
@@ -14447,6 +14728,7 @@ def test_application_post_renders_saved_result_message():
     assert "Canonical target: a/12345" in response["body"]
     assert "Saved response count: 42" in response["body"]
     assert "Download TXT" in response["body"]
+    assert "Add To Target List" in response["body"]
 
 
 def test_application_post_renders_title_resolution_failure_message():
@@ -14465,7 +14747,7 @@ def test_application_post_renders_title_resolution_failure_message():
     assert "Resolution status: <strong>not_found</strong>" in response["body"]
 
 
-def test_application_post_renders_unsaved_result_with_enqueue_action():
+def test_application_post_renders_unsaved_result_with_target_action_only():
     result = {
         "status": "unsaved",
         "input": "Foo",
@@ -14481,7 +14763,128 @@ def test_application_post_renders_unsaved_result_with_enqueue_action():
         response = _run_wsgi_request("POST", body="article_input=Foo")
 
     assert response["status"] == "200 OK"
-    assert "Enqueue Request" in response["body"]
+    assert "Add To Target List" in response["body"]
+    assert "Enqueue Request" not in response["body"]
+
+
+@patch("web_app.add_target_url", return_value="added")
+@patch("web_app.check_article_status")
+def test_application_action_add_target_uses_canonical_url(
+    mock_check_status,
+    mock_add_target_url,
+):
+    mock_check_status.return_value = {
+        "status": "unsaved",
+        "input": "Foo",
+        "title": "Foo",
+        "matched_by": "exact_title",
+        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_id": "12345",
+        "article_type": "a",
+        "message": "Resolved article, but no saved archive was found yet.",
+    }
+
+    response = _run_wsgi_request(
+        "POST",
+        path="/action",
+        body="article_input=Foo&action=add_target",
+    )
+
+    assert response["status"] == "200 OK"
+    assert "Canonical article URL was added to the target list." in response["body"]
+    mock_add_target_url.assert_called_once_with(
+        "https://dic.nicovideo.jp/a/12345",
+        "runtime/targets/targets.txt",
+    )
+
+
+@patch("web_app.add_target_url", return_value="added")
+@patch("web_app.check_article_status")
+def test_application_action_add_target_uses_custom_runtime_target_path(
+    mock_check_status,
+    mock_add_target_url,
+):
+    mock_check_status.return_value = {
+        "status": "unsaved",
+        "input": "Foo",
+        "title": "Foo",
+        "matched_by": "exact_title",
+        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_id": "12345",
+        "article_type": "a",
+        "message": "Resolved article, but no saved archive was found yet.",
+    }
+
+    response = _run_wsgi_request(
+        "POST",
+        path="/action",
+        body="article_input=Foo&action=add_target",
+        app=create_app(target_list_path="/runtime/targets/custom.txt"),
+    )
+
+    assert response["status"] == "200 OK"
+    mock_add_target_url.assert_called_once_with(
+        "https://dic.nicovideo.jp/a/12345",
+        "/runtime/targets/custom.txt",
+    )
+
+
+@patch("web_app.add_target_url", return_value="duplicate")
+@patch("web_app.check_article_status")
+def test_application_action_add_target_duplicate_is_bounded(
+    mock_check_status,
+    mock_add_target_url,
+):
+    mock_check_status.return_value = {
+        "status": "saved",
+        "input": "Foo",
+        "title": "Foo",
+        "matched_by": "exact_title",
+        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_id": "12345",
+        "article_type": "a",
+        "response_count": 42,
+        "message": "Saved archive found for the resolved article.",
+    }
+
+    response = _run_wsgi_request(
+        "POST",
+        path="/action",
+        body="article_input=Foo&action=add_target",
+    )
+
+    assert response["status"] == "200 OK"
+    assert (
+        "Canonical article URL is already present in the target list."
+        in response["body"]
+    )
+    mock_add_target_url.assert_called_once_with(
+        "https://dic.nicovideo.jp/a/12345",
+        "runtime/targets/targets.txt",
+    )
+
+
+@patch("web_app.check_article_status")
+def test_application_action_add_target_skips_write_for_unresolved_input(
+    mock_check_status,
+):
+    mock_check_status.return_value = {
+        "status": "resolution_failure",
+        "input": "Foo",
+        "failure_kind": "not_found",
+        "message": "Could not resolve the input (not_found).",
+    }
+
+    with patch("web_app.add_target_url") as mock_add_target_url:
+        response = _run_wsgi_request(
+            "POST",
+            path="/action",
+            body="article_input=Foo&action=add_target",
+        )
+
+    assert response["status"] == "200 OK"
+    assert "Action requires a saved or unsaved resolved article." in response["body"]
+    mock_add_target_url.assert_not_called()
 
 
 @patch("web_app.get_saved_article_txt")
@@ -14523,20 +14926,10 @@ def test_application_action_download_txt_for_saved(
     mock_get_saved_article_txt.assert_called_once_with("12345", "a")
 
 
-@patch("web_app.init_db")
-@patch("web_app.enqueue_canonical_target")
 @patch("web_app.check_article_status")
-def test_application_action_enqueue_unsaved_success_class_message(
+def test_application_action_enqueue_request_is_not_supported_from_web(
     mock_check_status,
-    mock_enqueue,
-    mock_init_db,
 ):
-    class DummyConn:
-        def close(self):
-            return None
-
-    conn = DummyConn()
-    mock_init_db.return_value = conn
     mock_check_status.return_value = {
         "status": "unsaved",
         "input": "Foo",
@@ -14547,85 +14940,8 @@ def test_application_action_enqueue_unsaved_success_class_message(
         "article_type": "a",
         "message": "Resolved article, but no saved archive was found yet.",
     }
-    mock_enqueue.return_value = {
-        "status": "enqueued",
-        "entry": {},
-        "queue_identity": {"article_id": "12345", "article_type": "a"},
-    }
 
-    response = _run_wsgi_request(
-        "POST",
-        path="/action",
-        body="article_input=Foo&action=enqueue_request",
-    )
-
-    assert response["status"] == "200 OK"
-    assert "Queue request accepted." in response["body"]
-    mock_enqueue.assert_called_once_with(
-        conn,
-        {
-            "article_url": "https://dic.nicovideo.jp/a/12345",
-            "article_id": "12345",
-            "article_type": "a",
-        },
-        title="Foo",
-    )
-
-
-@patch("web_app.init_db")
-@patch("web_app.enqueue_canonical_target")
-@patch("web_app.check_article_status")
-def test_application_action_enqueue_duplicate_also_success_class(
-    mock_check_status,
-    mock_enqueue,
-    mock_init_db,
-):
-    class DummyConn:
-        def close(self):
-            return None
-
-    mock_init_db.return_value = DummyConn()
-    mock_check_status.return_value = {
-        "status": "unsaved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "message": "Resolved article, but no saved archive was found yet.",
-    }
-    mock_enqueue.return_value = {
-        "status": "duplicate",
-        "entry": {},
-        "queue_identity": {"article_id": "12345", "article_type": "a"},
-    }
-
-    response = _run_wsgi_request(
-        "POST",
-        path="/action",
-        body="article_input=Foo&action=enqueue_request",
-    )
-
-    assert response["status"] == "200 OK"
-    assert "Queue request accepted (already queued)." in response["body"]
-
-
-@patch("web_app.check_article_status")
-def test_application_action_enqueue_recheck_saved_skips_enqueue(mock_check_status):
-    mock_check_status.return_value = {
-        "status": "saved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "response_count": 42,
-        "message": "Saved archive found for the resolved article.",
-    }
-
-    with patch("web_app.enqueue_canonical_target") as mock_enqueue:
+    with patch("web_app.add_target_url") as mock_add_target_url:
         response = _run_wsgi_request(
             "POST",
             path="/action",
@@ -14633,8 +14949,8 @@ def test_application_action_enqueue_recheck_saved_skips_enqueue(mock_check_statu
         )
 
     assert response["status"] == "200 OK"
-    assert "Article is already saved; queue request was skipped." in response["body"]
-    mock_enqueue.assert_not_called()
+    assert "Unsupported action." in response["body"]
+    mock_add_target_url.assert_not_called()
 
 
 def test_application_returns_not_found_for_unknown_path():
@@ -14646,6 +14962,7 @@ def test_application_returns_not_found_for_unknown_path():
 =============================
 FILE: ./copilot/web_app.py
 =============================
+import os
 from html import escape
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
@@ -14657,7 +14974,13 @@ from archive_read import (
     get_saved_article_summary_by_exact_title,
 )
 from article_resolver import resolve_article_input
-from storage import enqueue_canonical_target, init_db
+from target_list import add_target_url
+
+
+DEFAULT_TARGET_LIST_PATH = os.environ.get(
+    "TARGET_LIST_PATH",
+    "runtime/targets/targets.txt",
+)
 
 
 def _normalize_web_input(article_input: str) -> str:
@@ -14739,18 +15062,6 @@ def check_article_status(article_input: str) -> dict:
         }
 
 
-def _read_post_input(environ: dict) -> str:
-    content_length = environ.get("CONTENT_LENGTH", "0").strip()
-    try:
-        body_size = int(content_length)
-    except ValueError:
-        body_size = 0
-
-    body = environ["wsgi.input"].read(body_size).decode("utf-8")
-    form_data = parse_qs(body, keep_blank_values=True)
-    return form_data.get("article_input", [""])[0]
-
-
 def _read_post_form(environ: dict) -> dict:
     content_length = environ.get("CONTENT_LENGTH", "0").strip()
     try:
@@ -14767,18 +15078,20 @@ def _build_action_result_message(action_result: dict) -> str:
     status = action_result["status"]
     if status == "download_ready":
         return "Saved article TXT download is ready."
-    if status == "enqueued":
-        if action_result.get("enqueue_status") == "duplicate":
-            return "Queue request accepted (already queued)."
-        return "Queue request accepted."
-    if status == "already_saved":
-        return "Article is already saved; queue request was skipped."
+    if status == "target_added":
+        return "Canonical article URL was added to the target list."
+    if status == "target_duplicate":
+        return "Canonical article URL is already present in the target list."
     if status == "action_error":
         return action_result["message"]
     return "Action completed."
 
 
-def _followup_action(article_input: str, action: str) -> dict:
+def _followup_action(
+    article_input: str,
+    action: str,
+    target_list_path: str,
+) -> dict:
     status_result = check_article_status(article_input)
     if status_result["status"] not in {"saved", "unsaved"}:
         return {
@@ -14799,31 +15112,24 @@ def _followup_action(article_input: str, action: str) -> dict:
             "check_result": status_result,
         }
 
-    if action == "enqueue_request":
-        if status_result["status"] == "saved":
+    if action == "add_target":
+        add_result = add_target_url(
+            status_result["article_url"],
+            target_list_path,
+        )
+        if add_result == "added":
             return {
-                "status": "already_saved",
+                "status": "target_added",
                 "check_result": status_result,
             }
-
-        canonical_target = {
-            "article_url": status_result["article_url"],
-            "article_id": status_result["article_id"],
-            "article_type": status_result["article_type"],
-        }
-        conn = init_db()
-        try:
-            enqueue_result = enqueue_canonical_target(
-                conn,
-                canonical_target,
-                title=status_result["title"],
-            )
-        finally:
-            conn.close()
-
+        if add_result == "duplicate":
+            return {
+                "status": "target_duplicate",
+                "check_result": status_result,
+            }
         return {
-            "status": "enqueued",
-            "enqueue_status": enqueue_result["status"],
+            "status": "action_error",
+            "message": "Canonical article URL could not be added.",
             "check_result": status_result,
         }
 
@@ -14834,7 +15140,10 @@ def _followup_action(article_input: str, action: str) -> dict:
     }
 
 
-def _render_message_area(result: dict | None, action_result: dict | None = None) -> str:
+def _render_message_area(
+    result: dict | None,
+    action_result: dict | None = None,
+) -> str:
     if result is None:
         return (
             '<section class="message-area empty">'
@@ -14893,22 +15202,37 @@ def _render_message_area(result: dict | None, action_result: dict | None = None)
             f"{escape(str(result['response_count']))}</p>"
         )
         lines.append(
-            "<form method=\"post\" action=\"/action\">"
-            f"<input type=\"hidden\" name=\"article_input\" "
-            f"value=\"{escape(result['input'])}\">"
-            "<input type=\"hidden\" name=\"action\" value=\"download_txt\">"
-            "<button type=\"submit\">Download TXT</button>"
-            "</form>"
+            (
+                "<form method=\"post\" action=\"/action\">"
+                f"<input type=\"hidden\" name=\"article_input\" "
+                f"value=\"{escape(result['input'])}\">"
+                "<input type=\"hidden\" name=\"action\" "
+                "value=\"download_txt\">"
+                "<button type=\"submit\">Download TXT</button>"
+                "</form>"
+            )
+        )
+        lines.append(
+            (
+                "<form method=\"post\" action=\"/action\">"
+                f"<input type=\"hidden\" name=\"article_input\" "
+                f"value=\"{escape(result['input'])}\">"
+                "<input type=\"hidden\" name=\"action\" value=\"add_target\">"
+                "<button type=\"submit\">Add To Target List</button>"
+                "</form>"
+            )
         )
 
     if result["status"] == "unsaved":
         lines.append(
-            "<form method=\"post\" action=\"/action\">"
-            f"<input type=\"hidden\" name=\"article_input\" "
-            f"value=\"{escape(result['input'])}\">"
-            "<input type=\"hidden\" name=\"action\" value=\"enqueue_request\">"
-            "<button type=\"submit\">Enqueue Request</button>"
-            "</form>"
+            (
+                "<form method=\"post\" action=\"/action\">"
+                f"<input type=\"hidden\" name=\"article_input\" "
+                f"value=\"{escape(result['input'])}\">"
+                "<input type=\"hidden\" name=\"action\" value=\"add_target\">"
+                "<button type=\"submit\">Add To Target List</button>"
+                "</form>"
+            )
         )
 
     lines.append("</section>")
@@ -15038,7 +15362,7 @@ def _render_page(
     return html.encode("utf-8")
 
 
-def create_app():
+def create_app(target_list_path: str = DEFAULT_TARGET_LIST_PATH):
     def app(environ, start_response):
         method = environ.get("REQUEST_METHOD", "GET").upper()
         path = environ.get("PATH_INFO", "/")
@@ -15055,7 +15379,8 @@ def create_app():
             return [body]
 
         if method == "POST" and path == "/":
-            article_input = _read_post_input(environ)
+            form = _read_post_form(environ)
+            article_input = form.get("article_input", "")
             body = _render_page(article_input, check_article_status(article_input))
             start_response(
                 "200 OK",
@@ -15071,7 +15396,11 @@ def create_app():
             article_input = form.get("article_input", "")
             action = form.get("action", "")
 
-            action_result = _followup_action(article_input, action)
+            action_result = _followup_action(
+                article_input,
+                action,
+                target_list_path,
+            )
             check_result = action_result["check_result"]
 
             if action_result["status"] == "download_ready":
@@ -15151,8 +15480,13 @@ def create_app():
 application = create_app()
 
 
-def serve_web_app(host: str = "127.0.0.1", port: int = 8000) -> None:
-    with make_server(host, port, application) as server:
+def serve_web_app(
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    target_list_path: str = DEFAULT_TARGET_LIST_PATH,
+) -> None:
+    app = create_app(target_list_path=target_list_path)
+    with make_server(host, port, app) as server:
         print(f"Serving web app at http://{host}:{port}")
         server.serve_forever()
 
@@ -16091,13 +16425,27 @@ services:
     working_dir: /app
     environment:
       BATCH_LOG_DIR: /runtime/logs/batch_runs
+      TARGET_LIST_PATH: /runtime/targets/targets.txt
     volumes:
       - ./runtime/targets:/runtime/targets
       - ./runtime/data:/app/data
       - ./runtime/logs:/runtime/logs
+    ports:
+      - "${WEB_BIND_HOST:-127.0.0.1}:${WEB_PORT:-8000}:8000"
     stdin_open: true
     tty: true
-    command: ["tail", "-f", "/dev/null"]
+    command:
+      [
+        "python",
+        "main.py",
+        "web",
+        "--host",
+        "0.0.0.0",
+        "--port",
+        "8000",
+        "--target-list-path",
+        "/runtime/targets/targets.txt",
+      ]
 
 
 =============================
@@ -16208,7 +16556,7 @@ intended to keep a long-lived container available for manual CLI use.
 
 What this profile does:
 - builds a runtime image from Dockerfile.runtime
-- keeps one terminal-friendly container running
+- keeps one single-operator web runtime running on a host IP:port
 - preserves targets, SQLite data, archives, and batch logs through mounts
 
 What this profile does not do yet:
@@ -16219,6 +16567,11 @@ What this profile now adds for periodic operation:
 - a host-side one-shot wrapper that calls the existing periodic path
 - simple lock + skip handling to avoid overlap
 - a scheduler-friendly non-interactive invocation shape
+
+What this profile now adds for web operation:
+- starts the existing web app inside the runtime container
+- publishes the web app on a host-visible IP:port mapping
+- keeps target intake bounded to canonical article URLs in the text target list
 
 ## Mounted Paths
 
@@ -16236,6 +16589,9 @@ Because the application already reads and writes under data/ and uses the
 BATCH_LOG_DIR environment variable for batch logs, no product behavior needs
 to change.
 
+The runtime profile also sets TARGET_LIST_PATH to /runtime/targets/targets.txt
+for the web process.
+
 ## Host UID/GID Handling
 
 To keep generated files writable from the host shell, pass the host UID/GID
@@ -16243,7 +16599,10 @@ only when starting the runtime container.
 
 Recommended start command:
 
-`LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) docker compose -f docker-compose.runtime.yml up -d --build`
+```sh
+LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) \
+	docker compose -f docker-compose.runtime.yml up -d --build
+```
 
 This avoids relying on persistent host-side environment variable setup.
 The values are resolved from the current host at container start time.
@@ -16252,10 +16611,34 @@ The values are resolved from the current host at container start time.
 
 Build and start the provisional runtime container:
 
-`LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) docker compose -f docker-compose.runtime.yml up -d --build`
+```sh
+LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) \
+	docker compose -f docker-compose.runtime.yml up -d --build
+```
 
-The container stays running with a simple foreground process so that human
-operators can execute the existing CLI commands inside it.
+The container starts the existing web app on port 8000 inside the container.
+By default, docker-compose.runtime.yml publishes that as 127.0.0.1:8000 on
+the host.
+
+Open the web UI from the host browser at:
+
+`http://127.0.0.1:8000`
+
+To bind a different host IP or port without editing files:
+
+```sh
+WEB_BIND_HOST=0.0.0.0 WEB_PORT=8010 \
+LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) \
+	docker compose -f docker-compose.runtime.yml up -d --build
+```
+
+The web app remains a thin entrypoint. A web-side registration adds only the
+canonical article URL to runtime/targets/targets.txt. It does not enqueue or
+scrape immediately; the next periodic or batch pass performs the actual scrape.
+
+The web UI is intentionally separated from immediate execution. It performs
+bounded validation / existence checks, target-list registration, and saved
+article TXT download only.
 
 ## Stop
 
@@ -16271,6 +16654,9 @@ Create or edit the target list at:
 
 That file remains a human-editable plain text target source.
 
+The web UI writes the same file when a resolved article is added through the
+Add To Target List action.
+
 ## Initial Smoke Test
 
 On a fresh runtime data directory, run one scrape or batch pass before using
@@ -16283,25 +16669,52 @@ Reason:
 
 Recommended first-pass smoke test:
 
-`docker compose -f docker-compose.runtime.yml exec personal_runtime python main.py batch /runtime/targets/targets.txt`
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py batch /runtime/targets/targets.txt
+```
 
 After that, this command should work as expected:
 
-`docker compose -f docker-compose.runtime.yml exec personal_runtime python main.py list-articles`
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py list-articles
+```
 
 ## Common Commands
 
+Follow the published web runtime logs:
+
+`docker compose -f docker-compose.runtime.yml logs -f personal_runtime`
+
 Show the target list currently mounted into the runtime:
 
-`docker compose -f docker-compose.runtime.yml exec personal_runtime python main.py targets /runtime/targets/targets.txt`
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py targets /runtime/targets/targets.txt
+```
 
 Run one batch pass:
 
-`docker compose -f docker-compose.runtime.yml exec personal_runtime python main.py batch /runtime/targets/targets.txt`
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py batch /runtime/targets/targets.txt
+```
 
 Run the current periodic CLI entrypoint manually:
 
-`docker compose -f docker-compose.runtime.yml exec personal_runtime python main.py periodic /runtime/targets/targets.txt 300`
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py periodic /runtime/targets/targets.txt 300
+```
+
+Run the web app manually with an explicit target list path if needed:
+
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py web --host 0.0.0.0 --port 8000 \
+	--target-list-path /runtime/targets/targets.txt
+```
 
 Run one scheduler-friendly periodic cycle through the wrapper:
 
@@ -16323,11 +16736,17 @@ Example scheduler-facing invocation shape:
 
 List saved articles:
 
-`docker compose -f docker-compose.runtime.yml exec personal_runtime python main.py list-articles`
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py list-articles
+```
 
 Export all saved articles:
 
-`docker compose -f docker-compose.runtime.yml exec personal_runtime python main.py export-all-articles --format txt`
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py export-all-articles --format txt
+```
 
 ## Cleanup After A Smoke Test
 
@@ -16354,7 +16773,6 @@ runtime profile:
 
 These directories are included only as a provisional runtime shape. A later
 task can package scheduling or host deployment more tightly if needed.
-
 
 =============================
 FILE: ./cursor/docs/WORKFLOW.md
@@ -16679,7 +17097,10 @@ def main():
         print("  python main.py targets <target_list_path>")
         print("  python main.py batch <target_list_path>")
         print("  python main.py periodic-once <target_list_path>")
-        print("  python main.py web [--host HOST] [--port PORT]")
+        print(
+            "  python main.py web [--host HOST] [--port PORT] "
+            "[--target-list-path PATH]"
+        )
         print(
             "  python main.py periodic <target_list_path> <interval_seconds> "
             "[--max-runs N]"
@@ -16828,6 +17249,10 @@ def main():
     if sys.argv[1] == "web":
         host = "127.0.0.1"
         port = 8000
+        target_list_path = os.environ.get(
+            "TARGET_LIST_PATH",
+            "runtime/targets/targets.txt",
+        )
 
         if "--host" in sys.argv:
             idx = sys.argv.index("--host")
@@ -16837,7 +17262,15 @@ def main():
             idx = sys.argv.index("--port")
             port = int(sys.argv[idx + 1])
 
-        serve_web_app(host=host, port=port)
+        if "--target-list-path" in sys.argv:
+            idx = sys.argv.index("--target-list-path")
+            target_list_path = sys.argv[idx + 1]
+
+        serve_web_app(
+            host=host,
+            port=port,
+            target_list_path=target_list_path,
+        )
         return
 
     # 通常スクレイプモード
@@ -18580,18 +19013,35 @@ def test_main_web_mode_calls_serve_web_app_with_defaults(mock_serve_web_app):
     with patch("sys.argv", ["main.py", "web"]):
         main_module.main()
 
-    mock_serve_web_app.assert_called_once_with(host="127.0.0.1", port=8000)
+    mock_serve_web_app.assert_called_once_with(
+        host="127.0.0.1",
+        port=8000,
+        target_list_path="runtime/targets/targets.txt",
+    )
 
 
 @patch("main.serve_web_app")
 def test_main_web_mode_allows_host_and_port_override(mock_serve_web_app):
     with patch(
         "sys.argv",
-        ["main.py", "web", "--host", "0.0.0.0", "--port", "9001"],
+        [
+            "main.py",
+            "web",
+            "--host",
+            "0.0.0.0",
+            "--port",
+            "9001",
+            "--target-list-path",
+            "/runtime/targets/custom.txt",
+        ],
     ):
         main_module.main()
 
-    mock_serve_web_app.assert_called_once_with(host="0.0.0.0", port=9001)
+    mock_serve_web_app.assert_called_once_with(
+        host="0.0.0.0",
+        port=9001,
+        target_list_path="/runtime/targets/custom.txt",
+    )
 
 
 def test_main_too_few_args_exits_with_usage(capsys):
@@ -18611,6 +19061,7 @@ def test_main_too_few_args_exits_with_usage(capsys):
     assert "targets <target_list_path>" in out
     assert "batch <target_list_path>" in out
     assert "periodic-once <target_list_path>" in out
+    assert "web [--host HOST] [--port PORT] [--target-list-path PATH]" in out
     assert (
         "periodic <target_list_path> <interval_seconds> [--max-runs N]" in out
     )
@@ -20343,10 +20794,10 @@ FILE: ./cursor/tests/test_web_app.py
 from io import BytesIO
 from unittest.mock import patch
 
-from web_app import application, check_article_status
+from web_app import application, check_article_status, create_app
 
 
-def _run_wsgi_request(method, path="/", body=""):
+def _run_wsgi_request(method, path="/", body="", app=None):
     encoded_body = body.encode("utf-8")
     captured = {}
 
@@ -20354,7 +20805,7 @@ def _run_wsgi_request(method, path="/", body=""):
         captured["status"] = status
         captured["headers"] = headers
 
-    response = application(
+    response = (app or application)(
         {
             "REQUEST_METHOD": method,
             "PATH_INFO": path,
@@ -20607,6 +21058,7 @@ def test_application_post_renders_saved_result_message():
     assert "Canonical target: a/12345" in response["body"]
     assert "Saved response count: 42" in response["body"]
     assert "Download TXT" in response["body"]
+    assert "Add To Target List" in response["body"]
 
 
 def test_application_post_renders_title_resolution_failure_message():
@@ -20625,7 +21077,7 @@ def test_application_post_renders_title_resolution_failure_message():
     assert "Resolution status: <strong>not_found</strong>" in response["body"]
 
 
-def test_application_post_renders_unsaved_result_with_enqueue_action():
+def test_application_post_renders_unsaved_result_with_target_action_only():
     result = {
         "status": "unsaved",
         "input": "Foo",
@@ -20641,7 +21093,128 @@ def test_application_post_renders_unsaved_result_with_enqueue_action():
         response = _run_wsgi_request("POST", body="article_input=Foo")
 
     assert response["status"] == "200 OK"
-    assert "Enqueue Request" in response["body"]
+    assert "Add To Target List" in response["body"]
+    assert "Enqueue Request" not in response["body"]
+
+
+@patch("web_app.add_target_url", return_value="added")
+@patch("web_app.check_article_status")
+def test_application_action_add_target_uses_canonical_url(
+    mock_check_status,
+    mock_add_target_url,
+):
+    mock_check_status.return_value = {
+        "status": "unsaved",
+        "input": "Foo",
+        "title": "Foo",
+        "matched_by": "exact_title",
+        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_id": "12345",
+        "article_type": "a",
+        "message": "Resolved article, but no saved archive was found yet.",
+    }
+
+    response = _run_wsgi_request(
+        "POST",
+        path="/action",
+        body="article_input=Foo&action=add_target",
+    )
+
+    assert response["status"] == "200 OK"
+    assert "Canonical article URL was added to the target list." in response["body"]
+    mock_add_target_url.assert_called_once_with(
+        "https://dic.nicovideo.jp/a/12345",
+        "runtime/targets/targets.txt",
+    )
+
+
+@patch("web_app.add_target_url", return_value="added")
+@patch("web_app.check_article_status")
+def test_application_action_add_target_uses_custom_runtime_target_path(
+    mock_check_status,
+    mock_add_target_url,
+):
+    mock_check_status.return_value = {
+        "status": "unsaved",
+        "input": "Foo",
+        "title": "Foo",
+        "matched_by": "exact_title",
+        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_id": "12345",
+        "article_type": "a",
+        "message": "Resolved article, but no saved archive was found yet.",
+    }
+
+    response = _run_wsgi_request(
+        "POST",
+        path="/action",
+        body="article_input=Foo&action=add_target",
+        app=create_app(target_list_path="/runtime/targets/custom.txt"),
+    )
+
+    assert response["status"] == "200 OK"
+    mock_add_target_url.assert_called_once_with(
+        "https://dic.nicovideo.jp/a/12345",
+        "/runtime/targets/custom.txt",
+    )
+
+
+@patch("web_app.add_target_url", return_value="duplicate")
+@patch("web_app.check_article_status")
+def test_application_action_add_target_duplicate_is_bounded(
+    mock_check_status,
+    mock_add_target_url,
+):
+    mock_check_status.return_value = {
+        "status": "saved",
+        "input": "Foo",
+        "title": "Foo",
+        "matched_by": "exact_title",
+        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_id": "12345",
+        "article_type": "a",
+        "response_count": 42,
+        "message": "Saved archive found for the resolved article.",
+    }
+
+    response = _run_wsgi_request(
+        "POST",
+        path="/action",
+        body="article_input=Foo&action=add_target",
+    )
+
+    assert response["status"] == "200 OK"
+    assert (
+        "Canonical article URL is already present in the target list."
+        in response["body"]
+    )
+    mock_add_target_url.assert_called_once_with(
+        "https://dic.nicovideo.jp/a/12345",
+        "runtime/targets/targets.txt",
+    )
+
+
+@patch("web_app.check_article_status")
+def test_application_action_add_target_skips_write_for_unresolved_input(
+    mock_check_status,
+):
+    mock_check_status.return_value = {
+        "status": "resolution_failure",
+        "input": "Foo",
+        "failure_kind": "not_found",
+        "message": "Could not resolve the input (not_found).",
+    }
+
+    with patch("web_app.add_target_url") as mock_add_target_url:
+        response = _run_wsgi_request(
+            "POST",
+            path="/action",
+            body="article_input=Foo&action=add_target",
+        )
+
+    assert response["status"] == "200 OK"
+    assert "Action requires a saved or unsaved resolved article." in response["body"]
+    mock_add_target_url.assert_not_called()
 
 
 @patch("web_app.get_saved_article_txt")
@@ -20683,20 +21256,10 @@ def test_application_action_download_txt_for_saved(
     mock_get_saved_article_txt.assert_called_once_with("12345", "a")
 
 
-@patch("web_app.init_db")
-@patch("web_app.enqueue_canonical_target")
 @patch("web_app.check_article_status")
-def test_application_action_enqueue_unsaved_success_class_message(
+def test_application_action_enqueue_request_is_not_supported_from_web(
     mock_check_status,
-    mock_enqueue,
-    mock_init_db,
 ):
-    class DummyConn:
-        def close(self):
-            return None
-
-    conn = DummyConn()
-    mock_init_db.return_value = conn
     mock_check_status.return_value = {
         "status": "unsaved",
         "input": "Foo",
@@ -20707,85 +21270,8 @@ def test_application_action_enqueue_unsaved_success_class_message(
         "article_type": "a",
         "message": "Resolved article, but no saved archive was found yet.",
     }
-    mock_enqueue.return_value = {
-        "status": "enqueued",
-        "entry": {},
-        "queue_identity": {"article_id": "12345", "article_type": "a"},
-    }
 
-    response = _run_wsgi_request(
-        "POST",
-        path="/action",
-        body="article_input=Foo&action=enqueue_request",
-    )
-
-    assert response["status"] == "200 OK"
-    assert "Queue request accepted." in response["body"]
-    mock_enqueue.assert_called_once_with(
-        conn,
-        {
-            "article_url": "https://dic.nicovideo.jp/a/12345",
-            "article_id": "12345",
-            "article_type": "a",
-        },
-        title="Foo",
-    )
-
-
-@patch("web_app.init_db")
-@patch("web_app.enqueue_canonical_target")
-@patch("web_app.check_article_status")
-def test_application_action_enqueue_duplicate_also_success_class(
-    mock_check_status,
-    mock_enqueue,
-    mock_init_db,
-):
-    class DummyConn:
-        def close(self):
-            return None
-
-    mock_init_db.return_value = DummyConn()
-    mock_check_status.return_value = {
-        "status": "unsaved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "message": "Resolved article, but no saved archive was found yet.",
-    }
-    mock_enqueue.return_value = {
-        "status": "duplicate",
-        "entry": {},
-        "queue_identity": {"article_id": "12345", "article_type": "a"},
-    }
-
-    response = _run_wsgi_request(
-        "POST",
-        path="/action",
-        body="article_input=Foo&action=enqueue_request",
-    )
-
-    assert response["status"] == "200 OK"
-    assert "Queue request accepted (already queued)." in response["body"]
-
-
-@patch("web_app.check_article_status")
-def test_application_action_enqueue_recheck_saved_skips_enqueue(mock_check_status):
-    mock_check_status.return_value = {
-        "status": "saved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "response_count": 42,
-        "message": "Saved archive found for the resolved article.",
-    }
-
-    with patch("web_app.enqueue_canonical_target") as mock_enqueue:
+    with patch("web_app.add_target_url") as mock_add_target_url:
         response = _run_wsgi_request(
             "POST",
             path="/action",
@@ -20793,8 +21279,8 @@ def test_application_action_enqueue_recheck_saved_skips_enqueue(mock_check_statu
         )
 
     assert response["status"] == "200 OK"
-    assert "Article is already saved; queue request was skipped." in response["body"]
-    mock_enqueue.assert_not_called()
+    assert "Unsupported action." in response["body"]
+    mock_add_target_url.assert_not_called()
 
 
 def test_application_returns_not_found_for_unknown_path():
@@ -20806,6 +21292,7 @@ def test_application_returns_not_found_for_unknown_path():
 =============================
 FILE: ./cursor/web_app.py
 =============================
+import os
 from html import escape
 from urllib.parse import parse_qs
 from urllib.parse import urlparse
@@ -20817,7 +21304,13 @@ from archive_read import (
     get_saved_article_summary_by_exact_title,
 )
 from article_resolver import resolve_article_input
-from storage import enqueue_canonical_target, init_db
+from target_list import add_target_url
+
+
+DEFAULT_TARGET_LIST_PATH = os.environ.get(
+    "TARGET_LIST_PATH",
+    "runtime/targets/targets.txt",
+)
 
 
 def _normalize_web_input(article_input: str) -> str:
@@ -20899,18 +21392,6 @@ def check_article_status(article_input: str) -> dict:
         }
 
 
-def _read_post_input(environ: dict) -> str:
-    content_length = environ.get("CONTENT_LENGTH", "0").strip()
-    try:
-        body_size = int(content_length)
-    except ValueError:
-        body_size = 0
-
-    body = environ["wsgi.input"].read(body_size).decode("utf-8")
-    form_data = parse_qs(body, keep_blank_values=True)
-    return form_data.get("article_input", [""])[0]
-
-
 def _read_post_form(environ: dict) -> dict:
     content_length = environ.get("CONTENT_LENGTH", "0").strip()
     try:
@@ -20927,18 +21408,20 @@ def _build_action_result_message(action_result: dict) -> str:
     status = action_result["status"]
     if status == "download_ready":
         return "Saved article TXT download is ready."
-    if status == "enqueued":
-        if action_result.get("enqueue_status") == "duplicate":
-            return "Queue request accepted (already queued)."
-        return "Queue request accepted."
-    if status == "already_saved":
-        return "Article is already saved; queue request was skipped."
+    if status == "target_added":
+        return "Canonical article URL was added to the target list."
+    if status == "target_duplicate":
+        return "Canonical article URL is already present in the target list."
     if status == "action_error":
         return action_result["message"]
     return "Action completed."
 
 
-def _followup_action(article_input: str, action: str) -> dict:
+def _followup_action(
+    article_input: str,
+    action: str,
+    target_list_path: str,
+) -> dict:
     status_result = check_article_status(article_input)
     if status_result["status"] not in {"saved", "unsaved"}:
         return {
@@ -20959,31 +21442,24 @@ def _followup_action(article_input: str, action: str) -> dict:
             "check_result": status_result,
         }
 
-    if action == "enqueue_request":
-        if status_result["status"] == "saved":
+    if action == "add_target":
+        add_result = add_target_url(
+            status_result["article_url"],
+            target_list_path,
+        )
+        if add_result == "added":
             return {
-                "status": "already_saved",
+                "status": "target_added",
                 "check_result": status_result,
             }
-
-        canonical_target = {
-            "article_url": status_result["article_url"],
-            "article_id": status_result["article_id"],
-            "article_type": status_result["article_type"],
-        }
-        conn = init_db()
-        try:
-            enqueue_result = enqueue_canonical_target(
-                conn,
-                canonical_target,
-                title=status_result["title"],
-            )
-        finally:
-            conn.close()
-
+        if add_result == "duplicate":
+            return {
+                "status": "target_duplicate",
+                "check_result": status_result,
+            }
         return {
-            "status": "enqueued",
-            "enqueue_status": enqueue_result["status"],
+            "status": "action_error",
+            "message": "Canonical article URL could not be added.",
             "check_result": status_result,
         }
 
@@ -20994,7 +21470,10 @@ def _followup_action(article_input: str, action: str) -> dict:
     }
 
 
-def _render_message_area(result: dict | None, action_result: dict | None = None) -> str:
+def _render_message_area(
+    result: dict | None,
+    action_result: dict | None = None,
+) -> str:
     if result is None:
         return (
             '<section class="message-area empty">'
@@ -21053,22 +21532,37 @@ def _render_message_area(result: dict | None, action_result: dict | None = None)
             f"{escape(str(result['response_count']))}</p>"
         )
         lines.append(
-            "<form method=\"post\" action=\"/action\">"
-            f"<input type=\"hidden\" name=\"article_input\" "
-            f"value=\"{escape(result['input'])}\">"
-            "<input type=\"hidden\" name=\"action\" value=\"download_txt\">"
-            "<button type=\"submit\">Download TXT</button>"
-            "</form>"
+            (
+                "<form method=\"post\" action=\"/action\">"
+                f"<input type=\"hidden\" name=\"article_input\" "
+                f"value=\"{escape(result['input'])}\">"
+                "<input type=\"hidden\" name=\"action\" "
+                "value=\"download_txt\">"
+                "<button type=\"submit\">Download TXT</button>"
+                "</form>"
+            )
+        )
+        lines.append(
+            (
+                "<form method=\"post\" action=\"/action\">"
+                f"<input type=\"hidden\" name=\"article_input\" "
+                f"value=\"{escape(result['input'])}\">"
+                "<input type=\"hidden\" name=\"action\" value=\"add_target\">"
+                "<button type=\"submit\">Add To Target List</button>"
+                "</form>"
+            )
         )
 
     if result["status"] == "unsaved":
         lines.append(
-            "<form method=\"post\" action=\"/action\">"
-            f"<input type=\"hidden\" name=\"article_input\" "
-            f"value=\"{escape(result['input'])}\">"
-            "<input type=\"hidden\" name=\"action\" value=\"enqueue_request\">"
-            "<button type=\"submit\">Enqueue Request</button>"
-            "</form>"
+            (
+                "<form method=\"post\" action=\"/action\">"
+                f"<input type=\"hidden\" name=\"article_input\" "
+                f"value=\"{escape(result['input'])}\">"
+                "<input type=\"hidden\" name=\"action\" value=\"add_target\">"
+                "<button type=\"submit\">Add To Target List</button>"
+                "</form>"
+            )
         )
 
     lines.append("</section>")
@@ -21198,7 +21692,7 @@ def _render_page(
     return html.encode("utf-8")
 
 
-def create_app():
+def create_app(target_list_path: str = DEFAULT_TARGET_LIST_PATH):
     def app(environ, start_response):
         method = environ.get("REQUEST_METHOD", "GET").upper()
         path = environ.get("PATH_INFO", "/")
@@ -21215,7 +21709,8 @@ def create_app():
             return [body]
 
         if method == "POST" and path == "/":
-            article_input = _read_post_input(environ)
+            form = _read_post_form(environ)
+            article_input = form.get("article_input", "")
             body = _render_page(article_input, check_article_status(article_input))
             start_response(
                 "200 OK",
@@ -21231,7 +21726,11 @@ def create_app():
             article_input = form.get("article_input", "")
             action = form.get("action", "")
 
-            action_result = _followup_action(article_input, action)
+            action_result = _followup_action(
+                article_input,
+                action,
+                target_list_path,
+            )
             check_result = action_result["check_result"]
 
             if action_result["status"] == "download_ready":
@@ -21311,8 +21810,13 @@ def create_app():
 application = create_app()
 
 
-def serve_web_app(host: str = "127.0.0.1", port: int = 8000) -> None:
-    with make_server(host, port, application) as server:
+def serve_web_app(
+    host: str = "127.0.0.1",
+    port: int = 8000,
+    target_list_path: str = DEFAULT_TARGET_LIST_PATH,
+) -> None:
+    app = create_app(target_list_path=target_list_path)
+    with make_server(host, port, app) as server:
         print(f"Serving web app at http://{host}:{port}")
         server.serve_forever()
 

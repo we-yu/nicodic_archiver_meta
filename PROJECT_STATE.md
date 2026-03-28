@@ -609,6 +609,37 @@ TASK029 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK030 has been completed.
+
+TASK030 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• the existing bounded Web app was packaged into a practical single-operator runtime/publication baseline
+• the runtime profile now starts the Web app directly
+• the runtime profile now publishes the Web app on a host-visible IP:port
+• `main.py` web mode now accepts a bounded target-list-path option
+• the runtime profile now wires the Web app to the mounted plain-text target list
+• Web-side registration now adds only the canonical article URL to the existing plain-text target list
+• Web-side registration does not enqueue work
+• Web-side registration does not trigger immediate scrape execution
+• actual scrape execution remains delegated to later periodic or batch runs
+• saved article TXT download remains available from the Web UI
+• `docker-compose.runtime.yml` was updated
+• `docs/PERSONAL_RUNTIME.md` was updated
+• `main.py` was updated
+• `web_app.py` was updated
+• `tests/test_main.py` was updated
+• `tests/test_web_app.py` was updated
+• no target source-of-truth DB migration was introduced
+• no `targets.txt` format change was introduced
+• no auth / account / public-abuse design was introduced
+• no broad deploy / cloud-platform redesign was introduced
+• no queue / scheduler / worker redesign was introduced
+• both repositories now reflect the same adopted final state on `main`
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -734,7 +765,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK029 is complete.
+TASK030 is complete.
 
 A roadmap reference exists for future-direction context only:
 
