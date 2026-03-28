@@ -50,236 +50,165 @@ Current baseline:
 - `storage.py` = persistence
 - `target_list.py` = plain-text target source handling
 
-The current near-term product direction should now shift from
-personal-use CLI/runtime practicality toward a **bounded Web publication phase**.
+The bounded Web publication/runtime baseline now exists.
+
+The current near-term planning direction should therefore shift away from
+"making the Web app exist" and toward a bounded data/source-of-truth phase.
 
 Priority for the next medium-term phase:
 
-1. preserve already-adopted scrape / archive correctness
-2. reuse the current scrape and archive-read seams rather than redesign them
-3. enable a minimal Web-facing request / retrieval flow
-4. keep the phase practical and single-operator-friendly first
-5. defer broader public-platform concerns until after bounded Web publication exists
+1. preserve already-adopted scrape / archive / Web/runtime correctness
+2. migrate the scrape target source of truth away from the provisional
+   plain-text target list
+3. add bounded operator-facing management / inspection around target state
+   and saved archive state
+4. defer broader UI polish / extra download-surface expansion until later
+   needs become clearer
+5. treat log-hygiene / human-friendly logging improvements as a likely
+   side-flow area after the next mainline data tasks, unless they require
+   product-schema or product-facing interface changes
 
 This means the project should now prefer:
 
-- article-input resolution
-- non-CLI reuse of archive-read / export behavior
-- minimal request queue persistence
-- bounded queue-drain execution reusing current scrape flow
-- minimal Web UI / frontend
-- saved-article TXT download
-- bounded Web runtime / publication packaging
+- DB-backed target registry migration
+- bounded operator-facing target / archive inspection and management
+- keeping SQLite acceptable unless a later task proves a stronger DB change is
+  necessary
+- later side-flow work for runtime-log hygiene and human-friendly summaries
 
 over:
 
-- broad frameworkization before the core flow exists
-- auth / account systems
-- multi-tenant or public-abuse policy design
-- immediate multi-format export expansion
-- storage redesign
-- advanced scheduler / worker-platform design
-- speculative platform abstraction not yet required
+- keeping the plain-text target list as the long-term source of truth
+- premature DB engine replacement
+- premature DB containerization as required scope
+- premature pgAdmin-like integration as required scope
+- premature observability/dashboard/platform expansion
+- premature broad UI polish before the next data-handling baseline is in place
+- prematurely fixing later mixed-scope polish tasks
 
 --------------------------------------------------
 
 ## Near-term task direction
 
-### TASK024 direction
-Article input resolution seam.
-
-Expected shape:
-
-- define a bounded resolution path from human input to a canonical article target
-- support the future Web input shape:
-  - article name text input
-  - article URL input
-- normalize successful resolution into data that existing scrape/read paths can use
-- keep the task centered on resolution semantics rather than Web UI implementation
-- do not turn the task into broad search-platform design
-
-Preferred direction:
-
-- make exact or practical bounded article resolution possible
-- keep the output shape explainable and reusable
-- prepare for later Web input without starting the Web app yet
-
-### TASK025 direction
-Archive-read / export reuse for non-CLI consumers.
-
-Expected shape:
-
-- make the already-adopted archive-read behavior easier to call outside the CLI
-- support bounded checks such as:
-  - is this article already saved?
-  - if saved, return bounded TXT export content for one article
-- keep the task centered on reuse of the current read seam
-- do not broaden into multi-format export yet
-
-Preferred direction:
-
-- reuse `archive_read.py` more cleanly from later Web-facing code
-- make saved-article TXT retrieval practical
-- stay pre-frontend and pre-route for this task
-
-### TASK026 direction
-Minimal request queue persistence.
-
-Expected shape:
-
-- introduce a bounded persistence path for not-yet-saved article requests
-- keep queue state minimal and explainable
-- handle duplicate-enqueue concerns in bounded form
-- keep the task small and avoid turning it into a job platform
-
-Preferred direction:
-
-- support “unsaved article → queue request” as a concrete next capability
-- preserve the current architecture as much as possible
-- defer advanced queue policy
-
-### TASK027 direction
-Queue-drain execution path with bounded per-article cap.
-
-Expected shape:
-
-- provide a bounded way to drain queued article requests
-- reuse the current scrape path for actual collection
-- remain single-process / bounded in behavior
-- include a bounded per-article response cap for drain / batch-like execution
-- keep the cap as a named policy constant rather than a magic number
-- treat cap-reached results as bounded partial-save / success-class behavior
-- do not introduce distributed worker design
-- do not expand into scheduler-framework design
-
-Preferred direction:
-
-- make the queue operational rather than conceptual
-- keep execution flow explainable
-- prevent one large article from monopolizing one drain pass
-- preserve current scrape semantics as much as possible
-- allow the cap value to be revised later without redesign
-
-### TASK028 direction
-Minimal Web app skeleton and frontend.
-
-Expected shape:
-
-- introduce a minimal Web-facing UI / frontend
-- include:
-  - article-name / article-URL input
-  - submit button
-  - bounded result display
-- keep the UI practical and simple
-- do not turn this into full design-system work
-- do not introduce auth / account / public-product concerns yet
-
-Preferred direction:
-
-- make the product visibly usable as a Web app
-- keep the frontend/operator flow very small
-- defer visual polish and broader productization
-
-### TASK029 direction
-Saved → TXT download / unsaved → enqueue end-to-end flow.
-
-Expected shape:
-
-- implement the main bounded Web UX:
-  - if already scraped, return TXT download
-  - if not yet scraped, enqueue the request
-- keep output format to `txt` only in this phase
-- provide bounded user feedback for both outcomes
-- do not expand into CSV / JSON / MD / HTML selection yet
-
-Preferred direction:
-
-- complete the core request/result loop
-- keep the phase focused on one practical end-to-end behavior
-- preserve boundedness over feature breadth
-
-### TASK030 direction
-Bounded Web runtime / publication packaging.
-
-Expected shape:
-
-- package the minimal Web app into a practical runtime/publication baseline
-- support a small deployable shape for the current single-operator phase
-- keep the deployment/runtime story concrete and explainable
-- do not turn this into cloud-platform abstraction
-- do not turn this into heavy ops/platform design
-
-Preferred direction:
-
-- make the bounded Web app actually publishable
-- preserve the current project scale
-- defer broader production-platform formalization until later
-
 ### TASK031 direction
-Bounded observability / log hygiene follow-up.
+Bounded target source-of-truth migration.
 
 Expected shape:
 
-- add a bounded operator-facing observability layer for repeated runs
-- make it easier to identify:
-  - stalled articles
-  - repeatedly interrupted articles
-  - skip-affected runs
-  - articles whose saved progress does not move despite observed totals
-- allow practical export to `csv` for spreadsheet inspection
-- treat `csv` as a derived export, not as the primary source of truth
-- include bounded log-hygiene handling for older runtime logs
-  such as retention / compression / rotation in practical form
-- keep the task single-operator-friendly and explainable
-- do not turn this into a dashboard / analytics platform / alerting system
-- do not redesign the main archive source of truth
+- migrate the scrape target source of truth away from the provisional
+  plain-text target list and into a DB-backed registry
+- preserve the already-adopted archive/save/read/runtime baseline
+- preserve canonical article identity handling
+- keep the task centered on target-registry ownership rather than broad DB
+  platform redesign
+- keep SQLite acceptable in this task unless a stronger reason appears later
+- do not require PostgreSQL migration in this task
+- do not require DB containerization in this task
+- do not require pgAdmin-like GUI integration in this task
 
 Preferred direction:
 
-- place this after the bounded Web publication baseline exists
-- treat it as an observability improvement, not as the core Web request flow
-- prefer append-only or near-append-only telemetry semantics internally
-- keep text logs available unless replacement is clearly justified
-- keep exports practical and operator-oriented
+- replace the long-term role of the plain-text target list as source of truth
+- keep the migration bounded and explainable
+- preserve current scrape / archive correctness
+- prepare later operator-facing tools without forcing them into TASK031
+
+### TASK032 direction
+Bounded operator-facing target / archive management seam.
+
+Expected shape:
+
+- add bounded operator-facing inspection / management capability for:
+  - DB-backed target registry
+  - saved archive state
+- support practical listing / confirmation / minimal operator actions
+- keep the task single-operator-friendly
+- allow future GUI inspection compatibility to be considered, but keep external
+  GUI / admin tool integration optional and non-authoritative
+- do not turn the task into a full admin console
+- do not turn the task into broad CRUD-platform design
+- do not turn the task into telemetry / dashboard work yet
+
+Preferred direction:
+
+- make the post-TASK031 data model practically inspectable and manageable
+- keep the operator seam small and explainable
+- preserve the existing Web/runtime/archive boundaries as much as possible
+- prepare later observability or export follow-ups without forcing them into
+  this task
+
+--------------------------------------------------
+
+## Side-flow note after TASK032
+
+After the mainline reaches the TASK032 baseline, log-hygiene / human-friendly
+logging improvements are currently expected to branch as side-flow SubTask work
+rather than being treated as the next fixed mainline task.
+
+Expected examples:
+
+- log retention / compression / rotation
+- human-friendly runtime-log organization
+- helper scripts or derived summaries for operational inspection
+- runtime-checkout-local improvements that do not need to become immediate
+  product source-of-truth changes
+
+Important:
+
+- this side-flow is not automatically a numbered mainline TASK
+- if a later observability design requires product DB schema or product-facing
+  interfaces, that part should be reconsidered as a bounded mainline task
+- raw logs may remain available even when derived summaries are added
+
+--------------------------------------------------
+
+## Unfixed later-task note
+
+A later task sometimes informally referred to as "TASK034"
+should not be fixed yet.
+
+Reason:
+
+- after TASK031 / TASK032 and the later log-side improvements,
+  the remaining UI / polish / export-format needs are expected to become
+  clearer
+- forcing that task shape now would likely produce a mixed-scope task
+
+Current rule:
+
+- do not pre-fix the later UX / polish / extra-download task boundary yet
+- re-slice it after the post-TASK032 picture is clearer
 
 --------------------------------------------------
 
 ## Next medium-term phase framing
 
-The next medium-term phase should aim to make the system
-**publishable as a bounded Web application**.
+The next medium-term phase should aim to move the product from:
+
+- a bounded Web/runtime baseline with a provisional text target source
+
+toward:
+
+- a bounded DB-backed target-registry baseline
+- bounded operator-facing target / archive management
+- later optional runtime-log side-flow improvements
 
 Target outcome for this phase:
 
-- a minimal Web app exists
-- the UI includes an article-name or article-URL input path
-- the UI includes a submit action
-- if the requested article is already saved, the archive can be returned as
-  a `txt` download
-- if the requested article is not yet saved, the request can be queued
-- queued requests can be drained using a bounded execution path that reuses
-  the adopted scraping baseline
-- the published runtime remains small, explainable, and operator-friendly
-- broader third-party/public policy questions may remain undecided
-- richer export formats such as `md`, `json`, `csv`, or simple `html`
-  remain deferred until after the bounded Web baseline exists
-
-Post-baseline note:
-
-- after the bounded Web publication baseline exists, a bounded follow-up task
-  may improve operator observability and runtime log hygiene
-- examples may include:
-  - run/article telemetry
-  - derived `csv` export for spreadsheet inspection
-  - practical retention / compression / rotation handling for older logs
-- this follow-up is not part of the bounded Web baseline itself
+- the plain-text target list is no longer the long-term source of truth
+- target identity is managed through a DB-backed registry
+- operator-facing inspection / management of targets becomes practical
+- saved archive state remains available and inspectable
+- the existing Web/runtime/archive behavior remains preserved
+- broader UI polish / richer download formats may still remain deferred
+- large observability / dashboard / analytics expansion remains deferred
 
 Interpretation note:
 
 - this phase framing is planning guidance, not authoritative current state
 - exact task boundaries may still be adjusted if review evidence suggests a
   better bounded split
-- keep “bounded Web publication first, broader platform concerns later”
+- keep "data/source-of-truth hardening first, broader polish later"
   as the main directional rule
 
 --------------------------------------------------
@@ -288,22 +217,24 @@ Interpretation note:
 
 Recommended working order:
 
-1. `TASK024` article input resolution seam
-2. `TASK025` archive-read / export reuse for non-CLI consumers
-3. `TASK026` minimal request queue persistence
-4. `TASK027` queue-drain execution path
-5. `TASK028` minimal Web app skeleton and frontend
-6. `TASK029` saved → TXT download / unsaved → enqueue flow
-7. `TASK030` bounded Web runtime / publication packaging
-8. `TASK031` bounded observability / log hygiene follow-up
+1. `TASK031`
+   - bounded target source-of-truth migration
+2. `TASK032`
+   - bounded operator-facing target / archive management seam
+3. side-flow SubTask work after the TASK032 baseline
+   - runtime-log hygiene
+   - human-friendly logging / summary improvements
+4. later mainline task(s) to be re-sliced after the post-TASK032 picture is
+   clearer
 
 This order is recommended because it:
 
-- reuses the already-adopted CLI/runtime/archive baseline
-- prepares Web behavior by seam and flow rather than by premature framework-first work
-- delivers a usable Web app in bounded increments
-- preserves bounded task size
-- remains compatible with the Double Helix workflow
+- preserves the already-adopted bounded Web/runtime baseline
+- addresses the most structural provisional piece first
+- keeps product semantics and runtime-operation support separated where useful
+- reduces the risk of mixing DB/source-of-truth work with unrelated UI polish
+- allows later log-side improvements to proceed without prematurely fixing
+  broader product-task boundaries
 
 --------------------------------------------------
 
@@ -312,11 +243,12 @@ This order is recommended because it:
 When defining the next task, prefer:
 
 - small bounded tasks
-- production-facing progress over abstract cleanup
+- source-of-truth hardening before broader polish
 - explicit scope / non-goals
 - preservation of current architecture unless a task explicitly changes it
 - reviewable changes that fit the Double Helix model
-- practical Web-facing functionality before broader platform expansion
+- keeping side-flow work separate when it does not need to alter product
+  source-of-truth or product-facing interfaces
 
 Avoid:
 
@@ -324,8 +256,9 @@ Avoid:
 - framework-first abstraction
 - broad speculative refactors
 - silently widening the task after implementation starts
-- premature public-platform hardening before the bounded Web baseline exists
-- multi-format feature expansion before the saved→TXT / unsaved→queue flow exists
+- premature DB engine / platform replacement
+- prematurely fixing late-stage UX / polish tasks before the actual pain points
+  are clearer
 
 --------------------------------------------------
 
@@ -361,9 +294,11 @@ Possible outcomes after a task completes:
 - narrow or widen a future task boundary
 - remove items that are no longer useful
 - insert a newly needed bounded task between listed items
+- move a later concern out of the mainline and into side-flow planning
+  if that improves boundedness
 
-The human developer and advisor AI may revise this file when implementation results
-or newly observed constraints justify a change.
+The human developer and advisor AI may revise this file when implementation
+results or newly observed constraints justify a change.
 
 --------------------------------------------------
 
@@ -371,7 +306,8 @@ or newly observed constraints justify a change.
 
 `META/ROADMAP_REFERENCE.md` remains the broader and weaker direction document.
 
-This file is closer to actual task planning, but still not authoritative current state.
+This file is closer to actual task planning, but still not authoritative
+current state.
 
 A good rule of thumb:
 
