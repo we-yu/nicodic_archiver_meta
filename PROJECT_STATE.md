@@ -719,6 +719,47 @@ TASK031B result:
 • validation passed on the adopted implementation
 • post-adoption convergence and validation were confirmed on `main`
 
+## TASK032
+Completed.
+
+Outcome summary:
+- a bounded human-usable operator tooling seam was added for single-operator
+  target registry and saved archive management
+- the first interface is CLI / shell-tooling
+- target registry management now includes:
+  - list
+  - inspect
+  - add
+  - deactivate
+  - reactivate
+- saved archive management now includes:
+  - list
+  - inspect
+  - export
+- telemetry / CSV export remains a support layer
+- existing scrape / batch / periodic / Web / archive main-flow semantics were
+  preserved
+- the task remained bounded and did not expand into:
+  - Web operator UI
+  - observability / dashboard work
+  - destructive archive or target actions
+  - PostgreSQL migration
+  - DB containerization
+
+Adoption result:
+- Copilot implementation adopted
+- Cursor implementation retained as review evidence
+- both child repositories were later converged onto the adopted final state
+
+Interpretation:
+- the project now has a practical operator-facing management seam over:
+  - the SQLite-backed target registry
+  - saved archive state
+- operator usability is now part of the baseline rather than a deferred idea
+- archive delete / requeue / re-fetch remain out of scope
+- target delete remains out of scope
+- telemetry remains auxiliary rather than the main operator surface
+
 Current application structure:
 
 main.py
@@ -844,7 +885,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK031 and TASK031B are complete.
+TASK032 is complete.
 
 A roadmap reference exists for future-direction context only:
 
@@ -853,11 +894,6 @@ META/ROADMAP_REFERENCE.md
 A medium-term direction reference also exists for near-term planning continuity:
 
 META/MEDIUM_TERM_DIRECTION.md
-
-Current near-term planning guidance points toward:
-
-- TASK032 = bounded operator-facing target / archive management seam
-- later side-flow work for log-hygiene / human-friendly logging
 
 Important:
 
