@@ -640,6 +640,49 @@ TASK030 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK031 has been completed.
+
+TASK031 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• a bounded SQLite-backed target registry was introduced
+• the plain-text target list is no longer the long-term mainline source of truth
+• the target registry uses:
+  - surrogate integer primary key
+  - canonical identity based on `article_id + article_type`
+  - stored `canonical_url`
+  - bounded `is_active`
+  - `created_at`
+• Web-side registration now writes to the SQLite-backed target registry
+• Web-side registration still does not enqueue work
+• Web-side registration still does not trigger immediate scrape execution
+• actual scrape execution remains delegated to later periodic or batch runs
+• periodic / batch / cron now read active targets from the target registry
+• a bounded admin-only `targets.txt` import path was added
+• the runtime profile and runtime documentation now point to the target registry
+  as the active scrape target source of truth
+• `docker-compose.runtime.yml` was updated
+• `docs/PERSONAL_RUNTIME.md` was updated
+• `main.py` was updated
+• `runtime/periodic_once.sh` was updated
+• `storage.py` was updated
+• `target_list.py` was updated
+• `web_app.py` was updated
+• `tests/test_main.py` was updated
+• `tests/test_storage.py` was updated
+• `tests/test_target_list.py` was updated
+• `tests/test_web_app.py` was updated
+• no archive source-of-truth redesign was introduced
+• no queue persistence / drain redesign was introduced
+• no log schema / observability redesign was introduced
+• no GUI admin was introduced
+• no PostgreSQL migration was introduced
+• no DB containerization was introduced
+• both repositories now reflect the same adopted final state on `main`
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -765,7 +808,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK030 is complete.
+TASK031 is complete.
 
 A roadmap reference exists for future-direction context only:
 
@@ -774,3 +817,17 @@ META/ROADMAP_REFERENCE.md
 A medium-term direction reference also exists for near-term planning continuity:
 
 META/MEDIUM_TERM_DIRECTION.md
+
+Current near-term planning guidance points toward:
+
+- TASK032 = bounded operator-facing target / archive management seam
+- later side-flow work for log-hygiene / human-friendly logging
+
+Important:
+
+- this planning guidance is not authoritative current state
+- authoritative current state must still be restored from:
+  - AI_CONTEXT.md
+  - PROJECT_STATE.md
+  - WORKSPACE.md
+  - latest snapshot files

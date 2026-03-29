@@ -1640,6 +1640,49 @@ TASK030 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK031 has been completed.
+
+TASK031 result:
+
+• Copilot implementation was adopted
+• Cursor implementation was retained for comparison evidence
+• a bounded SQLite-backed target registry was introduced
+• the plain-text target list is no longer the long-term mainline source of truth
+• the target registry uses:
+  - surrogate integer primary key
+  - canonical identity based on `article_id + article_type`
+  - stored `canonical_url`
+  - bounded `is_active`
+  - `created_at`
+• Web-side registration now writes to the SQLite-backed target registry
+• Web-side registration still does not enqueue work
+• Web-side registration still does not trigger immediate scrape execution
+• actual scrape execution remains delegated to later periodic or batch runs
+• periodic / batch / cron now read active targets from the target registry
+• a bounded admin-only `targets.txt` import path was added
+• the runtime profile and runtime documentation now point to the target registry
+  as the active scrape target source of truth
+• `docker-compose.runtime.yml` was updated
+• `docs/PERSONAL_RUNTIME.md` was updated
+• `main.py` was updated
+• `runtime/periodic_once.sh` was updated
+• `storage.py` was updated
+• `target_list.py` was updated
+• `web_app.py` was updated
+• `tests/test_main.py` was updated
+• `tests/test_storage.py` was updated
+• `tests/test_target_list.py` was updated
+• `tests/test_web_app.py` was updated
+• no archive source-of-truth redesign was introduced
+• no queue persistence / drain redesign was introduced
+• no log schema / observability redesign was introduced
+• no GUI admin was introduced
+• no PostgreSQL migration was introduced
+• no DB containerization was introduced
+• both repositories now reflect the same adopted final state on `main`
+• convergence was confirmed with `./compare_helix.sh --all`
+• post-adoption validation passed in both repositories
+
 Current application structure:
 
 main.py
@@ -1765,7 +1808,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK030 is complete.
+TASK031 is complete.
 
 A roadmap reference exists for future-direction context only:
 
@@ -1774,6 +1817,20 @@ META/ROADMAP_REFERENCE.md
 A medium-term direction reference also exists for near-term planning continuity:
 
 META/MEDIUM_TERM_DIRECTION.md
+
+Current near-term planning guidance points toward:
+
+- TASK032 = bounded operator-facing target / archive management seam
+- later side-flow work for log-hygiene / human-friendly logging
+
+Important:
+
+- this planning guidance is not authoritative current state
+- authoritative current state must still be restored from:
+  - AI_CONTEXT.md
+  - PROJECT_STATE.md
+  - WORKSPACE.md
+  - latest snapshot files
 
 
 ===== WORKSPACE =====
@@ -2429,10 +2486,16 @@ Excluded data includes:
 Current architecture
 
 main.py
-    CLI entry point
+    CLI and bounded app/runtime entry point
 
 orchestrator.py
     Coordinates scraping flow and persistence order
+
+archive_read.py
+    Archive-facing read / export seam
+
+article_resolver.py
+    Resolves bounded article input into canonical article targets
 
 http_client.py
     Handles HTTP requests
@@ -2441,19 +2504,34 @@ parser.py
     Extracts response data from HTML
 
 storage.py
-    Handles SQLite and JSON persistence
+    Handles SQLite and JSON persistence, including target-registry persistence
+
+target_list.py
+    Handles target registration, active-target reads, and legacy target import
+
+web_app.py
+    Provides the bounded Web-facing archive-check / follow-up interface
 
 cli.py
-    Provides inspect command output
+    Provides CLI-facing archive output helpers
 
 tests/conftest.py
     Supports pytest import resolution
 
 tests/test_main.py
-    Covers CLI dispatch behavior
+    Covers CLI and bounded app entry dispatch behavior
 
 tests/test_orchestrator.py
     Covers orchestration helper behavior
+
+tests/test_storage.py
+    Covers storage-layer persistence behavior including target-registry behavior
+
+tests/test_target_list.py
+    Covers target-registry seam behavior
+
+tests/test_web_app.py
+    Covers bounded Web-facing behavior
 
 --------------------------------------------------
 
@@ -2461,14 +2539,20 @@ Current responsibility split
 
 main.py
     CLI argument parsing
-    inspect branch
-    dispatch to orchestration
+    bounded batch / periodic / web dispatch
+    target-registry-backed target flow entrypoints
 
 orchestrator.py
     article metadata fetching
     BBS base URL generation
     paginated response collection
     JSON save + SQLite save flow
+
+archive_read.py
+    archive-facing read and export seam
+
+article_resolver.py
+    bounded canonical article input resolution
 
 http_client.py
     HTTP fetch layer
@@ -2478,12 +2562,26 @@ parser.py
 
 storage.py
     persistence layer
+    archive persistence
+    queue persistence
+    target-registry persistence
+
+target_list.py
+    target-source handling layer
+    target registration
+    active target listing
+    bounded legacy `targets.txt` import
+
+web_app.py
+    bounded Web-facing archive-check and follow-up actions
+    bounded target registration
+    saved article TXT download
 
 cli.py
-    DB inspection output
+    archive-facing CLI output formatting
 
 tests/
-    minimal unit-test layer protecting post-TASK002 boundaries
+    focused unit-test layer protecting current bounded responsibilities
 
 --------------------------------------------------
 
@@ -2552,8 +2650,17 @@ For adoption history, refer to:
 Future note
 
 Unless a later task explicitly changes architecture,
-this document should be treated as the post-TASK003 baseline.
+this document should be treated as the post-TASK031 baseline.
 
+Important current interpretation:
+
+- the bounded Web/runtime publication baseline exists
+- the target source of truth is now DB-backed in bounded form
+- the next likely bounded step is not another source-of-truth migration,
+  but an operator-facing target / archive management seam
+- broader observability, GUI admin expansion, PostgreSQL migration,
+  DB containerization, and wider dashboard/platform work remain deferred
+  unless a later task explicitly brings them into scope
 
 
 ===== REVIEW LOG: META/review_log/TASK002_adoption.md =====
@@ -5853,6 +5960,169 @@ Authoritative context should still be restored from:
 
 
 
+===== REVIEW LOG: META/review_log/TASK031_adoption.md =====
+# TASK031 Adoption Log
+
+## Task
+TASK031
+
+Migrate the scrape target source of truth away from the provisional
+plain-text target list into a bounded SQLite-backed target registry,
+while preserving the already-adopted Web/runtime/archive baseline and
+keeping the task centered on target-registry ownership rather than broad
+DB-platform redesign.
+
+## Decision
+Adopted: **Copilot**
+
+Alternative reviewed:
+- Cursor implementation was retained as comparison evidence
+- Hybrid was considered but not selected
+
+## Final adopted shape
+Changed files in the adopted product result:
+- `docker-compose.runtime.yml`
+- `docs/PERSONAL_RUNTIME.md`
+- `main.py`
+- `runtime/periodic_once.sh`
+- `storage.py`
+- `target_list.py`
+- `tests/test_main.py`
+- `tests/test_storage.py`
+- `tests/test_target_list.py`
+- `tests/test_web_app.py`
+- `web_app.py`
+
+## What changed in the adopted result
+The adopted result introduced a bounded SQLite-backed target registry as the
+new scrape target source of truth.
+
+Key behavior added:
+- the long-term scrape target source of truth is no longer the plain-text
+  target list in mainline flow
+- a SQLite `target` table now stores scrape targets
+- the table uses:
+  - surrogate integer primary key: `id`
+  - canonical identity: `article_id + article_type`
+  - stored `canonical_url`
+  - bounded `is_active`
+  - `created_at`
+- Web-side target registration now writes to the target registry
+- Web-side target registration still does not enqueue work
+- Web-side target registration still does not trigger immediate scrape execution
+- periodic / batch / cron-facing target reads now use the same target registry
+- active-only target listing is supported in bounded form
+- duplicate canonical target registration remains bounded
+- inactive canonical targets can be reactivated in bounded form
+- legacy `targets.txt` can still be imported through an explicit admin-only,
+  one-shot, non-automatic path
+- the runtime profile and runtime documentation now point to the SQLite-backed
+  target registry rather than the plain-text file as the active source of truth
+
+The adopted result did not introduce:
+- archive source-of-truth redesign
+- queue persistence / drain redesign
+- log schema redesign
+- observability / dashboard expansion
+- GUI admin tooling
+- PostgreSQL migration
+- DB containerization
+- pgAdmin-like integration
+
+## Why Copilot was adopted
+Primary reasons:
+
+1. It matched the fixed TASK031 center more directly.
+   - the task was a bounded target source-of-truth migration
+   - Copilot kept the center of gravity on target-registry ownership rather
+     than broader implementation convenience
+
+2. It preserved explicit runtime / path plumbing more clearly.
+   - DB-backed target path handling remained visible in `main.py`,
+     runtime wrapper wiring, and runtime documentation
+   - the resulting runtime story stayed easier to review and operate
+
+3. It preserved module responsibility boundaries more cleanly.
+   - `storage.py` remained the persistence owner
+   - `target_list.py` remained the target-source handling seam
+   - the adopted shape stays easier to extend later for bounded operator-facing
+     management without forcing TASK032 into TASK031
+
+4. It handled bounded inactive-target reactivation more explicitly.
+   - inactive targets can return to the active registry through the same
+     bounded registration path
+   - this preserves a small but practical state model without widening the
+     task into broad target management
+
+## Why Cursor was not adopted
+Cursor implementation was valid and useful as comparison evidence.
+
+Observed strengths:
+- readable target-registry-oriented naming
+- clear IN / OUT separation intent
+- validation passed cleanly
+
+Reasons it was not selected:
+- explicit DB-path plumbing became slightly less direct in the review result
+- some target-handling logic leaned less cleanly around the storage / target
+  seam than the adopted result
+- compared with Copilot, the final bounded migration story was slightly less
+  conservative and slightly less review-friendly for this specific task
+
+## Why Hybrid was not selected
+Hybrid was considered, but not selected because:
+- Copilot already satisfied the intended TASK031 boundary well on its own
+- no narrow borrowed Cursor adjustment clearly improved the adopted result
+  enough to justify a hybrid
+- merge-for-the-sake-of-merge was unnecessary
+- keeping the review memory simple is preferable
+
+## Validation result
+Validation was run with the established workflow:
+- `./validate_helix.sh` passed for both child repositories on the review state
+- post-adoption validation on converged `main` also passed
+
+## Convergence result
+- `./compare_helix.sh --all` passed after adoption and synchronization
+- `copilot/` and `cursor/` matched on the adopted final state
+
+## Repository outcome
+- adopted implementation repository: `copilot/`
+- comparison-evidence repository: `cursor/`
+- optional adoption marker branch may be used as:
+  - `adopted/task031-target-registry`
+- the adopted result was integrated into child-repo `main`
+- both child repositories were then brought to the same adopted final state
+  via `main` pull
+- convergence was confirmed on `main`
+
+## Notes for future AI sessions
+Important interpretation:
+- TASK031 is complete
+- the project now has a bounded SQLite-backed target registry as the scrape
+  target source of truth
+- the plain-text target list is no longer the long-term source of truth in
+  mainline flow
+- Web-side registration remains bounded and still does not enqueue or trigger
+  immediate scrape execution
+- periodic / batch / cron now read from the target registry
+- legacy `targets.txt` remains only as an explicit admin import source
+- TASK032 should be treated as the next bounded operator-facing target /
+  archive management seam, rather than as part of TASK031
+
+## Meta note
+This log is AI-readable review memory.
+It is not authoritative current state by itself.
+
+Authoritative context should still be restored from:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
+
+
+
+
 ===== REVIEW LOG: META/review_log/task008_review.md =====
 # TASK008 Review
 
@@ -6205,7 +6475,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Sat Mar 28 07:40:45 UTC 2026
+generated: Sun Mar 29 12:22:50 UTC 2026
 mode: full
 
 
@@ -7217,236 +7487,163 @@ Current baseline:
 - `storage.py` = persistence
 - `target_list.py` = plain-text target source handling
 
-The current near-term product direction should now shift from
-personal-use CLI/runtime practicality toward a **bounded Web publication phase**.
+The bounded Web publication/runtime baseline now exists.
+
+The current near-term planning direction should therefore shift away from
+"making the Web app exist" and toward a bounded data/source-of-truth phase.
 
 Priority for the next medium-term phase:
 
-1. preserve already-adopted scrape / archive correctness
-2. reuse the current scrape and archive-read seams rather than redesign them
-3. enable a minimal Web-facing request / retrieval flow
-4. keep the phase practical and single-operator-friendly first
-5. defer broader public-platform concerns until after bounded Web publication exists
+1. preserve already-adopted scrape / archive / Web/runtime correctness
+2. migrate the scrape target source of truth away from the provisional
+   plain-text target list
+3. add bounded operator-facing management / inspection around target state
+   and saved archive state
+4. defer broader UI polish / extra download-surface expansion until later
+   needs become clearer
+5. treat log-hygiene / human-friendly logging improvements as a likely
+   side-flow area after the next mainline data tasks, unless they require
+   product-schema or product-facing interface changes
 
 This means the project should now prefer:
 
-- article-input resolution
-- non-CLI reuse of archive-read / export behavior
-- minimal request queue persistence
-- bounded queue-drain execution reusing current scrape flow
-- minimal Web UI / frontend
-- saved-article TXT download
-- bounded Web runtime / publication packaging
+- DB-backed target registry migration
+- bounded operator-facing target / archive inspection and management
+- keeping SQLite acceptable unless a later task proves a stronger DB change is
+  necessary
+- later side-flow work for runtime-log hygiene and human-friendly summaries
 
 over:
 
-- broad frameworkization before the core flow exists
-- auth / account systems
-- multi-tenant or public-abuse policy design
-- immediate multi-format export expansion
-- storage redesign
-- advanced scheduler / worker-platform design
-- speculative platform abstraction not yet required
+- keeping the plain-text target list as the long-term source of truth
+- premature DB engine replacement
+- premature DB containerization as required scope
+- premature pgAdmin-like integration as required scope
+- premature observability/dashboard/platform expansion
+- premature broad UI polish before the next data-handling baseline is in place
+- prematurely fixing later mixed-scope polish tasks
 
 --------------------------------------------------
 
 ## Near-term task direction
 
-### TASK024 direction
-Article input resolution seam.
-
-Expected shape:
-
-- define a bounded resolution path from human input to a canonical article target
-- support the future Web input shape:
-  - article name text input
-  - article URL input
-- normalize successful resolution into data that existing scrape/read paths can use
-- keep the task centered on resolution semantics rather than Web UI implementation
-- do not turn the task into broad search-platform design
-
-Preferred direction:
-
-- make exact or practical bounded article resolution possible
-- keep the output shape explainable and reusable
-- prepare for later Web input without starting the Web app yet
-
-### TASK025 direction
-Archive-read / export reuse for non-CLI consumers.
-
-Expected shape:
-
-- make the already-adopted archive-read behavior easier to call outside the CLI
-- support bounded checks such as:
-  - is this article already saved?
-  - if saved, return bounded TXT export content for one article
-- keep the task centered on reuse of the current read seam
-- do not broaden into multi-format export yet
-
-Preferred direction:
-
-- reuse `archive_read.py` more cleanly from later Web-facing code
-- make saved-article TXT retrieval practical
-- stay pre-frontend and pre-route for this task
-
-### TASK026 direction
-Minimal request queue persistence.
-
-Expected shape:
-
-- introduce a bounded persistence path for not-yet-saved article requests
-- keep queue state minimal and explainable
-- handle duplicate-enqueue concerns in bounded form
-- keep the task small and avoid turning it into a job platform
-
-Preferred direction:
-
-- support “unsaved article → queue request” as a concrete next capability
-- preserve the current architecture as much as possible
-- defer advanced queue policy
-
-### TASK027 direction
-Queue-drain execution path with bounded per-article cap.
-
-Expected shape:
-
-- provide a bounded way to drain queued article requests
-- reuse the current scrape path for actual collection
-- remain single-process / bounded in behavior
-- include a bounded per-article response cap for drain / batch-like execution
-- keep the cap as a named policy constant rather than a magic number
-- treat cap-reached results as bounded partial-save / success-class behavior
-- do not introduce distributed worker design
-- do not expand into scheduler-framework design
-
-Preferred direction:
-
-- make the queue operational rather than conceptual
-- keep execution flow explainable
-- prevent one large article from monopolizing one drain pass
-- preserve current scrape semantics as much as possible
-- allow the cap value to be revised later without redesign
-
-### TASK028 direction
-Minimal Web app skeleton and frontend.
-
-Expected shape:
-
-- introduce a minimal Web-facing UI / frontend
-- include:
-  - article-name / article-URL input
-  - submit button
-  - bounded result display
-- keep the UI practical and simple
-- do not turn this into full design-system work
-- do not introduce auth / account / public-product concerns yet
-
-Preferred direction:
-
-- make the product visibly usable as a Web app
-- keep the frontend/operator flow very small
-- defer visual polish and broader productization
-
-### TASK029 direction
-Saved → TXT download / unsaved → enqueue end-to-end flow.
-
-Expected shape:
-
-- implement the main bounded Web UX:
-  - if already scraped, return TXT download
-  - if not yet scraped, enqueue the request
-- keep output format to `txt` only in this phase
-- provide bounded user feedback for both outcomes
-- do not expand into CSV / JSON / MD / HTML selection yet
-
-Preferred direction:
-
-- complete the core request/result loop
-- keep the phase focused on one practical end-to-end behavior
-- preserve boundedness over feature breadth
-
-### TASK030 direction
-Bounded Web runtime / publication packaging.
-
-Expected shape:
-
-- package the minimal Web app into a practical runtime/publication baseline
-- support a small deployable shape for the current single-operator phase
-- keep the deployment/runtime story concrete and explainable
-- do not turn this into cloud-platform abstraction
-- do not turn this into heavy ops/platform design
-
-Preferred direction:
-
-- make the bounded Web app actually publishable
-- preserve the current project scale
-- defer broader production-platform formalization until later
-
 ### TASK031 direction
-Bounded observability / log hygiene follow-up.
+Completed.
+
+Outcome summary:
+
+- the scrape target source of truth was migrated away from the provisional
+  plain-text target list and into a bounded SQLite-backed target registry
+- the already-adopted archive/save/read/runtime baseline was preserved
+- canonical article identity handling was preserved
+- the task remained centered on target-registry ownership rather than broad DB
+  platform redesign
+- SQLite remained acceptable in this task
+- PostgreSQL migration was not required
+- DB containerization was not required
+- pgAdmin-like GUI integration was not required
+
+Interpretation:
+
+- the long-term role of the plain-text target list as source of truth has ended
+  in mainline flow
+- later operator-facing tooling can now build on the bounded target registry
+  baseline rather than on the provisional text file
+
+### TASK032 direction
+Bounded operator-facing target / archive management seam.
 
 Expected shape:
 
-- add a bounded operator-facing observability layer for repeated runs
-- make it easier to identify:
-  - stalled articles
-  - repeatedly interrupted articles
-  - skip-affected runs
-  - articles whose saved progress does not move despite observed totals
-- allow practical export to `csv` for spreadsheet inspection
-- treat `csv` as a derived export, not as the primary source of truth
-- include bounded log-hygiene handling for older runtime logs
-  such as retention / compression / rotation in practical form
-- keep the task single-operator-friendly and explainable
-- do not turn this into a dashboard / analytics platform / alerting system
-- do not redesign the main archive source of truth
+- add bounded operator-facing inspection / management capability for:
+  - the DB-backed target registry
+  - saved archive state
+- support practical listing / confirmation / minimal operator actions
+- keep the task single-operator-friendly
+- allow future GUI inspection compatibility to be considered, but keep external
+  GUI / admin tool integration optional and non-authoritative
+- do not turn the task into a full admin console
+- do not turn the task into broad CRUD-platform design
+- do not turn the task into telemetry / dashboard work yet
 
 Preferred direction:
 
-- place this after the bounded Web publication baseline exists
-- treat it as an observability improvement, not as the core Web request flow
-- prefer append-only or near-append-only telemetry semantics internally
-- keep text logs available unless replacement is clearly justified
-- keep exports practical and operator-oriented
+- make the post-TASK031 data model practically inspectable and manageable
+- keep the operator seam small and explainable
+- preserve the existing Web/runtime/archive boundaries as much as possible
+- prepare later observability or export follow-ups without forcing them into
+  this task
+
+--------------------------------------------------
+
+## Side-flow note after TASK032
+
+After the mainline reaches the TASK032 baseline, log-hygiene / human-friendly
+logging improvements are currently expected to branch as side-flow SubTask work
+rather than being treated as the next fixed mainline task.
+
+Expected examples:
+
+- log retention / compression / rotation
+- human-friendly runtime-log organization
+- helper scripts or derived summaries for operational inspection
+- runtime-checkout-local improvements that do not need to become immediate
+  product source-of-truth changes
+
+Important:
+
+- this side-flow is not automatically a numbered mainline TASK
+- if a later observability design requires product DB schema or product-facing
+  interfaces, that part should be reconsidered as a bounded mainline task
+- raw logs may remain available even when derived summaries are added
+
+--------------------------------------------------
+
+## Unfixed later-task note
+
+A later task sometimes informally referred to as "TASK034"
+should not be fixed yet.
+
+Reason:
+
+- after TASK031 / TASK032 and the later log-side improvements,
+  the remaining UI / polish / export-format needs are expected to become
+  clearer
+- forcing that task shape now would likely produce a mixed-scope task
+
+Current rule:
+
+- do not pre-fix the later UX / polish / extra-download task boundary yet
+- re-slice it after the post-TASK032 picture is clearer
 
 --------------------------------------------------
 
 ## Next medium-term phase framing
 
-The next medium-term phase should aim to make the system
-**publishable as a bounded Web application**.
+The next medium-term phase should aim to move the product from:
+
+- a bounded DB-backed target-registry baseline
+
+toward:
+
+- bounded operator-facing target / archive management
+- later optional runtime-log side-flow improvements
 
 Target outcome for this phase:
 
-- a minimal Web app exists
-- the UI includes an article-name or article-URL input path
-- the UI includes a submit action
-- if the requested article is already saved, the archive can be returned as
-  a `txt` download
-- if the requested article is not yet saved, the request can be queued
-- queued requests can be drained using a bounded execution path that reuses
-  the adopted scraping baseline
-- the published runtime remains small, explainable, and operator-friendly
-- broader third-party/public policy questions may remain undecided
-- richer export formats such as `md`, `json`, `csv`, or simple `html`
-  remain deferred until after the bounded Web baseline exists
-
-Post-baseline note:
-
-- after the bounded Web publication baseline exists, a bounded follow-up task
-  may improve operator observability and runtime log hygiene
-- examples may include:
-  - run/article telemetry
-  - derived `csv` export for spreadsheet inspection
-  - practical retention / compression / rotation handling for older logs
-- this follow-up is not part of the bounded Web baseline itself
+- target identity remains managed through the DB-backed registry
+- operator-facing inspection / management of targets becomes practical
+- saved archive state remains available and inspectable
+- the existing Web/runtime/archive behavior remains preserved
+- broader UI polish / richer download formats may still remain deferred
+- large observability / dashboard / analytics expansion remains deferred
 
 Interpretation note:
 
 - this phase framing is planning guidance, not authoritative current state
 - exact task boundaries may still be adjusted if review evidence suggests a
   better bounded split
-- keep “bounded Web publication first, broader platform concerns later”
+- keep "operator-facing management next, broader polish later"
   as the main directional rule
 
 --------------------------------------------------
@@ -7455,22 +7652,22 @@ Interpretation note:
 
 Recommended working order:
 
-1. `TASK024` article input resolution seam
-2. `TASK025` archive-read / export reuse for non-CLI consumers
-3. `TASK026` minimal request queue persistence
-4. `TASK027` queue-drain execution path
-5. `TASK028` minimal Web app skeleton and frontend
-6. `TASK029` saved → TXT download / unsaved → enqueue flow
-7. `TASK030` bounded Web runtime / publication packaging
-8. `TASK031` bounded observability / log hygiene follow-up
+1. `TASK032`
+   - bounded operator-facing target / archive management seam
+2. side-flow SubTask work after the TASK032 baseline
+   - runtime-log hygiene
+   - human-friendly logging / summary improvements
+3. later mainline task(s) to be re-sliced after the post-TASK032 picture is
+   clearer
 
 This order is recommended because it:
 
-- reuses the already-adopted CLI/runtime/archive baseline
-- prepares Web behavior by seam and flow rather than by premature framework-first work
-- delivers a usable Web app in bounded increments
-- preserves bounded task size
-- remains compatible with the Double Helix workflow
+- preserves the already-adopted bounded Web/runtime baseline
+- builds directly on the newly adopted target-registry source-of-truth baseline
+- keeps product semantics and runtime-operation support separated where useful
+- reduces the risk of mixing operator-facing management with unrelated UI polish
+- allows later log-side improvements to proceed without prematurely fixing
+  broader product-task boundaries
 
 --------------------------------------------------
 
@@ -7479,11 +7676,12 @@ This order is recommended because it:
 When defining the next task, prefer:
 
 - small bounded tasks
-- production-facing progress over abstract cleanup
+- source-of-truth hardening before broader polish
 - explicit scope / non-goals
 - preservation of current architecture unless a task explicitly changes it
 - reviewable changes that fit the Double Helix model
-- practical Web-facing functionality before broader platform expansion
+- keeping side-flow work separate when it does not need to alter product
+  source-of-truth or product-facing interfaces
 
 Avoid:
 
@@ -7491,8 +7689,9 @@ Avoid:
 - framework-first abstraction
 - broad speculative refactors
 - silently widening the task after implementation starts
-- premature public-platform hardening before the bounded Web baseline exists
-- multi-format feature expansion before the saved→TXT / unsaved→queue flow exists
+- premature DB engine / platform replacement
+- prematurely fixing late-stage UX / polish tasks before the actual pain points
+  are clearer
 
 --------------------------------------------------
 
@@ -7528,9 +7727,11 @@ Possible outcomes after a task completes:
 - narrow or widen a future task boundary
 - remove items that are no longer useful
 - insert a newly needed bounded task between listed items
+- move a later concern out of the mainline and into side-flow planning
+  if that improves boundedness
 
-The human developer and advisor AI may revise this file when implementation results
-or newly observed constraints justify a change.
+The human developer and advisor AI may revise this file when implementation
+results or newly observed constraints justify a change.
 
 --------------------------------------------------
 
@@ -7538,7 +7739,8 @@ or newly observed constraints justify a change.
 
 `META/ROADMAP_REFERENCE.md` remains the broader and weaker direction document.
 
-This file is closer to actual task planning, but still not authoritative current state.
+This file is closer to actual task planning, but still not authoritative
+current state.
 
 A good rule of thumb:
 
@@ -10095,7 +10297,7 @@ services:
     working_dir: /app
     environment:
       BATCH_LOG_DIR: /runtime/logs/batch_runs
-      TARGET_LIST_PATH: /runtime/targets/targets.txt
+      TARGET_DB_PATH: /app/data/nicodic.db
     volumes:
       - ./runtime/targets:/runtime/targets
       - ./runtime/data:/app/data
@@ -10113,8 +10315,8 @@ services:
         "0.0.0.0",
         "--port",
         "8000",
-        "--target-list-path",
-        "/runtime/targets/targets.txt",
+        "--target-db-path",
+        "/app/data/nicodic.db",
       ]
 
 
@@ -10133,20 +10335,60 @@ FILE: ./copilot/docs/ARCHITECTURE.md
 =============================
 # Architecture
 
-The project is a Nicodic article archiver.
+This document is the canonical architecture description
+for the nicodic_archiver project.
 
-It downloads BBS comment pages from Nicovideo dictionary
-and stores them locally.
+This file is the source-of-truth architecture document.
+
+Copies of this file may be synchronized to:
+
+- `copilot/docs/ARCHITECTURE.md`
+- `cursor/docs/ARCHITECTURE.md`
+
+Those copies exist for repository-local readability,
+but this root file is the canonical version.
+
+--------------------------------------------------
+
+Project purpose
+
+The project archives comment threads from the NicoNicoPedia BBS.
+
+Goal:
+
+- preserve comments locally
+- keep access even if original comments are deleted
+- store static information only
+
+Stored data includes:
+
+- response number
+- poster name
+- poster ID hash
+- posted timestamp
+- comment text
+- comment HTML
+
+Excluded data includes:
+
+- GOOD / BAD counts
+- other dynamic metrics
 
 --------------------------------------------------
 
 Current architecture
 
 main.py
-    CLI entry point
+    CLI and bounded app/runtime entry point
 
 orchestrator.py
     Coordinates scraping flow and persistence order
+
+archive_read.py
+    Archive-facing read / export seam
+
+article_resolver.py
+    Resolves bounded article input into canonical article targets
 
 http_client.py
     Handles HTTP requests
@@ -10155,10 +10397,34 @@ parser.py
     Extracts response data from HTML
 
 storage.py
-    Handles SQLite and JSON persistence
+    Handles SQLite and JSON persistence, including target-registry persistence
+
+target_list.py
+    Handles target registration, active-target reads, and legacy target import
+
+web_app.py
+    Provides the bounded Web-facing archive-check / follow-up interface
 
 cli.py
-    Provides inspect command output
+    Provides CLI-facing archive output helpers
+
+tests/conftest.py
+    Supports pytest import resolution
+
+tests/test_main.py
+    Covers CLI and bounded app entry dispatch behavior
+
+tests/test_orchestrator.py
+    Covers orchestration helper behavior
+
+tests/test_storage.py
+    Covers storage-layer persistence behavior including target-registry behavior
+
+tests/test_target_list.py
+    Covers target-registry seam behavior
+
+tests/test_web_app.py
+    Covers bounded Web-facing behavior
 
 --------------------------------------------------
 
@@ -10166,14 +10432,20 @@ Current responsibility split
 
 main.py
     CLI argument parsing
-    inspect branch
-    dispatch to orchestration
+    bounded batch / periodic / web dispatch
+    target-registry-backed target flow entrypoints
 
 orchestrator.py
     article metadata fetching
     BBS base URL generation
     paginated response collection
     JSON save + SQLite save flow
+
+archive_read.py
+    archive-facing read and export seam
+
+article_resolver.py
+    bounded canonical article input resolution
 
 http_client.py
     HTTP fetch layer
@@ -10183,35 +10455,105 @@ parser.py
 
 storage.py
     persistence layer
+    archive persistence
+    queue persistence
+    target-registry persistence
+
+target_list.py
+    target-source handling layer
+    target registration
+    active target listing
+    bounded legacy `targets.txt` import
+
+web_app.py
+    bounded Web-facing archive-check and follow-up actions
+    bounded target registration
+    saved article TXT download
 
 cli.py
-    DB inspection output
+    archive-facing CLI output formatting
+
+tests/
+    focused unit-test layer protecting current bounded responsibilities
 
 --------------------------------------------------
 
-Rules for refactoring
+Status after TASK003
 
-• Do not change program behaviour
-• Keep CLI compatible
-• Prefer small, explainable refactors
-• Keep Docker / pytest / flake8 working
-
---------------------------------------------------
-
-Status after TASK002
-
-• main.py is thinner than before
-• orchestration has been extracted to orchestrator.py
-• behaviour is intended to remain unchanged
+- main.py is thinner than before
+- orchestration has been extracted to orchestrator.py
+- minimal unit tests now exist for main.py and orchestrator.py
+- tests/conftest.py supports pytest import resolution
+- production behaviour is intended to remain unchanged
 
 --------------------------------------------------
 
-Future direction
+Design principles
 
-Further refactoring should treat this structure
-as the post-TASK002 baseline unless a new task
-explicitly changes it.
+- keep CLI compatibility
+- prefer small, explainable refactors
+- preserve behavior unless a task explicitly changes it
+- prefer stability over novelty
+- keep module responsibilities clear
+- compare AI implementations before adoption
 
+--------------------------------------------------
+
+Refactoring guidance
+
+Good refactors:
+
+- reduce responsibility overlap
+- make main.py thinner without changing CLI behavior
+- add focused tests around existing behavior
+- improve workflow tooling when review friction is observed
+
+Avoid by default:
+
+- redesigning multiple layers at once
+- expanding task scope silently
+- introducing configuration systems without clear need
+- changing behavior during structure-only tasks
+
+--------------------------------------------------
+
+Workflow context
+
+This project uses a Double Helix Development Model.
+
+For one task:
+
+- Copilot implementation is produced in `copilot/`
+- Cursor implementation is produced in `cursor/`
+- both are reviewed
+- one is adopted, or a hybrid is adopted
+- both repos are then realigned to the same final state
+
+For practical workflow steps, refer to:
+
+- `WORKSPACE.md`
+- `META/TASK_CYCLE_CHECKLIST.md`
+
+For adoption history, refer to:
+
+- `META/review_log/`
+
+--------------------------------------------------
+
+Future note
+
+Unless a later task explicitly changes architecture,
+this document should be treated as the post-TASK031 baseline.
+
+Important current interpretation:
+
+- the bounded Web/runtime publication baseline exists
+- the target source of truth is now DB-backed in bounded form
+- the next likely bounded step is not another source-of-truth migration,
+  but an operator-facing target / archive management seam
+- broader observability, GUI admin expansion, PostgreSQL migration,
+  DB containerization, and wider dashboard/platform work remain deferred
+  unless a later task explicitly brings them into scope
 
 =============================
 FILE: ./copilot/docs/PERSONAL_RUNTIME.md
@@ -10227,11 +10569,11 @@ intended to keep a long-lived container available for manual CLI use.
 What this profile does:
 - builds a runtime image from Dockerfile.runtime
 - keeps one single-operator web runtime running on a host IP:port
-- preserves targets, SQLite data, archives, and batch logs through mounts
+- preserves the target registry, SQLite data, archives, and batch logs through mounts
 
 What this profile does not do yet:
 - cron or repeated scheduling inside the container
-- target storage migration away from the text file
+- rich target-management tooling
 
 What this profile now adds for periodic operation:
 - a host-side one-shot wrapper that calls the existing periodic path
@@ -10241,12 +10583,12 @@ What this profile now adds for periodic operation:
 What this profile now adds for web operation:
 - starts the existing web app inside the runtime container
 - publishes the web app on a host-visible IP:port mapping
-- keeps target intake bounded to canonical article URLs in the text target list
+- keeps target intake bounded to canonical article URLs in SQLite
 
 ## Mounted Paths
 
 The runtime profile uses these child-repo-local paths:
-- target list: runtime/targets
+- legacy import source: runtime/targets
 - SQLite and saved JSON archives: runtime/data
 - batch and periodic logs: runtime/logs
 
@@ -10259,8 +10601,8 @@ Because the application already reads and writes under data/ and uses the
 BATCH_LOG_DIR environment variable for batch logs, no product behavior needs
 to change.
 
-The runtime profile also sets TARGET_LIST_PATH to /runtime/targets/targets.txt
-for the web process.
+The runtime profile sets TARGET_DB_PATH to /app/data/nicodic.db for the web
+process and periodic wrapper.
 
 ## Host UID/GID Handling
 
@@ -10303,12 +10645,13 @@ LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) \
 ```
 
 The web app remains a thin entrypoint. A web-side registration adds only the
-canonical article URL to runtime/targets/targets.txt. It does not enqueue or
-scrape immediately; the next periodic or batch pass performs the actual scrape.
+canonical article URL to the target table in /app/data/nicodic.db. It does not
+enqueue or scrape immediately; the next periodic or batch pass performs the
+actual scrape.
 
 The web UI is intentionally separated from immediate execution. It performs
-bounded validation / existence checks, target-list registration, and saved
-article TXT download only.
+bounded validation / existence checks, target registration, and saved article
+TXT download only.
 
 ## Stop
 
@@ -10316,16 +10659,27 @@ Stop and remove the provisional runtime container:
 
 `docker compose -f docker-compose.runtime.yml down`
 
-## Target List Location
+## Target Registry Location
 
-Create or edit the target list at:
+The authoritative scrape target registry now lives in:
+
+`runtime/data/nicodic.db`
+
+The active scrape target source-of-truth is the SQLite `target` table.
+
+The web UI writes only to that table when a resolved article is added through
+the Add To Target Registry action.
+
+The legacy plain-text file remains available only as an admin import source:
 
 `runtime/targets/targets.txt`
 
-That file remains a human-editable plain text target source.
+Manual one-shot import example:
 
-The web UI writes the same file when a resolved article is added through the
-Add To Target List action.
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py import-targets /runtime/targets/targets.txt /app/data/nicodic.db
+```
 
 ## Initial Smoke Test
 
@@ -10341,7 +10695,7 @@ Recommended first-pass smoke test:
 
 ```sh
 docker compose -f docker-compose.runtime.yml exec personal_runtime \
-	python main.py batch /runtime/targets/targets.txt
+	python main.py batch /app/data/nicodic.db
 ```
 
 After that, this command should work as expected:
@@ -10357,33 +10711,33 @@ Follow the published web runtime logs:
 
 `docker compose -f docker-compose.runtime.yml logs -f personal_runtime`
 
-Show the target list currently mounted into the runtime:
+Show the active targets currently stored in the registry:
 
 ```sh
 docker compose -f docker-compose.runtime.yml exec personal_runtime \
-	python main.py targets /runtime/targets/targets.txt
+	python main.py targets /app/data/nicodic.db
 ```
 
 Run one batch pass:
 
 ```sh
 docker compose -f docker-compose.runtime.yml exec personal_runtime \
-	python main.py batch /runtime/targets/targets.txt
+	python main.py batch /app/data/nicodic.db
 ```
 
 Run the current periodic CLI entrypoint manually:
 
 ```sh
 docker compose -f docker-compose.runtime.yml exec personal_runtime \
-	python main.py periodic /runtime/targets/targets.txt 300
+	python main.py periodic /app/data/nicodic.db 300
 ```
 
-Run the web app manually with an explicit target list path if needed:
+Run the web app manually with an explicit target DB path if needed:
 
 ```sh
 docker compose -f docker-compose.runtime.yml exec personal_runtime \
 	python main.py web --host 0.0.0.0 --port 8000 \
-	--target-list-path /runtime/targets/targets.txt
+	--target-db-path /app/data/nicodic.db
 ```
 
 Run one scheduler-friendly periodic cycle through the wrapper:
@@ -10395,14 +10749,14 @@ run is already active, it prints a skip message and exits without starting a
 second overlapping periodic pass.
 
 Useful environment overrides for external schedulers:
-- `TARGET_LIST_PATH` defaults to `/runtime/targets/targets.txt`
+- `TARGET_DB_PATH` defaults to `/app/data/nicodic.db`
 - `COMPOSE_FILE_PATH` defaults to `docker-compose.runtime.yml`
 - `COMPOSE_SERVICE_NAME` defaults to `personal_runtime`
 - `LOCK_DIR_PATH` defaults to `runtime/logs/periodic_once.lock`
 
 Example scheduler-facing invocation shape:
 
-`TARGET_LIST_PATH=/runtime/targets/targets.txt ./runtime/periodic_once.sh`
+`TARGET_DB_PATH=/app/data/nicodic.db ./runtime/periodic_once.sh`
 
 List saved articles:
 
@@ -10437,7 +10791,7 @@ normally work without requiring `sudo chown`.
 
 The following repository-local directories act as persistence anchors for the
 runtime profile:
-- runtime/targets: the target list file you maintain
+- runtime/targets: optional legacy import source files
 - runtime/data: SQLite database plus saved article archives
 - runtime/logs: batch and periodic run logs
 
@@ -10630,8 +10984,15 @@ from pathlib import Path
 from article_resolver import resolve_article_input
 from cli import export_all_articles, export_article, inspect_article, list_articles
 from orchestrator import run_scrape
-from target_list import add_target_url, load_target_urls
+from target_list import (
+    import_targets_from_text_file,
+    list_active_target_urls,
+    register_target_url,
+)
 from web_app import serve_web_app
+
+
+DEFAULT_TARGET_DB_PATH = os.environ.get("TARGET_DB_PATH", "data/nicodic.db")
 
 
 # ============================================================
@@ -10639,12 +11000,15 @@ from web_app import serve_web_app
 # ============================================================
 
 
-def run_batch_scrape(target_list_path: str) -> tuple[str, int]:
+def run_batch_scrape(target_db_path: str) -> tuple[str, int]:
     """Run one full batch pass and return (final_status, failed_targets)."""
 
-    targets = load_target_urls(target_list_path)
+    targets = list_active_target_urls(target_db_path)
 
-    print(f"Loaded {len(targets)} scrape target(s) from {target_list_path}")
+    print(
+        f"Loaded {len(targets)} active scrape target(s) "
+        f"from target registry {target_db_path}"
+    )
 
     run_id = uuid.uuid4().hex[:12]
     started_at = datetime.now(timezone.utc).isoformat()
@@ -10656,7 +11020,8 @@ def run_batch_scrape(target_list_path: str) -> tuple[str, int]:
         f.write("BATCH_RUN_START\n")
         f.write(f"run_id={run_id}\n")
         f.write(f"started_at={started_at}\n")
-        f.write(f"target_list_path={target_list_path}\n")
+        f.write(f"target_db_path={target_db_path}\n")
+        f.write("target_source=target_table\n")
         f.write(f"total_targets={len(targets)}\n")
 
     failed_targets = 0
@@ -10706,7 +11071,7 @@ def run_batch_scrape(target_list_path: str) -> tuple[str, int]:
 
 
 def run_periodic_scrape(
-    target_list_path: str,
+    target_db_path: str,
     interval_seconds: float,
     max_runs: int | None = None,
 ) -> None:
@@ -10719,7 +11084,7 @@ def run_periodic_scrape(
         print(f"[periodic] Run {run_number} starting")
 
         try:
-            final_status, failed_targets = run_batch_scrape(target_list_path)
+            final_status, failed_targets = run_batch_scrape(target_db_path)
         except KeyboardInterrupt:
             print("Periodic execution interrupted. Exiting safely.")
             return
@@ -10741,10 +11106,10 @@ def run_periodic_scrape(
             return
 
 
-def run_periodic_once(target_list_path: str) -> None:
+def run_periodic_once(target_db_path: str) -> None:
     """Run one periodic cycle without requiring a sleep interval argument."""
 
-    run_periodic_scrape(target_list_path, 0.0, max_runs=1)
+    run_periodic_scrape(target_db_path, 0.0, max_runs=1)
 
 
 def main():
@@ -10762,17 +11127,21 @@ def main():
         print("  python main.py export <article_id> <article_type> --format md")
         print("  python main.py list-articles")
         print("  python main.py export-all-articles --format txt")
-        print("  python main.py add-target <article_url> <target_list_path>")
+        print("  python main.py add-target <article_url> <target_db_path>")
+        print(
+            "  python main.py import-targets <targets_txt_path> "
+            "<target_db_path>"
+        )
         print("  python main.py resolve-article <article_url_or_full_title>")
-        print("  python main.py targets <target_list_path>")
-        print("  python main.py batch <target_list_path>")
-        print("  python main.py periodic-once <target_list_path>")
+        print("  python main.py targets <target_db_path>")
+        print("  python main.py batch <target_db_path>")
+        print("  python main.py periodic-once <target_db_path>")
         print(
             "  python main.py web [--host HOST] [--port PORT] "
-            "[--target-list-path PATH]"
+            "[--target-db-path PATH]"
         )
         print(
-            "  python main.py periodic <target_list_path> <interval_seconds> "
+            "  python main.py periodic <target_db_path> <interval_seconds> "
             "[--max-runs N]"
         )
         sys.exit(1)
@@ -10826,12 +11195,15 @@ def main():
     if sys.argv[1] == "add-target":
 
         if len(sys.argv) < 4:
-            print("Usage: add-target <article_url> <target_list_path>")
+            print("Usage: add-target <article_url> <target_db_path>")
             sys.exit(1)
 
-        result = add_target_url(sys.argv[2], sys.argv[3])
+        result = register_target_url(sys.argv[2], sys.argv[3])
         if result == "added":
             print(f"Added target: {sys.argv[2]}")
+            return
+        if result == "reactivated":
+            print(f"Reactivated target: {sys.argv[2]}")
             return
         if result == "duplicate":
             print(f"Target already exists: {sys.argv[2]}")
@@ -10839,6 +11211,26 @@ def main():
 
         print(f"Invalid target URL: {sys.argv[2]}")
         sys.exit(1)
+
+    if sys.argv[1] == "import-targets":
+
+        if len(sys.argv) < 4:
+            print("Usage: import-targets <targets_txt_path> <target_db_path>")
+            sys.exit(1)
+
+        import_result = import_targets_from_text_file(sys.argv[2], sys.argv[3])
+        print(
+            f"Imported {import_result['processed']} target line(s) "
+            f"from {import_result['source_path']} into "
+            f"{import_result['target_db_path']}"
+        )
+        print(
+            "added={added} duplicate={duplicate} "
+            "reactivated={reactivated} invalid={invalid}".format(
+                **import_result,
+            )
+        )
+        return
 
     if sys.argv[1] == "resolve-article":
 
@@ -10864,13 +11256,16 @@ def main():
     if sys.argv[1] == "targets":
 
         if len(sys.argv) < 3:
-            print("Usage: targets <target_list_path>")
+            print("Usage: targets <target_db_path>")
             sys.exit(1)
 
-        target_list_path = sys.argv[2]
-        targets = load_target_urls(target_list_path)
+        target_db_path = sys.argv[2]
+        targets = list_active_target_urls(target_db_path)
 
-        print(f"Loaded {len(targets)} scrape target(s) from {target_list_path}")
+        print(
+            f"Loaded {len(targets)} active scrape target(s) "
+            f"from target registry {target_db_path}"
+        )
         for target in targets:
             print(target)
         return
@@ -10878,7 +11273,7 @@ def main():
     if sys.argv[1] == "batch":
 
         if len(sys.argv) < 3:
-            print("Usage: batch <target_list_path>")
+            print("Usage: batch <target_db_path>")
             sys.exit(1)
 
         _, failed_targets = run_batch_scrape(sys.argv[2])
@@ -10890,7 +11285,7 @@ def main():
     if sys.argv[1] == "periodic-once":
 
         if len(sys.argv) < 3:
-            print("Usage: periodic-once <target_list_path>")
+            print("Usage: periodic-once <target_db_path>")
             sys.exit(1)
 
         run_periodic_once(sys.argv[2])
@@ -10900,12 +11295,12 @@ def main():
 
         if len(sys.argv) < 4:
             print(
-                "Usage: periodic <target_list_path> <interval_seconds> "
+                "Usage: periodic <target_db_path> <interval_seconds> "
                 "[--max-runs N]"
             )
             sys.exit(1)
 
-        target_list_path = sys.argv[2]
+        target_db_path = sys.argv[2]
         interval_seconds = float(sys.argv[3])
 
         max_runs = None
@@ -10913,16 +11308,13 @@ def main():
             idx = sys.argv.index("--max-runs")
             max_runs = int(sys.argv[idx + 1])
 
-        run_periodic_scrape(target_list_path, interval_seconds, max_runs=max_runs)
+        run_periodic_scrape(target_db_path, interval_seconds, max_runs=max_runs)
         return
 
     if sys.argv[1] == "web":
         host = "127.0.0.1"
         port = 8000
-        target_list_path = os.environ.get(
-            "TARGET_LIST_PATH",
-            "runtime/targets/targets.txt",
-        )
+        target_db_path = DEFAULT_TARGET_DB_PATH
 
         if "--host" in sys.argv:
             idx = sys.argv.index("--host")
@@ -10932,14 +11324,14 @@ def main():
             idx = sys.argv.index("--port")
             port = int(sys.argv[idx + 1])
 
-        if "--target-list-path" in sys.argv:
-            idx = sys.argv.index("--target-list-path")
-            target_list_path = sys.argv[idx + 1]
+        if "--target-db-path" in sys.argv:
+            idx = sys.argv.index("--target-db-path")
+            target_db_path = sys.argv[idx + 1]
 
         serve_web_app(
             host=host,
             port=port,
-            target_list_path=target_list_path,
+            target_db_path=target_db_path,
         )
         return
 
@@ -11465,7 +11857,7 @@ set -eu
 
 COMPOSE_FILE_PATH=${COMPOSE_FILE_PATH:-docker-compose.runtime.yml}
 COMPOSE_SERVICE_NAME=${COMPOSE_SERVICE_NAME:-personal_runtime}
-TARGET_LIST_PATH=${TARGET_LIST_PATH:-/runtime/targets/targets.txt}
+TARGET_DB_PATH=${TARGET_DB_PATH:-/app/data/nicodic.db}
 LOCK_DIR_PATH=${LOCK_DIR_PATH:-runtime/logs/periodic_once.lock}
 
 mkdir -p "$(dirname "$LOCK_DIR_PATH")"
@@ -11479,10 +11871,10 @@ else
 fi
 
 echo "[periodic-once] Starting one periodic cycle"
-echo "[periodic-once] target_list_path=$TARGET_LIST_PATH"
+echo "[periodic-once] target_db_path=$TARGET_DB_PATH"
 
 docker compose -f "$COMPOSE_FILE_PATH" exec -T "$COMPOSE_SERVICE_NAME" \
-  python main.py periodic-once "$TARGET_LIST_PATH"
+  python main.py periodic-once "$TARGET_DB_PATH"
 
 echo "[periodic-once] Finished one periodic cycle"
 
@@ -11505,17 +11897,33 @@ import json
 import os
 import sqlite3
 import time
+from pathlib import Path
 
 
-def init_db():
+DEFAULT_DB_PATH = "data/nicodic.db"
+
+
+def _target_row_to_entry(row):
+    return {
+        "id": row[0],
+        "article_id": row[1],
+        "article_type": row[2],
+        "canonical_url": row[3],
+        "is_active": bool(row[4]),
+        "created_at": row[5],
+    }
+
+
+def init_db(db_path: str = DEFAULT_DB_PATH):
     """
     SQLite初期化（テーブル作成）。
     既存の場合は何もしない。
     """
 
-    os.makedirs("data", exist_ok=True)
+    db_dir = Path(db_path).parent
+    db_dir.mkdir(parents=True, exist_ok=True)
 
-    conn = sqlite3.connect("data/nicodic.db")
+    conn = sqlite3.connect(db_path)
     cur = conn.cursor()
 
     cur.execute("""
@@ -11558,6 +11966,18 @@ def init_db():
         article_url TEXT NOT NULL,
         title TEXT,
         enqueued_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(article_id, article_type)
+    )
+    """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS target (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        article_id TEXT NOT NULL,
+        article_type TEXT NOT NULL,
+        canonical_url TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(article_id, article_type)
     )
     """)
@@ -11729,11 +12149,91 @@ def dequeue_canonical_target(conn, article_id, article_type):
     conn.commit()
     return cur.rowcount > 0
 
+
+def register_target(conn, article_id, article_type, canonical_url):
+    """Register or reactivate one canonical scrape target."""
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT id, article_id, article_type, canonical_url, is_active, created_at
+        FROM target
+        WHERE article_id=? AND article_type=?
+        """,
+        (article_id, article_type),
+    )
+    existing_row = cur.fetchone()
+
+    if existing_row is None:
+        cur.execute(
+            """
+            INSERT INTO target
+            (article_id, article_type, canonical_url, is_active)
+            VALUES (?, ?, ?, 1)
+            """,
+            (article_id, article_type, canonical_url),
+        )
+        status = "added"
+    else:
+        existing_entry = _target_row_to_entry(existing_row)
+        status = "duplicate"
+        if not existing_entry["is_active"]:
+            status = "reactivated"
+
+        cur.execute(
+            """
+            UPDATE target
+            SET canonical_url=?, is_active=1
+            WHERE article_id=? AND article_type=?
+            """,
+            (canonical_url, article_id, article_type),
+        )
+
+    conn.commit()
+
+    cur.execute(
+        """
+        SELECT id, article_id, article_type, canonical_url, is_active, created_at
+        FROM target
+        WHERE article_id=? AND article_type=?
+        """,
+        (article_id, article_type),
+    )
+    entry = _target_row_to_entry(cur.fetchone())
+
+    return {
+        "status": status,
+        "entry": entry,
+        "target_identity": {
+            "article_id": article_id,
+            "article_type": article_type,
+        },
+    }
+
+
+def list_targets(conn, active_only=True):
+    """Load registered scrape targets in insertion order."""
+
+    cur = conn.cursor()
+    query = (
+        "SELECT id, article_id, article_type, canonical_url, is_active, "
+        "created_at FROM target"
+    )
+    params = ()
+    if active_only:
+        query += " WHERE is_active=1"
+    query += " ORDER BY id ASC"
+
+    cur.execute(query, params)
+    return [_target_row_to_entry(row) for row in cur.fetchall()]
+
 =============================
 FILE: ./copilot/target_list.py
 =============================
 from pathlib import Path
 from urllib.parse import urlparse
+
+from storage import init_db, list_targets, register_target
 
 
 def _parse_target_line(raw_line: str) -> str | None:
@@ -11745,74 +12245,109 @@ def _parse_target_line(raw_line: str) -> str | None:
     return line
 
 
-# Temporary plain-text input source until a more structured target registry exists.
-def load_target_urls(file_path: str) -> list[str]:
-    """Load a stable URL list from a human-editable plain text file."""
-
-    seen_urls = set()
-    targets = []
-
-    for raw_line in Path(file_path).read_text(encoding="utf-8").splitlines():
-        line = _parse_target_line(raw_line)
-        if line is None:
-            continue
-
-        if line in seen_urls:
-            continue
-
-        seen_urls.add(line)
-        targets.append(line)
-
-    return targets
-
-
-def validate_target_url(article_url: str) -> bool:
+def _parse_target_identity(article_url: str) -> dict | None:
     candidate = article_url.strip()
     if not candidate:
-        return False
+        return None
 
     parsed = urlparse(candidate)
     if parsed.scheme not in {"http", "https"}:
-        return False
+        return None
     if parsed.netloc != "dic.nicovideo.jp":
-        return False
+        return None
 
     path_parts = [part for part in parsed.path.split("/") if part]
     if len(path_parts) != 2:
-        return False
+        return None
 
     article_type, article_id = path_parts
     if not article_type or not article_id:
-        return False
+        return None
 
-    return True
+    return {
+        "article_id": article_id,
+        "article_type": article_type,
+        "canonical_url": (
+            f"https://dic.nicovideo.jp/{article_type}/{article_id}"
+        ),
+    }
 
 
-def add_target_url(article_url: str, target_list_path: str) -> str:
-    candidate = article_url.strip()
-    if not validate_target_url(candidate):
+def list_active_target_urls(target_db_path: str) -> list[str]:
+    """Load active target URLs from the SQLite-backed target registry."""
+
+    conn = init_db(target_db_path)
+    try:
+        return [entry["canonical_url"] for entry in list_targets(conn)]
+    finally:
+        conn.close()
+
+
+def validate_target_url(article_url: str) -> bool:
+    return _parse_target_identity(article_url) is not None
+
+
+def register_target_url(article_url: str, target_db_path: str) -> str:
+    target_identity = _parse_target_identity(article_url)
+    if target_identity is None:
         return "invalid"
 
-    target_path = Path(target_list_path)
-    existing_targets = []
-    if target_path.exists():
-        existing_targets = load_target_urls(target_list_path)
+    conn = init_db(target_db_path)
+    try:
+        result = register_target(
+            conn,
+            target_identity["article_id"],
+            target_identity["article_type"],
+            target_identity["canonical_url"],
+        )
+    finally:
+        conn.close()
 
-    if candidate in existing_targets:
-        return "duplicate"
+    return result["status"]
 
-    target_path.parent.mkdir(parents=True, exist_ok=True)
 
-    prefix = ""
-    if target_path.exists():
-        existing_text = target_path.read_text(encoding="utf-8")
-        if existing_text and not existing_text.endswith("\n"):
-            prefix = "\n"
+def import_targets_from_text_file(
+    source_path: str,
+    target_db_path: str,
+) -> dict:
+    """Import legacy plain-text targets into the SQLite registry once."""
 
-    with target_path.open("a", encoding="utf-8") as target_file:
-        target_file.write(f"{prefix}{candidate}\n")
+    counts = {
+        "source_path": source_path,
+        "target_db_path": target_db_path,
+        "processed": 0,
+        "added": 0,
+        "duplicate": 0,
+        "reactivated": 0,
+        "invalid": 0,
+    }
 
-    return "added"
+    lines = Path(source_path).read_text(encoding="utf-8").splitlines()
+
+    conn = init_db(target_db_path)
+    try:
+        for raw_line in lines:
+            line = _parse_target_line(raw_line)
+            if line is None:
+                continue
+
+            counts["processed"] += 1
+            target_identity = _parse_target_identity(line)
+            if target_identity is None:
+                counts["invalid"] += 1
+                continue
+
+            result = register_target(
+                conn,
+                target_identity["article_id"],
+                target_identity["article_type"],
+                target_identity["canonical_url"],
+            )
+            counts[result["status"]] += 1
+    finally:
+        conn.close()
+
+    return counts
 
 =============================
 FILE: ./copilot/tests/conftest.py
@@ -12506,22 +13041,22 @@ def test_main_export_all_articles_exits_non_zero_on_failure(mock_export_all):
     mock_export_all.assert_called_once_with("html")
 
 
-@patch("main.add_target_url", return_value="added")
-def test_main_add_target_calls_add_target_url(mock_add_target, capsys):
+@patch("main.register_target_url", return_value="added")
+def test_main_add_target_calls_register_target_url(mock_add_target, capsys):
     with patch(
         "sys.argv",
         [
             "main.py",
             "add-target",
             "https://dic.nicovideo.jp/a/12345",
-            "targets.txt",
+            "targets.db",
         ],
     ):
         main_module.main()
 
     mock_add_target.assert_called_once_with(
         "https://dic.nicovideo.jp/a/12345",
-        "targets.txt",
+        "targets.db",
     )
     out = capsys.readouterr().out
     assert "Added target: https://dic.nicovideo.jp/a/12345" in out
@@ -12576,7 +13111,7 @@ def test_main_resolve_article_exits_non_zero_on_resolution_failure(
     assert "Input: Foo" in out
 
 
-@patch("main.add_target_url", return_value="duplicate")
+@patch("main.register_target_url", return_value="duplicate")
 def test_main_add_target_reports_duplicate_without_error(mock_add_target, capsys):
     with patch(
         "sys.argv",
@@ -12584,32 +13119,53 @@ def test_main_add_target_reports_duplicate_without_error(mock_add_target, capsys
             "main.py",
             "add-target",
             "https://dic.nicovideo.jp/a/12345",
-            "targets.txt",
+            "targets.db",
         ],
     ):
         main_module.main()
 
     mock_add_target.assert_called_once_with(
         "https://dic.nicovideo.jp/a/12345",
-        "targets.txt",
+        "targets.db",
     )
     out = capsys.readouterr().out
     assert "Target already exists: https://dic.nicovideo.jp/a/12345" in out
 
 
-@patch("main.add_target_url", return_value="invalid")
+@patch("main.register_target_url", return_value="invalid")
 def test_main_add_target_exits_non_zero_for_invalid_url(mock_add_target, capsys):
     with patch(
         "sys.argv",
-        ["main.py", "add-target", "not-a-url", "targets.txt"],
+        ["main.py", "add-target", "not-a-url", "targets.db"],
     ):
         with pytest.raises(SystemExit) as exc_info:
             main_module.main()
 
     assert exc_info.value.code == 1
-    mock_add_target.assert_called_once_with("not-a-url", "targets.txt")
+    mock_add_target.assert_called_once_with("not-a-url", "targets.db")
     out = capsys.readouterr().out
     assert "Invalid target URL: not-a-url" in out
+
+
+@patch("main.register_target_url", return_value="reactivated")
+def test_main_add_target_reports_reactivated_target(mock_add_target, capsys):
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "add-target",
+            "https://dic.nicovideo.jp/a/12345",
+            "targets.db",
+        ],
+    ):
+        main_module.main()
+
+    mock_add_target.assert_called_once_with(
+        "https://dic.nicovideo.jp/a/12345",
+        "targets.db",
+    )
+    out = capsys.readouterr().out
+    assert "Reactivated target: https://dic.nicovideo.jp/a/12345" in out
 
 
 @patch("main.export_article", return_value=False)
@@ -12632,17 +13188,17 @@ def test_main_inspect_mode_with_last_n(mock_inspect):
     mock_inspect.assert_called_once_with("12345", "a", 10)
 
 
-@patch("main.load_target_urls", return_value=[
+@patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/12345",
     "https://dic.nicovideo.jp/a/99999",
 ])
 def test_main_targets_mode_loads_and_prints_targets(mock_load_targets, capsys):
-    with patch("sys.argv", ["main.py", "targets", "targets.txt"]):
+    with patch("sys.argv", ["main.py", "targets", "targets.db"]):
         main_module.main()
 
-    mock_load_targets.assert_called_once_with("targets.txt")
+    mock_load_targets.assert_called_once_with("targets.db")
     out = capsys.readouterr().out
-    assert "Loaded 2 scrape target(s) from targets.txt" in out
+    assert "Loaded 2 active scrape target(s) from target registry targets.db" in out
     assert "https://dic.nicovideo.jp/a/12345" in out
     assert "https://dic.nicovideo.jp/a/99999" in out
 
@@ -12654,7 +13210,7 @@ def test_main_targets_without_path_exits_with_usage(capsys):
 
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
-    assert "Usage: targets <target_list_path>" in out
+    assert "Usage: targets <target_db_path>" in out
 
 
 def test_main_export_all_articles_without_required_args_exits_with_usage(capsys):
@@ -12677,7 +13233,7 @@ def test_main_add_target_without_required_args_exits_with_usage(capsys):
 
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
-    assert "Usage: add-target <article_url> <target_list_path>" in out
+    assert "Usage: add-target <article_url> <target_db_path>" in out
 
 
 def test_main_resolve_article_without_required_args_exits_with_usage(capsys):
@@ -12708,7 +13264,7 @@ def test_main_web_mode_calls_serve_web_app_with_defaults(mock_serve_web_app):
     mock_serve_web_app.assert_called_once_with(
         host="127.0.0.1",
         port=8000,
-        target_list_path="runtime/targets/targets.txt",
+        target_db_path="data/nicodic.db",
     )
 
 
@@ -12723,8 +13279,8 @@ def test_main_web_mode_allows_host_and_port_override(mock_serve_web_app):
             "0.0.0.0",
             "--port",
             "9001",
-            "--target-list-path",
-            "/runtime/targets/custom.txt",
+            "--target-db-path",
+            "/runtime/data/custom.db",
         ],
     ):
         main_module.main()
@@ -12732,7 +13288,7 @@ def test_main_web_mode_allows_host_and_port_override(mock_serve_web_app):
     mock_serve_web_app.assert_called_once_with(
         host="0.0.0.0",
         port=9001,
-        target_list_path="/runtime/targets/custom.txt",
+        target_db_path="/runtime/data/custom.db",
     )
 
 
@@ -12748,15 +13304,58 @@ def test_main_too_few_args_exits_with_usage(capsys):
     assert "export <article_id> <article_type> --format md" in out
     assert "list-articles" in out
     assert "export-all-articles --format txt" in out
-    assert "add-target <article_url> <target_list_path>" in out
+    assert "add-target <article_url> <target_db_path>" in out
+    assert "import-targets <targets_txt_path> <target_db_path>" in out
     assert "resolve-article <article_url_or_full_title>" in out
-    assert "targets <target_list_path>" in out
-    assert "batch <target_list_path>" in out
-    assert "periodic-once <target_list_path>" in out
-    assert "web [--host HOST] [--port PORT] [--target-list-path PATH]" in out
+    assert "targets <target_db_path>" in out
+    assert "batch <target_db_path>" in out
+    assert "periodic-once <target_db_path>" in out
+    assert "web [--host HOST] [--port PORT] [--target-db-path PATH]" in out
     assert (
-        "periodic <target_list_path> <interval_seconds> [--max-runs N]" in out
+        "periodic <target_db_path> <interval_seconds> [--max-runs N]" in out
     )
+
+
+@patch("main.import_targets_from_text_file")
+def test_main_import_targets_reports_counts(mock_import_targets, capsys):
+    mock_import_targets.return_value = {
+        "source_path": "/runtime/targets/targets.txt",
+        "target_db_path": "/app/data/nicodic.db",
+        "processed": 3,
+        "added": 2,
+        "duplicate": 1,
+        "reactivated": 0,
+        "invalid": 0,
+    }
+
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "import-targets",
+            "/runtime/targets/targets.txt",
+            "/app/data/nicodic.db",
+        ],
+    ):
+        main_module.main()
+
+    mock_import_targets.assert_called_once_with(
+        "/runtime/targets/targets.txt",
+        "/app/data/nicodic.db",
+    )
+    out = capsys.readouterr().out
+    assert "Imported 3 target line(s)" in out
+    assert "added=2 duplicate=1 reactivated=0 invalid=0" in out
+
+
+def test_main_import_targets_without_required_args_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "import-targets"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "Usage: import-targets <targets_txt_path> <target_db_path>" in out
 
 
 def test_main_inspect_without_id_type_exits_with_usage(capsys):
@@ -12768,7 +13367,7 @@ def test_main_inspect_without_id_type_exits_with_usage(capsys):
     assert "inspect <article_id> <article_type>" in out
 
 
-@patch("main.load_target_urls", return_value=[
+@patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
     "https://dic.nicovideo.jp/a/2",
 ])
@@ -12777,7 +13376,7 @@ def test_main_batch_all_success_exits_zero(
     mock_run_scrape, mock_load_targets, tmp_path, capsys, monkeypatch
 ):
     monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
-    with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
+    with patch("sys.argv", ["main.py", "batch", "targets.db"]):
         main_module.main()
 
     assert mock_run_scrape.call_count == 2
@@ -12792,13 +13391,15 @@ def test_main_batch_all_success_exits_zero(
     text = logs[0].read_text(encoding="utf-8")
     assert "BATCH_RUN_START" in text
     assert "BATCH_RUN_END" in text
+    assert "target_db_path=targets.db" in text
+    assert "target_source=target_table" in text
     assert "total_targets=2" in text
     assert "failed_targets=0" in text
     assert "final_status=success" in text
     assert "\nFAIL\n" not in text
 
 
-@patch("main.load_target_urls", return_value=[
+@patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
     "https://dic.nicovideo.jp/a/2",
 ])
@@ -12807,7 +13408,7 @@ def test_main_batch_failure_sets_nonzero_exit_and_continues(
     mock_run_scrape, mock_load_targets, tmp_path, capsys, monkeypatch
 ):
     monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
-    with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
+    with patch("sys.argv", ["main.py", "batch", "targets.db"]):
         with pytest.raises(SystemExit) as exc_info:
             main_module.main()
 
@@ -12829,7 +13430,7 @@ def test_main_batch_failure_sets_nonzero_exit_and_continues(
     assert "target=https://dic.nicovideo.jp/a/2" not in text
 
 
-@patch("main.load_target_urls", return_value=[
+@patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
     "https://dic.nicovideo.jp/a/2",
 ])
@@ -12838,7 +13439,7 @@ def test_main_batch_exception_sets_nonzero_exit_and_continues(
     mock_run_scrape, mock_load_targets, tmp_path, capsys, monkeypatch
 ):
     monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
-    with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
+    with patch("sys.argv", ["main.py", "batch", "targets.db"]):
         with pytest.raises(SystemExit) as exc_info:
             main_module.main()
 
@@ -12866,15 +13467,15 @@ def test_main_batch_without_path_exits_with_usage(capsys):
 
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
-    assert "Usage: batch <target_list_path>" in out
+    assert "Usage: batch <target_db_path>" in out
 
 
 @patch("main.run_periodic_once")
 def test_main_periodic_once_calls_run_periodic_once(mock_run_periodic_once):
-    with patch("sys.argv", ["main.py", "periodic-once", "targets.txt"]):
+    with patch("sys.argv", ["main.py", "periodic-once", "targets.db"]):
         main_module.main()
 
-    mock_run_periodic_once.assert_called_once_with("targets.txt")
+    mock_run_periodic_once.assert_called_once_with("targets.db")
 
 
 def test_main_periodic_once_without_path_exits_with_usage(capsys):
@@ -12884,17 +13485,17 @@ def test_main_periodic_once_without_path_exits_with_usage(capsys):
 
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
-    assert "Usage: periodic-once <target_list_path>" in out
+    assert "Usage: periodic-once <target_db_path>" in out
 
 
 @patch("main.run_periodic_scrape")
 def test_run_periodic_once_delegates_to_single_periodic_cycle(
     mock_run_periodic_scrape,
 ):
-    main_module.run_periodic_once("targets.txt")
+    main_module.run_periodic_once("targets.db")
 
     mock_run_periodic_scrape.assert_called_once_with(
-        "targets.txt",
+        "targets.db",
         0.0,
         max_runs=1,
     )
@@ -12910,13 +13511,13 @@ def test_main_periodic_runs_full_batch_per_cycle_and_honors_max_runs(
 ):
     with patch(
         "sys.argv",
-        ["main.py", "periodic", "targets.txt", "30", "--max-runs", "2"],
+        ["main.py", "periodic", "targets.db", "30", "--max-runs", "2"],
     ):
         main_module.main()
 
     assert mock_run_batch.call_args_list == [
-        call("targets.txt"),
-        call("targets.txt"),
+        call("targets.db"),
+        call("targets.db"),
     ]
     mock_sleep.assert_called_once_with(30.0)
 
@@ -12941,13 +13542,13 @@ def test_main_periodic_continues_after_failure_statuses(
 ):
     with patch(
         "sys.argv",
-        ["main.py", "periodic", "targets.txt", "5", "--max-runs", "2"],
+        ["main.py", "periodic", "targets.db", "5", "--max-runs", "2"],
     ):
         main_module.main()
 
     assert mock_run_batch.call_args_list == [
-        call("targets.txt"),
-        call("targets.txt"),
+        call("targets.db"),
+        call("targets.db"),
     ]
     mock_sleep.assert_called_once_with(5.0)
 
@@ -12961,10 +13562,10 @@ def test_main_periodic_continues_after_failure_statuses(
 def test_main_periodic_exits_safely_on_ctrl_c_during_sleep(
     mock_sleep, mock_run_batch, capsys
 ):
-    with patch("sys.argv", ["main.py", "periodic", "targets.txt", "5"]):
+    with patch("sys.argv", ["main.py", "periodic", "targets.db", "5"]):
         main_module.main()
 
-    mock_run_batch.assert_called_once_with("targets.txt")
+    mock_run_batch.assert_called_once_with("targets.db")
     mock_sleep.assert_called_once_with(5.0)
     out = capsys.readouterr().out
     assert "Periodic execution interrupted. Exiting safely." in out
@@ -12972,23 +13573,23 @@ def test_main_periodic_exits_safely_on_ctrl_c_during_sleep(
 
 @patch("main.run_batch_scrape", side_effect=KeyboardInterrupt)
 def test_main_periodic_exits_safely_on_ctrl_c_during_run(mock_run_batch, capsys):
-    with patch("sys.argv", ["main.py", "periodic", "targets.txt", "5"]):
+    with patch("sys.argv", ["main.py", "periodic", "targets.db", "5"]):
         main_module.main()
 
-    mock_run_batch.assert_called_once_with("targets.txt")
+    mock_run_batch.assert_called_once_with("targets.db")
     out = capsys.readouterr().out
     assert "Periodic execution interrupted. Exiting safely." in out
 
 
 def test_main_periodic_without_required_args_exits_with_usage(capsys):
-    with patch("sys.argv", ["main.py", "periodic", "targets.txt"]):
+    with patch("sys.argv", ["main.py", "periodic", "targets.db"]):
         with pytest.raises(SystemExit) as exc_info:
             main_module.main()
 
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
     assert (
-        "Usage: periodic <target_list_path> <interval_seconds> [--max-runs N]"
+        "Usage: periodic <target_db_path> <interval_seconds> [--max-runs N]"
         in out
     )
 
@@ -14067,6 +14668,8 @@ from storage import (
     enqueue_canonical_target,
     init_db,
     list_queue_requests,
+    list_targets,
+    register_target,
     save_json,
     save_to_db,
 )
@@ -14091,6 +14694,7 @@ def test_init_db_creates_data_dir_db_and_tables(tmp_path, monkeypatch):
         assert "articles" in tables
         assert "responses" in tables
         assert "queue_requests" in tables
+        assert "target" in tables
     finally:
         conn.close()
 
@@ -14372,57 +14976,131 @@ def test_dequeue_canonical_target_removes_only_requested_item(tmp_path, monkeypa
     finally:
         conn.close()
 
+
+def test_register_target_persists_canonical_identity_once(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        first = register_target(
+            conn,
+            "12345",
+            "a",
+            "https://dic.nicovideo.jp/a/12345",
+        )
+        second = register_target(
+            conn,
+            "12345",
+            "a",
+            "https://dic.nicovideo.jp/a/12345",
+        )
+
+        assert first["status"] == "added"
+        assert second["status"] == "duplicate"
+        assert second["target_identity"] == {
+            "article_id": "12345",
+            "article_type": "a",
+        }
+
+        targets = list_targets(conn)
+        assert len(targets) == 1
+        assert targets[0]["canonical_url"] == "https://dic.nicovideo.jp/a/12345"
+        assert targets[0]["is_active"] is True
+    finally:
+        conn.close()
+
+
+def test_register_target_reactivates_inactive_target(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        register_target(
+            conn,
+            "12345",
+            "a",
+            "https://dic.nicovideo.jp/a/12345",
+        )
+
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE target SET is_active=0 WHERE article_id=? AND article_type=?",
+            ("12345", "a"),
+        )
+        conn.commit()
+
+        result = register_target(
+            conn,
+            "12345",
+            "a",
+            "https://dic.nicovideo.jp/a/12345",
+        )
+
+        assert result["status"] == "reactivated"
+        assert list_targets(conn) == [
+            {
+                "id": 1,
+                "article_id": "12345",
+                "article_type": "a",
+                "canonical_url": "https://dic.nicovideo.jp/a/12345",
+                "is_active": True,
+                "created_at": result["entry"]["created_at"],
+            }
+        ]
+    finally:
+        conn.close()
+
+
+def test_list_targets_filters_out_inactive_rows_by_default(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        register_target(
+            conn,
+            "1",
+            "a",
+            "https://dic.nicovideo.jp/a/1",
+        )
+        register_target(
+            conn,
+            "2",
+            "a",
+            "https://dic.nicovideo.jp/a/2",
+        )
+
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE target SET is_active=0 WHERE article_id=? AND article_type=?",
+            ("2", "a"),
+        )
+        conn.commit()
+
+        active_targets = list_targets(conn)
+        all_targets = list_targets(conn, active_only=False)
+
+        assert [item["article_id"] for item in active_targets] == ["1"]
+        assert [item["article_id"] for item in all_targets] == ["1", "2"]
+    finally:
+        conn.close()
+
 =============================
 FILE: ./copilot/tests/test_target_list.py
 =============================
-from target_list import add_target_url, load_target_urls, validate_target_url
+from target_list import (
+    import_targets_from_text_file,
+    list_active_target_urls,
+    register_target_url,
+    validate_target_url,
+)
 
 
-def test_load_target_urls_reads_plain_text_targets_stably(tmp_path):
-    target_file = tmp_path / "targets.txt"
-    target_file.write_text(
-        "\n"
-        "# temporary scrape targets\n"
-        "https://dic.nicovideo.jp/a/12345\n"
-        "\n"
-        "https://dic.nicovideo.jp/a/99999\n",
-        encoding="utf-8",
-    )
+def test_list_active_target_urls_reads_registered_targets_stably(tmp_path):
+    target_db_path = tmp_path / "targets.db"
 
-    assert load_target_urls(str(target_file)) == [
+    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+    register_target_url("https://dic.nicovideo.jp/id/99999", str(target_db_path))
+
+    assert list_active_target_urls(str(target_db_path)) == [
         "https://dic.nicovideo.jp/a/12345",
-        "https://dic.nicovideo.jp/a/99999",
-    ]
-
-
-def test_load_target_urls_ignores_duplicate_lines_while_preserving_order(tmp_path):
-    target_file = tmp_path / "targets.txt"
-    target_file.write_text(
-        "https://dic.nicovideo.jp/a/12345\n"
-        "https://dic.nicovideo.jp/a/12345\n"
-        "https://dic.nicovideo.jp/a/77777\n",
-        encoding="utf-8",
-    )
-
-    assert load_target_urls(str(target_file)) == [
-        "https://dic.nicovideo.jp/a/12345",
-        "https://dic.nicovideo.jp/a/77777",
-    ]
-
-
-def test_load_target_urls_trims_whitespace_and_ignores_comment_lines(tmp_path):
-    target_file = tmp_path / "targets.txt"
-    target_file.write_text(
-        "  # comment line to ignore  \n"
-        "  https://dic.nicovideo.jp/a/12345  \n"
-        "\n"
-        "\thttps://dic.nicovideo.jp/a/77777\t\n",
-        encoding="utf-8",
-    )
-
-    assert load_target_urls(str(target_file)) == [
-        "https://dic.nicovideo.jp/a/12345",
-        "https://dic.nicovideo.jp/a/77777",
+        "https://dic.nicovideo.jp/id/99999",
     ]
 
 
@@ -14436,49 +15114,75 @@ def test_validate_target_url_rejects_non_article_shape():
     assert validate_target_url("not-a-url") is False
 
 
-def test_add_target_url_appends_valid_target_to_text_list(tmp_path):
-    target_file = tmp_path / "targets.txt"
+def test_register_target_url_inserts_valid_target_into_registry(tmp_path):
+    target_db_path = tmp_path / "targets.db"
 
-    result = add_target_url("https://dic.nicovideo.jp/a/12345", str(target_file))
-
-    assert result == "added"
-    assert target_file.read_text(encoding="utf-8") == (
-        "https://dic.nicovideo.jp/a/12345\n"
+    result = register_target_url(
+        "https://dic.nicovideo.jp/a/12345",
+        str(target_db_path),
     )
 
+    assert result == "added"
+    assert list_active_target_urls(str(target_db_path)) == [
+        "https://dic.nicovideo.jp/a/12345",
+    ]
 
-def test_add_target_url_does_not_append_duplicate_target(tmp_path):
-    target_file = tmp_path / "targets.txt"
-    target_file.write_text("https://dic.nicovideo.jp/a/12345\n", encoding="utf-8")
 
-    result = add_target_url("https://dic.nicovideo.jp/a/12345", str(target_file))
+def test_register_target_url_suppresses_duplicate_identity(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+
+    result = register_target_url(
+        "https://dic.nicovideo.jp/a/12345",
+        str(target_db_path),
+    )
 
     assert result == "duplicate"
-    assert target_file.read_text(encoding="utf-8") == (
-        "https://dic.nicovideo.jp/a/12345\n"
-    )
+    assert list_active_target_urls(str(target_db_path)) == [
+        "https://dic.nicovideo.jp/a/12345",
+    ]
 
 
-def test_add_target_url_appends_without_inserting_blank_line(tmp_path):
-    target_file = tmp_path / "targets.txt"
-    target_file.write_text("https://dic.nicovideo.jp/a/12345\n", encoding="utf-8")
+def test_register_target_url_rejects_invalid_target_without_writing(tmp_path):
+    target_db_path = tmp_path / "targets.db"
 
-    result = add_target_url("https://dic.nicovideo.jp/a/77777", str(target_file))
-
-    assert result == "added"
-    assert target_file.read_text(encoding="utf-8") == (
-        "https://dic.nicovideo.jp/a/12345\n"
-        "https://dic.nicovideo.jp/a/77777\n"
-    )
-
-
-def test_add_target_url_rejects_invalid_target_without_writing(tmp_path):
-    target_file = tmp_path / "targets.txt"
-
-    result = add_target_url("not-a-url", str(target_file))
+    result = register_target_url("not-a-url", str(target_db_path))
 
     assert result == "invalid"
-    assert target_file.exists() is False
+    assert target_db_path.exists() is False
+
+
+def test_import_targets_from_text_file_is_one_shot_and_non_automatic(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+    source_file = tmp_path / "targets.txt"
+    source_file.write_text(
+        "\n"
+        "# legacy targets\n"
+        "https://dic.nicovideo.jp/a/12345\n"
+        "https://dic.nicovideo.jp/a/12345\n"
+        "not-a-url\n"
+        "https://dic.nicovideo.jp/id/777\n",
+        encoding="utf-8",
+    )
+
+    result = import_targets_from_text_file(
+        str(source_file),
+        str(target_db_path),
+    )
+
+    assert result == {
+        "source_path": str(source_file),
+        "target_db_path": str(target_db_path),
+        "processed": 4,
+        "added": 2,
+        "duplicate": 1,
+        "reactivated": 0,
+        "invalid": 1,
+    }
+    assert list_active_target_urls(str(target_db_path)) == [
+        "https://dic.nicovideo.jp/a/12345",
+        "https://dic.nicovideo.jp/id/777",
+    ]
 
 =============================
 FILE: ./copilot/tests/test_web_app.py
@@ -14750,7 +15454,7 @@ def test_application_post_renders_saved_result_message():
     assert "Canonical target: a/12345" in response["body"]
     assert "Saved response count: 42" in response["body"]
     assert "Download TXT" in response["body"]
-    assert "Add To Target List" in response["body"]
+    assert "Add To Target Registry" in response["body"]
 
 
 def test_application_post_renders_title_resolution_failure_message():
@@ -14785,11 +15489,11 @@ def test_application_post_renders_unsaved_result_with_target_action_only():
         response = _run_wsgi_request("POST", body="article_input=Foo")
 
     assert response["status"] == "200 OK"
-    assert "Add To Target List" in response["body"]
+    assert "Add To Target Registry" in response["body"]
     assert "Enqueue Request" not in response["body"]
 
 
-@patch("web_app.add_target_url", return_value="added")
+@patch("web_app.register_target_url", return_value="added")
 @patch("web_app.check_article_status")
 def test_application_action_add_target_uses_canonical_url(
     mock_check_status,
@@ -14813,14 +15517,17 @@ def test_application_action_add_target_uses_canonical_url(
     )
 
     assert response["status"] == "200 OK"
-    assert "Canonical article URL was added to the target list." in response["body"]
+    assert (
+        "Canonical article URL was added to the target registry."
+        in response["body"]
+    )
     mock_add_target_url.assert_called_once_with(
         "https://dic.nicovideo.jp/a/12345",
-        "runtime/targets/targets.txt",
+        "data/nicodic.db",
     )
 
 
-@patch("web_app.add_target_url", return_value="added")
+@patch("web_app.register_target_url", return_value="added")
 @patch("web_app.check_article_status")
 def test_application_action_add_target_uses_custom_runtime_target_path(
     mock_check_status,
@@ -14841,17 +15548,17 @@ def test_application_action_add_target_uses_custom_runtime_target_path(
         "POST",
         path="/action",
         body="article_input=Foo&action=add_target",
-        app=create_app(target_list_path="/runtime/targets/custom.txt"),
+        app=create_app(target_db_path="/runtime/data/custom.db"),
     )
 
     assert response["status"] == "200 OK"
     mock_add_target_url.assert_called_once_with(
         "https://dic.nicovideo.jp/a/12345",
-        "/runtime/targets/custom.txt",
+        "/runtime/data/custom.db",
     )
 
 
-@patch("web_app.add_target_url", return_value="duplicate")
+@patch("web_app.register_target_url", return_value="duplicate")
 @patch("web_app.check_article_status")
 def test_application_action_add_target_duplicate_is_bounded(
     mock_check_status,
@@ -14877,12 +15584,46 @@ def test_application_action_add_target_duplicate_is_bounded(
 
     assert response["status"] == "200 OK"
     assert (
-        "Canonical article URL is already present in the target list."
+        "Canonical article URL is already active in the target registry."
         in response["body"]
     )
     mock_add_target_url.assert_called_once_with(
         "https://dic.nicovideo.jp/a/12345",
-        "runtime/targets/targets.txt",
+        "data/nicodic.db",
+    )
+
+
+@patch("web_app.register_target_url", return_value="reactivated")
+@patch("web_app.check_article_status")
+def test_application_action_add_target_reactivated_is_bounded(
+    mock_check_status,
+    mock_add_target_url,
+):
+    mock_check_status.return_value = {
+        "status": "unsaved",
+        "input": "Foo",
+        "title": "Foo",
+        "matched_by": "exact_title",
+        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_id": "12345",
+        "article_type": "a",
+        "message": "Resolved article, but no saved archive was found yet.",
+    }
+
+    response = _run_wsgi_request(
+        "POST",
+        path="/action",
+        body="article_input=Foo&action=add_target",
+    )
+
+    assert response["status"] == "200 OK"
+    assert (
+        "Canonical article URL was reactivated in the target registry."
+        in response["body"]
+    )
+    mock_add_target_url.assert_called_once_with(
+        "https://dic.nicovideo.jp/a/12345",
+        "data/nicodic.db",
     )
 
 
@@ -14897,7 +15638,7 @@ def test_application_action_add_target_skips_write_for_unresolved_input(
         "message": "Could not resolve the input (not_found).",
     }
 
-    with patch("web_app.add_target_url") as mock_add_target_url:
+    with patch("web_app.register_target_url") as mock_add_target_url:
         response = _run_wsgi_request(
             "POST",
             path="/action",
@@ -14963,7 +15704,7 @@ def test_application_action_enqueue_request_is_not_supported_from_web(
         "message": "Resolved article, but no saved archive was found yet.",
     }
 
-    with patch("web_app.add_target_url") as mock_add_target_url:
+    with patch("web_app.register_target_url") as mock_add_target_url:
         response = _run_wsgi_request(
             "POST",
             path="/action",
@@ -14996,13 +15737,10 @@ from archive_read import (
     get_saved_article_summary_by_exact_title,
 )
 from article_resolver import resolve_article_input
-from target_list import add_target_url
+from target_list import register_target_url
 
 
-DEFAULT_TARGET_LIST_PATH = os.environ.get(
-    "TARGET_LIST_PATH",
-    "runtime/targets/targets.txt",
-)
+DEFAULT_TARGET_DB_PATH = os.environ.get("TARGET_DB_PATH", "data/nicodic.db")
 
 
 def _normalize_web_input(article_input: str) -> str:
@@ -15101,9 +15839,11 @@ def _build_action_result_message(action_result: dict) -> str:
     if status == "download_ready":
         return "Saved article TXT download is ready."
     if status == "target_added":
-        return "Canonical article URL was added to the target list."
+        return "Canonical article URL was added to the target registry."
+    if status == "target_reactivated":
+        return "Canonical article URL was reactivated in the target registry."
     if status == "target_duplicate":
-        return "Canonical article URL is already present in the target list."
+        return "Canonical article URL is already active in the target registry."
     if status == "action_error":
         return action_result["message"]
     return "Action completed."
@@ -15112,7 +15852,7 @@ def _build_action_result_message(action_result: dict) -> str:
 def _followup_action(
     article_input: str,
     action: str,
-    target_list_path: str,
+    target_db_path: str,
 ) -> dict:
     status_result = check_article_status(article_input)
     if status_result["status"] not in {"saved", "unsaved"}:
@@ -15135,13 +15875,18 @@ def _followup_action(
         }
 
     if action == "add_target":
-        add_result = add_target_url(
+        add_result = register_target_url(
             status_result["article_url"],
-            target_list_path,
+            target_db_path,
         )
         if add_result == "added":
             return {
                 "status": "target_added",
+                "check_result": status_result,
+            }
+        if add_result == "reactivated":
+            return {
+                "status": "target_reactivated",
                 "check_result": status_result,
             }
         if add_result == "duplicate":
@@ -15240,7 +15985,7 @@ def _render_message_area(
                 f"<input type=\"hidden\" name=\"article_input\" "
                 f"value=\"{escape(result['input'])}\">"
                 "<input type=\"hidden\" name=\"action\" value=\"add_target\">"
-                "<button type=\"submit\">Add To Target List</button>"
+                "<button type=\"submit\">Add To Target Registry</button>"
                 "</form>"
             )
         )
@@ -15252,7 +15997,7 @@ def _render_message_area(
                 f"<input type=\"hidden\" name=\"article_input\" "
                 f"value=\"{escape(result['input'])}\">"
                 "<input type=\"hidden\" name=\"action\" value=\"add_target\">"
-                "<button type=\"submit\">Add To Target List</button>"
+                "<button type=\"submit\">Add To Target Registry</button>"
                 "</form>"
             )
         )
@@ -15384,7 +16129,7 @@ def _render_page(
     return html.encode("utf-8")
 
 
-def create_app(target_list_path: str = DEFAULT_TARGET_LIST_PATH):
+def create_app(target_db_path: str = DEFAULT_TARGET_DB_PATH):
     def app(environ, start_response):
         method = environ.get("REQUEST_METHOD", "GET").upper()
         path = environ.get("PATH_INFO", "/")
@@ -15421,7 +16166,7 @@ def create_app(target_list_path: str = DEFAULT_TARGET_LIST_PATH):
             action_result = _followup_action(
                 article_input,
                 action,
-                target_list_path,
+                target_db_path,
             )
             check_result = action_result["check_result"]
 
@@ -15505,9 +16250,9 @@ application = create_app()
 def serve_web_app(
     host: str = "127.0.0.1",
     port: int = 8000,
-    target_list_path: str = DEFAULT_TARGET_LIST_PATH,
+    target_db_path: str = DEFAULT_TARGET_DB_PATH,
 ) -> None:
-    app = create_app(target_list_path=target_list_path)
+    app = create_app(target_db_path=target_db_path)
     with make_server(host, port, app) as server:
         print(f"Serving web app at http://{host}:{port}")
         server.serve_forever()
@@ -16447,7 +17192,7 @@ services:
     working_dir: /app
     environment:
       BATCH_LOG_DIR: /runtime/logs/batch_runs
-      TARGET_LIST_PATH: /runtime/targets/targets.txt
+      TARGET_DB_PATH: /app/data/nicodic.db
     volumes:
       - ./runtime/targets:/runtime/targets
       - ./runtime/data:/app/data
@@ -16465,8 +17210,8 @@ services:
         "0.0.0.0",
         "--port",
         "8000",
-        "--target-list-path",
-        "/runtime/targets/targets.txt",
+        "--target-db-path",
+        "/app/data/nicodic.db",
       ]
 
 
@@ -16485,20 +17230,60 @@ FILE: ./cursor/docs/ARCHITECTURE.md
 =============================
 # Architecture
 
-The project is a Nicodic article archiver.
+This document is the canonical architecture description
+for the nicodic_archiver project.
 
-It downloads BBS comment pages from Nicovideo dictionary
-and stores them locally.
+This file is the source-of-truth architecture document.
+
+Copies of this file may be synchronized to:
+
+- `copilot/docs/ARCHITECTURE.md`
+- `cursor/docs/ARCHITECTURE.md`
+
+Those copies exist for repository-local readability,
+but this root file is the canonical version.
+
+--------------------------------------------------
+
+Project purpose
+
+The project archives comment threads from the NicoNicoPedia BBS.
+
+Goal:
+
+- preserve comments locally
+- keep access even if original comments are deleted
+- store static information only
+
+Stored data includes:
+
+- response number
+- poster name
+- poster ID hash
+- posted timestamp
+- comment text
+- comment HTML
+
+Excluded data includes:
+
+- GOOD / BAD counts
+- other dynamic metrics
 
 --------------------------------------------------
 
 Current architecture
 
 main.py
-    CLI entry point
+    CLI and bounded app/runtime entry point
 
 orchestrator.py
     Coordinates scraping flow and persistence order
+
+archive_read.py
+    Archive-facing read / export seam
+
+article_resolver.py
+    Resolves bounded article input into canonical article targets
 
 http_client.py
     Handles HTTP requests
@@ -16507,10 +17292,34 @@ parser.py
     Extracts response data from HTML
 
 storage.py
-    Handles SQLite and JSON persistence
+    Handles SQLite and JSON persistence, including target-registry persistence
+
+target_list.py
+    Handles target registration, active-target reads, and legacy target import
+
+web_app.py
+    Provides the bounded Web-facing archive-check / follow-up interface
 
 cli.py
-    Provides inspect command output
+    Provides CLI-facing archive output helpers
+
+tests/conftest.py
+    Supports pytest import resolution
+
+tests/test_main.py
+    Covers CLI and bounded app entry dispatch behavior
+
+tests/test_orchestrator.py
+    Covers orchestration helper behavior
+
+tests/test_storage.py
+    Covers storage-layer persistence behavior including target-registry behavior
+
+tests/test_target_list.py
+    Covers target-registry seam behavior
+
+tests/test_web_app.py
+    Covers bounded Web-facing behavior
 
 --------------------------------------------------
 
@@ -16518,14 +17327,20 @@ Current responsibility split
 
 main.py
     CLI argument parsing
-    inspect branch
-    dispatch to orchestration
+    bounded batch / periodic / web dispatch
+    target-registry-backed target flow entrypoints
 
 orchestrator.py
     article metadata fetching
     BBS base URL generation
     paginated response collection
     JSON save + SQLite save flow
+
+archive_read.py
+    archive-facing read and export seam
+
+article_resolver.py
+    bounded canonical article input resolution
 
 http_client.py
     HTTP fetch layer
@@ -16535,35 +17350,105 @@ parser.py
 
 storage.py
     persistence layer
+    archive persistence
+    queue persistence
+    target-registry persistence
+
+target_list.py
+    target-source handling layer
+    target registration
+    active target listing
+    bounded legacy `targets.txt` import
+
+web_app.py
+    bounded Web-facing archive-check and follow-up actions
+    bounded target registration
+    saved article TXT download
 
 cli.py
-    DB inspection output
+    archive-facing CLI output formatting
+
+tests/
+    focused unit-test layer protecting current bounded responsibilities
 
 --------------------------------------------------
 
-Rules for refactoring
+Status after TASK003
 
-• Do not change program behaviour
-• Keep CLI compatible
-• Prefer small, explainable refactors
-• Keep Docker / pytest / flake8 working
-
---------------------------------------------------
-
-Status after TASK002
-
-• main.py is thinner than before
-• orchestration has been extracted to orchestrator.py
-• behaviour is intended to remain unchanged
+- main.py is thinner than before
+- orchestration has been extracted to orchestrator.py
+- minimal unit tests now exist for main.py and orchestrator.py
+- tests/conftest.py supports pytest import resolution
+- production behaviour is intended to remain unchanged
 
 --------------------------------------------------
 
-Future direction
+Design principles
 
-Further refactoring should treat this structure
-as the post-TASK002 baseline unless a new task
-explicitly changes it.
+- keep CLI compatibility
+- prefer small, explainable refactors
+- preserve behavior unless a task explicitly changes it
+- prefer stability over novelty
+- keep module responsibilities clear
+- compare AI implementations before adoption
 
+--------------------------------------------------
+
+Refactoring guidance
+
+Good refactors:
+
+- reduce responsibility overlap
+- make main.py thinner without changing CLI behavior
+- add focused tests around existing behavior
+- improve workflow tooling when review friction is observed
+
+Avoid by default:
+
+- redesigning multiple layers at once
+- expanding task scope silently
+- introducing configuration systems without clear need
+- changing behavior during structure-only tasks
+
+--------------------------------------------------
+
+Workflow context
+
+This project uses a Double Helix Development Model.
+
+For one task:
+
+- Copilot implementation is produced in `copilot/`
+- Cursor implementation is produced in `cursor/`
+- both are reviewed
+- one is adopted, or a hybrid is adopted
+- both repos are then realigned to the same final state
+
+For practical workflow steps, refer to:
+
+- `WORKSPACE.md`
+- `META/TASK_CYCLE_CHECKLIST.md`
+
+For adoption history, refer to:
+
+- `META/review_log/`
+
+--------------------------------------------------
+
+Future note
+
+Unless a later task explicitly changes architecture,
+this document should be treated as the post-TASK031 baseline.
+
+Important current interpretation:
+
+- the bounded Web/runtime publication baseline exists
+- the target source of truth is now DB-backed in bounded form
+- the next likely bounded step is not another source-of-truth migration,
+  but an operator-facing target / archive management seam
+- broader observability, GUI admin expansion, PostgreSQL migration,
+  DB containerization, and wider dashboard/platform work remain deferred
+  unless a later task explicitly brings them into scope
 
 =============================
 FILE: ./cursor/docs/PERSONAL_RUNTIME.md
@@ -16579,11 +17464,11 @@ intended to keep a long-lived container available for manual CLI use.
 What this profile does:
 - builds a runtime image from Dockerfile.runtime
 - keeps one single-operator web runtime running on a host IP:port
-- preserves targets, SQLite data, archives, and batch logs through mounts
+- preserves the target registry, SQLite data, archives, and batch logs through mounts
 
 What this profile does not do yet:
 - cron or repeated scheduling inside the container
-- target storage migration away from the text file
+- rich target-management tooling
 
 What this profile now adds for periodic operation:
 - a host-side one-shot wrapper that calls the existing periodic path
@@ -16593,12 +17478,12 @@ What this profile now adds for periodic operation:
 What this profile now adds for web operation:
 - starts the existing web app inside the runtime container
 - publishes the web app on a host-visible IP:port mapping
-- keeps target intake bounded to canonical article URLs in the text target list
+- keeps target intake bounded to canonical article URLs in SQLite
 
 ## Mounted Paths
 
 The runtime profile uses these child-repo-local paths:
-- target list: runtime/targets
+- legacy import source: runtime/targets
 - SQLite and saved JSON archives: runtime/data
 - batch and periodic logs: runtime/logs
 
@@ -16611,8 +17496,8 @@ Because the application already reads and writes under data/ and uses the
 BATCH_LOG_DIR environment variable for batch logs, no product behavior needs
 to change.
 
-The runtime profile also sets TARGET_LIST_PATH to /runtime/targets/targets.txt
-for the web process.
+The runtime profile sets TARGET_DB_PATH to /app/data/nicodic.db for the web
+process and periodic wrapper.
 
 ## Host UID/GID Handling
 
@@ -16655,12 +17540,13 @@ LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) \
 ```
 
 The web app remains a thin entrypoint. A web-side registration adds only the
-canonical article URL to runtime/targets/targets.txt. It does not enqueue or
-scrape immediately; the next periodic or batch pass performs the actual scrape.
+canonical article URL to the target table in /app/data/nicodic.db. It does not
+enqueue or scrape immediately; the next periodic or batch pass performs the
+actual scrape.
 
 The web UI is intentionally separated from immediate execution. It performs
-bounded validation / existence checks, target-list registration, and saved
-article TXT download only.
+bounded validation / existence checks, target registration, and saved article
+TXT download only.
 
 ## Stop
 
@@ -16668,16 +17554,27 @@ Stop and remove the provisional runtime container:
 
 `docker compose -f docker-compose.runtime.yml down`
 
-## Target List Location
+## Target Registry Location
 
-Create or edit the target list at:
+The authoritative scrape target registry now lives in:
+
+`runtime/data/nicodic.db`
+
+The active scrape target source-of-truth is the SQLite `target` table.
+
+The web UI writes only to that table when a resolved article is added through
+the Add To Target Registry action.
+
+The legacy plain-text file remains available only as an admin import source:
 
 `runtime/targets/targets.txt`
 
-That file remains a human-editable plain text target source.
+Manual one-shot import example:
 
-The web UI writes the same file when a resolved article is added through the
-Add To Target List action.
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py import-targets /runtime/targets/targets.txt /app/data/nicodic.db
+```
 
 ## Initial Smoke Test
 
@@ -16693,7 +17590,7 @@ Recommended first-pass smoke test:
 
 ```sh
 docker compose -f docker-compose.runtime.yml exec personal_runtime \
-	python main.py batch /runtime/targets/targets.txt
+	python main.py batch /app/data/nicodic.db
 ```
 
 After that, this command should work as expected:
@@ -16709,33 +17606,33 @@ Follow the published web runtime logs:
 
 `docker compose -f docker-compose.runtime.yml logs -f personal_runtime`
 
-Show the target list currently mounted into the runtime:
+Show the active targets currently stored in the registry:
 
 ```sh
 docker compose -f docker-compose.runtime.yml exec personal_runtime \
-	python main.py targets /runtime/targets/targets.txt
+	python main.py targets /app/data/nicodic.db
 ```
 
 Run one batch pass:
 
 ```sh
 docker compose -f docker-compose.runtime.yml exec personal_runtime \
-	python main.py batch /runtime/targets/targets.txt
+	python main.py batch /app/data/nicodic.db
 ```
 
 Run the current periodic CLI entrypoint manually:
 
 ```sh
 docker compose -f docker-compose.runtime.yml exec personal_runtime \
-	python main.py periodic /runtime/targets/targets.txt 300
+	python main.py periodic /app/data/nicodic.db 300
 ```
 
-Run the web app manually with an explicit target list path if needed:
+Run the web app manually with an explicit target DB path if needed:
 
 ```sh
 docker compose -f docker-compose.runtime.yml exec personal_runtime \
 	python main.py web --host 0.0.0.0 --port 8000 \
-	--target-list-path /runtime/targets/targets.txt
+	--target-db-path /app/data/nicodic.db
 ```
 
 Run one scheduler-friendly periodic cycle through the wrapper:
@@ -16747,14 +17644,14 @@ run is already active, it prints a skip message and exits without starting a
 second overlapping periodic pass.
 
 Useful environment overrides for external schedulers:
-- `TARGET_LIST_PATH` defaults to `/runtime/targets/targets.txt`
+- `TARGET_DB_PATH` defaults to `/app/data/nicodic.db`
 - `COMPOSE_FILE_PATH` defaults to `docker-compose.runtime.yml`
 - `COMPOSE_SERVICE_NAME` defaults to `personal_runtime`
 - `LOCK_DIR_PATH` defaults to `runtime/logs/periodic_once.lock`
 
 Example scheduler-facing invocation shape:
 
-`TARGET_LIST_PATH=/runtime/targets/targets.txt ./runtime/periodic_once.sh`
+`TARGET_DB_PATH=/app/data/nicodic.db ./runtime/periodic_once.sh`
 
 List saved articles:
 
@@ -16789,7 +17686,7 @@ normally work without requiring `sudo chown`.
 
 The following repository-local directories act as persistence anchors for the
 runtime profile:
-- runtime/targets: the target list file you maintain
+- runtime/targets: optional legacy import source files
 - runtime/data: SQLite database plus saved article archives
 - runtime/logs: batch and periodic run logs
 
@@ -16982,8 +17879,15 @@ from pathlib import Path
 from article_resolver import resolve_article_input
 from cli import export_all_articles, export_article, inspect_article, list_articles
 from orchestrator import run_scrape
-from target_list import add_target_url, load_target_urls
+from target_list import (
+    import_targets_from_text_file,
+    list_active_target_urls,
+    register_target_url,
+)
 from web_app import serve_web_app
+
+
+DEFAULT_TARGET_DB_PATH = os.environ.get("TARGET_DB_PATH", "data/nicodic.db")
 
 
 # ============================================================
@@ -16991,12 +17895,15 @@ from web_app import serve_web_app
 # ============================================================
 
 
-def run_batch_scrape(target_list_path: str) -> tuple[str, int]:
+def run_batch_scrape(target_db_path: str) -> tuple[str, int]:
     """Run one full batch pass and return (final_status, failed_targets)."""
 
-    targets = load_target_urls(target_list_path)
+    targets = list_active_target_urls(target_db_path)
 
-    print(f"Loaded {len(targets)} scrape target(s) from {target_list_path}")
+    print(
+        f"Loaded {len(targets)} active scrape target(s) "
+        f"from target registry {target_db_path}"
+    )
 
     run_id = uuid.uuid4().hex[:12]
     started_at = datetime.now(timezone.utc).isoformat()
@@ -17008,7 +17915,8 @@ def run_batch_scrape(target_list_path: str) -> tuple[str, int]:
         f.write("BATCH_RUN_START\n")
         f.write(f"run_id={run_id}\n")
         f.write(f"started_at={started_at}\n")
-        f.write(f"target_list_path={target_list_path}\n")
+        f.write(f"target_db_path={target_db_path}\n")
+        f.write("target_source=target_table\n")
         f.write(f"total_targets={len(targets)}\n")
 
     failed_targets = 0
@@ -17058,7 +17966,7 @@ def run_batch_scrape(target_list_path: str) -> tuple[str, int]:
 
 
 def run_periodic_scrape(
-    target_list_path: str,
+    target_db_path: str,
     interval_seconds: float,
     max_runs: int | None = None,
 ) -> None:
@@ -17071,7 +17979,7 @@ def run_periodic_scrape(
         print(f"[periodic] Run {run_number} starting")
 
         try:
-            final_status, failed_targets = run_batch_scrape(target_list_path)
+            final_status, failed_targets = run_batch_scrape(target_db_path)
         except KeyboardInterrupt:
             print("Periodic execution interrupted. Exiting safely.")
             return
@@ -17093,10 +18001,10 @@ def run_periodic_scrape(
             return
 
 
-def run_periodic_once(target_list_path: str) -> None:
+def run_periodic_once(target_db_path: str) -> None:
     """Run one periodic cycle without requiring a sleep interval argument."""
 
-    run_periodic_scrape(target_list_path, 0.0, max_runs=1)
+    run_periodic_scrape(target_db_path, 0.0, max_runs=1)
 
 
 def main():
@@ -17114,17 +18022,21 @@ def main():
         print("  python main.py export <article_id> <article_type> --format md")
         print("  python main.py list-articles")
         print("  python main.py export-all-articles --format txt")
-        print("  python main.py add-target <article_url> <target_list_path>")
+        print("  python main.py add-target <article_url> <target_db_path>")
+        print(
+            "  python main.py import-targets <targets_txt_path> "
+            "<target_db_path>"
+        )
         print("  python main.py resolve-article <article_url_or_full_title>")
-        print("  python main.py targets <target_list_path>")
-        print("  python main.py batch <target_list_path>")
-        print("  python main.py periodic-once <target_list_path>")
+        print("  python main.py targets <target_db_path>")
+        print("  python main.py batch <target_db_path>")
+        print("  python main.py periodic-once <target_db_path>")
         print(
             "  python main.py web [--host HOST] [--port PORT] "
-            "[--target-list-path PATH]"
+            "[--target-db-path PATH]"
         )
         print(
-            "  python main.py periodic <target_list_path> <interval_seconds> "
+            "  python main.py periodic <target_db_path> <interval_seconds> "
             "[--max-runs N]"
         )
         sys.exit(1)
@@ -17178,12 +18090,15 @@ def main():
     if sys.argv[1] == "add-target":
 
         if len(sys.argv) < 4:
-            print("Usage: add-target <article_url> <target_list_path>")
+            print("Usage: add-target <article_url> <target_db_path>")
             sys.exit(1)
 
-        result = add_target_url(sys.argv[2], sys.argv[3])
+        result = register_target_url(sys.argv[2], sys.argv[3])
         if result == "added":
             print(f"Added target: {sys.argv[2]}")
+            return
+        if result == "reactivated":
+            print(f"Reactivated target: {sys.argv[2]}")
             return
         if result == "duplicate":
             print(f"Target already exists: {sys.argv[2]}")
@@ -17191,6 +18106,26 @@ def main():
 
         print(f"Invalid target URL: {sys.argv[2]}")
         sys.exit(1)
+
+    if sys.argv[1] == "import-targets":
+
+        if len(sys.argv) < 4:
+            print("Usage: import-targets <targets_txt_path> <target_db_path>")
+            sys.exit(1)
+
+        import_result = import_targets_from_text_file(sys.argv[2], sys.argv[3])
+        print(
+            f"Imported {import_result['processed']} target line(s) "
+            f"from {import_result['source_path']} into "
+            f"{import_result['target_db_path']}"
+        )
+        print(
+            "added={added} duplicate={duplicate} "
+            "reactivated={reactivated} invalid={invalid}".format(
+                **import_result,
+            )
+        )
+        return
 
     if sys.argv[1] == "resolve-article":
 
@@ -17216,13 +18151,16 @@ def main():
     if sys.argv[1] == "targets":
 
         if len(sys.argv) < 3:
-            print("Usage: targets <target_list_path>")
+            print("Usage: targets <target_db_path>")
             sys.exit(1)
 
-        target_list_path = sys.argv[2]
-        targets = load_target_urls(target_list_path)
+        target_db_path = sys.argv[2]
+        targets = list_active_target_urls(target_db_path)
 
-        print(f"Loaded {len(targets)} scrape target(s) from {target_list_path}")
+        print(
+            f"Loaded {len(targets)} active scrape target(s) "
+            f"from target registry {target_db_path}"
+        )
         for target in targets:
             print(target)
         return
@@ -17230,7 +18168,7 @@ def main():
     if sys.argv[1] == "batch":
 
         if len(sys.argv) < 3:
-            print("Usage: batch <target_list_path>")
+            print("Usage: batch <target_db_path>")
             sys.exit(1)
 
         _, failed_targets = run_batch_scrape(sys.argv[2])
@@ -17242,7 +18180,7 @@ def main():
     if sys.argv[1] == "periodic-once":
 
         if len(sys.argv) < 3:
-            print("Usage: periodic-once <target_list_path>")
+            print("Usage: periodic-once <target_db_path>")
             sys.exit(1)
 
         run_periodic_once(sys.argv[2])
@@ -17252,12 +18190,12 @@ def main():
 
         if len(sys.argv) < 4:
             print(
-                "Usage: periodic <target_list_path> <interval_seconds> "
+                "Usage: periodic <target_db_path> <interval_seconds> "
                 "[--max-runs N]"
             )
             sys.exit(1)
 
-        target_list_path = sys.argv[2]
+        target_db_path = sys.argv[2]
         interval_seconds = float(sys.argv[3])
 
         max_runs = None
@@ -17265,16 +18203,13 @@ def main():
             idx = sys.argv.index("--max-runs")
             max_runs = int(sys.argv[idx + 1])
 
-        run_periodic_scrape(target_list_path, interval_seconds, max_runs=max_runs)
+        run_periodic_scrape(target_db_path, interval_seconds, max_runs=max_runs)
         return
 
     if sys.argv[1] == "web":
         host = "127.0.0.1"
         port = 8000
-        target_list_path = os.environ.get(
-            "TARGET_LIST_PATH",
-            "runtime/targets/targets.txt",
-        )
+        target_db_path = DEFAULT_TARGET_DB_PATH
 
         if "--host" in sys.argv:
             idx = sys.argv.index("--host")
@@ -17284,14 +18219,14 @@ def main():
             idx = sys.argv.index("--port")
             port = int(sys.argv[idx + 1])
 
-        if "--target-list-path" in sys.argv:
-            idx = sys.argv.index("--target-list-path")
-            target_list_path = sys.argv[idx + 1]
+        if "--target-db-path" in sys.argv:
+            idx = sys.argv.index("--target-db-path")
+            target_db_path = sys.argv[idx + 1]
 
         serve_web_app(
             host=host,
             port=port,
-            target_list_path=target_list_path,
+            target_db_path=target_db_path,
         )
         return
 
@@ -17801,7 +18736,7 @@ set -eu
 
 COMPOSE_FILE_PATH=${COMPOSE_FILE_PATH:-docker-compose.runtime.yml}
 COMPOSE_SERVICE_NAME=${COMPOSE_SERVICE_NAME:-personal_runtime}
-TARGET_LIST_PATH=${TARGET_LIST_PATH:-/runtime/targets/targets.txt}
+TARGET_DB_PATH=${TARGET_DB_PATH:-/app/data/nicodic.db}
 LOCK_DIR_PATH=${LOCK_DIR_PATH:-runtime/logs/periodic_once.lock}
 
 mkdir -p "$(dirname "$LOCK_DIR_PATH")"
@@ -17815,10 +18750,10 @@ else
 fi
 
 echo "[periodic-once] Starting one periodic cycle"
-echo "[periodic-once] target_list_path=$TARGET_LIST_PATH"
+echo "[periodic-once] target_db_path=$TARGET_DB_PATH"
 
 docker compose -f "$COMPOSE_FILE_PATH" exec -T "$COMPOSE_SERVICE_NAME" \
-  python main.py periodic-once "$TARGET_LIST_PATH"
+  python main.py periodic-once "$TARGET_DB_PATH"
 
 echo "[periodic-once] Finished one periodic cycle"
 
@@ -17835,17 +18770,33 @@ import json
 import os
 import sqlite3
 import time
+from pathlib import Path
 
 
-def init_db():
+DEFAULT_DB_PATH = "data/nicodic.db"
+
+
+def _target_row_to_entry(row):
+    return {
+        "id": row[0],
+        "article_id": row[1],
+        "article_type": row[2],
+        "canonical_url": row[3],
+        "is_active": bool(row[4]),
+        "created_at": row[5],
+    }
+
+
+def init_db(db_path: str = DEFAULT_DB_PATH):
     """
     SQLite初期化（テーブル作成）。
     既存の場合は何もしない。
     """
 
-    os.makedirs("data", exist_ok=True)
+    db_dir = Path(db_path).parent
+    db_dir.mkdir(parents=True, exist_ok=True)
 
-    conn = sqlite3.connect("data/nicodic.db")
+    conn = sqlite3.connect(db_path)
     cur = conn.cursor()
 
     cur.execute("""
@@ -17888,6 +18839,18 @@ def init_db():
         article_url TEXT NOT NULL,
         title TEXT,
         enqueued_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(article_id, article_type)
+    )
+    """)
+
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS target (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        article_id TEXT NOT NULL,
+        article_type TEXT NOT NULL,
+        canonical_url TEXT NOT NULL,
+        is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(article_id, article_type)
     )
     """)
@@ -18059,11 +19022,91 @@ def dequeue_canonical_target(conn, article_id, article_type):
     conn.commit()
     return cur.rowcount > 0
 
+
+def register_target(conn, article_id, article_type, canonical_url):
+    """Register or reactivate one canonical scrape target."""
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT id, article_id, article_type, canonical_url, is_active, created_at
+        FROM target
+        WHERE article_id=? AND article_type=?
+        """,
+        (article_id, article_type),
+    )
+    existing_row = cur.fetchone()
+
+    if existing_row is None:
+        cur.execute(
+            """
+            INSERT INTO target
+            (article_id, article_type, canonical_url, is_active)
+            VALUES (?, ?, ?, 1)
+            """,
+            (article_id, article_type, canonical_url),
+        )
+        status = "added"
+    else:
+        existing_entry = _target_row_to_entry(existing_row)
+        status = "duplicate"
+        if not existing_entry["is_active"]:
+            status = "reactivated"
+
+        cur.execute(
+            """
+            UPDATE target
+            SET canonical_url=?, is_active=1
+            WHERE article_id=? AND article_type=?
+            """,
+            (canonical_url, article_id, article_type),
+        )
+
+    conn.commit()
+
+    cur.execute(
+        """
+        SELECT id, article_id, article_type, canonical_url, is_active, created_at
+        FROM target
+        WHERE article_id=? AND article_type=?
+        """,
+        (article_id, article_type),
+    )
+    entry = _target_row_to_entry(cur.fetchone())
+
+    return {
+        "status": status,
+        "entry": entry,
+        "target_identity": {
+            "article_id": article_id,
+            "article_type": article_type,
+        },
+    }
+
+
+def list_targets(conn, active_only=True):
+    """Load registered scrape targets in insertion order."""
+
+    cur = conn.cursor()
+    query = (
+        "SELECT id, article_id, article_type, canonical_url, is_active, "
+        "created_at FROM target"
+    )
+    params = ()
+    if active_only:
+        query += " WHERE is_active=1"
+    query += " ORDER BY id ASC"
+
+    cur.execute(query, params)
+    return [_target_row_to_entry(row) for row in cur.fetchall()]
+
 =============================
 FILE: ./cursor/target_list.py
 =============================
 from pathlib import Path
 from urllib.parse import urlparse
+
+from storage import init_db, list_targets, register_target
 
 
 def _parse_target_line(raw_line: str) -> str | None:
@@ -18075,74 +19118,109 @@ def _parse_target_line(raw_line: str) -> str | None:
     return line
 
 
-# Temporary plain-text input source until a more structured target registry exists.
-def load_target_urls(file_path: str) -> list[str]:
-    """Load a stable URL list from a human-editable plain text file."""
-
-    seen_urls = set()
-    targets = []
-
-    for raw_line in Path(file_path).read_text(encoding="utf-8").splitlines():
-        line = _parse_target_line(raw_line)
-        if line is None:
-            continue
-
-        if line in seen_urls:
-            continue
-
-        seen_urls.add(line)
-        targets.append(line)
-
-    return targets
-
-
-def validate_target_url(article_url: str) -> bool:
+def _parse_target_identity(article_url: str) -> dict | None:
     candidate = article_url.strip()
     if not candidate:
-        return False
+        return None
 
     parsed = urlparse(candidate)
     if parsed.scheme not in {"http", "https"}:
-        return False
+        return None
     if parsed.netloc != "dic.nicovideo.jp":
-        return False
+        return None
 
     path_parts = [part for part in parsed.path.split("/") if part]
     if len(path_parts) != 2:
-        return False
+        return None
 
     article_type, article_id = path_parts
     if not article_type or not article_id:
-        return False
+        return None
 
-    return True
+    return {
+        "article_id": article_id,
+        "article_type": article_type,
+        "canonical_url": (
+            f"https://dic.nicovideo.jp/{article_type}/{article_id}"
+        ),
+    }
 
 
-def add_target_url(article_url: str, target_list_path: str) -> str:
-    candidate = article_url.strip()
-    if not validate_target_url(candidate):
+def list_active_target_urls(target_db_path: str) -> list[str]:
+    """Load active target URLs from the SQLite-backed target registry."""
+
+    conn = init_db(target_db_path)
+    try:
+        return [entry["canonical_url"] for entry in list_targets(conn)]
+    finally:
+        conn.close()
+
+
+def validate_target_url(article_url: str) -> bool:
+    return _parse_target_identity(article_url) is not None
+
+
+def register_target_url(article_url: str, target_db_path: str) -> str:
+    target_identity = _parse_target_identity(article_url)
+    if target_identity is None:
         return "invalid"
 
-    target_path = Path(target_list_path)
-    existing_targets = []
-    if target_path.exists():
-        existing_targets = load_target_urls(target_list_path)
+    conn = init_db(target_db_path)
+    try:
+        result = register_target(
+            conn,
+            target_identity["article_id"],
+            target_identity["article_type"],
+            target_identity["canonical_url"],
+        )
+    finally:
+        conn.close()
 
-    if candidate in existing_targets:
-        return "duplicate"
+    return result["status"]
 
-    target_path.parent.mkdir(parents=True, exist_ok=True)
 
-    prefix = ""
-    if target_path.exists():
-        existing_text = target_path.read_text(encoding="utf-8")
-        if existing_text and not existing_text.endswith("\n"):
-            prefix = "\n"
+def import_targets_from_text_file(
+    source_path: str,
+    target_db_path: str,
+) -> dict:
+    """Import legacy plain-text targets into the SQLite registry once."""
 
-    with target_path.open("a", encoding="utf-8") as target_file:
-        target_file.write(f"{prefix}{candidate}\n")
+    counts = {
+        "source_path": source_path,
+        "target_db_path": target_db_path,
+        "processed": 0,
+        "added": 0,
+        "duplicate": 0,
+        "reactivated": 0,
+        "invalid": 0,
+    }
 
-    return "added"
+    lines = Path(source_path).read_text(encoding="utf-8").splitlines()
+
+    conn = init_db(target_db_path)
+    try:
+        for raw_line in lines:
+            line = _parse_target_line(raw_line)
+            if line is None:
+                continue
+
+            counts["processed"] += 1
+            target_identity = _parse_target_identity(line)
+            if target_identity is None:
+                counts["invalid"] += 1
+                continue
+
+            result = register_target(
+                conn,
+                target_identity["article_id"],
+                target_identity["article_type"],
+                target_identity["canonical_url"],
+            )
+            counts[result["status"]] += 1
+    finally:
+        conn.close()
+
+    return counts
 
 =============================
 FILE: ./cursor/tests/conftest.py
@@ -18836,22 +19914,22 @@ def test_main_export_all_articles_exits_non_zero_on_failure(mock_export_all):
     mock_export_all.assert_called_once_with("html")
 
 
-@patch("main.add_target_url", return_value="added")
-def test_main_add_target_calls_add_target_url(mock_add_target, capsys):
+@patch("main.register_target_url", return_value="added")
+def test_main_add_target_calls_register_target_url(mock_add_target, capsys):
     with patch(
         "sys.argv",
         [
             "main.py",
             "add-target",
             "https://dic.nicovideo.jp/a/12345",
-            "targets.txt",
+            "targets.db",
         ],
     ):
         main_module.main()
 
     mock_add_target.assert_called_once_with(
         "https://dic.nicovideo.jp/a/12345",
-        "targets.txt",
+        "targets.db",
     )
     out = capsys.readouterr().out
     assert "Added target: https://dic.nicovideo.jp/a/12345" in out
@@ -18906,7 +19984,7 @@ def test_main_resolve_article_exits_non_zero_on_resolution_failure(
     assert "Input: Foo" in out
 
 
-@patch("main.add_target_url", return_value="duplicate")
+@patch("main.register_target_url", return_value="duplicate")
 def test_main_add_target_reports_duplicate_without_error(mock_add_target, capsys):
     with patch(
         "sys.argv",
@@ -18914,32 +19992,53 @@ def test_main_add_target_reports_duplicate_without_error(mock_add_target, capsys
             "main.py",
             "add-target",
             "https://dic.nicovideo.jp/a/12345",
-            "targets.txt",
+            "targets.db",
         ],
     ):
         main_module.main()
 
     mock_add_target.assert_called_once_with(
         "https://dic.nicovideo.jp/a/12345",
-        "targets.txt",
+        "targets.db",
     )
     out = capsys.readouterr().out
     assert "Target already exists: https://dic.nicovideo.jp/a/12345" in out
 
 
-@patch("main.add_target_url", return_value="invalid")
+@patch("main.register_target_url", return_value="invalid")
 def test_main_add_target_exits_non_zero_for_invalid_url(mock_add_target, capsys):
     with patch(
         "sys.argv",
-        ["main.py", "add-target", "not-a-url", "targets.txt"],
+        ["main.py", "add-target", "not-a-url", "targets.db"],
     ):
         with pytest.raises(SystemExit) as exc_info:
             main_module.main()
 
     assert exc_info.value.code == 1
-    mock_add_target.assert_called_once_with("not-a-url", "targets.txt")
+    mock_add_target.assert_called_once_with("not-a-url", "targets.db")
     out = capsys.readouterr().out
     assert "Invalid target URL: not-a-url" in out
+
+
+@patch("main.register_target_url", return_value="reactivated")
+def test_main_add_target_reports_reactivated_target(mock_add_target, capsys):
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "add-target",
+            "https://dic.nicovideo.jp/a/12345",
+            "targets.db",
+        ],
+    ):
+        main_module.main()
+
+    mock_add_target.assert_called_once_with(
+        "https://dic.nicovideo.jp/a/12345",
+        "targets.db",
+    )
+    out = capsys.readouterr().out
+    assert "Reactivated target: https://dic.nicovideo.jp/a/12345" in out
 
 
 @patch("main.export_article", return_value=False)
@@ -18962,17 +20061,17 @@ def test_main_inspect_mode_with_last_n(mock_inspect):
     mock_inspect.assert_called_once_with("12345", "a", 10)
 
 
-@patch("main.load_target_urls", return_value=[
+@patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/12345",
     "https://dic.nicovideo.jp/a/99999",
 ])
 def test_main_targets_mode_loads_and_prints_targets(mock_load_targets, capsys):
-    with patch("sys.argv", ["main.py", "targets", "targets.txt"]):
+    with patch("sys.argv", ["main.py", "targets", "targets.db"]):
         main_module.main()
 
-    mock_load_targets.assert_called_once_with("targets.txt")
+    mock_load_targets.assert_called_once_with("targets.db")
     out = capsys.readouterr().out
-    assert "Loaded 2 scrape target(s) from targets.txt" in out
+    assert "Loaded 2 active scrape target(s) from target registry targets.db" in out
     assert "https://dic.nicovideo.jp/a/12345" in out
     assert "https://dic.nicovideo.jp/a/99999" in out
 
@@ -18984,7 +20083,7 @@ def test_main_targets_without_path_exits_with_usage(capsys):
 
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
-    assert "Usage: targets <target_list_path>" in out
+    assert "Usage: targets <target_db_path>" in out
 
 
 def test_main_export_all_articles_without_required_args_exits_with_usage(capsys):
@@ -19007,7 +20106,7 @@ def test_main_add_target_without_required_args_exits_with_usage(capsys):
 
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
-    assert "Usage: add-target <article_url> <target_list_path>" in out
+    assert "Usage: add-target <article_url> <target_db_path>" in out
 
 
 def test_main_resolve_article_without_required_args_exits_with_usage(capsys):
@@ -19038,7 +20137,7 @@ def test_main_web_mode_calls_serve_web_app_with_defaults(mock_serve_web_app):
     mock_serve_web_app.assert_called_once_with(
         host="127.0.0.1",
         port=8000,
-        target_list_path="runtime/targets/targets.txt",
+        target_db_path="data/nicodic.db",
     )
 
 
@@ -19053,8 +20152,8 @@ def test_main_web_mode_allows_host_and_port_override(mock_serve_web_app):
             "0.0.0.0",
             "--port",
             "9001",
-            "--target-list-path",
-            "/runtime/targets/custom.txt",
+            "--target-db-path",
+            "/runtime/data/custom.db",
         ],
     ):
         main_module.main()
@@ -19062,7 +20161,7 @@ def test_main_web_mode_allows_host_and_port_override(mock_serve_web_app):
     mock_serve_web_app.assert_called_once_with(
         host="0.0.0.0",
         port=9001,
-        target_list_path="/runtime/targets/custom.txt",
+        target_db_path="/runtime/data/custom.db",
     )
 
 
@@ -19078,15 +20177,58 @@ def test_main_too_few_args_exits_with_usage(capsys):
     assert "export <article_id> <article_type> --format md" in out
     assert "list-articles" in out
     assert "export-all-articles --format txt" in out
-    assert "add-target <article_url> <target_list_path>" in out
+    assert "add-target <article_url> <target_db_path>" in out
+    assert "import-targets <targets_txt_path> <target_db_path>" in out
     assert "resolve-article <article_url_or_full_title>" in out
-    assert "targets <target_list_path>" in out
-    assert "batch <target_list_path>" in out
-    assert "periodic-once <target_list_path>" in out
-    assert "web [--host HOST] [--port PORT] [--target-list-path PATH]" in out
+    assert "targets <target_db_path>" in out
+    assert "batch <target_db_path>" in out
+    assert "periodic-once <target_db_path>" in out
+    assert "web [--host HOST] [--port PORT] [--target-db-path PATH]" in out
     assert (
-        "periodic <target_list_path> <interval_seconds> [--max-runs N]" in out
+        "periodic <target_db_path> <interval_seconds> [--max-runs N]" in out
     )
+
+
+@patch("main.import_targets_from_text_file")
+def test_main_import_targets_reports_counts(mock_import_targets, capsys):
+    mock_import_targets.return_value = {
+        "source_path": "/runtime/targets/targets.txt",
+        "target_db_path": "/app/data/nicodic.db",
+        "processed": 3,
+        "added": 2,
+        "duplicate": 1,
+        "reactivated": 0,
+        "invalid": 0,
+    }
+
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "import-targets",
+            "/runtime/targets/targets.txt",
+            "/app/data/nicodic.db",
+        ],
+    ):
+        main_module.main()
+
+    mock_import_targets.assert_called_once_with(
+        "/runtime/targets/targets.txt",
+        "/app/data/nicodic.db",
+    )
+    out = capsys.readouterr().out
+    assert "Imported 3 target line(s)" in out
+    assert "added=2 duplicate=1 reactivated=0 invalid=0" in out
+
+
+def test_main_import_targets_without_required_args_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "import-targets"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "Usage: import-targets <targets_txt_path> <target_db_path>" in out
 
 
 def test_main_inspect_without_id_type_exits_with_usage(capsys):
@@ -19098,7 +20240,7 @@ def test_main_inspect_without_id_type_exits_with_usage(capsys):
     assert "inspect <article_id> <article_type>" in out
 
 
-@patch("main.load_target_urls", return_value=[
+@patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
     "https://dic.nicovideo.jp/a/2",
 ])
@@ -19107,7 +20249,7 @@ def test_main_batch_all_success_exits_zero(
     mock_run_scrape, mock_load_targets, tmp_path, capsys, monkeypatch
 ):
     monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
-    with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
+    with patch("sys.argv", ["main.py", "batch", "targets.db"]):
         main_module.main()
 
     assert mock_run_scrape.call_count == 2
@@ -19122,13 +20264,15 @@ def test_main_batch_all_success_exits_zero(
     text = logs[0].read_text(encoding="utf-8")
     assert "BATCH_RUN_START" in text
     assert "BATCH_RUN_END" in text
+    assert "target_db_path=targets.db" in text
+    assert "target_source=target_table" in text
     assert "total_targets=2" in text
     assert "failed_targets=0" in text
     assert "final_status=success" in text
     assert "\nFAIL\n" not in text
 
 
-@patch("main.load_target_urls", return_value=[
+@patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
     "https://dic.nicovideo.jp/a/2",
 ])
@@ -19137,7 +20281,7 @@ def test_main_batch_failure_sets_nonzero_exit_and_continues(
     mock_run_scrape, mock_load_targets, tmp_path, capsys, monkeypatch
 ):
     monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
-    with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
+    with patch("sys.argv", ["main.py", "batch", "targets.db"]):
         with pytest.raises(SystemExit) as exc_info:
             main_module.main()
 
@@ -19159,7 +20303,7 @@ def test_main_batch_failure_sets_nonzero_exit_and_continues(
     assert "target=https://dic.nicovideo.jp/a/2" not in text
 
 
-@patch("main.load_target_urls", return_value=[
+@patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
     "https://dic.nicovideo.jp/a/2",
 ])
@@ -19168,7 +20312,7 @@ def test_main_batch_exception_sets_nonzero_exit_and_continues(
     mock_run_scrape, mock_load_targets, tmp_path, capsys, monkeypatch
 ):
     monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
-    with patch("sys.argv", ["main.py", "batch", "targets.txt"]):
+    with patch("sys.argv", ["main.py", "batch", "targets.db"]):
         with pytest.raises(SystemExit) as exc_info:
             main_module.main()
 
@@ -19196,15 +20340,15 @@ def test_main_batch_without_path_exits_with_usage(capsys):
 
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
-    assert "Usage: batch <target_list_path>" in out
+    assert "Usage: batch <target_db_path>" in out
 
 
 @patch("main.run_periodic_once")
 def test_main_periodic_once_calls_run_periodic_once(mock_run_periodic_once):
-    with patch("sys.argv", ["main.py", "periodic-once", "targets.txt"]):
+    with patch("sys.argv", ["main.py", "periodic-once", "targets.db"]):
         main_module.main()
 
-    mock_run_periodic_once.assert_called_once_with("targets.txt")
+    mock_run_periodic_once.assert_called_once_with("targets.db")
 
 
 def test_main_periodic_once_without_path_exits_with_usage(capsys):
@@ -19214,17 +20358,17 @@ def test_main_periodic_once_without_path_exits_with_usage(capsys):
 
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
-    assert "Usage: periodic-once <target_list_path>" in out
+    assert "Usage: periodic-once <target_db_path>" in out
 
 
 @patch("main.run_periodic_scrape")
 def test_run_periodic_once_delegates_to_single_periodic_cycle(
     mock_run_periodic_scrape,
 ):
-    main_module.run_periodic_once("targets.txt")
+    main_module.run_periodic_once("targets.db")
 
     mock_run_periodic_scrape.assert_called_once_with(
-        "targets.txt",
+        "targets.db",
         0.0,
         max_runs=1,
     )
@@ -19240,13 +20384,13 @@ def test_main_periodic_runs_full_batch_per_cycle_and_honors_max_runs(
 ):
     with patch(
         "sys.argv",
-        ["main.py", "periodic", "targets.txt", "30", "--max-runs", "2"],
+        ["main.py", "periodic", "targets.db", "30", "--max-runs", "2"],
     ):
         main_module.main()
 
     assert mock_run_batch.call_args_list == [
-        call("targets.txt"),
-        call("targets.txt"),
+        call("targets.db"),
+        call("targets.db"),
     ]
     mock_sleep.assert_called_once_with(30.0)
 
@@ -19271,13 +20415,13 @@ def test_main_periodic_continues_after_failure_statuses(
 ):
     with patch(
         "sys.argv",
-        ["main.py", "periodic", "targets.txt", "5", "--max-runs", "2"],
+        ["main.py", "periodic", "targets.db", "5", "--max-runs", "2"],
     ):
         main_module.main()
 
     assert mock_run_batch.call_args_list == [
-        call("targets.txt"),
-        call("targets.txt"),
+        call("targets.db"),
+        call("targets.db"),
     ]
     mock_sleep.assert_called_once_with(5.0)
 
@@ -19291,10 +20435,10 @@ def test_main_periodic_continues_after_failure_statuses(
 def test_main_periodic_exits_safely_on_ctrl_c_during_sleep(
     mock_sleep, mock_run_batch, capsys
 ):
-    with patch("sys.argv", ["main.py", "periodic", "targets.txt", "5"]):
+    with patch("sys.argv", ["main.py", "periodic", "targets.db", "5"]):
         main_module.main()
 
-    mock_run_batch.assert_called_once_with("targets.txt")
+    mock_run_batch.assert_called_once_with("targets.db")
     mock_sleep.assert_called_once_with(5.0)
     out = capsys.readouterr().out
     assert "Periodic execution interrupted. Exiting safely." in out
@@ -19302,23 +20446,23 @@ def test_main_periodic_exits_safely_on_ctrl_c_during_sleep(
 
 @patch("main.run_batch_scrape", side_effect=KeyboardInterrupt)
 def test_main_periodic_exits_safely_on_ctrl_c_during_run(mock_run_batch, capsys):
-    with patch("sys.argv", ["main.py", "periodic", "targets.txt", "5"]):
+    with patch("sys.argv", ["main.py", "periodic", "targets.db", "5"]):
         main_module.main()
 
-    mock_run_batch.assert_called_once_with("targets.txt")
+    mock_run_batch.assert_called_once_with("targets.db")
     out = capsys.readouterr().out
     assert "Periodic execution interrupted. Exiting safely." in out
 
 
 def test_main_periodic_without_required_args_exits_with_usage(capsys):
-    with patch("sys.argv", ["main.py", "periodic", "targets.txt"]):
+    with patch("sys.argv", ["main.py", "periodic", "targets.db"]):
         with pytest.raises(SystemExit) as exc_info:
             main_module.main()
 
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
     assert (
-        "Usage: periodic <target_list_path> <interval_seconds> [--max-runs N]"
+        "Usage: periodic <target_db_path> <interval_seconds> [--max-runs N]"
         in out
     )
 
@@ -20397,6 +21541,8 @@ from storage import (
     enqueue_canonical_target,
     init_db,
     list_queue_requests,
+    list_targets,
+    register_target,
     save_json,
     save_to_db,
 )
@@ -20421,6 +21567,7 @@ def test_init_db_creates_data_dir_db_and_tables(tmp_path, monkeypatch):
         assert "articles" in tables
         assert "responses" in tables
         assert "queue_requests" in tables
+        assert "target" in tables
     finally:
         conn.close()
 
@@ -20702,57 +21849,131 @@ def test_dequeue_canonical_target_removes_only_requested_item(tmp_path, monkeypa
     finally:
         conn.close()
 
+
+def test_register_target_persists_canonical_identity_once(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        first = register_target(
+            conn,
+            "12345",
+            "a",
+            "https://dic.nicovideo.jp/a/12345",
+        )
+        second = register_target(
+            conn,
+            "12345",
+            "a",
+            "https://dic.nicovideo.jp/a/12345",
+        )
+
+        assert first["status"] == "added"
+        assert second["status"] == "duplicate"
+        assert second["target_identity"] == {
+            "article_id": "12345",
+            "article_type": "a",
+        }
+
+        targets = list_targets(conn)
+        assert len(targets) == 1
+        assert targets[0]["canonical_url"] == "https://dic.nicovideo.jp/a/12345"
+        assert targets[0]["is_active"] is True
+    finally:
+        conn.close()
+
+
+def test_register_target_reactivates_inactive_target(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        register_target(
+            conn,
+            "12345",
+            "a",
+            "https://dic.nicovideo.jp/a/12345",
+        )
+
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE target SET is_active=0 WHERE article_id=? AND article_type=?",
+            ("12345", "a"),
+        )
+        conn.commit()
+
+        result = register_target(
+            conn,
+            "12345",
+            "a",
+            "https://dic.nicovideo.jp/a/12345",
+        )
+
+        assert result["status"] == "reactivated"
+        assert list_targets(conn) == [
+            {
+                "id": 1,
+                "article_id": "12345",
+                "article_type": "a",
+                "canonical_url": "https://dic.nicovideo.jp/a/12345",
+                "is_active": True,
+                "created_at": result["entry"]["created_at"],
+            }
+        ]
+    finally:
+        conn.close()
+
+
+def test_list_targets_filters_out_inactive_rows_by_default(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        register_target(
+            conn,
+            "1",
+            "a",
+            "https://dic.nicovideo.jp/a/1",
+        )
+        register_target(
+            conn,
+            "2",
+            "a",
+            "https://dic.nicovideo.jp/a/2",
+        )
+
+        cur = conn.cursor()
+        cur.execute(
+            "UPDATE target SET is_active=0 WHERE article_id=? AND article_type=?",
+            ("2", "a"),
+        )
+        conn.commit()
+
+        active_targets = list_targets(conn)
+        all_targets = list_targets(conn, active_only=False)
+
+        assert [item["article_id"] for item in active_targets] == ["1"]
+        assert [item["article_id"] for item in all_targets] == ["1", "2"]
+    finally:
+        conn.close()
+
 =============================
 FILE: ./cursor/tests/test_target_list.py
 =============================
-from target_list import add_target_url, load_target_urls, validate_target_url
+from target_list import (
+    import_targets_from_text_file,
+    list_active_target_urls,
+    register_target_url,
+    validate_target_url,
+)
 
 
-def test_load_target_urls_reads_plain_text_targets_stably(tmp_path):
-    target_file = tmp_path / "targets.txt"
-    target_file.write_text(
-        "\n"
-        "# temporary scrape targets\n"
-        "https://dic.nicovideo.jp/a/12345\n"
-        "\n"
-        "https://dic.nicovideo.jp/a/99999\n",
-        encoding="utf-8",
-    )
+def test_list_active_target_urls_reads_registered_targets_stably(tmp_path):
+    target_db_path = tmp_path / "targets.db"
 
-    assert load_target_urls(str(target_file)) == [
+    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+    register_target_url("https://dic.nicovideo.jp/id/99999", str(target_db_path))
+
+    assert list_active_target_urls(str(target_db_path)) == [
         "https://dic.nicovideo.jp/a/12345",
-        "https://dic.nicovideo.jp/a/99999",
-    ]
-
-
-def test_load_target_urls_ignores_duplicate_lines_while_preserving_order(tmp_path):
-    target_file = tmp_path / "targets.txt"
-    target_file.write_text(
-        "https://dic.nicovideo.jp/a/12345\n"
-        "https://dic.nicovideo.jp/a/12345\n"
-        "https://dic.nicovideo.jp/a/77777\n",
-        encoding="utf-8",
-    )
-
-    assert load_target_urls(str(target_file)) == [
-        "https://dic.nicovideo.jp/a/12345",
-        "https://dic.nicovideo.jp/a/77777",
-    ]
-
-
-def test_load_target_urls_trims_whitespace_and_ignores_comment_lines(tmp_path):
-    target_file = tmp_path / "targets.txt"
-    target_file.write_text(
-        "  # comment line to ignore  \n"
-        "  https://dic.nicovideo.jp/a/12345  \n"
-        "\n"
-        "\thttps://dic.nicovideo.jp/a/77777\t\n",
-        encoding="utf-8",
-    )
-
-    assert load_target_urls(str(target_file)) == [
-        "https://dic.nicovideo.jp/a/12345",
-        "https://dic.nicovideo.jp/a/77777",
+        "https://dic.nicovideo.jp/id/99999",
     ]
 
 
@@ -20766,49 +21987,75 @@ def test_validate_target_url_rejects_non_article_shape():
     assert validate_target_url("not-a-url") is False
 
 
-def test_add_target_url_appends_valid_target_to_text_list(tmp_path):
-    target_file = tmp_path / "targets.txt"
+def test_register_target_url_inserts_valid_target_into_registry(tmp_path):
+    target_db_path = tmp_path / "targets.db"
 
-    result = add_target_url("https://dic.nicovideo.jp/a/12345", str(target_file))
-
-    assert result == "added"
-    assert target_file.read_text(encoding="utf-8") == (
-        "https://dic.nicovideo.jp/a/12345\n"
+    result = register_target_url(
+        "https://dic.nicovideo.jp/a/12345",
+        str(target_db_path),
     )
 
+    assert result == "added"
+    assert list_active_target_urls(str(target_db_path)) == [
+        "https://dic.nicovideo.jp/a/12345",
+    ]
 
-def test_add_target_url_does_not_append_duplicate_target(tmp_path):
-    target_file = tmp_path / "targets.txt"
-    target_file.write_text("https://dic.nicovideo.jp/a/12345\n", encoding="utf-8")
 
-    result = add_target_url("https://dic.nicovideo.jp/a/12345", str(target_file))
+def test_register_target_url_suppresses_duplicate_identity(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+
+    result = register_target_url(
+        "https://dic.nicovideo.jp/a/12345",
+        str(target_db_path),
+    )
 
     assert result == "duplicate"
-    assert target_file.read_text(encoding="utf-8") == (
-        "https://dic.nicovideo.jp/a/12345\n"
-    )
+    assert list_active_target_urls(str(target_db_path)) == [
+        "https://dic.nicovideo.jp/a/12345",
+    ]
 
 
-def test_add_target_url_appends_without_inserting_blank_line(tmp_path):
-    target_file = tmp_path / "targets.txt"
-    target_file.write_text("https://dic.nicovideo.jp/a/12345\n", encoding="utf-8")
+def test_register_target_url_rejects_invalid_target_without_writing(tmp_path):
+    target_db_path = tmp_path / "targets.db"
 
-    result = add_target_url("https://dic.nicovideo.jp/a/77777", str(target_file))
-
-    assert result == "added"
-    assert target_file.read_text(encoding="utf-8") == (
-        "https://dic.nicovideo.jp/a/12345\n"
-        "https://dic.nicovideo.jp/a/77777\n"
-    )
-
-
-def test_add_target_url_rejects_invalid_target_without_writing(tmp_path):
-    target_file = tmp_path / "targets.txt"
-
-    result = add_target_url("not-a-url", str(target_file))
+    result = register_target_url("not-a-url", str(target_db_path))
 
     assert result == "invalid"
-    assert target_file.exists() is False
+    assert target_db_path.exists() is False
+
+
+def test_import_targets_from_text_file_is_one_shot_and_non_automatic(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+    source_file = tmp_path / "targets.txt"
+    source_file.write_text(
+        "\n"
+        "# legacy targets\n"
+        "https://dic.nicovideo.jp/a/12345\n"
+        "https://dic.nicovideo.jp/a/12345\n"
+        "not-a-url\n"
+        "https://dic.nicovideo.jp/id/777\n",
+        encoding="utf-8",
+    )
+
+    result = import_targets_from_text_file(
+        str(source_file),
+        str(target_db_path),
+    )
+
+    assert result == {
+        "source_path": str(source_file),
+        "target_db_path": str(target_db_path),
+        "processed": 4,
+        "added": 2,
+        "duplicate": 1,
+        "reactivated": 0,
+        "invalid": 1,
+    }
+    assert list_active_target_urls(str(target_db_path)) == [
+        "https://dic.nicovideo.jp/a/12345",
+        "https://dic.nicovideo.jp/id/777",
+    ]
 
 =============================
 FILE: ./cursor/tests/test_web_app.py
@@ -21080,7 +22327,7 @@ def test_application_post_renders_saved_result_message():
     assert "Canonical target: a/12345" in response["body"]
     assert "Saved response count: 42" in response["body"]
     assert "Download TXT" in response["body"]
-    assert "Add To Target List" in response["body"]
+    assert "Add To Target Registry" in response["body"]
 
 
 def test_application_post_renders_title_resolution_failure_message():
@@ -21115,11 +22362,11 @@ def test_application_post_renders_unsaved_result_with_target_action_only():
         response = _run_wsgi_request("POST", body="article_input=Foo")
 
     assert response["status"] == "200 OK"
-    assert "Add To Target List" in response["body"]
+    assert "Add To Target Registry" in response["body"]
     assert "Enqueue Request" not in response["body"]
 
 
-@patch("web_app.add_target_url", return_value="added")
+@patch("web_app.register_target_url", return_value="added")
 @patch("web_app.check_article_status")
 def test_application_action_add_target_uses_canonical_url(
     mock_check_status,
@@ -21143,14 +22390,17 @@ def test_application_action_add_target_uses_canonical_url(
     )
 
     assert response["status"] == "200 OK"
-    assert "Canonical article URL was added to the target list." in response["body"]
+    assert (
+        "Canonical article URL was added to the target registry."
+        in response["body"]
+    )
     mock_add_target_url.assert_called_once_with(
         "https://dic.nicovideo.jp/a/12345",
-        "runtime/targets/targets.txt",
+        "data/nicodic.db",
     )
 
 
-@patch("web_app.add_target_url", return_value="added")
+@patch("web_app.register_target_url", return_value="added")
 @patch("web_app.check_article_status")
 def test_application_action_add_target_uses_custom_runtime_target_path(
     mock_check_status,
@@ -21171,17 +22421,17 @@ def test_application_action_add_target_uses_custom_runtime_target_path(
         "POST",
         path="/action",
         body="article_input=Foo&action=add_target",
-        app=create_app(target_list_path="/runtime/targets/custom.txt"),
+        app=create_app(target_db_path="/runtime/data/custom.db"),
     )
 
     assert response["status"] == "200 OK"
     mock_add_target_url.assert_called_once_with(
         "https://dic.nicovideo.jp/a/12345",
-        "/runtime/targets/custom.txt",
+        "/runtime/data/custom.db",
     )
 
 
-@patch("web_app.add_target_url", return_value="duplicate")
+@patch("web_app.register_target_url", return_value="duplicate")
 @patch("web_app.check_article_status")
 def test_application_action_add_target_duplicate_is_bounded(
     mock_check_status,
@@ -21207,12 +22457,46 @@ def test_application_action_add_target_duplicate_is_bounded(
 
     assert response["status"] == "200 OK"
     assert (
-        "Canonical article URL is already present in the target list."
+        "Canonical article URL is already active in the target registry."
         in response["body"]
     )
     mock_add_target_url.assert_called_once_with(
         "https://dic.nicovideo.jp/a/12345",
-        "runtime/targets/targets.txt",
+        "data/nicodic.db",
+    )
+
+
+@patch("web_app.register_target_url", return_value="reactivated")
+@patch("web_app.check_article_status")
+def test_application_action_add_target_reactivated_is_bounded(
+    mock_check_status,
+    mock_add_target_url,
+):
+    mock_check_status.return_value = {
+        "status": "unsaved",
+        "input": "Foo",
+        "title": "Foo",
+        "matched_by": "exact_title",
+        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_id": "12345",
+        "article_type": "a",
+        "message": "Resolved article, but no saved archive was found yet.",
+    }
+
+    response = _run_wsgi_request(
+        "POST",
+        path="/action",
+        body="article_input=Foo&action=add_target",
+    )
+
+    assert response["status"] == "200 OK"
+    assert (
+        "Canonical article URL was reactivated in the target registry."
+        in response["body"]
+    )
+    mock_add_target_url.assert_called_once_with(
+        "https://dic.nicovideo.jp/a/12345",
+        "data/nicodic.db",
     )
 
 
@@ -21227,7 +22511,7 @@ def test_application_action_add_target_skips_write_for_unresolved_input(
         "message": "Could not resolve the input (not_found).",
     }
 
-    with patch("web_app.add_target_url") as mock_add_target_url:
+    with patch("web_app.register_target_url") as mock_add_target_url:
         response = _run_wsgi_request(
             "POST",
             path="/action",
@@ -21293,7 +22577,7 @@ def test_application_action_enqueue_request_is_not_supported_from_web(
         "message": "Resolved article, but no saved archive was found yet.",
     }
 
-    with patch("web_app.add_target_url") as mock_add_target_url:
+    with patch("web_app.register_target_url") as mock_add_target_url:
         response = _run_wsgi_request(
             "POST",
             path="/action",
@@ -21326,13 +22610,10 @@ from archive_read import (
     get_saved_article_summary_by_exact_title,
 )
 from article_resolver import resolve_article_input
-from target_list import add_target_url
+from target_list import register_target_url
 
 
-DEFAULT_TARGET_LIST_PATH = os.environ.get(
-    "TARGET_LIST_PATH",
-    "runtime/targets/targets.txt",
-)
+DEFAULT_TARGET_DB_PATH = os.environ.get("TARGET_DB_PATH", "data/nicodic.db")
 
 
 def _normalize_web_input(article_input: str) -> str:
@@ -21431,9 +22712,11 @@ def _build_action_result_message(action_result: dict) -> str:
     if status == "download_ready":
         return "Saved article TXT download is ready."
     if status == "target_added":
-        return "Canonical article URL was added to the target list."
+        return "Canonical article URL was added to the target registry."
+    if status == "target_reactivated":
+        return "Canonical article URL was reactivated in the target registry."
     if status == "target_duplicate":
-        return "Canonical article URL is already present in the target list."
+        return "Canonical article URL is already active in the target registry."
     if status == "action_error":
         return action_result["message"]
     return "Action completed."
@@ -21442,7 +22725,7 @@ def _build_action_result_message(action_result: dict) -> str:
 def _followup_action(
     article_input: str,
     action: str,
-    target_list_path: str,
+    target_db_path: str,
 ) -> dict:
     status_result = check_article_status(article_input)
     if status_result["status"] not in {"saved", "unsaved"}:
@@ -21465,13 +22748,18 @@ def _followup_action(
         }
 
     if action == "add_target":
-        add_result = add_target_url(
+        add_result = register_target_url(
             status_result["article_url"],
-            target_list_path,
+            target_db_path,
         )
         if add_result == "added":
             return {
                 "status": "target_added",
+                "check_result": status_result,
+            }
+        if add_result == "reactivated":
+            return {
+                "status": "target_reactivated",
                 "check_result": status_result,
             }
         if add_result == "duplicate":
@@ -21570,7 +22858,7 @@ def _render_message_area(
                 f"<input type=\"hidden\" name=\"article_input\" "
                 f"value=\"{escape(result['input'])}\">"
                 "<input type=\"hidden\" name=\"action\" value=\"add_target\">"
-                "<button type=\"submit\">Add To Target List</button>"
+                "<button type=\"submit\">Add To Target Registry</button>"
                 "</form>"
             )
         )
@@ -21582,7 +22870,7 @@ def _render_message_area(
                 f"<input type=\"hidden\" name=\"article_input\" "
                 f"value=\"{escape(result['input'])}\">"
                 "<input type=\"hidden\" name=\"action\" value=\"add_target\">"
-                "<button type=\"submit\">Add To Target List</button>"
+                "<button type=\"submit\">Add To Target Registry</button>"
                 "</form>"
             )
         )
@@ -21714,7 +23002,7 @@ def _render_page(
     return html.encode("utf-8")
 
 
-def create_app(target_list_path: str = DEFAULT_TARGET_LIST_PATH):
+def create_app(target_db_path: str = DEFAULT_TARGET_DB_PATH):
     def app(environ, start_response):
         method = environ.get("REQUEST_METHOD", "GET").upper()
         path = environ.get("PATH_INFO", "/")
@@ -21751,7 +23039,7 @@ def create_app(target_list_path: str = DEFAULT_TARGET_LIST_PATH):
             action_result = _followup_action(
                 article_input,
                 action,
-                target_list_path,
+                target_db_path,
             )
             check_result = action_result["check_result"]
 
@@ -21835,9 +23123,9 @@ application = create_app()
 def serve_web_app(
     host: str = "127.0.0.1",
     port: int = 8000,
-    target_list_path: str = DEFAULT_TARGET_LIST_PATH,
+    target_db_path: str = DEFAULT_TARGET_DB_PATH,
 ) -> None:
-    app = create_app(target_list_path=target_list_path)
+    app = create_app(target_db_path=target_db_path)
     with make_server(host, port, app) as server:
         print(f"Serving web app at http://{host}:{port}")
         server.serve_forever()

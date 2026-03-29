@@ -44,10 +44,16 @@ Excluded data includes:
 Current architecture
 
 main.py
-    CLI entry point
+    CLI and bounded app/runtime entry point
 
 orchestrator.py
     Coordinates scraping flow and persistence order
+
+archive_read.py
+    Archive-facing read / export seam
+
+article_resolver.py
+    Resolves bounded article input into canonical article targets
 
 http_client.py
     Handles HTTP requests
@@ -56,19 +62,34 @@ parser.py
     Extracts response data from HTML
 
 storage.py
-    Handles SQLite and JSON persistence
+    Handles SQLite and JSON persistence, including target-registry persistence
+
+target_list.py
+    Handles target registration, active-target reads, and legacy target import
+
+web_app.py
+    Provides the bounded Web-facing archive-check / follow-up interface
 
 cli.py
-    Provides inspect command output
+    Provides CLI-facing archive output helpers
 
 tests/conftest.py
     Supports pytest import resolution
 
 tests/test_main.py
-    Covers CLI dispatch behavior
+    Covers CLI and bounded app entry dispatch behavior
 
 tests/test_orchestrator.py
     Covers orchestration helper behavior
+
+tests/test_storage.py
+    Covers storage-layer persistence behavior including target-registry behavior
+
+tests/test_target_list.py
+    Covers target-registry seam behavior
+
+tests/test_web_app.py
+    Covers bounded Web-facing behavior
 
 --------------------------------------------------
 
@@ -76,14 +97,20 @@ Current responsibility split
 
 main.py
     CLI argument parsing
-    inspect branch
-    dispatch to orchestration
+    bounded batch / periodic / web dispatch
+    target-registry-backed target flow entrypoints
 
 orchestrator.py
     article metadata fetching
     BBS base URL generation
     paginated response collection
     JSON save + SQLite save flow
+
+archive_read.py
+    archive-facing read and export seam
+
+article_resolver.py
+    bounded canonical article input resolution
 
 http_client.py
     HTTP fetch layer
@@ -93,12 +120,26 @@ parser.py
 
 storage.py
     persistence layer
+    archive persistence
+    queue persistence
+    target-registry persistence
+
+target_list.py
+    target-source handling layer
+    target registration
+    active target listing
+    bounded legacy `targets.txt` import
+
+web_app.py
+    bounded Web-facing archive-check and follow-up actions
+    bounded target registration
+    saved article TXT download
 
 cli.py
-    DB inspection output
+    archive-facing CLI output formatting
 
 tests/
-    minimal unit-test layer protecting post-TASK002 boundaries
+    focused unit-test layer protecting current bounded responsibilities
 
 --------------------------------------------------
 
@@ -167,5 +208,14 @@ For adoption history, refer to:
 Future note
 
 Unless a later task explicitly changes architecture,
-this document should be treated as the post-TASK003 baseline.
+this document should be treated as the post-TASK031 baseline.
 
+Important current interpretation:
+
+- the bounded Web/runtime publication baseline exists
+- the target source of truth is now DB-backed in bounded form
+- the next likely bounded step is not another source-of-truth migration,
+  but an operator-facing target / archive management seam
+- broader observability, GUI admin expansion, PostgreSQL migration,
+  DB containerization, and wider dashboard/platform work remain deferred
+  unless a later task explicitly brings them into scope

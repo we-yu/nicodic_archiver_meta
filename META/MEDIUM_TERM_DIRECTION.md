@@ -91,27 +91,27 @@ over:
 ## Near-term task direction
 
 ### TASK031 direction
-Bounded target source-of-truth migration.
+Completed.
 
-Expected shape:
+Outcome summary:
 
-- migrate the scrape target source of truth away from the provisional
-  plain-text target list and into a DB-backed registry
-- preserve the already-adopted archive/save/read/runtime baseline
-- preserve canonical article identity handling
-- keep the task centered on target-registry ownership rather than broad DB
+- the scrape target source of truth was migrated away from the provisional
+  plain-text target list and into a bounded SQLite-backed target registry
+- the already-adopted archive/save/read/runtime baseline was preserved
+- canonical article identity handling was preserved
+- the task remained centered on target-registry ownership rather than broad DB
   platform redesign
-- keep SQLite acceptable in this task unless a stronger reason appears later
-- do not require PostgreSQL migration in this task
-- do not require DB containerization in this task
-- do not require pgAdmin-like GUI integration in this task
+- SQLite remained acceptable in this task
+- PostgreSQL migration was not required
+- DB containerization was not required
+- pgAdmin-like GUI integration was not required
 
-Preferred direction:
+Interpretation:
 
-- replace the long-term role of the plain-text target list as source of truth
-- keep the migration bounded and explainable
-- preserve current scrape / archive correctness
-- prepare later operator-facing tools without forcing them into TASK031
+- the long-term role of the plain-text target list as source of truth has ended
+  in mainline flow
+- later operator-facing tooling can now build on the bounded target registry
+  baseline rather than on the provisional text file
 
 ### TASK032 direction
 Bounded operator-facing target / archive management seam.
@@ -119,7 +119,7 @@ Bounded operator-facing target / archive management seam.
 Expected shape:
 
 - add bounded operator-facing inspection / management capability for:
-  - DB-backed target registry
+  - the DB-backed target registry
   - saved archive state
 - support practical listing / confirmation / minimal operator actions
 - keep the task single-operator-friendly
@@ -185,18 +185,16 @@ Current rule:
 
 The next medium-term phase should aim to move the product from:
 
-- a bounded Web/runtime baseline with a provisional text target source
+- a bounded DB-backed target-registry baseline
 
 toward:
 
-- a bounded DB-backed target-registry baseline
 - bounded operator-facing target / archive management
 - later optional runtime-log side-flow improvements
 
 Target outcome for this phase:
 
-- the plain-text target list is no longer the long-term source of truth
-- target identity is managed through a DB-backed registry
+- target identity remains managed through the DB-backed registry
 - operator-facing inspection / management of targets becomes practical
 - saved archive state remains available and inspectable
 - the existing Web/runtime/archive behavior remains preserved
@@ -208,7 +206,7 @@ Interpretation note:
 - this phase framing is planning guidance, not authoritative current state
 - exact task boundaries may still be adjusted if review evidence suggests a
   better bounded split
-- keep "data/source-of-truth hardening first, broader polish later"
+- keep "operator-facing management next, broader polish later"
   as the main directional rule
 
 --------------------------------------------------
@@ -217,22 +215,20 @@ Interpretation note:
 
 Recommended working order:
 
-1. `TASK031`
-   - bounded target source-of-truth migration
-2. `TASK032`
+1. `TASK032`
    - bounded operator-facing target / archive management seam
-3. side-flow SubTask work after the TASK032 baseline
+2. side-flow SubTask work after the TASK032 baseline
    - runtime-log hygiene
    - human-friendly logging / summary improvements
-4. later mainline task(s) to be re-sliced after the post-TASK032 picture is
+3. later mainline task(s) to be re-sliced after the post-TASK032 picture is
    clearer
 
 This order is recommended because it:
 
 - preserves the already-adopted bounded Web/runtime baseline
-- addresses the most structural provisional piece first
+- builds directly on the newly adopted target-registry source-of-truth baseline
 - keeps product semantics and runtime-operation support separated where useful
-- reduces the risk of mixing DB/source-of-truth work with unrelated UI polish
+- reduces the risk of mixing operator-facing management with unrelated UI polish
 - allows later log-side improvements to proceed without prematurely fixing
   broader product-task boundaries
 
