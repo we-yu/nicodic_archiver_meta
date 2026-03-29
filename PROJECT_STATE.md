@@ -683,6 +683,42 @@ TASK031 result:
 • convergence was confirmed with `./compare_helix.sh --all`
 • post-adoption validation passed in both repositories
 
+TASK031B has been completed.
+
+TASK031B result:
+
+• Cursor implementation was adopted
+• Copilot implementation was retained for comparison evidence
+• a bounded append-only telemetry layer was introduced
+• telemetry is persisted in SQLite-backed `scrape_run_observation`
+• telemetry rows record per-run per-article bounded observations
+• recorded observation fields include:
+  - `run_id`
+  - `run_started_at`
+  - `run_kind`
+  - `skipped`
+  - `article_id`
+  - `article_type`
+  - `canonical_article_url`
+  - `saved_response_count_after_run`
+  - `latest_total_response_count_ref`
+  - `scrape_ok`
+  - `scrape_outcome`
+  - `observed_at`
+• CSV export was added as a read-only derived artifact for human inspection
+• current text batch-log baseline was preserved
+• target source-of-truth remained unchanged from TASK031
+• archive / queue / Web main-flow semantics were not redesigned
+• `main.py` was updated
+• `orchestrator.py` was updated
+• `storage.py` was updated
+• `target_list.py` was updated
+• `tests/test_main.py` was updated
+• `tests/test_orchestrator.py` was updated
+• `tests/test_storage.py` was updated
+• validation passed on the adopted implementation
+• post-adoption convergence and validation were confirmed on `main`
+
 Current application structure:
 
 main.py
@@ -808,7 +844,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK031 is complete.
+TASK031 and TASK031B are complete.
 
 A roadmap reference exists for future-direction context only:
 

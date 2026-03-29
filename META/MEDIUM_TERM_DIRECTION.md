@@ -116,6 +116,16 @@ Interpretation:
 ### TASK032 direction
 Bounded operator-facing target / archive management seam.
 
+Interpretation after TASK031 and TASK031B:
+
+- target source-of-truth migration is already complete
+- bounded append-only telemetry insertion is already complete
+- TASK032 should not re-do either of those
+- TASK032 should instead focus on practical operator-facing inspection /
+  management over:
+  - the DB-backed target registry
+  - saved archive state
+
 Expected shape:
 
 - add bounded operator-facing inspection / management capability for:
@@ -131,7 +141,7 @@ Expected shape:
 
 Preferred direction:
 
-- make the post-TASK031 data model practically inspectable and manageable
+- make the post-TASK031B data model practically inspectable and manageable
 - keep the operator seam small and explainable
 - preserve the existing Web/runtime/archive boundaries as much as possible
 - prepare later observability or export follow-ups without forcing them into
@@ -186,6 +196,7 @@ Current rule:
 The next medium-term phase should aim to move the product from:
 
 - a bounded DB-backed target-registry baseline
+- a bounded append-only telemetry baseline
 
 toward:
 
@@ -195,6 +206,7 @@ toward:
 Target outcome for this phase:
 
 - target identity remains managed through the DB-backed registry
+- append-only telemetry remains available as a bounded support layer
 - operator-facing inspection / management of targets becomes practical
 - saved archive state remains available and inspectable
 - the existing Web/runtime/archive behavior remains preserved
@@ -226,7 +238,8 @@ Recommended working order:
 This order is recommended because it:
 
 - preserves the already-adopted bounded Web/runtime baseline
-- builds directly on the newly adopted target-registry source-of-truth baseline
+- builds on the adopted target-registry baseline and the bounded telemetry
+  support layer without re-opening either task
 - keeps product semantics and runtime-operation support separated where useful
 - reduces the risk of mixing operator-facing management with unrelated UI polish
 - allows later log-side improvements to proceed without prematurely fixing
