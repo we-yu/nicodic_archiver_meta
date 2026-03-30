@@ -1760,6 +1760,79 @@ Interpretation:
 - target delete remains out of scope
 - telemetry remains auxiliary rather than the main operator surface
 
+## TASK033
+Completed.
+
+Outcome summary:
+- a bounded human-friendly verification / smoke tooling seam was added for a
+  single operator
+- the first interface remains CLI / shell-tooling
+- verification helpers reuse existing seams rather than introducing a new
+  platform
+- verification flow is read-first, human-readable, and bounded
+- verification tooling now includes:
+  - one-shot verification fetch
+  - target registry confirmation helpers
+  - one-shot batch verification helpers
+  - telemetry CSV verification follow-up helpers
+  - verification-focused docs and usage guidance
+- the task remained bounded and did not expand into:
+  - dashboard / observability platform work
+  - Web admin
+  - scheduler / retry framework
+  - destructive maintenance
+  - PostgreSQL migration
+  - DB containerization
+
+Adoption result:
+- Copilot implementation adopted
+- Cursor implementation retained as review evidence
+- both child repositories were later converged onto the adopted final state
+
+Interpretation:
+- the project now has a practical bounded verification / smoke tooling seam
+  layered on top of the existing operator/runtime baseline
+- verification remains an operator helper layer rather than a platform
+
+## TASK033B
+Completed.
+
+Outcome summary:
+- a bounded known-good smoke (KGS) helper was added inside the existing
+  TASK033 verification tooling seam
+- KGS remains:
+  - manual
+  - opt-in
+  - isolated
+  - non-gating
+- KGS-specific helper guidance is stdout-only
+- the implementation reuses existing seams rather than introducing a new
+  execution platform
+- verification tooling now supports bounded KGS fetch / batch-style smoke on
+  isolated state
+- the task remained bounded and did not expand into:
+  - CI / PR gating
+  - scheduler / retry framework
+  - destructive maintenance against the main working state
+  - dashboard / observability platform
+  - Web admin
+  - PostgreSQL migration
+  - DB containerization
+
+Adoption result:
+- Copilot implementation adopted
+- Cursor implementation retained as review evidence
+- both child repositories were later converged onto the adopted final state
+
+Interpretation:
+- the current verification baseline should be read as TASK033 + TASK033B
+- the project now has bounded verification tooling plus a bounded KGS helper
+- KGS is part of verification tooling, not a separate platform
+- stdout-only KGS guidance and isolated smoke state are now part of the
+  working baseline
+- richer KGS ergonomics remain optional later work rather than missing current
+  state
+
 Current application structure:
 
 main.py
@@ -1885,7 +1958,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK032 is complete.
+TASK033 and TASK033b are complete.
 
 A roadmap reference exists for future-direction context only:
 
@@ -6506,6 +6579,220 @@ Authoritative context should still be restored from:
 
 
 
+===== REVIEW LOG: META/review_log/TASK033_TASK033B_adoption.md =====
+# TASK033 / TASK033B Adoption Log
+
+## Tasks
+TASK033 and TASK033B
+
+These two tasks were completed as one continuous adoption sequence.
+
+- TASK033 added bounded human-friendly verification / smoke tooling on top of
+  existing seams.
+- TASK033B then added a bounded known-good smoke (KGS) helper on top of that
+  verification tooling.
+
+In practice, TASK033 was adopted into child-repo `main`, child repositories
+were converged, and TASK033B was started immediately after without doing the
+root/meta close-out step in between. Therefore this log records the combined
+close-out interpretation for TASK033 + TASK033B.
+
+## Decision
+Adopted mainline:
+- **Copilot**
+
+Alternative reviewed as evidence:
+- **Cursor**
+
+Hybrid:
+- considered, not selected for close-out
+
+## Combined adopted shape
+
+### TASK033
+Added a bounded human-friendly verification / smoke tooling seam for a single
+operator.
+
+Core result:
+- verification helpers stayed CLI / shell-tooling centered
+- existing seams were reused
+- verification remained read-first, one-shot, human-readable, and bounded
+
+### TASK033B
+Added a bounded known-good smoke (KGS) helper on top of TASK033 verification
+tooling.
+
+KGS result:
+- manual
+- opt-in
+- isolated
+- non-gating
+- KGS-specific helper guidance is stdout-only
+
+## Adopted product result
+
+### TASK033 adopted result
+Changed files in the adopted product result included:
+- `README.md`
+- `main.py`
+- `docs/VERIFICATION_TOOLING.md`
+- `verification_cli.py`
+- `tools/verify.sh`
+- `tests/test_main.py`
+- `tests/test_verification_cli.py`
+
+### TASK033B adopted result
+Changed files in the adopted product result included:
+- `README.md`
+- `docs/VERIFICATION_TOOLING.md`
+- `main.py`
+- `tests/test_main.py`
+- `tests/test_verification_cli.py`
+- `verification_cli.py`
+
+## What changed overall
+
+The adopted result now provides a bounded verification stack with two layers:
+
+### Layer 1: TASK033 verification / smoke baseline
+- one-shot verification fetch
+- target registry state confirmation
+- one-shot batch verification
+- telemetry CSV review helper
+- human-readable verification documentation
+- read-first verification flow
+
+### Layer 2: TASK033B bounded KGS extension
+- `verify kgs fetch <canonical_article_url>`
+- `verify kgs batch <canonical_article_url>`
+- optional isolated state directory
+- optional bounded follow-up via `--followup-drop-last N`
+- stdout-only KGS helper guidance
+- isolated smoke state for KGS usage
+
+## Why Copilot was adopted
+
+### For TASK033
+Copilot was adopted because it matched the intended task center more directly:
+- it treated verification tooling as a thin, bounded wrapper over existing
+  seams
+- it preserved the already adopted product shape more cleanly
+- it kept verification human-friendly without broadening into a platform
+
+### For TASK033B
+Copilot was adopted because it added KGS as a narrow extension of the existing
+verification seam:
+- KGS stayed manual / opt-in / isolated / non-gating
+- KGS-specific helper guidance stayed stdout-only
+- the added implementation surface remained small and explainable
+- documentation continuity with the adopted TASK033 baseline was stronger
+
+## Why Cursor was not adopted
+
+Cursor implementation was useful and valid comparison evidence across both
+tasks.
+
+Observed strengths:
+- richer known-good target ergonomics
+- stronger KGS target configuration ideas
+- explicit `show / smoke / follow-up` split
+- clear isolated-state thinking
+- bounded follow-up smoke wording was operator-friendly
+- `tools/kgs.example.txt` was a useful operator-facing affordance
+
+Reasons it was not selected as the adopted mainline:
+- verification tooling broadened more than needed for TASK033 / TASK033B close
+- the implementation surface was larger than necessary for the bounded task
+  center
+- compared with the adopted Copilot line, it moved closer to a verification
+  subsystem expansion rather than a narrow bounded extension
+
+## Hybrid decision
+Hybrid was considered but not selected for the combined close-out.
+
+Reasoning:
+- TASK033 and TASK033B are already valid and complete with the adopted Copilot
+  line
+- re-opening the adopted branch to borrow Cursor ergonomics at this point would
+  blur the adoption boundary
+- better handling is to record the useful Cursor ideas explicitly and revisit
+  them later only if still needed
+
+## KGS ergonomics borrow list
+Useful Cursor-side ideas worth retaining in review memory:
+
+1. configurable known-good target resolution with a clear priority order
+   - flag
+   - file
+   - env
+
+2. an operator-facing KGS template file
+   - e.g. `tools/kgs.example.txt`
+
+3. a more explicit KGS command split
+   - `show`
+   - `smoke`
+   - `follow-up`
+
+4. bounded isolated follow-up smoke with especially explicit operator wording
+
+5. human-friendly KGS target visibility before execution
+   - showing the chosen target and parsed identity before smoke execution
+
+These were not required for TASK033 / TASK033B completion, but they are good
+candidates for a later side-flow or tiny follow-up if operator ergonomics needs
+to be improved.
+
+## Validation result
+Validation was run with the established workflow:
+- `./validate_helix.sh` passed for both child repositories after TASK033
+  convergence
+- `./validate_helix.sh` also passed for both child repositories on TASK033B
+  comparison state
+- after adoption and convergence, both child repositories again passed
+  validation on converged `main`
+
+## Convergence result
+- `./compare_helix.sh --all` passed after TASK033 adoption
+- child repositories were converged before TASK033B started
+- after TASK033B adoption and synchronization, `./compare_helix.sh --all`
+  passed again
+
+## Repository outcome
+- adopted implementation repository: `copilot/`
+- comparison-evidence repository: `cursor/`
+- optional adoption marker branches:
+  - `adopted/task033-verification-tooling`
+  - `adopted/task033b-kgs-smoke`
+- after integration, both child repositories were realigned to the same
+  adopted final state
+
+## Notes for future AI sessions
+Important interpretation:
+- TASK033 is complete
+- TASK033B is complete
+- the project now has bounded human-friendly verification / smoke tooling
+- the project also now has a bounded KGS helper inside that verification
+  tooling
+- verification remains CLI / shell-tooling first
+- verification remains read-first and bounded
+- KGS remains manual / opt-in / isolated / non-gating
+- KGS-specific helper guidance remains stdout-only
+- verification / KGS remain helper layers, not a platform
+- richer KGS ergonomics are optional later work, not missing current state
+
+## Meta note
+This log is AI-readable review memory.
+It is not authoritative current state by itself.
+
+Authoritative context should still be restored from:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
+
+
+
 ===== REVIEW LOG: META/review_log/task008_review.md =====
 # TASK008 Review
 
@@ -6858,7 +7145,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Sun Mar 29 17:36:40 UTC 2026
+generated: Mon Mar 30 09:08:55 UTC 2026
 mode: full
 
 
@@ -10004,7 +10291,8 @@ This repository centers on three bounded seams:
 
 - scrape and save Nicopedia BBS threads
 - keep a DB-backed target registry for periodic operation
-- inspect and export saved archives without turning the product into a full admin console
+- inspect and export saved archives without turning the product into a full
+	admin console
 
 The operator interface for target registry and saved archive management is CLI-first.
 Web admin expansion is intentionally out of scope.
@@ -10047,6 +10335,35 @@ The target add action accepts canonical Nicopedia article URLs only. This keeps
 operator intent non-ambiguous and avoids mixing registry management with article
 resolution flow.
 
+## Verification Entry Points
+
+This repository also includes bounded verification / smoke helpers for a single
+operator.
+
+Two repo-local entry points expose that verification tooling:
+
+- python main.py verify ...
+- sh tools/verify.sh ...
+
+Supported verification actions:
+
+- fetch one canonical article
+- run manual known-good smoke on isolated state
+- check current target registry state
+- run one one-shot batch verification pass
+- export telemetry CSV for verification review
+
+Read-first verification flow:
+
+1. check current registry state
+2. run one light one-shot fetch when needed
+3. run manual KGS on isolated state only when live smoke is needed
+4. inspect the saved archive through the existing operator tooling
+5. run one one-shot batch verification only when needed
+6. export telemetry CSV only when needed for review
+
+KGS remains manual, opt-in, isolated, and non-gating.
+
 ## Existing Flow Commands
 
 The original bounded entry points remain available:
@@ -10064,6 +10381,9 @@ interface for registry or archive management.
 
 See the operator guide in docs/OPERATOR_TOOLING.md for daily and periodic
 registry/archive management.
+
+See docs/VERIFICATION_TOOLING.md for bounded verification / smoke tooling and
+the read-first verification flow.
 
 See docs/PERSONAL_RUNTIME.md for runtime-container-specific notes.
 
@@ -11551,6 +11871,242 @@ These directories are included only as a provisional runtime shape. A later
 task can package scheduling or host deployment more tightly if needed.
 
 =============================
+FILE: ./copilot/docs/VERIFICATION_TOOLING.md
+=============================
+# Verification Tooling
+
+This document describes the bounded verification / smoke tooling for a single
+operator.
+
+It exists to make existing seams easy to check safely and readably.
+
+It reuses:
+
+- the existing one-shot scrape entry
+- the existing target registry seam
+- the existing batch / periodic baseline
+- the existing telemetry / CSV export support layer
+- the existing operator tooling seam
+
+It does not add:
+
+- a scheduler platform
+- a dashboard or analytics platform
+- destructive maintenance actions
+- a default validation gate
+- a new source-of-truth
+
+## KGS Positioning
+
+Known-good smoke (KGS) is part of this verification tooling.
+
+It is:
+
+- manual
+- opt-in
+- non-gating
+- isolated from the main working state
+
+It is not:
+
+- a default validation gate
+- a scheduler platform
+- a destructive maintenance flow
+- a new execution platform
+
+## First Interface
+
+Use either of these equivalent repo-local entry points:
+
+```sh
+python main.py verify ...
+sh tools/verify.sh ...
+```
+
+The shell wrapper is intentionally thin. The Python CLI remains the source of
+behavior.
+
+## Read-First Verification Flow
+
+Use this order unless you have a specific reason not to:
+
+1. check current registry state
+2. run one light one-shot article fetch when needed
+3. run KGS only when you need live smoke on isolated state
+4. inspect the saved archive through the existing operator tooling
+5. run one one-shot batch verification only when you need a broader pass
+6. export telemetry CSV only when you need verification evidence or follow-up review
+
+This keeps verification read-first, one-shot, and non-ambiguous.
+
+## Helpers
+
+### Registry Check
+
+List current registry state:
+
+```sh
+sh tools/verify.sh registry list
+```
+
+List active targets only:
+
+```sh
+sh tools/verify.sh registry list --active-only
+```
+
+Inspect one target by canonical identity:
+
+```sh
+sh tools/verify.sh registry inspect 12345 a
+```
+
+Use `--db PATH` when you need an explicit registry DB path.
+
+### One-Shot Article Fetch
+
+Run a single verification fetch for one canonical article URL:
+
+```sh
+sh tools/verify.sh fetch https://dic.nicovideo.jp/a/12345
+```
+
+This reuses the existing scrape flow and then prints a concise saved-archive
+summary when the fetch succeeds.
+
+Input is intentionally narrow:
+
+- canonical Nicopedia article URL only
+
+That keeps the helper action-oriented and avoids mixing verification fetch with
+title-resolution behavior.
+
+### Known-Good Smoke (KGS)
+
+Run a one-shot live smoke fetch on isolated state:
+
+```sh
+sh tools/verify.sh kgs fetch https://dic.nicovideo.jp/a/12345
+```
+
+Run the same fetch with an explicit isolated state directory:
+
+```sh
+sh tools/verify.sh kgs fetch https://dic.nicovideo.jp/a/12345 \
+	--state-dir runtime/smoke/my_kgs
+```
+
+Run a bounded incremental follow-up smoke on isolated state only:
+
+```sh
+sh tools/verify.sh kgs fetch https://dic.nicovideo.jp/a/12345 --followup-drop-last 3
+```
+
+Run a one-shot KGS batch verification on isolated state:
+
+```sh
+sh tools/verify.sh kgs batch https://dic.nicovideo.jp/a/12345
+```
+
+KGS rules:
+
+- the known-good target is configurable per invocation
+- the helper uses isolated smoke state, not the main working DB/archive
+- KGS-specific guidance messages are stdout-only
+- KGS remains non-gating and manual
+
+Default isolated state directory:
+
+```text
+runtime/smoke/kgs
+```
+
+Inside that state directory the helper uses:
+
+- `data/nicodic.db` for the isolated DB/archive state
+- `logs/` for the existing batch log behavior when KGS batch is used
+
+The helper does not add a new KGS-only persistent log layer. KGS-specific phase
+and status guidance is printed to stdout only.
+
+### Archive Follow-Up
+
+Archive follow-up remains on the existing operator tooling seam:
+
+```sh
+sh tools/operator.sh archive inspect 12345 a --last 20
+sh tools/operator.sh archive export 12345 a --format md --output exports/12345a.md
+```
+
+Verification tooling intentionally reuses that existing archive read / export
+interface instead of creating a second archive management path.
+
+### One-Shot Batch Verification
+
+Run one bounded batch verification pass:
+
+```sh
+sh tools/verify.sh batch run
+```
+
+Use an explicit target registry DB path when needed:
+
+```sh
+sh tools/verify.sh batch run --db runtime/data/nicodic.db
+```
+
+This is a one-shot helper. It is not a scheduler or orchestration framework.
+
+### Telemetry CSV Reference
+
+Export the existing telemetry CSV to stdout:
+
+```sh
+sh tools/verify.sh telemetry export
+```
+
+Write the CSV to a file for later review:
+
+```sh
+sh tools/verify.sh telemetry export --output exports/run_telemetry.csv
+```
+
+Use an explicit telemetry DB path when needed:
+
+```sh
+sh tools/verify.sh telemetry export --db runtime/data/nicodic.db \
+	--output exports/run_telemetry.csv
+```
+
+This helper stays in the support layer. It does not become a dashboard.
+
+After a KGS run, point telemetry export at the isolated DB when you want to
+review smoke telemetry:
+
+```sh
+sh tools/verify.sh telemetry export --db runtime/smoke/kgs/data/nicodic.db
+```
+
+## What This Tooling Does Not Do
+
+- It does not introduce destructive maintenance.
+- It does not introduce a retry / worker / scheduler framework.
+- It does not introduce a healthcheck platform or gating CI flow.
+- It does not replace the existing operator tooling for archive inspection and export.
+- It does not broaden into Web admin.
+
+## Live Smoke Scope
+
+TASK033B adds a bounded KGS helper inside the verification tooling.
+
+Its boundaries are strict:
+
+- manual / opt-in only
+- isolated state only
+- non-gating only
+- stdout-only KGS helper guidance
+- no broad redesign of runtime, batch, or telemetry behavior
+=============================
 FILE: ./copilot/docs/WORKFLOW.md
 =============================
 # Development Workflow
@@ -11755,6 +12311,12 @@ from target_list import (
     parse_target_identity,
     register_target_url,
 )
+from verification_cli import verify_one_shot_batch
+from verification_cli import verify_one_shot_fetch
+from verification_cli import verify_registry_inspect, verify_registry_list
+from verification_cli import verify_telemetry_export
+from verification_cli import DEFAULT_KGS_STATE_DIR
+from verification_cli import verify_kgs_batch, verify_kgs_fetch
 from web_app import serve_web_app
 
 
@@ -11984,6 +12546,32 @@ def _print_operator_usage():
     )
 
 
+def _print_verification_usage():
+    print("Verification usage:")
+    print("  python main.py verify fetch <canonical_article_url>")
+    print(
+        "  python main.py verify kgs fetch <canonical_article_url> "
+        "[--state-dir PATH] [--followup-drop-last N]"
+    )
+    print(
+        "  python main.py verify kgs batch <canonical_article_url> "
+        "[--state-dir PATH]"
+    )
+    print(
+        "  python main.py verify registry list "
+        "[--db PATH] [--active-only]"
+    )
+    print(
+        "  python main.py verify registry inspect <article_id> "
+        "<article_type> [--db PATH]"
+    )
+    print("  python main.py verify batch run [--db PATH]")
+    print(
+        "  python main.py verify telemetry export "
+        "[--db PATH] [--output PATH]"
+    )
+
+
 def _handle_operator_target(args):
     if not args:
         _print_operator_usage()
@@ -12123,6 +12711,139 @@ def _handle_operator_cli(args):
     sys.exit(1)
 
 
+def _handle_verification_registry(args):
+    if not args:
+        _print_verification_usage()
+        sys.exit(1)
+
+    action = args[0]
+    target_db_path = _read_optional_flag(args, "--db", DEFAULT_TARGET_DB_PATH)
+
+    if action == "list":
+        active_only = "--active-only" in args[1:]
+        if not verify_registry_list(target_db_path, active_only=active_only):
+            sys.exit(1)
+        return
+
+    if action == "inspect":
+        if len(args) < 3:
+            print(
+                "Usage: verify registry inspect <article_id> "
+                "<article_type> [--db PATH]"
+            )
+            sys.exit(1)
+        if not verify_registry_inspect(args[1], args[2], target_db_path):
+            sys.exit(1)
+        return
+
+    _print_verification_usage()
+    sys.exit(1)
+
+
+def _handle_verification_batch(args):
+    if not args or args[0] != "run":
+        print("Usage: verify batch run [--db PATH]")
+        sys.exit(1)
+
+    target_db_path = _read_optional_flag(args, "--db", DEFAULT_TARGET_DB_PATH)
+    if not verify_one_shot_batch(target_db_path, run_batch_scrape):
+        sys.exit(1)
+
+
+def _handle_verification_telemetry(args):
+    if not args or args[0] != "export":
+        print("Usage: verify telemetry export [--db PATH] [--output PATH]")
+        sys.exit(1)
+
+    try:
+        db_path = _read_optional_flag(
+            args,
+            "--db",
+            _telemetry_archive_db_path(),
+        )
+        output_path = _read_optional_flag(args, "--output", None)
+    except ValueError:
+        print("Usage: verify telemetry export [--db PATH] [--output PATH]")
+        sys.exit(1)
+
+    if not verify_telemetry_export(db_path, output_path=output_path):
+        sys.exit(1)
+
+
+def _handle_verification_kgs(args):
+    if len(args) < 2:
+        _print_verification_usage()
+        sys.exit(1)
+
+    action = args[0]
+    article_url = args[1]
+    state_dir = _read_optional_flag(args, "--state-dir", DEFAULT_KGS_STATE_DIR)
+
+    if action == "fetch":
+        followup_drop_last = 0
+        if "--followup-drop-last" in args:
+            try:
+                followup_drop_last = int(
+                    _read_optional_flag(args, "--followup-drop-last"),
+                )
+            except ValueError:
+                print(
+                    "Usage: verify kgs fetch <canonical_article_url> "
+                    "[--state-dir PATH] [--followup-drop-last N]"
+                )
+                sys.exit(1)
+
+        if not verify_kgs_fetch(
+            article_url,
+            state_dir,
+            followup_drop_last=followup_drop_last,
+        ):
+            sys.exit(1)
+        return
+
+    if action == "batch":
+        if not verify_kgs_batch(article_url, state_dir, run_batch_scrape):
+            sys.exit(1)
+        return
+
+    _print_verification_usage()
+    sys.exit(1)
+
+
+def _handle_verification_cli(args):
+    if not args:
+        _print_verification_usage()
+        sys.exit(1)
+
+    area = args[0]
+    if area == "fetch":
+        if len(args) < 2:
+            print("Usage: verify fetch <canonical_article_url>")
+            sys.exit(1)
+        if not verify_one_shot_fetch(args[1]):
+            sys.exit(1)
+        return
+
+    if area == "kgs":
+        _handle_verification_kgs(args[1:])
+        return
+
+    if area == "registry":
+        _handle_verification_registry(args[1:])
+        return
+
+    if area == "batch":
+        _handle_verification_batch(args[1:])
+        return
+
+    if area == "telemetry":
+        _handle_verification_telemetry(args[1:])
+        return
+
+    _print_verification_usage()
+    sys.exit(1)
+
+
 def main():
     """
     CLIエントリポイント。
@@ -12134,6 +12855,9 @@ def main():
         print("Usage:")
         print("  python main.py <article_url>")
         print("  python main.py operator <target|archive> ...")
+        print(
+            "  python main.py verify <fetch|kgs|registry|batch|telemetry> ..."
+        )
         print("  python main.py inspect <article_id> <article_type> [--last N]")
         print("  python main.py export <article_id> <article_type> --format txt")
         print("  python main.py export <article_id> <article_type> --format md")
@@ -12164,6 +12888,10 @@ def main():
 
     if sys.argv[1] == "operator":
         _handle_operator_cli(sys.argv[2:])
+        return
+
+    if sys.argv[1] == "verify":
+        _handle_verification_cli(sys.argv[2:])
         return
 
     # inspectモード
@@ -15126,6 +15854,137 @@ def test_main_operator_without_required_args_exits_with_usage(capsys):
     assert "operator archive export" in out
 
 
+@patch("main.verify_one_shot_fetch")
+def test_main_verify_fetch_calls_verification_helper(mock_verify_fetch):
+    mock_verify_fetch.return_value = True
+
+    with patch(
+        "sys.argv",
+        ["main.py", "verify", "fetch", "https://dic.nicovideo.jp/a/12345"],
+    ):
+        main_module.main()
+
+    mock_verify_fetch.assert_called_once_with(
+        "https://dic.nicovideo.jp/a/12345"
+    )
+
+
+@patch("main.verify_kgs_fetch")
+def test_main_verify_kgs_fetch_calls_verification_helper(mock_verify_kgs_fetch):
+    mock_verify_kgs_fetch.return_value = True
+
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "verify",
+            "kgs",
+            "fetch",
+            "https://dic.nicovideo.jp/a/12345",
+            "--state-dir",
+            "runtime/smoke/custom",
+            "--followup-drop-last",
+            "2",
+        ],
+    ):
+        main_module.main()
+
+    mock_verify_kgs_fetch.assert_called_once_with(
+        "https://dic.nicovideo.jp/a/12345",
+        "runtime/smoke/custom",
+        followup_drop_last=2,
+    )
+
+
+@patch("main.verify_kgs_batch")
+def test_main_verify_kgs_batch_calls_verification_helper(mock_verify_kgs_batch):
+    mock_verify_kgs_batch.return_value = True
+
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "verify",
+            "kgs",
+            "batch",
+            "https://dic.nicovideo.jp/a/12345",
+        ],
+    ):
+        main_module.main()
+
+    args = mock_verify_kgs_batch.call_args.args
+    assert args[0] == "https://dic.nicovideo.jp/a/12345"
+    assert args[1] == "runtime/smoke/kgs"
+    assert args[2] is main_module.run_batch_scrape
+
+
+@patch("main.verify_registry_list")
+def test_main_verify_registry_list_calls_verification_helper(
+    mock_verify_registry_list,
+):
+    mock_verify_registry_list.return_value = True
+
+    with patch("sys.argv", ["main.py", "verify", "registry", "list"]):
+        main_module.main()
+
+    mock_verify_registry_list.assert_called_once_with(
+        "data/nicodic.db",
+        active_only=False,
+    )
+
+
+@patch("main.verify_one_shot_batch")
+def test_main_verify_batch_calls_verification_helper(mock_verify_batch):
+    mock_verify_batch.return_value = True
+
+    with patch("sys.argv", ["main.py", "verify", "batch", "run"]):
+        main_module.main()
+
+    args = mock_verify_batch.call_args.args
+    assert args[0] == "data/nicodic.db"
+    assert args[1] is main_module.run_batch_scrape
+
+
+@patch("main.verify_telemetry_export")
+def test_main_verify_telemetry_export_calls_verification_helper(
+    mock_verify_telemetry_export,
+):
+    mock_verify_telemetry_export.return_value = True
+
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "verify",
+            "telemetry",
+            "export",
+            "--db",
+            "telemetry.db",
+            "--output",
+            "out.csv",
+        ],
+    ):
+        main_module.main()
+
+    mock_verify_telemetry_export.assert_called_once_with(
+        "telemetry.db",
+        output_path="out.csv",
+    )
+
+
+def test_main_verify_without_required_args_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "verify"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "Verification usage:" in out
+    assert "verify fetch" in out
+    assert "verify kgs fetch" in out
+    assert "verify telemetry export" in out
+
+
 def test_main_too_few_args_exits_with_usage(capsys):
     with patch("sys.argv", ["main.py"]):
         with pytest.raises(SystemExit) as exc_info:
@@ -15134,6 +15993,7 @@ def test_main_too_few_args_exits_with_usage(capsys):
     out = capsys.readouterr().out
     assert "python main.py <article_url>" in out
     assert "python main.py operator <target|archive> ..." in out
+    assert "python main.py verify <fetch|kgs|registry|batch|telemetry> ..." in out
     assert "inspect" in out
     assert "export <article_id> <article_type> --format txt" in out
     assert "export <article_id> <article_type> --format md" in out
@@ -17374,6 +18234,190 @@ def test_deactivate_and_reactivate_target_return_operator_facing_result(tmp_path
     assert reactivated["entry"]["is_active"] is True
 
 =============================
+FILE: ./copilot/tests/test_verification_cli.py
+=============================
+from unittest.mock import patch
+
+from verification_cli import (
+    verify_kgs_batch,
+    verify_kgs_fetch,
+    verify_one_shot_batch,
+    verify_one_shot_fetch,
+    verify_telemetry_export,
+)
+
+
+class _DummyScrapeResult:
+    def __init__(self, ok, outcome):
+        self.ok = ok
+        self.outcome = outcome
+
+    def __bool__(self):
+        return self.ok
+
+
+def test_verify_one_shot_fetch_rejects_non_canonical_input(capsys):
+    assert verify_one_shot_fetch("not-a-url") is False
+
+    out = capsys.readouterr().out
+    assert "Verification fetch rejected" in out
+    assert "canonical Nicopedia article URL" in out
+
+
+def test_verify_one_shot_fetch_prints_saved_summary_on_success(capsys):
+    with patch(
+        "verification_cli.run_scrape",
+        return_value=_DummyScrapeResult(True, "ok"),
+    ), patch(
+        "verification_cli.get_saved_article_summary",
+        return_value={
+            "found": True,
+            "article_id": "12345",
+            "article_type": "a",
+            "title": "Foo",
+            "url": "https://dic.nicovideo.jp/a/12345",
+            "created_at": "2026-01-01 00:00:00",
+            "response_count": 12,
+        },
+    ):
+        assert verify_one_shot_fetch("https://dic.nicovideo.jp/a/12345") is True
+
+    out = capsys.readouterr().out
+    assert "=== VERIFICATION FETCH ===" in out
+    assert "Result: fetch completed" in out
+    assert "Saved Responses: 12" in out
+
+
+def test_verify_one_shot_batch_prints_summary_and_failure_count(capsys):
+    def _run_batch_scrape(_target_db_path):
+        return "partial_failure", 2
+
+    assert verify_one_shot_batch("targets.db", _run_batch_scrape) is False
+
+    out = capsys.readouterr().out
+    assert "=== VERIFICATION BATCH RUN ===" in out
+    assert "Final Status: partial_failure" in out
+    assert "Failed Targets: 2" in out
+
+
+def test_verify_telemetry_export_writes_output_file(tmp_path, capsys):
+    db_path = str(tmp_path / "telemetry.db")
+    output_path = tmp_path / "exports" / "telemetry.csv"
+
+    assert verify_telemetry_export(db_path, output_path=str(output_path)) is True
+
+    out = capsys.readouterr().out
+    assert "Verification telemetry export written" in out
+    assert output_path.is_file()
+    content = output_path.read_text(encoding="utf-8")
+    assert "article_id" in content
+
+
+def test_verify_kgs_fetch_uses_isolated_state_and_stdout_guidance(
+    tmp_path,
+    capsys,
+):
+    state_dir = tmp_path / "smoke-state"
+
+    with patch(
+        "verification_cli.run_scrape",
+        return_value=_DummyScrapeResult(True, "ok"),
+    ), patch(
+        "verification_cli.get_saved_article_summary",
+        return_value={
+            "found": True,
+            "article_id": "12345",
+            "article_type": "a",
+            "title": "Foo",
+            "url": "https://dic.nicovideo.jp/a/12345",
+            "created_at": "2026-01-01 00:00:00",
+            "response_count": 12,
+        },
+    ):
+        assert verify_kgs_fetch(
+            "https://dic.nicovideo.jp/a/12345",
+            str(state_dir),
+        ) is True
+
+    out = capsys.readouterr().out
+    assert "=== KGS LIVE SMOKE ===" in out
+    assert "Mode: manual opt-in non-gating helper" in out
+    assert "Isolated State Dir:" in out
+    assert "KGS messages are stdout-only" in out
+    assert "KGS Summary: pass" in out
+
+
+def test_verify_kgs_fetch_runs_bounded_followup_when_requested(tmp_path, capsys):
+    state_dir = tmp_path / "smoke-state"
+
+    with patch(
+        "verification_cli.run_scrape",
+        side_effect=[
+            _DummyScrapeResult(True, "ok"),
+            _DummyScrapeResult(True, "ok"),
+        ],
+    ), patch(
+        "verification_cli.get_saved_article_summary",
+        return_value={
+            "found": True,
+            "article_id": "12345",
+            "article_type": "a",
+            "title": "Foo",
+            "url": "https://dic.nicovideo.jp/a/12345",
+            "created_at": "2026-01-01 00:00:00",
+            "response_count": 12,
+        },
+    ), patch(
+        "verification_cli._drop_latest_saved_responses",
+        return_value=3,
+    ) as mock_trim:
+        assert verify_kgs_fetch(
+            "https://dic.nicovideo.jp/a/12345",
+            str(state_dir),
+            followup_drop_last=3,
+        ) is True
+
+    mock_trim.assert_called_once()
+    out = capsys.readouterr().out
+    assert "Phase: bounded-follow-up" in out
+    assert "Follow-Up Trimmed Responses: 3" in out
+    assert "Result: bounded-follow-up passed" in out
+
+
+def test_verify_kgs_batch_registers_target_and_runs_batch(tmp_path, capsys):
+    state_dir = tmp_path / "smoke-state"
+
+    def _run_batch_scrape(_target_db_path):
+        return "success", 0
+
+    with patch(
+        "verification_cli.register_target_url",
+        return_value="added",
+    ), patch(
+        "verification_cli.get_saved_article_summary",
+        return_value={
+            "found": True,
+            "article_id": "12345",
+            "article_type": "a",
+            "title": "Foo",
+            "url": "https://dic.nicovideo.jp/a/12345",
+            "created_at": "2026-01-01 00:00:00",
+            "response_count": 12,
+        },
+    ):
+        assert verify_kgs_batch(
+            "https://dic.nicovideo.jp/a/12345",
+            str(state_dir),
+            _run_batch_scrape,
+        ) is True
+
+    out = capsys.readouterr().out
+    assert "Action: batch" in out
+    assert "Phase: target-registration (added)" in out
+    assert "=== KGS BATCH SUMMARY ===" in out
+    assert "Final Status: success" in out
+
+=============================
 FILE: ./copilot/tests/test_web_app.py
 =============================
 from io import BytesIO
@@ -17923,6 +18967,285 @@ REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 
 cd "$REPO_ROOT"
 python main.py operator "$@"
+
+=============================
+FILE: ./copilot/tools/verify.sh
+=============================
+#!/bin/sh
+
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+
+cd "$REPO_ROOT"
+python main.py verify "$@"
+
+=============================
+FILE: ./copilot/verification_cli.py
+=============================
+import os
+from contextlib import contextmanager
+from pathlib import Path
+
+from archive_read import get_saved_article_summary
+from operator_cli import inspect_target_for_operator, list_targets_for_operator
+from orchestrator import run_scrape
+from storage import format_run_telemetry_csv_wide, init_db
+from target_list import parse_target_identity, register_target_url
+
+
+DEFAULT_KGS_STATE_DIR = "runtime/smoke/kgs"
+
+
+def _kgs_db_path(state_dir):
+    return str(Path(state_dir) / "data" / "nicodic.db")
+
+
+def _kgs_log_dir(state_dir):
+    return str(Path(state_dir) / "logs")
+
+
+@contextmanager
+def _isolated_smoke_environment(state_dir):
+    state_path = Path(state_dir)
+    data_dir = state_path / "data"
+    log_dir = state_path / "logs"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    previous_cwd = Path.cwd()
+    old_nicodic_db_path = os.environ.get("NICODIC_DB_PATH")
+    old_batch_log_dir = os.environ.get("BATCH_LOG_DIR")
+
+    os.environ["NICODIC_DB_PATH"] = str(data_dir / "nicodic.db")
+    os.environ["BATCH_LOG_DIR"] = str(log_dir)
+    os.chdir(state_path)
+
+    try:
+        yield {
+            "state_dir": str(state_path),
+            "db_path": str(data_dir / "nicodic.db"),
+            "log_dir": str(log_dir),
+        }
+    finally:
+        os.chdir(previous_cwd)
+
+        if old_nicodic_db_path is None:
+            os.environ.pop("NICODIC_DB_PATH", None)
+        else:
+            os.environ["NICODIC_DB_PATH"] = old_nicodic_db_path
+
+        if old_batch_log_dir is None:
+            os.environ.pop("BATCH_LOG_DIR", None)
+        else:
+            os.environ["BATCH_LOG_DIR"] = old_batch_log_dir
+
+
+def _print_kgs_header(action, article_url, state):
+    print("=== KGS LIVE SMOKE ===")
+    print("Mode: manual opt-in non-gating helper")
+    print(f"Action: {action}")
+    print(f"Known-Good Target: {article_url}")
+    print(f"Isolated State Dir: {state['state_dir']}")
+    print(f"Isolated DB: {state['db_path']}")
+    print(f"Existing Batch Logs: {state['log_dir']}")
+
+
+def _print_kgs_saved_summary(article_id, article_type):
+    summary = get_saved_article_summary(article_id, article_type)
+    if not summary["found"]:
+        print("Archive Summary: not found in isolated state")
+        return
+
+    print("Archive Summary: saved in isolated state")
+    print(f"Article ID: {summary['article_id']}")
+    print(f"Article Type: {summary['article_type']}")
+    print(f"Title: {summary['title']}")
+    print(f"Saved Responses: {summary['response_count']}")
+    print(f"Archive URL: {summary['url']}")
+
+
+def _drop_latest_saved_responses(article_id, article_type, db_path, count):
+    conn = init_db(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT res_no
+            FROM responses
+            WHERE article_id=? AND article_type=?
+            ORDER BY res_no DESC
+            LIMIT ?
+            """,
+            (article_id, article_type, count),
+        )
+        rows = cur.fetchall()
+        if not rows:
+            return 0
+
+        res_numbers = [row[0] for row in rows]
+        placeholders = ", ".join(["?"] * len(res_numbers))
+        cur.execute(
+            f"DELETE FROM responses WHERE article_id=? AND article_type=? "
+            f"AND res_no IN ({placeholders})",
+            (article_id, article_type, *res_numbers),
+        )
+        conn.commit()
+        return len(res_numbers)
+    finally:
+        conn.close()
+
+
+def verify_one_shot_fetch(article_url):
+    identity = parse_target_identity(article_url)
+    if identity is None:
+        print("Verification fetch rejected")
+        print("Reason: input must be a canonical Nicopedia article URL")
+        print(f"Input: {article_url}")
+        return False
+
+    print("=== VERIFICATION FETCH ===")
+    print(f"Target: {identity['canonical_url']}")
+
+    result = run_scrape(identity["canonical_url"])
+    if not result:
+        print("Result: fetch failed")
+        print(f"Outcome: {result.outcome}")
+        return False
+
+    summary = get_saved_article_summary(
+        identity["article_id"],
+        identity["article_type"],
+    )
+    print("Result: fetch completed")
+    print(f"Outcome: {result.outcome}")
+    if summary["found"]:
+        print(f"Article ID: {summary['article_id']}")
+        print(f"Article Type: {summary['article_type']}")
+        print(f"Title: {summary['title']}")
+        print(f"Saved Responses: {summary['response_count']}")
+        print(f"Archive URL: {summary['url']}")
+    return True
+
+
+def verify_registry_list(target_db_path, active_only=False):
+    print("=== VERIFICATION REGISTRY CHECK ===")
+    return list_targets_for_operator(target_db_path, active_only=active_only)
+
+
+def verify_registry_inspect(article_id, article_type, target_db_path):
+    print("=== VERIFICATION REGISTRY CHECK ===")
+    return inspect_target_for_operator(article_id, article_type, target_db_path)
+
+
+def verify_one_shot_batch(target_db_path, run_batch_scrape_func):
+    print("=== VERIFICATION BATCH RUN ===")
+    print(f"Target DB: {target_db_path}")
+
+    final_status, failed_targets = run_batch_scrape_func(target_db_path)
+    print("=== VERIFICATION BATCH SUMMARY ===")
+    print(f"Final Status: {final_status}")
+    print(f"Failed Targets: {failed_targets}")
+    return failed_targets == 0
+
+
+def verify_telemetry_export(db_path, output_path=None):
+    conn = init_db(db_path)
+    try:
+        csv_text = format_run_telemetry_csv_wide(conn)
+    finally:
+        conn.close()
+
+    if output_path is None:
+        print(csv_text, end="")
+        return True
+
+    output_file = Path(output_path)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.write_text(csv_text, encoding="utf-8")
+
+    print("Verification telemetry export written")
+    print(f"DB: {db_path}")
+    print(f"Output: {output_path}")
+    return True
+
+
+def verify_kgs_fetch(article_url, state_dir, followup_drop_last=0):
+    identity = parse_target_identity(article_url)
+    if identity is None:
+        print("KGS smoke rejected")
+        print("Reason: input must be a canonical Nicopedia article URL")
+        print(f"Input: {article_url}")
+        return False
+
+    with _isolated_smoke_environment(state_dir) as state:
+        _print_kgs_header("fetch", identity["canonical_url"], state)
+        print("KGS messages are stdout-only for this helper")
+        print("Phase: initial-fetch")
+
+        result = run_scrape(identity["canonical_url"])
+        if not result:
+            print("Result: initial-fetch failed")
+            print(f"Outcome: {result.outcome}")
+            return False
+
+        print("Result: initial-fetch passed")
+        print(f"Outcome: {result.outcome}")
+        _print_kgs_saved_summary(identity["article_id"], identity["article_type"])
+
+        if followup_drop_last > 0:
+            print("Phase: bounded-follow-up")
+            removed = _drop_latest_saved_responses(
+                identity["article_id"],
+                identity["article_type"],
+                state["db_path"],
+                followup_drop_last,
+            )
+            print(f"Follow-Up Trimmed Responses: {removed}")
+            result = run_scrape(identity["canonical_url"])
+            if not result:
+                print("Result: bounded-follow-up failed")
+                print(f"Outcome: {result.outcome}")
+                return False
+
+            print("Result: bounded-follow-up passed")
+            print(f"Outcome: {result.outcome}")
+            _print_kgs_saved_summary(
+                identity["article_id"],
+                identity["article_type"],
+            )
+
+        print("KGS Summary: pass")
+        print(f"Telemetry DB: {state['db_path']}")
+        return True
+
+
+def verify_kgs_batch(article_url, state_dir, run_batch_scrape_func):
+    identity = parse_target_identity(article_url)
+    if identity is None:
+        print("KGS smoke rejected")
+        print("Reason: input must be a canonical Nicopedia article URL")
+        print(f"Input: {article_url}")
+        return False
+
+    with _isolated_smoke_environment(state_dir) as state:
+        _print_kgs_header("batch", identity["canonical_url"], state)
+        print("KGS messages are stdout-only for this helper")
+        register_result = register_target_url(
+            identity["canonical_url"],
+            state["db_path"],
+        )
+        print(f"Phase: target-registration ({register_result})")
+        print("Phase: batch-run")
+
+        final_status, failed_targets = run_batch_scrape_func(state["db_path"])
+        print("=== KGS BATCH SUMMARY ===")
+        print(f"Final Status: {final_status}")
+        print(f"Failed Targets: {failed_targets}")
+        _print_kgs_saved_summary(identity["article_id"], identity["article_type"])
+        print(f"Telemetry DB: {state['db_path']}")
+        return failed_targets == 0
 
 =============================
 FILE: ./copilot/web_app.py
@@ -18688,7 +20011,8 @@ This repository centers on three bounded seams:
 
 - scrape and save Nicopedia BBS threads
 - keep a DB-backed target registry for periodic operation
-- inspect and export saved archives without turning the product into a full admin console
+- inspect and export saved archives without turning the product into a full
+	admin console
 
 The operator interface for target registry and saved archive management is CLI-first.
 Web admin expansion is intentionally out of scope.
@@ -18731,6 +20055,35 @@ The target add action accepts canonical Nicopedia article URLs only. This keeps
 operator intent non-ambiguous and avoids mixing registry management with article
 resolution flow.
 
+## Verification Entry Points
+
+This repository also includes bounded verification / smoke helpers for a single
+operator.
+
+Two repo-local entry points expose that verification tooling:
+
+- python main.py verify ...
+- sh tools/verify.sh ...
+
+Supported verification actions:
+
+- fetch one canonical article
+- run manual known-good smoke on isolated state
+- check current target registry state
+- run one one-shot batch verification pass
+- export telemetry CSV for verification review
+
+Read-first verification flow:
+
+1. check current registry state
+2. run one light one-shot fetch when needed
+3. run manual KGS on isolated state only when live smoke is needed
+4. inspect the saved archive through the existing operator tooling
+5. run one one-shot batch verification only when needed
+6. export telemetry CSV only when needed for review
+
+KGS remains manual, opt-in, isolated, and non-gating.
+
 ## Existing Flow Commands
 
 The original bounded entry points remain available:
@@ -18748,6 +20101,9 @@ interface for registry or archive management.
 
 See the operator guide in docs/OPERATOR_TOOLING.md for daily and periodic
 registry/archive management.
+
+See docs/VERIFICATION_TOOLING.md for bounded verification / smoke tooling and
+the read-first verification flow.
 
 See docs/PERSONAL_RUNTIME.md for runtime-container-specific notes.
 
@@ -20235,6 +21591,242 @@ These directories are included only as a provisional runtime shape. A later
 task can package scheduling or host deployment more tightly if needed.
 
 =============================
+FILE: ./cursor/docs/VERIFICATION_TOOLING.md
+=============================
+# Verification Tooling
+
+This document describes the bounded verification / smoke tooling for a single
+operator.
+
+It exists to make existing seams easy to check safely and readably.
+
+It reuses:
+
+- the existing one-shot scrape entry
+- the existing target registry seam
+- the existing batch / periodic baseline
+- the existing telemetry / CSV export support layer
+- the existing operator tooling seam
+
+It does not add:
+
+- a scheduler platform
+- a dashboard or analytics platform
+- destructive maintenance actions
+- a default validation gate
+- a new source-of-truth
+
+## KGS Positioning
+
+Known-good smoke (KGS) is part of this verification tooling.
+
+It is:
+
+- manual
+- opt-in
+- non-gating
+- isolated from the main working state
+
+It is not:
+
+- a default validation gate
+- a scheduler platform
+- a destructive maintenance flow
+- a new execution platform
+
+## First Interface
+
+Use either of these equivalent repo-local entry points:
+
+```sh
+python main.py verify ...
+sh tools/verify.sh ...
+```
+
+The shell wrapper is intentionally thin. The Python CLI remains the source of
+behavior.
+
+## Read-First Verification Flow
+
+Use this order unless you have a specific reason not to:
+
+1. check current registry state
+2. run one light one-shot article fetch when needed
+3. run KGS only when you need live smoke on isolated state
+4. inspect the saved archive through the existing operator tooling
+5. run one one-shot batch verification only when you need a broader pass
+6. export telemetry CSV only when you need verification evidence or follow-up review
+
+This keeps verification read-first, one-shot, and non-ambiguous.
+
+## Helpers
+
+### Registry Check
+
+List current registry state:
+
+```sh
+sh tools/verify.sh registry list
+```
+
+List active targets only:
+
+```sh
+sh tools/verify.sh registry list --active-only
+```
+
+Inspect one target by canonical identity:
+
+```sh
+sh tools/verify.sh registry inspect 12345 a
+```
+
+Use `--db PATH` when you need an explicit registry DB path.
+
+### One-Shot Article Fetch
+
+Run a single verification fetch for one canonical article URL:
+
+```sh
+sh tools/verify.sh fetch https://dic.nicovideo.jp/a/12345
+```
+
+This reuses the existing scrape flow and then prints a concise saved-archive
+summary when the fetch succeeds.
+
+Input is intentionally narrow:
+
+- canonical Nicopedia article URL only
+
+That keeps the helper action-oriented and avoids mixing verification fetch with
+title-resolution behavior.
+
+### Known-Good Smoke (KGS)
+
+Run a one-shot live smoke fetch on isolated state:
+
+```sh
+sh tools/verify.sh kgs fetch https://dic.nicovideo.jp/a/12345
+```
+
+Run the same fetch with an explicit isolated state directory:
+
+```sh
+sh tools/verify.sh kgs fetch https://dic.nicovideo.jp/a/12345 \
+	--state-dir runtime/smoke/my_kgs
+```
+
+Run a bounded incremental follow-up smoke on isolated state only:
+
+```sh
+sh tools/verify.sh kgs fetch https://dic.nicovideo.jp/a/12345 --followup-drop-last 3
+```
+
+Run a one-shot KGS batch verification on isolated state:
+
+```sh
+sh tools/verify.sh kgs batch https://dic.nicovideo.jp/a/12345
+```
+
+KGS rules:
+
+- the known-good target is configurable per invocation
+- the helper uses isolated smoke state, not the main working DB/archive
+- KGS-specific guidance messages are stdout-only
+- KGS remains non-gating and manual
+
+Default isolated state directory:
+
+```text
+runtime/smoke/kgs
+```
+
+Inside that state directory the helper uses:
+
+- `data/nicodic.db` for the isolated DB/archive state
+- `logs/` for the existing batch log behavior when KGS batch is used
+
+The helper does not add a new KGS-only persistent log layer. KGS-specific phase
+and status guidance is printed to stdout only.
+
+### Archive Follow-Up
+
+Archive follow-up remains on the existing operator tooling seam:
+
+```sh
+sh tools/operator.sh archive inspect 12345 a --last 20
+sh tools/operator.sh archive export 12345 a --format md --output exports/12345a.md
+```
+
+Verification tooling intentionally reuses that existing archive read / export
+interface instead of creating a second archive management path.
+
+### One-Shot Batch Verification
+
+Run one bounded batch verification pass:
+
+```sh
+sh tools/verify.sh batch run
+```
+
+Use an explicit target registry DB path when needed:
+
+```sh
+sh tools/verify.sh batch run --db runtime/data/nicodic.db
+```
+
+This is a one-shot helper. It is not a scheduler or orchestration framework.
+
+### Telemetry CSV Reference
+
+Export the existing telemetry CSV to stdout:
+
+```sh
+sh tools/verify.sh telemetry export
+```
+
+Write the CSV to a file for later review:
+
+```sh
+sh tools/verify.sh telemetry export --output exports/run_telemetry.csv
+```
+
+Use an explicit telemetry DB path when needed:
+
+```sh
+sh tools/verify.sh telemetry export --db runtime/data/nicodic.db \
+	--output exports/run_telemetry.csv
+```
+
+This helper stays in the support layer. It does not become a dashboard.
+
+After a KGS run, point telemetry export at the isolated DB when you want to
+review smoke telemetry:
+
+```sh
+sh tools/verify.sh telemetry export --db runtime/smoke/kgs/data/nicodic.db
+```
+
+## What This Tooling Does Not Do
+
+- It does not introduce destructive maintenance.
+- It does not introduce a retry / worker / scheduler framework.
+- It does not introduce a healthcheck platform or gating CI flow.
+- It does not replace the existing operator tooling for archive inspection and export.
+- It does not broaden into Web admin.
+
+## Live Smoke Scope
+
+TASK033B adds a bounded KGS helper inside the verification tooling.
+
+Its boundaries are strict:
+
+- manual / opt-in only
+- isolated state only
+- non-gating only
+- stdout-only KGS helper guidance
+- no broad redesign of runtime, batch, or telemetry behavior
+=============================
 FILE: ./cursor/docs/WORKFLOW.md
 =============================
 # Development Workflow
@@ -20439,6 +22031,12 @@ from target_list import (
     parse_target_identity,
     register_target_url,
 )
+from verification_cli import verify_one_shot_batch
+from verification_cli import verify_one_shot_fetch
+from verification_cli import verify_registry_inspect, verify_registry_list
+from verification_cli import verify_telemetry_export
+from verification_cli import DEFAULT_KGS_STATE_DIR
+from verification_cli import verify_kgs_batch, verify_kgs_fetch
 from web_app import serve_web_app
 
 
@@ -20668,6 +22266,32 @@ def _print_operator_usage():
     )
 
 
+def _print_verification_usage():
+    print("Verification usage:")
+    print("  python main.py verify fetch <canonical_article_url>")
+    print(
+        "  python main.py verify kgs fetch <canonical_article_url> "
+        "[--state-dir PATH] [--followup-drop-last N]"
+    )
+    print(
+        "  python main.py verify kgs batch <canonical_article_url> "
+        "[--state-dir PATH]"
+    )
+    print(
+        "  python main.py verify registry list "
+        "[--db PATH] [--active-only]"
+    )
+    print(
+        "  python main.py verify registry inspect <article_id> "
+        "<article_type> [--db PATH]"
+    )
+    print("  python main.py verify batch run [--db PATH]")
+    print(
+        "  python main.py verify telemetry export "
+        "[--db PATH] [--output PATH]"
+    )
+
+
 def _handle_operator_target(args):
     if not args:
         _print_operator_usage()
@@ -20807,6 +22431,139 @@ def _handle_operator_cli(args):
     sys.exit(1)
 
 
+def _handle_verification_registry(args):
+    if not args:
+        _print_verification_usage()
+        sys.exit(1)
+
+    action = args[0]
+    target_db_path = _read_optional_flag(args, "--db", DEFAULT_TARGET_DB_PATH)
+
+    if action == "list":
+        active_only = "--active-only" in args[1:]
+        if not verify_registry_list(target_db_path, active_only=active_only):
+            sys.exit(1)
+        return
+
+    if action == "inspect":
+        if len(args) < 3:
+            print(
+                "Usage: verify registry inspect <article_id> "
+                "<article_type> [--db PATH]"
+            )
+            sys.exit(1)
+        if not verify_registry_inspect(args[1], args[2], target_db_path):
+            sys.exit(1)
+        return
+
+    _print_verification_usage()
+    sys.exit(1)
+
+
+def _handle_verification_batch(args):
+    if not args or args[0] != "run":
+        print("Usage: verify batch run [--db PATH]")
+        sys.exit(1)
+
+    target_db_path = _read_optional_flag(args, "--db", DEFAULT_TARGET_DB_PATH)
+    if not verify_one_shot_batch(target_db_path, run_batch_scrape):
+        sys.exit(1)
+
+
+def _handle_verification_telemetry(args):
+    if not args or args[0] != "export":
+        print("Usage: verify telemetry export [--db PATH] [--output PATH]")
+        sys.exit(1)
+
+    try:
+        db_path = _read_optional_flag(
+            args,
+            "--db",
+            _telemetry_archive_db_path(),
+        )
+        output_path = _read_optional_flag(args, "--output", None)
+    except ValueError:
+        print("Usage: verify telemetry export [--db PATH] [--output PATH]")
+        sys.exit(1)
+
+    if not verify_telemetry_export(db_path, output_path=output_path):
+        sys.exit(1)
+
+
+def _handle_verification_kgs(args):
+    if len(args) < 2:
+        _print_verification_usage()
+        sys.exit(1)
+
+    action = args[0]
+    article_url = args[1]
+    state_dir = _read_optional_flag(args, "--state-dir", DEFAULT_KGS_STATE_DIR)
+
+    if action == "fetch":
+        followup_drop_last = 0
+        if "--followup-drop-last" in args:
+            try:
+                followup_drop_last = int(
+                    _read_optional_flag(args, "--followup-drop-last"),
+                )
+            except ValueError:
+                print(
+                    "Usage: verify kgs fetch <canonical_article_url> "
+                    "[--state-dir PATH] [--followup-drop-last N]"
+                )
+                sys.exit(1)
+
+        if not verify_kgs_fetch(
+            article_url,
+            state_dir,
+            followup_drop_last=followup_drop_last,
+        ):
+            sys.exit(1)
+        return
+
+    if action == "batch":
+        if not verify_kgs_batch(article_url, state_dir, run_batch_scrape):
+            sys.exit(1)
+        return
+
+    _print_verification_usage()
+    sys.exit(1)
+
+
+def _handle_verification_cli(args):
+    if not args:
+        _print_verification_usage()
+        sys.exit(1)
+
+    area = args[0]
+    if area == "fetch":
+        if len(args) < 2:
+            print("Usage: verify fetch <canonical_article_url>")
+            sys.exit(1)
+        if not verify_one_shot_fetch(args[1]):
+            sys.exit(1)
+        return
+
+    if area == "kgs":
+        _handle_verification_kgs(args[1:])
+        return
+
+    if area == "registry":
+        _handle_verification_registry(args[1:])
+        return
+
+    if area == "batch":
+        _handle_verification_batch(args[1:])
+        return
+
+    if area == "telemetry":
+        _handle_verification_telemetry(args[1:])
+        return
+
+    _print_verification_usage()
+    sys.exit(1)
+
+
 def main():
     """
     CLIエントリポイント。
@@ -20818,6 +22575,9 @@ def main():
         print("Usage:")
         print("  python main.py <article_url>")
         print("  python main.py operator <target|archive> ...")
+        print(
+            "  python main.py verify <fetch|kgs|registry|batch|telemetry> ..."
+        )
         print("  python main.py inspect <article_id> <article_type> [--last N]")
         print("  python main.py export <article_id> <article_type> --format txt")
         print("  python main.py export <article_id> <article_type> --format md")
@@ -20848,6 +22608,10 @@ def main():
 
     if sys.argv[1] == "operator":
         _handle_operator_cli(sys.argv[2:])
+        return
+
+    if sys.argv[1] == "verify":
+        _handle_verification_cli(sys.argv[2:])
         return
 
     # inspectモード
@@ -23720,6 +25484,137 @@ def test_main_operator_without_required_args_exits_with_usage(capsys):
     assert "operator archive export" in out
 
 
+@patch("main.verify_one_shot_fetch")
+def test_main_verify_fetch_calls_verification_helper(mock_verify_fetch):
+    mock_verify_fetch.return_value = True
+
+    with patch(
+        "sys.argv",
+        ["main.py", "verify", "fetch", "https://dic.nicovideo.jp/a/12345"],
+    ):
+        main_module.main()
+
+    mock_verify_fetch.assert_called_once_with(
+        "https://dic.nicovideo.jp/a/12345"
+    )
+
+
+@patch("main.verify_kgs_fetch")
+def test_main_verify_kgs_fetch_calls_verification_helper(mock_verify_kgs_fetch):
+    mock_verify_kgs_fetch.return_value = True
+
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "verify",
+            "kgs",
+            "fetch",
+            "https://dic.nicovideo.jp/a/12345",
+            "--state-dir",
+            "runtime/smoke/custom",
+            "--followup-drop-last",
+            "2",
+        ],
+    ):
+        main_module.main()
+
+    mock_verify_kgs_fetch.assert_called_once_with(
+        "https://dic.nicovideo.jp/a/12345",
+        "runtime/smoke/custom",
+        followup_drop_last=2,
+    )
+
+
+@patch("main.verify_kgs_batch")
+def test_main_verify_kgs_batch_calls_verification_helper(mock_verify_kgs_batch):
+    mock_verify_kgs_batch.return_value = True
+
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "verify",
+            "kgs",
+            "batch",
+            "https://dic.nicovideo.jp/a/12345",
+        ],
+    ):
+        main_module.main()
+
+    args = mock_verify_kgs_batch.call_args.args
+    assert args[0] == "https://dic.nicovideo.jp/a/12345"
+    assert args[1] == "runtime/smoke/kgs"
+    assert args[2] is main_module.run_batch_scrape
+
+
+@patch("main.verify_registry_list")
+def test_main_verify_registry_list_calls_verification_helper(
+    mock_verify_registry_list,
+):
+    mock_verify_registry_list.return_value = True
+
+    with patch("sys.argv", ["main.py", "verify", "registry", "list"]):
+        main_module.main()
+
+    mock_verify_registry_list.assert_called_once_with(
+        "data/nicodic.db",
+        active_only=False,
+    )
+
+
+@patch("main.verify_one_shot_batch")
+def test_main_verify_batch_calls_verification_helper(mock_verify_batch):
+    mock_verify_batch.return_value = True
+
+    with patch("sys.argv", ["main.py", "verify", "batch", "run"]):
+        main_module.main()
+
+    args = mock_verify_batch.call_args.args
+    assert args[0] == "data/nicodic.db"
+    assert args[1] is main_module.run_batch_scrape
+
+
+@patch("main.verify_telemetry_export")
+def test_main_verify_telemetry_export_calls_verification_helper(
+    mock_verify_telemetry_export,
+):
+    mock_verify_telemetry_export.return_value = True
+
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "verify",
+            "telemetry",
+            "export",
+            "--db",
+            "telemetry.db",
+            "--output",
+            "out.csv",
+        ],
+    ):
+        main_module.main()
+
+    mock_verify_telemetry_export.assert_called_once_with(
+        "telemetry.db",
+        output_path="out.csv",
+    )
+
+
+def test_main_verify_without_required_args_exits_with_usage(capsys):
+    with patch("sys.argv", ["main.py", "verify"]):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    out = capsys.readouterr().out
+    assert "Verification usage:" in out
+    assert "verify fetch" in out
+    assert "verify kgs fetch" in out
+    assert "verify telemetry export" in out
+
+
 def test_main_too_few_args_exits_with_usage(capsys):
     with patch("sys.argv", ["main.py"]):
         with pytest.raises(SystemExit) as exc_info:
@@ -23728,6 +25623,7 @@ def test_main_too_few_args_exits_with_usage(capsys):
     out = capsys.readouterr().out
     assert "python main.py <article_url>" in out
     assert "python main.py operator <target|archive> ..." in out
+    assert "python main.py verify <fetch|kgs|registry|batch|telemetry> ..." in out
     assert "inspect" in out
     assert "export <article_id> <article_type> --format txt" in out
     assert "export <article_id> <article_type> --format md" in out
@@ -25968,6 +27864,190 @@ def test_deactivate_and_reactivate_target_return_operator_facing_result(tmp_path
     assert reactivated["entry"]["is_active"] is True
 
 =============================
+FILE: ./cursor/tests/test_verification_cli.py
+=============================
+from unittest.mock import patch
+
+from verification_cli import (
+    verify_kgs_batch,
+    verify_kgs_fetch,
+    verify_one_shot_batch,
+    verify_one_shot_fetch,
+    verify_telemetry_export,
+)
+
+
+class _DummyScrapeResult:
+    def __init__(self, ok, outcome):
+        self.ok = ok
+        self.outcome = outcome
+
+    def __bool__(self):
+        return self.ok
+
+
+def test_verify_one_shot_fetch_rejects_non_canonical_input(capsys):
+    assert verify_one_shot_fetch("not-a-url") is False
+
+    out = capsys.readouterr().out
+    assert "Verification fetch rejected" in out
+    assert "canonical Nicopedia article URL" in out
+
+
+def test_verify_one_shot_fetch_prints_saved_summary_on_success(capsys):
+    with patch(
+        "verification_cli.run_scrape",
+        return_value=_DummyScrapeResult(True, "ok"),
+    ), patch(
+        "verification_cli.get_saved_article_summary",
+        return_value={
+            "found": True,
+            "article_id": "12345",
+            "article_type": "a",
+            "title": "Foo",
+            "url": "https://dic.nicovideo.jp/a/12345",
+            "created_at": "2026-01-01 00:00:00",
+            "response_count": 12,
+        },
+    ):
+        assert verify_one_shot_fetch("https://dic.nicovideo.jp/a/12345") is True
+
+    out = capsys.readouterr().out
+    assert "=== VERIFICATION FETCH ===" in out
+    assert "Result: fetch completed" in out
+    assert "Saved Responses: 12" in out
+
+
+def test_verify_one_shot_batch_prints_summary_and_failure_count(capsys):
+    def _run_batch_scrape(_target_db_path):
+        return "partial_failure", 2
+
+    assert verify_one_shot_batch("targets.db", _run_batch_scrape) is False
+
+    out = capsys.readouterr().out
+    assert "=== VERIFICATION BATCH RUN ===" in out
+    assert "Final Status: partial_failure" in out
+    assert "Failed Targets: 2" in out
+
+
+def test_verify_telemetry_export_writes_output_file(tmp_path, capsys):
+    db_path = str(tmp_path / "telemetry.db")
+    output_path = tmp_path / "exports" / "telemetry.csv"
+
+    assert verify_telemetry_export(db_path, output_path=str(output_path)) is True
+
+    out = capsys.readouterr().out
+    assert "Verification telemetry export written" in out
+    assert output_path.is_file()
+    content = output_path.read_text(encoding="utf-8")
+    assert "article_id" in content
+
+
+def test_verify_kgs_fetch_uses_isolated_state_and_stdout_guidance(
+    tmp_path,
+    capsys,
+):
+    state_dir = tmp_path / "smoke-state"
+
+    with patch(
+        "verification_cli.run_scrape",
+        return_value=_DummyScrapeResult(True, "ok"),
+    ), patch(
+        "verification_cli.get_saved_article_summary",
+        return_value={
+            "found": True,
+            "article_id": "12345",
+            "article_type": "a",
+            "title": "Foo",
+            "url": "https://dic.nicovideo.jp/a/12345",
+            "created_at": "2026-01-01 00:00:00",
+            "response_count": 12,
+        },
+    ):
+        assert verify_kgs_fetch(
+            "https://dic.nicovideo.jp/a/12345",
+            str(state_dir),
+        ) is True
+
+    out = capsys.readouterr().out
+    assert "=== KGS LIVE SMOKE ===" in out
+    assert "Mode: manual opt-in non-gating helper" in out
+    assert "Isolated State Dir:" in out
+    assert "KGS messages are stdout-only" in out
+    assert "KGS Summary: pass" in out
+
+
+def test_verify_kgs_fetch_runs_bounded_followup_when_requested(tmp_path, capsys):
+    state_dir = tmp_path / "smoke-state"
+
+    with patch(
+        "verification_cli.run_scrape",
+        side_effect=[
+            _DummyScrapeResult(True, "ok"),
+            _DummyScrapeResult(True, "ok"),
+        ],
+    ), patch(
+        "verification_cli.get_saved_article_summary",
+        return_value={
+            "found": True,
+            "article_id": "12345",
+            "article_type": "a",
+            "title": "Foo",
+            "url": "https://dic.nicovideo.jp/a/12345",
+            "created_at": "2026-01-01 00:00:00",
+            "response_count": 12,
+        },
+    ), patch(
+        "verification_cli._drop_latest_saved_responses",
+        return_value=3,
+    ) as mock_trim:
+        assert verify_kgs_fetch(
+            "https://dic.nicovideo.jp/a/12345",
+            str(state_dir),
+            followup_drop_last=3,
+        ) is True
+
+    mock_trim.assert_called_once()
+    out = capsys.readouterr().out
+    assert "Phase: bounded-follow-up" in out
+    assert "Follow-Up Trimmed Responses: 3" in out
+    assert "Result: bounded-follow-up passed" in out
+
+
+def test_verify_kgs_batch_registers_target_and_runs_batch(tmp_path, capsys):
+    state_dir = tmp_path / "smoke-state"
+
+    def _run_batch_scrape(_target_db_path):
+        return "success", 0
+
+    with patch(
+        "verification_cli.register_target_url",
+        return_value="added",
+    ), patch(
+        "verification_cli.get_saved_article_summary",
+        return_value={
+            "found": True,
+            "article_id": "12345",
+            "article_type": "a",
+            "title": "Foo",
+            "url": "https://dic.nicovideo.jp/a/12345",
+            "created_at": "2026-01-01 00:00:00",
+            "response_count": 12,
+        },
+    ):
+        assert verify_kgs_batch(
+            "https://dic.nicovideo.jp/a/12345",
+            str(state_dir),
+            _run_batch_scrape,
+        ) is True
+
+    out = capsys.readouterr().out
+    assert "Action: batch" in out
+    assert "Phase: target-registration (added)" in out
+    assert "=== KGS BATCH SUMMARY ===" in out
+    assert "Final Status: success" in out
+
+=============================
 FILE: ./cursor/tests/test_web_app.py
 =============================
 from io import BytesIO
@@ -26517,6 +28597,285 @@ REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 
 cd "$REPO_ROOT"
 python main.py operator "$@"
+
+=============================
+FILE: ./cursor/tools/verify.sh
+=============================
+#!/bin/sh
+
+set -eu
+
+SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
+REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
+
+cd "$REPO_ROOT"
+python main.py verify "$@"
+
+=============================
+FILE: ./cursor/verification_cli.py
+=============================
+import os
+from contextlib import contextmanager
+from pathlib import Path
+
+from archive_read import get_saved_article_summary
+from operator_cli import inspect_target_for_operator, list_targets_for_operator
+from orchestrator import run_scrape
+from storage import format_run_telemetry_csv_wide, init_db
+from target_list import parse_target_identity, register_target_url
+
+
+DEFAULT_KGS_STATE_DIR = "runtime/smoke/kgs"
+
+
+def _kgs_db_path(state_dir):
+    return str(Path(state_dir) / "data" / "nicodic.db")
+
+
+def _kgs_log_dir(state_dir):
+    return str(Path(state_dir) / "logs")
+
+
+@contextmanager
+def _isolated_smoke_environment(state_dir):
+    state_path = Path(state_dir)
+    data_dir = state_path / "data"
+    log_dir = state_path / "logs"
+    data_dir.mkdir(parents=True, exist_ok=True)
+    log_dir.mkdir(parents=True, exist_ok=True)
+
+    previous_cwd = Path.cwd()
+    old_nicodic_db_path = os.environ.get("NICODIC_DB_PATH")
+    old_batch_log_dir = os.environ.get("BATCH_LOG_DIR")
+
+    os.environ["NICODIC_DB_PATH"] = str(data_dir / "nicodic.db")
+    os.environ["BATCH_LOG_DIR"] = str(log_dir)
+    os.chdir(state_path)
+
+    try:
+        yield {
+            "state_dir": str(state_path),
+            "db_path": str(data_dir / "nicodic.db"),
+            "log_dir": str(log_dir),
+        }
+    finally:
+        os.chdir(previous_cwd)
+
+        if old_nicodic_db_path is None:
+            os.environ.pop("NICODIC_DB_PATH", None)
+        else:
+            os.environ["NICODIC_DB_PATH"] = old_nicodic_db_path
+
+        if old_batch_log_dir is None:
+            os.environ.pop("BATCH_LOG_DIR", None)
+        else:
+            os.environ["BATCH_LOG_DIR"] = old_batch_log_dir
+
+
+def _print_kgs_header(action, article_url, state):
+    print("=== KGS LIVE SMOKE ===")
+    print("Mode: manual opt-in non-gating helper")
+    print(f"Action: {action}")
+    print(f"Known-Good Target: {article_url}")
+    print(f"Isolated State Dir: {state['state_dir']}")
+    print(f"Isolated DB: {state['db_path']}")
+    print(f"Existing Batch Logs: {state['log_dir']}")
+
+
+def _print_kgs_saved_summary(article_id, article_type):
+    summary = get_saved_article_summary(article_id, article_type)
+    if not summary["found"]:
+        print("Archive Summary: not found in isolated state")
+        return
+
+    print("Archive Summary: saved in isolated state")
+    print(f"Article ID: {summary['article_id']}")
+    print(f"Article Type: {summary['article_type']}")
+    print(f"Title: {summary['title']}")
+    print(f"Saved Responses: {summary['response_count']}")
+    print(f"Archive URL: {summary['url']}")
+
+
+def _drop_latest_saved_responses(article_id, article_type, db_path, count):
+    conn = init_db(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT res_no
+            FROM responses
+            WHERE article_id=? AND article_type=?
+            ORDER BY res_no DESC
+            LIMIT ?
+            """,
+            (article_id, article_type, count),
+        )
+        rows = cur.fetchall()
+        if not rows:
+            return 0
+
+        res_numbers = [row[0] for row in rows]
+        placeholders = ", ".join(["?"] * len(res_numbers))
+        cur.execute(
+            f"DELETE FROM responses WHERE article_id=? AND article_type=? "
+            f"AND res_no IN ({placeholders})",
+            (article_id, article_type, *res_numbers),
+        )
+        conn.commit()
+        return len(res_numbers)
+    finally:
+        conn.close()
+
+
+def verify_one_shot_fetch(article_url):
+    identity = parse_target_identity(article_url)
+    if identity is None:
+        print("Verification fetch rejected")
+        print("Reason: input must be a canonical Nicopedia article URL")
+        print(f"Input: {article_url}")
+        return False
+
+    print("=== VERIFICATION FETCH ===")
+    print(f"Target: {identity['canonical_url']}")
+
+    result = run_scrape(identity["canonical_url"])
+    if not result:
+        print("Result: fetch failed")
+        print(f"Outcome: {result.outcome}")
+        return False
+
+    summary = get_saved_article_summary(
+        identity["article_id"],
+        identity["article_type"],
+    )
+    print("Result: fetch completed")
+    print(f"Outcome: {result.outcome}")
+    if summary["found"]:
+        print(f"Article ID: {summary['article_id']}")
+        print(f"Article Type: {summary['article_type']}")
+        print(f"Title: {summary['title']}")
+        print(f"Saved Responses: {summary['response_count']}")
+        print(f"Archive URL: {summary['url']}")
+    return True
+
+
+def verify_registry_list(target_db_path, active_only=False):
+    print("=== VERIFICATION REGISTRY CHECK ===")
+    return list_targets_for_operator(target_db_path, active_only=active_only)
+
+
+def verify_registry_inspect(article_id, article_type, target_db_path):
+    print("=== VERIFICATION REGISTRY CHECK ===")
+    return inspect_target_for_operator(article_id, article_type, target_db_path)
+
+
+def verify_one_shot_batch(target_db_path, run_batch_scrape_func):
+    print("=== VERIFICATION BATCH RUN ===")
+    print(f"Target DB: {target_db_path}")
+
+    final_status, failed_targets = run_batch_scrape_func(target_db_path)
+    print("=== VERIFICATION BATCH SUMMARY ===")
+    print(f"Final Status: {final_status}")
+    print(f"Failed Targets: {failed_targets}")
+    return failed_targets == 0
+
+
+def verify_telemetry_export(db_path, output_path=None):
+    conn = init_db(db_path)
+    try:
+        csv_text = format_run_telemetry_csv_wide(conn)
+    finally:
+        conn.close()
+
+    if output_path is None:
+        print(csv_text, end="")
+        return True
+
+    output_file = Path(output_path)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.write_text(csv_text, encoding="utf-8")
+
+    print("Verification telemetry export written")
+    print(f"DB: {db_path}")
+    print(f"Output: {output_path}")
+    return True
+
+
+def verify_kgs_fetch(article_url, state_dir, followup_drop_last=0):
+    identity = parse_target_identity(article_url)
+    if identity is None:
+        print("KGS smoke rejected")
+        print("Reason: input must be a canonical Nicopedia article URL")
+        print(f"Input: {article_url}")
+        return False
+
+    with _isolated_smoke_environment(state_dir) as state:
+        _print_kgs_header("fetch", identity["canonical_url"], state)
+        print("KGS messages are stdout-only for this helper")
+        print("Phase: initial-fetch")
+
+        result = run_scrape(identity["canonical_url"])
+        if not result:
+            print("Result: initial-fetch failed")
+            print(f"Outcome: {result.outcome}")
+            return False
+
+        print("Result: initial-fetch passed")
+        print(f"Outcome: {result.outcome}")
+        _print_kgs_saved_summary(identity["article_id"], identity["article_type"])
+
+        if followup_drop_last > 0:
+            print("Phase: bounded-follow-up")
+            removed = _drop_latest_saved_responses(
+                identity["article_id"],
+                identity["article_type"],
+                state["db_path"],
+                followup_drop_last,
+            )
+            print(f"Follow-Up Trimmed Responses: {removed}")
+            result = run_scrape(identity["canonical_url"])
+            if not result:
+                print("Result: bounded-follow-up failed")
+                print(f"Outcome: {result.outcome}")
+                return False
+
+            print("Result: bounded-follow-up passed")
+            print(f"Outcome: {result.outcome}")
+            _print_kgs_saved_summary(
+                identity["article_id"],
+                identity["article_type"],
+            )
+
+        print("KGS Summary: pass")
+        print(f"Telemetry DB: {state['db_path']}")
+        return True
+
+
+def verify_kgs_batch(article_url, state_dir, run_batch_scrape_func):
+    identity = parse_target_identity(article_url)
+    if identity is None:
+        print("KGS smoke rejected")
+        print("Reason: input must be a canonical Nicopedia article URL")
+        print(f"Input: {article_url}")
+        return False
+
+    with _isolated_smoke_environment(state_dir) as state:
+        _print_kgs_header("batch", identity["canonical_url"], state)
+        print("KGS messages are stdout-only for this helper")
+        register_result = register_target_url(
+            identity["canonical_url"],
+            state["db_path"],
+        )
+        print(f"Phase: target-registration ({register_result})")
+        print("Phase: batch-run")
+
+        final_status, failed_targets = run_batch_scrape_func(state["db_path"])
+        print("=== KGS BATCH SUMMARY ===")
+        print(f"Final Status: {final_status}")
+        print(f"Failed Targets: {failed_targets}")
+        _print_kgs_saved_summary(identity["article_id"], identity["article_type"])
+        print(f"Telemetry DB: {state['db_path']}")
+        return failed_targets == 0
 
 =============================
 FILE: ./cursor/web_app.py
