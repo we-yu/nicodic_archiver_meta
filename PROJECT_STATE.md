@@ -760,6 +760,79 @@ Interpretation:
 - target delete remains out of scope
 - telemetry remains auxiliary rather than the main operator surface
 
+## TASK033
+Completed.
+
+Outcome summary:
+- a bounded human-friendly verification / smoke tooling seam was added for a
+  single operator
+- the first interface remains CLI / shell-tooling
+- verification helpers reuse existing seams rather than introducing a new
+  platform
+- verification flow is read-first, human-readable, and bounded
+- verification tooling now includes:
+  - one-shot verification fetch
+  - target registry confirmation helpers
+  - one-shot batch verification helpers
+  - telemetry CSV verification follow-up helpers
+  - verification-focused docs and usage guidance
+- the task remained bounded and did not expand into:
+  - dashboard / observability platform work
+  - Web admin
+  - scheduler / retry framework
+  - destructive maintenance
+  - PostgreSQL migration
+  - DB containerization
+
+Adoption result:
+- Copilot implementation adopted
+- Cursor implementation retained as review evidence
+- both child repositories were later converged onto the adopted final state
+
+Interpretation:
+- the project now has a practical bounded verification / smoke tooling seam
+  layered on top of the existing operator/runtime baseline
+- verification remains an operator helper layer rather than a platform
+
+## TASK033B
+Completed.
+
+Outcome summary:
+- a bounded known-good smoke (KGS) helper was added inside the existing
+  TASK033 verification tooling seam
+- KGS remains:
+  - manual
+  - opt-in
+  - isolated
+  - non-gating
+- KGS-specific helper guidance is stdout-only
+- the implementation reuses existing seams rather than introducing a new
+  execution platform
+- verification tooling now supports bounded KGS fetch / batch-style smoke on
+  isolated state
+- the task remained bounded and did not expand into:
+  - CI / PR gating
+  - scheduler / retry framework
+  - destructive maintenance against the main working state
+  - dashboard / observability platform
+  - Web admin
+  - PostgreSQL migration
+  - DB containerization
+
+Adoption result:
+- Copilot implementation adopted
+- Cursor implementation retained as review evidence
+- both child repositories were later converged onto the adopted final state
+
+Interpretation:
+- the current verification baseline should be read as TASK033 + TASK033B
+- the project now has bounded verification tooling plus a bounded KGS helper
+- KGS is part of verification tooling, not a separate platform
+- stdout-only KGS guidance and isolated smoke state are now part of the
+  working baseline
+- richer KGS ergonomics remain optional later work rather than missing current
+  state
+
 Current application structure:
 
 main.py
@@ -885,7 +958,7 @@ It is not used as:
 
 NEXT TASK
 
-TASK032 is complete.
+TASK033 and TASK033b are complete.
 
 A roadmap reference exists for future-direction context only:
 
