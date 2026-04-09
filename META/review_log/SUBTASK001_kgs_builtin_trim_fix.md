@@ -99,6 +99,17 @@ Confirmed on merged `main` for UNIX:
 - convergence was confirmed after synchronization
 - working trees were cleaned after merge and branch cleanup
 
+## Tooling note
+The existing host-side helper `tools/kgs_smoke.sh` is now present on mainline.
+
+However, this subtask should be interpreted primarily as a built-in KGS
+correctness fix, not as the introduction of a new helper-centered workflow.
+
+In other words:
+- `tools/kgs_smoke.sh` remains an operator-facing helper
+- the main correctness change in this subtask is the built-in canonical-ID
+  trim resolution inside `verification_cli.py`
+
 ## Interpretation
 Current verification baseline should now be read as:
 
