@@ -833,6 +833,44 @@ Interpretation:
 - richer KGS ergonomics remain optional later work rather than missing current
   state
 
+## SUBTASK001
+Completed.
+
+Outcome summary:
+- a bounded built-in KGS follow-up trim defect was fixed
+- the defect was caused by identity mismatch between:
+  - URL-slug-side article identity
+  - saved canonical article identity in isolated state
+- built-in KGS follow-up trim now resolves the saved canonical article ID
+  from isolated DB state before trimming
+- bounded KGS debug visibility was added around trim behavior, including:
+  - requested drop count
+  - trim target identity
+  - saved counts before / after
+  - selected response numbers
+- the work remained bounded and did not expand into:
+  - scrape redesign
+  - storage schema redesign
+  - queue / scheduler work
+  - Web / dashboard work
+  - destructive maintenance tooling
+
+Adoption result:
+- Copilot sideflow result adopted into product `main`
+- both child repositories now reflect the same adopted final state on `main`
+
+Interpretation:
+- current verification baseline should now be read as:
+  - TASK033
+  - TASK033B
+  - SUBTASK001 built-in KGS follow-up trim correction
+- KGS remains:
+  - manual
+  - opt-in
+  - isolated
+  - non-gating
+- stdout-only human-readable KGS guidance remains part of the working baseline
+
 Current application structure:
 
 main.py

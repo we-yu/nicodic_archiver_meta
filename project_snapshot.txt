@@ -1833,6 +1833,44 @@ Interpretation:
 - richer KGS ergonomics remain optional later work rather than missing current
   state
 
+## SUBTASK001
+Completed.
+
+Outcome summary:
+- a bounded built-in KGS follow-up trim defect was fixed
+- the defect was caused by identity mismatch between:
+  - URL-slug-side article identity
+  - saved canonical article identity in isolated state
+- built-in KGS follow-up trim now resolves the saved canonical article ID
+  from isolated DB state before trimming
+- bounded KGS debug visibility was added around trim behavior, including:
+  - requested drop count
+  - trim target identity
+  - saved counts before / after
+  - selected response numbers
+- the work remained bounded and did not expand into:
+  - scrape redesign
+  - storage schema redesign
+  - queue / scheduler work
+  - Web / dashboard work
+  - destructive maintenance tooling
+
+Adoption result:
+- Copilot sideflow result adopted into product `main`
+- both child repositories now reflect the same adopted final state on `main`
+
+Interpretation:
+- current verification baseline should now be read as:
+  - TASK033
+  - TASK033B
+  - SUBTASK001 built-in KGS follow-up trim correction
+- KGS remains:
+  - manual
+  - opt-in
+  - isolated
+  - non-gating
+- stdout-only human-readable KGS guidance remains part of the working baseline
+
 Current application structure:
 
 main.py
@@ -2821,6 +2859,135 @@ Important current interpretation:
 - broader observability, GUI admin expansion, PostgreSQL migration,
   DB containerization, and wider dashboard/platform work remain deferred
   unless a later task explicitly brings them into scope
+
+
+===== REVIEW LOG: META/review_log/SUBTASK001_kgs_builtin_trim_fix.md =====
+# SUBTASK001 KGS Builtin Trim Fix
+
+## Task
+SUBTASK001
+
+Fix the built-in KGS follow-up trim path so that
+`--followup-drop-last N` trims saved responses using the saved canonical
+article identity from isolated state, instead of using the URL slug identity.
+
+## Positioning
+This is a bounded subtask on top of the adopted TASK033 / TASK033B baseline.
+
+It is not a new mainline task family expansion.
+It is a correctness fix inside the existing verification / KGS seam.
+
+## Background
+After TASK033 / TASK033B had already been adopted, built-in KGS follow-up
+showed a defect during direct observation.
+
+Observed behavior:
+- initial fetch saved responses correctly
+- built-in follow-up trim reported `Follow-Up Trimmed Responses: 0`
+- follow-up state did not actually trim saved responses
+
+This was reproduced directly with built-in KGS follow-up,
+not only through helper-based smoke.
+
+## Root cause
+The built-in KGS follow-up trim path used the slug-side identity from
+`parse_target_identity(...)`, while saved archive rows in isolated state were
+stored under the canonical saved article ID.
+
+Representative observed example:
+- target URL: `https://dic.nicovideo.jp/a/unix`
+- slug-side identity: `unix`
+- saved canonical article ID in DB: `694740`
+
+As a result, trim tried to delete rows using `article_id='unix'`,
+while the saved rows existed under `article_id='694740'`.
+
+That mismatch caused:
+- `saved_response_count_before=0`
+- `selected_res_nos=[]`
+- `actual_removed=0`
+
+## What changed
+Changed file:
+- `verification_cli.py`
+
+Added/fixed behavior:
+- built-in KGS follow-up now resolves the saved canonical article ID
+  from isolated DB state using:
+  - `canonical_url`
+  - `article_type`
+- follow-up trim now uses that resolved canonical article ID
+- bounded human-readable trim debug lines were added around:
+  - requested drop count
+  - trim target article ID
+  - saved counts before / after
+  - selected response numbers
+  - actual removed count
+
+## Validation summary
+The following bounded observation / fix cycle was completed in this thread:
+
+1. authoritative current state and side-flow candidate were separated
+2. helper-based observation was distinguished from built-in observation
+3. built-in KGS follow-up was directly observed on:
+   - UNIX
+   - ファミリーマート
+4. the trim-0 symptom was reproduced on built-in follow-up
+5. internal trim debug was added
+6. saved DB / JSON state was inspected directly
+7. canonical-vs-slug identity mismatch was identified
+8. `verification_cli.py` was corrected to resolve canonical saved article ID
+9. the fix was validated on built-in KGS follow-up
+10. the fix was merged to child-repo `main`
+11. `copilot/` and `cursor/` were realigned to the same final state
+
+## Confirmed fixed behavior
+Confirmed on merged `main` for UNIX:
+
+- `identity_article_id=unix`
+- `canonical_article_id=694740`
+- trim target article ID became `694740`
+- trim observed:
+  - `saved_response_count_before=50`
+  - `selected_res_nos=[50, 49, 48, 47, 46]`
+  - `actual_removed=5`
+  - `saved_response_count_after=45`
+- follow-up resumed from:
+  - `max_saved_res_no=45`
+- bounded re-fetch collected 5 responses
+- final saved response count returned to 50
+
+## Repository outcome
+- the fix was adopted into child-repo `main`
+- both `copilot/` and `cursor/` were pulled forward to the same merged main
+- convergence was confirmed after synchronization
+- working trees were cleaned after merge and branch cleanup
+
+## Interpretation
+Current verification baseline should now be read as:
+
+- TASK033
+- TASK033B
+- SUBTASK001 built-in KGS canonical trim fix
+
+KGS still remains:
+- manual
+- opt-in
+- isolated
+- non-gating
+
+The change does not widen KGS into a new platform.
+It fixes a concrete built-in correctness issue inside the existing bounded seam.
+
+## Meta note
+This log is AI-readable review memory.
+It is not authoritative current state by itself.
+
+Authoritative context should still be restored from:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
 
 
 ===== REVIEW LOG: META/review_log/TASK002_adoption.md =====
@@ -7145,7 +7312,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Mon Mar 30 09:08:55 UTC 2026
+generated: Thu Apr  9 15:40:16 UTC 2026
 mode: full
 
 
@@ -12106,6 +12273,31 @@ Its boundaries are strict:
 - non-gating only
 - stdout-only KGS helper guidance
 - no broad redesign of runtime, batch, or telemetry behavior
+
+## Host-side convenience helper for KGS smoke (Known good smoke)
+
+For practical local verification, a host-side wrapper may be used:
+
+- `bash tools/kgs_smoke.sh <canonical_article_url>`
+
+This helper is intended to provide a more explicit end-to-end KGS flow than
+manual repeated command entry.
+
+Expected flow:
+- start or reuse the runtime container
+- perform an initial isolated KGS fetch
+- trim the last few saved responses inside isolated state
+- run a follow-up KGS fetch against the same isolated state
+- export telemetry CSV
+- clean up isolated smoke state on success
+
+Important:
+- this helper is still manual / opt-in
+- it is still non-gating
+- it must operate only on isolated smoke state
+- it must not modify the main working DB / archive
+
+
 =============================
 FILE: ./copilot/docs/WORKFLOW.md
 =============================
@@ -18956,6 +19148,476 @@ def test_application_returns_not_found_for_unknown_path():
     assert response["body"] == "Not Found"
 
 =============================
+FILE: ./copilot/tools/kgs_dual_smoke.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+COMPOSE_FILE="$REPO_ROOT/docker-compose.runtime.yml"
+CONTAINER_NAME="personal_runtime"
+EXPORT_DIR="$REPO_ROOT/runtime/data/exports"
+SMOKE_ROOT="/app/data/smoke"
+
+DROP_LAST="${DROP_LAST:-5}"
+RUN_BUILD="${RUN_BUILD:-1}"
+
+UNIX_URL="https://dic.nicovideo.jp/a/unix"
+FAMILYMART_URL="https://dic.nicovideo.jp/a/%E3%83%95%E3%82%A1%E3%83%9F%E3%83%AA%E3%83%BC%E3%83%9E%E3%83%BC%E3%83%88"
+
+UNIX_STATE="$SMOKE_ROOT/manual-unix-builtin"
+FAMILYMART_STATE="$SMOKE_ROOT/manual-familymart-builtin"
+
+mkdir -p "$EXPORT_DIR"
+
+log() {
+    echo "[KGS_DUAL_SMOKE] $*"
+}
+
+fail() {
+    echo "[KGS_DUAL_SMOKE][ERROR] $*" >&2
+    exit 1
+}
+
+ensure_runtime() {
+    if [ "$RUN_BUILD" = "1" ]; then
+        log "Starting runtime container with build"
+        cd "$REPO_ROOT"
+        LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)" \
+            docker compose -f "$COMPOSE_FILE" up -d --build
+    else
+        log "Starting runtime container without build"
+        cd "$REPO_ROOT"
+        LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)" \
+            docker compose -f "$COMPOSE_FILE" up -d
+    fi
+}
+
+reset_state() {
+    local state_dir="$1"
+    log "Resetting state: $state_dir"
+    cd "$REPO_ROOT"
+    docker compose -f "$COMPOSE_FILE" exec -T "$CONTAINER_NAME" \
+        sh -lc "rm -rf '$state_dir'"
+}
+
+run_smoke() {
+    local name="$1"
+    local url="$2"
+    local state_dir="$3"
+    local log_file="$EXPORT_DIR/${name}-kgs-dual-smoke.log"
+
+    log "Running smoke for: $name"
+    cd "$REPO_ROOT"
+    docker compose -f "$COMPOSE_FILE" exec "$CONTAINER_NAME" \
+        python main.py verify kgs fetch "$url" \
+        --state-dir "$state_dir" \
+        --followup-drop-last "$DROP_LAST" | tee "$log_file"
+}
+
+extract_first_match() {
+    local pattern="$1"
+    local file="$2"
+    grep -m 1 "$pattern" "$file" || true
+}
+
+assert_contains() {
+    local pattern="$1"
+    local file="$2"
+    if ! grep -q "$pattern" "$file"; then
+        return 1
+    fi
+    return 0
+}
+
+summarize_case() {
+    local name="$1"
+    local log_file="$2"
+
+    local identity_line
+    local canonical_line
+    local trim_target_line
+    local before_line
+    local removed_line
+    local after_line
+    local followup_line
+    local resume_line
+    local saved_line
+
+    identity_line="$(extract_first_match "KGS Debug: identity_article_id=" \
+        "$log_file")"
+    canonical_line="$(extract_first_match "KGS Debug: canonical_article_id=" \
+        "$log_file")"
+    trim_target_line="$(extract_first_match "KGS Trim Debug: article_id=" \
+        "$log_file")"
+    before_line="$(extract_first_match \
+        "KGS Trim Debug: saved_response_count_before=" "$log_file")"
+    removed_line="$(extract_first_match \
+        "KGS Trim Debug: actual_removed=" "$log_file")"
+    after_line="$(extract_first_match \
+        "KGS Trim Debug: saved_response_count_after=" "$log_file")"
+    followup_line="$(extract_first_match \
+        "Follow-Up Trimmed Responses:" "$log_file")"
+    resume_line="$(extract_first_match \
+        "Saved article detected; resuming from max_saved_res_no=" "$log_file")"
+    saved_line="$(grep "Saved Responses:" "$log_file" | tail -n 1 || true)"
+
+    echo "----- $name -----"
+    echo "${identity_line:-identity: missing}"
+    echo "${canonical_line:-canonical: missing}"
+    echo "${trim_target_line:-trim_target: missing}"
+    echo "${before_line:-before_count: missing}"
+    echo "${removed_line:-removed: missing}"
+    echo "${after_line:-after_count: missing}"
+    echo "${followup_line:-followup: missing}"
+    echo "${resume_line:-resume: missing}"
+    echo "${saved_line:-saved: missing}"
+}
+
+judge_case() {
+    local name="$1"
+    local log_file="$2"
+
+    if ! assert_contains "Follow-Up Trimmed Responses: $DROP_LAST" "$log_file"
+    then
+        echo "FAIL"
+        return
+    fi
+
+    if ! assert_contains "KGS Trim Debug: actual_removed=$DROP_LAST" "$log_file"
+    then
+        echo "FAIL"
+        return
+    fi
+
+    if ! assert_contains "Result: bounded-follow-up passed" "$log_file"; then
+        echo "FAIL"
+        return
+    fi
+
+    if ! assert_contains "KGS Summary: pass" "$log_file"; then
+        echo "FAIL"
+        return
+    fi
+
+    echo "PASS"
+}
+
+main() {
+    local unix_log="$EXPORT_DIR/unix-kgs-dual-smoke.log"
+    local familymart_log="$EXPORT_DIR/familymart-kgs-dual-smoke.log"
+
+    ensure_runtime
+
+    reset_state "$UNIX_STATE"
+    reset_state "$FAMILYMART_STATE"
+
+    run_smoke "unix" "$UNIX_URL" "$UNIX_STATE"
+    run_smoke "familymart" "$FAMILYMART_URL" "$FAMILYMART_STATE"
+
+    echo
+    echo "===== KGS DUAL SMOKE SUMMARY ====="
+    summarize_case "unix" "$unix_log"
+    echo
+    summarize_case "familymart" "$familymart_log"
+    echo
+
+    local unix_result
+    local familymart_result
+    unix_result="$(judge_case "unix" "$unix_log")"
+    familymart_result="$(judge_case "familymart" "$familymart_log")"
+
+    echo "===== KGS DUAL SMOKE RESULT ====="
+    echo "unix: $unix_result"
+    echo "familymart: $familymart_result"
+
+    if [ "$unix_result" = "PASS" ] && [ "$familymart_result" = "PASS" ]; then
+        echo "overall: PASS"
+        exit 0
+    fi
+
+    echo "overall: FAIL"
+    exit 1
+}
+
+main "$@"
+
+
+=============================
+FILE: ./copilot/tools/kgs_smoke.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+# 使い方:
+#   bash tools/kgs_smoke.sh <canonical_article_url>
+#
+# 例:
+#   bash tools/kgs_smoke.sh https://dic.nicovideo.jp/a/unix
+#   bash tools/kgs_smoke.sh https://dic.nicovideo.jp/a/%E3%83%95%E3%82%A1%E3%83%9F%E3%83%AA%E3%83%BC%E3%83%9E%E3%83%BC%E3%83%88
+#
+# 環境変数:
+#   DROP_LAST=5   末尾から削るレス数（既定 5）
+#   KEEP_STATE=1  成功時も isolated state を残す
+#
+# このスクリプトは:
+# - docker compose runtime を必要なら起動する
+# - isolated smoke state を作る
+# - 初回 KGS fetch を行う
+# - isolated DB と isolated JSON の末尾 N 件を削る
+# - 再度 KGS fetch を行い、増分取得で復旧できるかを見る
+# - telemetry CSV を書き出す
+# - 成功時は isolated state を削除する
+# - 失敗時は state を残して調査しやすくする
+
+ARTICLE_URL="${1:-}"
+DROP_LAST="${DROP_LAST:-5}"
+KEEP_STATE="${KEEP_STATE:-0}"
+
+if [[ -z "${ARTICLE_URL}" ]]; then
+  echo "[ERROR] canonical article URL を指定してください" >&2
+  echo "Usage: bash tools/kgs_smoke.sh <canonical_article_url>" >&2
+  exit 2
+fi
+
+case "${ARTICLE_URL}" in
+  https://dic.nicovideo.jp/a/*)
+    ;;
+  *)
+    echo "[ERROR] canonical article URL だけを受け付けます: ${ARTICLE_URL}" >&2
+    exit 2
+    ;;
+esac
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+COMPOSE_FILE="docker-compose.runtime.yml"
+SERVICE="personal_runtime"
+
+cd "${REPO_ROOT}"
+
+mkdir -p runtime/data/smoke runtime/data/exports
+
+SLUG="$(printf '%s' "${ARTICLE_URL}" | sha1sum | awk '{print substr($1,1,12)}')"
+STATE_HOST="runtime/data/smoke/kgs-${SLUG}"
+STATE_CONTAINER="/app/data/smoke/kgs-${SLUG}"
+DB_CONTAINER="${STATE_CONTAINER}/data/nicodic.db"
+DATA_DIR_CONTAINER="${STATE_CONTAINER}/data"
+EXPORT_HOST="runtime/data/exports/kgs-${SLUG}-telemetry.csv"
+EXPORT_CONTAINER="/app/data/exports/kgs-${SLUG}-telemetry.csv"
+
+cleanup_on_exit() {
+  rc="$1"
+  if [[ "${rc}" -eq 0 ]]; then
+    if [[ "${KEEP_STATE}" = "1" ]]; then
+      echo "[INFO] KEEP_STATE=1 のため isolated state を保持します: ${STATE_HOST}"
+    else
+      rm -rf "${STATE_HOST}"
+      echo "[INFO] isolated state を削除しました: ${STATE_HOST}"
+    fi
+  else
+    echo "[WARN] エラー終了のため isolated state を保持します: ${STATE_HOST}" >&2
+  fi
+}
+trap 'cleanup_on_exit $?' EXIT
+
+run_cmd() {
+  echo
+  echo "[RUN] $*"
+  "$@"
+}
+
+ensure_runtime_up() {
+  if docker compose -f "${COMPOSE_FILE}" ps --status running | grep -q "${SERVICE}"; then
+    echo "[INFO] runtime container は起動済みです"
+    return 0
+  fi
+
+  echo "[INFO] runtime container を起動します"
+  LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)" docker compose -f "${COMPOSE_FILE}" up -d --build
+}
+
+read_article_state() {
+  docker compose -f "${COMPOSE_FILE}" exec -T "${SERVICE}" python - "${DB_CONTAINER}" <<'PY'
+import sqlite3
+import sys
+
+db_path = sys.argv[1]
+conn = sqlite3.connect(db_path)
+conn.row_factory = sqlite3.Row
+
+row = conn.execute(
+    "SELECT article_id, article_type, title, canonical_url FROM articles ORDER BY created_at DESC LIMIT 1"
+).fetchone()
+
+if row is None:
+    print("NO_ARTICLE")
+    raise SystemExit(0)
+
+count_row = conn.execute(
+    "SELECT COUNT(*) AS c, COALESCE(MAX(res_no), 0) AS m FROM responses WHERE article_id=? AND article_type=?",
+    (row["article_id"], row["article_type"]),
+).fetchone()
+
+print(
+    f'{row["article_id"]}\t{row["article_type"]}\t{row["title"]}\t{row["canonical_url"] or ""}\t{count_row["c"]}\t{count_row["m"]}'
+)
+PY
+}
+
+trim_db_and_json_tail() {
+  docker compose -f "${COMPOSE_FILE}" exec -T "${SERVICE}" python - "${DB_CONTAINER}" "${DATA_DIR_CONTAINER}" "${DROP_LAST}" <<'PY'
+import json
+import sqlite3
+import sys
+from pathlib import Path
+
+db_path = sys.argv[1]
+data_dir = Path(sys.argv[2])
+drop_last = int(sys.argv[3])
+
+conn = sqlite3.connect(db_path)
+conn.row_factory = sqlite3.Row
+
+row = conn.execute(
+    "SELECT article_id, article_type, title FROM articles ORDER BY created_at DESC LIMIT 1"
+).fetchone()
+
+if row is None:
+    print("NO_ARTICLE")
+    raise SystemExit(0)
+
+article_id = row["article_id"]
+article_type = row["article_type"]
+
+res_rows = conn.execute(
+    "SELECT res_no FROM responses WHERE article_id=? AND article_type=? ORDER BY res_no DESC LIMIT ?",
+    (article_id, article_type, drop_last),
+).fetchall()
+
+actual = len(res_rows)
+res_nos = [r["res_no"] for r in res_rows]
+
+if actual > 0:
+    conn.executemany(
+        "DELETE FROM responses WHERE article_id=? AND article_type=? AND res_no=?",
+        [(article_id, article_type, res_no) for res_no in res_nos],
+    )
+    conn.commit()
+
+new_max = conn.execute(
+    "SELECT COALESCE(MAX(res_no), 0) FROM responses WHERE article_id=? AND article_type=?",
+    (article_id, article_type),
+).fetchone()[0]
+
+json_path = None
+json_trimmed = 0
+for candidate in sorted(data_dir.glob("*.json")):
+    try:
+        payload = json.loads(candidate.read_text(encoding="utf-8"))
+    except Exception:
+        continue
+
+    p_article_id = str(payload.get("article_id", ""))
+    p_article_type = str(payload.get("article_type", ""))
+    if p_article_id != article_id or p_article_type != article_type:
+        continue
+
+    responses = payload.get("responses")
+    if isinstance(responses, list):
+        json_trimmed = min(drop_last, len(responses))
+        if json_trimmed > 0:
+            payload["responses"] = responses[:-json_trimmed]
+        payload["response_count"] = len(payload.get("responses", []))
+        candidate.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        json_path = str(candidate)
+        break
+
+print(
+    f"{article_id}\t{article_type}\t{actual}\t{new_max}\t{json_trimmed}\t{json_path or ''}"
+)
+PY
+}
+
+ensure_runtime_up
+
+echo "[INFO] 対象記事: ${ARTICLE_URL}"
+echo "[INFO] isolated state: ${STATE_HOST}"
+echo "[INFO] telemetry export: ${EXPORT_HOST}"
+
+run_cmd docker compose -f "${COMPOSE_FILE}" exec "${SERVICE}" python main.py verify kgs fetch "${ARTICLE_URL}" --state-dir "${STATE_CONTAINER}"
+
+STATE1="$(read_article_state)"
+if [[ "${STATE1}" = "NO_ARTICLE" ]]; then
+  echo "[ERROR] 初回 fetch 後に isolated DB から article を読めませんでした" >&2
+  exit 1
+fi
+
+IFS=$'\t' read -r ARTICLE_ID ARTICLE_TYPE ARTICLE_TITLE ARTICLE_CANONICAL BEFORE_COUNT BEFORE_MAX <<< "${STATE1}"
+
+echo "[INFO] 初回保存後 article_id=${ARTICLE_ID} article_type=${ARTICLE_TYPE} title=${ARTICLE_TITLE}"
+echo "[INFO] 初回保存後 response_count=${BEFORE_COUNT} max_res_no=${BEFORE_MAX}"
+
+TRIM_RESULT="$(trim_db_and_json_tail)"
+if [[ "${TRIM_RESULT}" = "NO_ARTICLE" ]]; then
+  echo "[ERROR] trim 対象 article を見つけられませんでした" >&2
+  exit 1
+fi
+
+IFS=$'\t' read -r TRIM_ARTICLE_ID TRIM_ARTICLE_TYPE DB_TRIMMED_COUNT AFTER_DELETE_MAX JSON_TRIMMED_COUNT JSON_PATH <<< "${TRIM_RESULT}"
+
+echo "[INFO] DB 末尾レス削除件数=${DB_TRIMMED_COUNT}"
+echo "[INFO] JSON 末尾レス削除件数=${JSON_TRIMMED_COUNT}"
+echo "[INFO] 削除後 max_res_no=${AFTER_DELETE_MAX}"
+
+if [[ "${DB_TRIMMED_COUNT}" = "0" ]]; then
+  echo "[ERROR] DB 側の末尾レス削除が 0 件でした。今回の smoke は意図どおりの follow-up 検証になっていません。" >&2
+  exit 1
+fi
+
+if [[ "${JSON_TRIMMED_COUNT}" = "0" ]]; then
+  echo "[ERROR] JSON 側の末尾レス削除が 0 件でした。resume 元が残るため follow-up 検証になりません。" >&2
+  exit 1
+fi
+
+run_cmd docker compose -f "${COMPOSE_FILE}" exec "${SERVICE}" python main.py verify kgs fetch "${ARTICLE_URL}" --state-dir "${STATE_CONTAINER}"
+
+STATE2="$(read_article_state)"
+if [[ "${STATE2}" = "NO_ARTICLE" ]]; then
+  echo "[ERROR] follow-up fetch 後に isolated DB から article を読めませんでした" >&2
+  exit 1
+fi
+
+IFS=$'\t' read -r ARTICLE_ID2 ARTICLE_TYPE2 ARTICLE_TITLE2 ARTICLE_CANONICAL2 AFTER_COUNT AFTER_MAX <<< "${STATE2}"
+
+echo "[INFO] 再取得後 response_count=${AFTER_COUNT} max_res_no=${AFTER_MAX}"
+
+if (( AFTER_COUNT < BEFORE_COUNT )); then
+  echo "[ERROR] 再取得後 response_count が初回保存時より少ないです: before=${BEFORE_COUNT} after=${AFTER_COUNT}" >&2
+  exit 1
+fi
+
+if (( AFTER_MAX < BEFORE_MAX )); then
+  echo "[ERROR] 再取得後 max_res_no が初回保存時より小さいです: before=${BEFORE_MAX} after=${AFTER_MAX}" >&2
+  exit 1
+fi
+
+run_cmd docker compose -f "${COMPOSE_FILE}" exec "${SERVICE}" python main.py verify telemetry export --db "${DB_CONTAINER}" --output "${EXPORT_CONTAINER}"
+
+echo
+echo "[PASS] KGS smoke が完了しました"
+echo "[PASS] article_id=${ARTICLE_ID2} article_type=${ARTICLE_TYPE2}"
+echo "[PASS] before_count=${BEFORE_COUNT} after_count=${AFTER_COUNT}"
+echo "[PASS] before_max=${BEFORE_MAX} after_max=${AFTER_MAX}"
+echo "[PASS] telemetry=${EXPORT_HOST}"
+
+
+
+=============================
 FILE: ./copilot/tools/operator.sh
 =============================
 #!/bin/sh
@@ -19066,10 +19728,51 @@ def _print_kgs_saved_summary(article_id, article_type):
     print(f"Archive URL: {summary['url']}")
 
 
+def _resolve_saved_article_id(db_path, canonical_url, article_type):
+    conn = init_db(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT article_id
+            FROM articles
+            WHERE canonical_url=? AND article_type=?
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (canonical_url, article_type),
+        )
+        row = cur.fetchone()
+        if row is None:
+            return None
+        return row[0]
+    finally:
+        conn.close()
+
+
 def _drop_latest_saved_responses(article_id, article_type, db_path, count):
     conn = init_db(db_path)
     try:
         cur = conn.cursor()
+
+        cur.execute(
+            """
+            SELECT COUNT(*), COALESCE(MAX(res_no), 0)
+            FROM responses
+            WHERE article_id=? AND article_type=?
+            """,
+            (article_id, article_type),
+        )
+        before_count, before_max = cur.fetchone()
+
+        print("KGS Trim Debug: begin")
+        print(f"KGS Trim Debug: article_id={article_id}")
+        print(f"KGS Trim Debug: article_type={article_type}")
+        print(f"KGS Trim Debug: db_path={db_path}")
+        print(f"KGS Trim Debug: requested_drop_last={count}")
+        print(f"KGS Trim Debug: saved_response_count_before={before_count}")
+        print(f"KGS Trim Debug: max_res_no_before={before_max}")
+
         cur.execute(
             """
             SELECT res_no
@@ -19082,9 +19785,14 @@ def _drop_latest_saved_responses(article_id, article_type, db_path, count):
         )
         rows = cur.fetchall()
         if not rows:
+            print("KGS Trim Debug: selected_res_nos=[]")
+            print("KGS Trim Debug: actual_removed=0")
+            print("KGS Trim Debug: end")
             return 0
 
         res_numbers = [row[0] for row in rows]
+        print(f"KGS Trim Debug: selected_res_nos={res_numbers}")
+
         placeholders = ", ".join(["?"] * len(res_numbers))
         cur.execute(
             f"DELETE FROM responses WHERE article_id=? AND article_type=? "
@@ -19092,6 +19800,22 @@ def _drop_latest_saved_responses(article_id, article_type, db_path, count):
             (article_id, article_type, *res_numbers),
         )
         conn.commit()
+
+        cur.execute(
+            """
+            SELECT COUNT(*), COALESCE(MAX(res_no), 0)
+            FROM responses
+            WHERE article_id=? AND article_type=?
+            """,
+            (article_id, article_type),
+        )
+        after_count, after_max = cur.fetchone()
+
+        print(f"KGS Trim Debug: actual_removed={len(res_numbers)}")
+        print(f"KGS Trim Debug: saved_response_count_after={after_count}")
+        print(f"KGS Trim Debug: max_res_no_after={after_max}")
+        print("KGS Trim Debug: end")
+
         return len(res_numbers)
     finally:
         conn.close()
@@ -19192,17 +19916,36 @@ def verify_kgs_fetch(article_url, state_dir, followup_drop_last=0):
 
         print("Result: initial-fetch passed")
         print(f"Outcome: {result.outcome}")
-        _print_kgs_saved_summary(identity["article_id"], identity["article_type"])
+        _print_kgs_saved_summary(
+            identity["article_id"],
+            identity["article_type"],
+        )
 
         if followup_drop_last > 0:
+            canonical_id = _resolve_saved_article_id(
+                state["db_path"],
+                identity["canonical_url"],
+                identity["article_type"],
+            )
+
             print("Phase: bounded-follow-up")
+            print(f"KGS Debug: identity_article_id={identity['article_id']}")
+            print(f"KGS Debug: canonical_article_id={canonical_id}")
+            print(f"KGS Debug: identity_type={identity['article_type']}")
+
+            if canonical_id is None:
+                print("Result: bounded-follow-up failed")
+                print("Outcome: could not resolve canonical article id")
+                return False
+
             removed = _drop_latest_saved_responses(
-                identity["article_id"],
+                canonical_id,
                 identity["article_type"],
                 state["db_path"],
                 followup_drop_last,
             )
             print(f"Follow-Up Trimmed Responses: {removed}")
+
             result = run_scrape(identity["canonical_url"])
             if not result:
                 print("Result: bounded-follow-up failed")
@@ -19212,7 +19955,7 @@ def verify_kgs_fetch(article_url, state_dir, followup_drop_last=0):
             print("Result: bounded-follow-up passed")
             print(f"Outcome: {result.outcome}")
             _print_kgs_saved_summary(
-                identity["article_id"],
+                canonical_id,
                 identity["article_type"],
             )
 
@@ -19243,7 +19986,10 @@ def verify_kgs_batch(article_url, state_dir, run_batch_scrape_func):
         print("=== KGS BATCH SUMMARY ===")
         print(f"Final Status: {final_status}")
         print(f"Failed Targets: {failed_targets}")
-        _print_kgs_saved_summary(identity["article_id"], identity["article_type"])
+        _print_kgs_saved_summary(
+            identity["article_id"],
+            identity["article_type"],
+        )
         print(f"Telemetry DB: {state['db_path']}")
         return failed_targets == 0
 
@@ -21826,6 +22572,31 @@ Its boundaries are strict:
 - non-gating only
 - stdout-only KGS helper guidance
 - no broad redesign of runtime, batch, or telemetry behavior
+
+## Host-side convenience helper for KGS smoke (Known good smoke)
+
+For practical local verification, a host-side wrapper may be used:
+
+- `bash tools/kgs_smoke.sh <canonical_article_url>`
+
+This helper is intended to provide a more explicit end-to-end KGS flow than
+manual repeated command entry.
+
+Expected flow:
+- start or reuse the runtime container
+- perform an initial isolated KGS fetch
+- trim the last few saved responses inside isolated state
+- run a follow-up KGS fetch against the same isolated state
+- export telemetry CSV
+- clean up isolated smoke state on success
+
+Important:
+- this helper is still manual / opt-in
+- it is still non-gating
+- it must operate only on isolated smoke state
+- it must not modify the main working DB / archive
+
+
 =============================
 FILE: ./cursor/docs/WORKFLOW.md
 =============================
@@ -28586,6 +29357,476 @@ def test_application_returns_not_found_for_unknown_path():
     assert response["body"] == "Not Found"
 
 =============================
+FILE: ./cursor/tools/kgs_dual_smoke.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+
+COMPOSE_FILE="$REPO_ROOT/docker-compose.runtime.yml"
+CONTAINER_NAME="personal_runtime"
+EXPORT_DIR="$REPO_ROOT/runtime/data/exports"
+SMOKE_ROOT="/app/data/smoke"
+
+DROP_LAST="${DROP_LAST:-5}"
+RUN_BUILD="${RUN_BUILD:-1}"
+
+UNIX_URL="https://dic.nicovideo.jp/a/unix"
+FAMILYMART_URL="https://dic.nicovideo.jp/a/%E3%83%95%E3%82%A1%E3%83%9F%E3%83%AA%E3%83%BC%E3%83%9E%E3%83%BC%E3%83%88"
+
+UNIX_STATE="$SMOKE_ROOT/manual-unix-builtin"
+FAMILYMART_STATE="$SMOKE_ROOT/manual-familymart-builtin"
+
+mkdir -p "$EXPORT_DIR"
+
+log() {
+    echo "[KGS_DUAL_SMOKE] $*"
+}
+
+fail() {
+    echo "[KGS_DUAL_SMOKE][ERROR] $*" >&2
+    exit 1
+}
+
+ensure_runtime() {
+    if [ "$RUN_BUILD" = "1" ]; then
+        log "Starting runtime container with build"
+        cd "$REPO_ROOT"
+        LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)" \
+            docker compose -f "$COMPOSE_FILE" up -d --build
+    else
+        log "Starting runtime container without build"
+        cd "$REPO_ROOT"
+        LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)" \
+            docker compose -f "$COMPOSE_FILE" up -d
+    fi
+}
+
+reset_state() {
+    local state_dir="$1"
+    log "Resetting state: $state_dir"
+    cd "$REPO_ROOT"
+    docker compose -f "$COMPOSE_FILE" exec -T "$CONTAINER_NAME" \
+        sh -lc "rm -rf '$state_dir'"
+}
+
+run_smoke() {
+    local name="$1"
+    local url="$2"
+    local state_dir="$3"
+    local log_file="$EXPORT_DIR/${name}-kgs-dual-smoke.log"
+
+    log "Running smoke for: $name"
+    cd "$REPO_ROOT"
+    docker compose -f "$COMPOSE_FILE" exec "$CONTAINER_NAME" \
+        python main.py verify kgs fetch "$url" \
+        --state-dir "$state_dir" \
+        --followup-drop-last "$DROP_LAST" | tee "$log_file"
+}
+
+extract_first_match() {
+    local pattern="$1"
+    local file="$2"
+    grep -m 1 "$pattern" "$file" || true
+}
+
+assert_contains() {
+    local pattern="$1"
+    local file="$2"
+    if ! grep -q "$pattern" "$file"; then
+        return 1
+    fi
+    return 0
+}
+
+summarize_case() {
+    local name="$1"
+    local log_file="$2"
+
+    local identity_line
+    local canonical_line
+    local trim_target_line
+    local before_line
+    local removed_line
+    local after_line
+    local followup_line
+    local resume_line
+    local saved_line
+
+    identity_line="$(extract_first_match "KGS Debug: identity_article_id=" \
+        "$log_file")"
+    canonical_line="$(extract_first_match "KGS Debug: canonical_article_id=" \
+        "$log_file")"
+    trim_target_line="$(extract_first_match "KGS Trim Debug: article_id=" \
+        "$log_file")"
+    before_line="$(extract_first_match \
+        "KGS Trim Debug: saved_response_count_before=" "$log_file")"
+    removed_line="$(extract_first_match \
+        "KGS Trim Debug: actual_removed=" "$log_file")"
+    after_line="$(extract_first_match \
+        "KGS Trim Debug: saved_response_count_after=" "$log_file")"
+    followup_line="$(extract_first_match \
+        "Follow-Up Trimmed Responses:" "$log_file")"
+    resume_line="$(extract_first_match \
+        "Saved article detected; resuming from max_saved_res_no=" "$log_file")"
+    saved_line="$(grep "Saved Responses:" "$log_file" | tail -n 1 || true)"
+
+    echo "----- $name -----"
+    echo "${identity_line:-identity: missing}"
+    echo "${canonical_line:-canonical: missing}"
+    echo "${trim_target_line:-trim_target: missing}"
+    echo "${before_line:-before_count: missing}"
+    echo "${removed_line:-removed: missing}"
+    echo "${after_line:-after_count: missing}"
+    echo "${followup_line:-followup: missing}"
+    echo "${resume_line:-resume: missing}"
+    echo "${saved_line:-saved: missing}"
+}
+
+judge_case() {
+    local name="$1"
+    local log_file="$2"
+
+    if ! assert_contains "Follow-Up Trimmed Responses: $DROP_LAST" "$log_file"
+    then
+        echo "FAIL"
+        return
+    fi
+
+    if ! assert_contains "KGS Trim Debug: actual_removed=$DROP_LAST" "$log_file"
+    then
+        echo "FAIL"
+        return
+    fi
+
+    if ! assert_contains "Result: bounded-follow-up passed" "$log_file"; then
+        echo "FAIL"
+        return
+    fi
+
+    if ! assert_contains "KGS Summary: pass" "$log_file"; then
+        echo "FAIL"
+        return
+    fi
+
+    echo "PASS"
+}
+
+main() {
+    local unix_log="$EXPORT_DIR/unix-kgs-dual-smoke.log"
+    local familymart_log="$EXPORT_DIR/familymart-kgs-dual-smoke.log"
+
+    ensure_runtime
+
+    reset_state "$UNIX_STATE"
+    reset_state "$FAMILYMART_STATE"
+
+    run_smoke "unix" "$UNIX_URL" "$UNIX_STATE"
+    run_smoke "familymart" "$FAMILYMART_URL" "$FAMILYMART_STATE"
+
+    echo
+    echo "===== KGS DUAL SMOKE SUMMARY ====="
+    summarize_case "unix" "$unix_log"
+    echo
+    summarize_case "familymart" "$familymart_log"
+    echo
+
+    local unix_result
+    local familymart_result
+    unix_result="$(judge_case "unix" "$unix_log")"
+    familymart_result="$(judge_case "familymart" "$familymart_log")"
+
+    echo "===== KGS DUAL SMOKE RESULT ====="
+    echo "unix: $unix_result"
+    echo "familymart: $familymart_result"
+
+    if [ "$unix_result" = "PASS" ] && [ "$familymart_result" = "PASS" ]; then
+        echo "overall: PASS"
+        exit 0
+    fi
+
+    echo "overall: FAIL"
+    exit 1
+}
+
+main "$@"
+
+
+=============================
+FILE: ./cursor/tools/kgs_smoke.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+# 使い方:
+#   bash tools/kgs_smoke.sh <canonical_article_url>
+#
+# 例:
+#   bash tools/kgs_smoke.sh https://dic.nicovideo.jp/a/unix
+#   bash tools/kgs_smoke.sh https://dic.nicovideo.jp/a/%E3%83%95%E3%82%A1%E3%83%9F%E3%83%AA%E3%83%BC%E3%83%9E%E3%83%BC%E3%83%88
+#
+# 環境変数:
+#   DROP_LAST=5   末尾から削るレス数（既定 5）
+#   KEEP_STATE=1  成功時も isolated state を残す
+#
+# このスクリプトは:
+# - docker compose runtime を必要なら起動する
+# - isolated smoke state を作る
+# - 初回 KGS fetch を行う
+# - isolated DB と isolated JSON の末尾 N 件を削る
+# - 再度 KGS fetch を行い、増分取得で復旧できるかを見る
+# - telemetry CSV を書き出す
+# - 成功時は isolated state を削除する
+# - 失敗時は state を残して調査しやすくする
+
+ARTICLE_URL="${1:-}"
+DROP_LAST="${DROP_LAST:-5}"
+KEEP_STATE="${KEEP_STATE:-0}"
+
+if [[ -z "${ARTICLE_URL}" ]]; then
+  echo "[ERROR] canonical article URL を指定してください" >&2
+  echo "Usage: bash tools/kgs_smoke.sh <canonical_article_url>" >&2
+  exit 2
+fi
+
+case "${ARTICLE_URL}" in
+  https://dic.nicovideo.jp/a/*)
+    ;;
+  *)
+    echo "[ERROR] canonical article URL だけを受け付けます: ${ARTICLE_URL}" >&2
+    exit 2
+    ;;
+esac
+
+REPO_ROOT="$(cd "$(dirname "$0")/.." && pwd)"
+COMPOSE_FILE="docker-compose.runtime.yml"
+SERVICE="personal_runtime"
+
+cd "${REPO_ROOT}"
+
+mkdir -p runtime/data/smoke runtime/data/exports
+
+SLUG="$(printf '%s' "${ARTICLE_URL}" | sha1sum | awk '{print substr($1,1,12)}')"
+STATE_HOST="runtime/data/smoke/kgs-${SLUG}"
+STATE_CONTAINER="/app/data/smoke/kgs-${SLUG}"
+DB_CONTAINER="${STATE_CONTAINER}/data/nicodic.db"
+DATA_DIR_CONTAINER="${STATE_CONTAINER}/data"
+EXPORT_HOST="runtime/data/exports/kgs-${SLUG}-telemetry.csv"
+EXPORT_CONTAINER="/app/data/exports/kgs-${SLUG}-telemetry.csv"
+
+cleanup_on_exit() {
+  rc="$1"
+  if [[ "${rc}" -eq 0 ]]; then
+    if [[ "${KEEP_STATE}" = "1" ]]; then
+      echo "[INFO] KEEP_STATE=1 のため isolated state を保持します: ${STATE_HOST}"
+    else
+      rm -rf "${STATE_HOST}"
+      echo "[INFO] isolated state を削除しました: ${STATE_HOST}"
+    fi
+  else
+    echo "[WARN] エラー終了のため isolated state を保持します: ${STATE_HOST}" >&2
+  fi
+}
+trap 'cleanup_on_exit $?' EXIT
+
+run_cmd() {
+  echo
+  echo "[RUN] $*"
+  "$@"
+}
+
+ensure_runtime_up() {
+  if docker compose -f "${COMPOSE_FILE}" ps --status running | grep -q "${SERVICE}"; then
+    echo "[INFO] runtime container は起動済みです"
+    return 0
+  fi
+
+  echo "[INFO] runtime container を起動します"
+  LOCAL_UID="$(id -u)" LOCAL_GID="$(id -g)" docker compose -f "${COMPOSE_FILE}" up -d --build
+}
+
+read_article_state() {
+  docker compose -f "${COMPOSE_FILE}" exec -T "${SERVICE}" python - "${DB_CONTAINER}" <<'PY'
+import sqlite3
+import sys
+
+db_path = sys.argv[1]
+conn = sqlite3.connect(db_path)
+conn.row_factory = sqlite3.Row
+
+row = conn.execute(
+    "SELECT article_id, article_type, title, canonical_url FROM articles ORDER BY created_at DESC LIMIT 1"
+).fetchone()
+
+if row is None:
+    print("NO_ARTICLE")
+    raise SystemExit(0)
+
+count_row = conn.execute(
+    "SELECT COUNT(*) AS c, COALESCE(MAX(res_no), 0) AS m FROM responses WHERE article_id=? AND article_type=?",
+    (row["article_id"], row["article_type"]),
+).fetchone()
+
+print(
+    f'{row["article_id"]}\t{row["article_type"]}\t{row["title"]}\t{row["canonical_url"] or ""}\t{count_row["c"]}\t{count_row["m"]}'
+)
+PY
+}
+
+trim_db_and_json_tail() {
+  docker compose -f "${COMPOSE_FILE}" exec -T "${SERVICE}" python - "${DB_CONTAINER}" "${DATA_DIR_CONTAINER}" "${DROP_LAST}" <<'PY'
+import json
+import sqlite3
+import sys
+from pathlib import Path
+
+db_path = sys.argv[1]
+data_dir = Path(sys.argv[2])
+drop_last = int(sys.argv[3])
+
+conn = sqlite3.connect(db_path)
+conn.row_factory = sqlite3.Row
+
+row = conn.execute(
+    "SELECT article_id, article_type, title FROM articles ORDER BY created_at DESC LIMIT 1"
+).fetchone()
+
+if row is None:
+    print("NO_ARTICLE")
+    raise SystemExit(0)
+
+article_id = row["article_id"]
+article_type = row["article_type"]
+
+res_rows = conn.execute(
+    "SELECT res_no FROM responses WHERE article_id=? AND article_type=? ORDER BY res_no DESC LIMIT ?",
+    (article_id, article_type, drop_last),
+).fetchall()
+
+actual = len(res_rows)
+res_nos = [r["res_no"] for r in res_rows]
+
+if actual > 0:
+    conn.executemany(
+        "DELETE FROM responses WHERE article_id=? AND article_type=? AND res_no=?",
+        [(article_id, article_type, res_no) for res_no in res_nos],
+    )
+    conn.commit()
+
+new_max = conn.execute(
+    "SELECT COALESCE(MAX(res_no), 0) FROM responses WHERE article_id=? AND article_type=?",
+    (article_id, article_type),
+).fetchone()[0]
+
+json_path = None
+json_trimmed = 0
+for candidate in sorted(data_dir.glob("*.json")):
+    try:
+        payload = json.loads(candidate.read_text(encoding="utf-8"))
+    except Exception:
+        continue
+
+    p_article_id = str(payload.get("article_id", ""))
+    p_article_type = str(payload.get("article_type", ""))
+    if p_article_id != article_id or p_article_type != article_type:
+        continue
+
+    responses = payload.get("responses")
+    if isinstance(responses, list):
+        json_trimmed = min(drop_last, len(responses))
+        if json_trimmed > 0:
+            payload["responses"] = responses[:-json_trimmed]
+        payload["response_count"] = len(payload.get("responses", []))
+        candidate.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2),
+            encoding="utf-8",
+        )
+        json_path = str(candidate)
+        break
+
+print(
+    f"{article_id}\t{article_type}\t{actual}\t{new_max}\t{json_trimmed}\t{json_path or ''}"
+)
+PY
+}
+
+ensure_runtime_up
+
+echo "[INFO] 対象記事: ${ARTICLE_URL}"
+echo "[INFO] isolated state: ${STATE_HOST}"
+echo "[INFO] telemetry export: ${EXPORT_HOST}"
+
+run_cmd docker compose -f "${COMPOSE_FILE}" exec "${SERVICE}" python main.py verify kgs fetch "${ARTICLE_URL}" --state-dir "${STATE_CONTAINER}"
+
+STATE1="$(read_article_state)"
+if [[ "${STATE1}" = "NO_ARTICLE" ]]; then
+  echo "[ERROR] 初回 fetch 後に isolated DB から article を読めませんでした" >&2
+  exit 1
+fi
+
+IFS=$'\t' read -r ARTICLE_ID ARTICLE_TYPE ARTICLE_TITLE ARTICLE_CANONICAL BEFORE_COUNT BEFORE_MAX <<< "${STATE1}"
+
+echo "[INFO] 初回保存後 article_id=${ARTICLE_ID} article_type=${ARTICLE_TYPE} title=${ARTICLE_TITLE}"
+echo "[INFO] 初回保存後 response_count=${BEFORE_COUNT} max_res_no=${BEFORE_MAX}"
+
+TRIM_RESULT="$(trim_db_and_json_tail)"
+if [[ "${TRIM_RESULT}" = "NO_ARTICLE" ]]; then
+  echo "[ERROR] trim 対象 article を見つけられませんでした" >&2
+  exit 1
+fi
+
+IFS=$'\t' read -r TRIM_ARTICLE_ID TRIM_ARTICLE_TYPE DB_TRIMMED_COUNT AFTER_DELETE_MAX JSON_TRIMMED_COUNT JSON_PATH <<< "${TRIM_RESULT}"
+
+echo "[INFO] DB 末尾レス削除件数=${DB_TRIMMED_COUNT}"
+echo "[INFO] JSON 末尾レス削除件数=${JSON_TRIMMED_COUNT}"
+echo "[INFO] 削除後 max_res_no=${AFTER_DELETE_MAX}"
+
+if [[ "${DB_TRIMMED_COUNT}" = "0" ]]; then
+  echo "[ERROR] DB 側の末尾レス削除が 0 件でした。今回の smoke は意図どおりの follow-up 検証になっていません。" >&2
+  exit 1
+fi
+
+if [[ "${JSON_TRIMMED_COUNT}" = "0" ]]; then
+  echo "[ERROR] JSON 側の末尾レス削除が 0 件でした。resume 元が残るため follow-up 検証になりません。" >&2
+  exit 1
+fi
+
+run_cmd docker compose -f "${COMPOSE_FILE}" exec "${SERVICE}" python main.py verify kgs fetch "${ARTICLE_URL}" --state-dir "${STATE_CONTAINER}"
+
+STATE2="$(read_article_state)"
+if [[ "${STATE2}" = "NO_ARTICLE" ]]; then
+  echo "[ERROR] follow-up fetch 後に isolated DB から article を読めませんでした" >&2
+  exit 1
+fi
+
+IFS=$'\t' read -r ARTICLE_ID2 ARTICLE_TYPE2 ARTICLE_TITLE2 ARTICLE_CANONICAL2 AFTER_COUNT AFTER_MAX <<< "${STATE2}"
+
+echo "[INFO] 再取得後 response_count=${AFTER_COUNT} max_res_no=${AFTER_MAX}"
+
+if (( AFTER_COUNT < BEFORE_COUNT )); then
+  echo "[ERROR] 再取得後 response_count が初回保存時より少ないです: before=${BEFORE_COUNT} after=${AFTER_COUNT}" >&2
+  exit 1
+fi
+
+if (( AFTER_MAX < BEFORE_MAX )); then
+  echo "[ERROR] 再取得後 max_res_no が初回保存時より小さいです: before=${BEFORE_MAX} after=${AFTER_MAX}" >&2
+  exit 1
+fi
+
+run_cmd docker compose -f "${COMPOSE_FILE}" exec "${SERVICE}" python main.py verify telemetry export --db "${DB_CONTAINER}" --output "${EXPORT_CONTAINER}"
+
+echo
+echo "[PASS] KGS smoke が完了しました"
+echo "[PASS] article_id=${ARTICLE_ID2} article_type=${ARTICLE_TYPE2}"
+echo "[PASS] before_count=${BEFORE_COUNT} after_count=${AFTER_COUNT}"
+echo "[PASS] before_max=${BEFORE_MAX} after_max=${AFTER_MAX}"
+echo "[PASS] telemetry=${EXPORT_HOST}"
+
+
+
+=============================
 FILE: ./cursor/tools/operator.sh
 =============================
 #!/bin/sh
@@ -28696,10 +29937,51 @@ def _print_kgs_saved_summary(article_id, article_type):
     print(f"Archive URL: {summary['url']}")
 
 
+def _resolve_saved_article_id(db_path, canonical_url, article_type):
+    conn = init_db(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT article_id
+            FROM articles
+            WHERE canonical_url=? AND article_type=?
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (canonical_url, article_type),
+        )
+        row = cur.fetchone()
+        if row is None:
+            return None
+        return row[0]
+    finally:
+        conn.close()
+
+
 def _drop_latest_saved_responses(article_id, article_type, db_path, count):
     conn = init_db(db_path)
     try:
         cur = conn.cursor()
+
+        cur.execute(
+            """
+            SELECT COUNT(*), COALESCE(MAX(res_no), 0)
+            FROM responses
+            WHERE article_id=? AND article_type=?
+            """,
+            (article_id, article_type),
+        )
+        before_count, before_max = cur.fetchone()
+
+        print("KGS Trim Debug: begin")
+        print(f"KGS Trim Debug: article_id={article_id}")
+        print(f"KGS Trim Debug: article_type={article_type}")
+        print(f"KGS Trim Debug: db_path={db_path}")
+        print(f"KGS Trim Debug: requested_drop_last={count}")
+        print(f"KGS Trim Debug: saved_response_count_before={before_count}")
+        print(f"KGS Trim Debug: max_res_no_before={before_max}")
+
         cur.execute(
             """
             SELECT res_no
@@ -28712,9 +29994,14 @@ def _drop_latest_saved_responses(article_id, article_type, db_path, count):
         )
         rows = cur.fetchall()
         if not rows:
+            print("KGS Trim Debug: selected_res_nos=[]")
+            print("KGS Trim Debug: actual_removed=0")
+            print("KGS Trim Debug: end")
             return 0
 
         res_numbers = [row[0] for row in rows]
+        print(f"KGS Trim Debug: selected_res_nos={res_numbers}")
+
         placeholders = ", ".join(["?"] * len(res_numbers))
         cur.execute(
             f"DELETE FROM responses WHERE article_id=? AND article_type=? "
@@ -28722,6 +30009,22 @@ def _drop_latest_saved_responses(article_id, article_type, db_path, count):
             (article_id, article_type, *res_numbers),
         )
         conn.commit()
+
+        cur.execute(
+            """
+            SELECT COUNT(*), COALESCE(MAX(res_no), 0)
+            FROM responses
+            WHERE article_id=? AND article_type=?
+            """,
+            (article_id, article_type),
+        )
+        after_count, after_max = cur.fetchone()
+
+        print(f"KGS Trim Debug: actual_removed={len(res_numbers)}")
+        print(f"KGS Trim Debug: saved_response_count_after={after_count}")
+        print(f"KGS Trim Debug: max_res_no_after={after_max}")
+        print("KGS Trim Debug: end")
+
         return len(res_numbers)
     finally:
         conn.close()
@@ -28822,17 +30125,36 @@ def verify_kgs_fetch(article_url, state_dir, followup_drop_last=0):
 
         print("Result: initial-fetch passed")
         print(f"Outcome: {result.outcome}")
-        _print_kgs_saved_summary(identity["article_id"], identity["article_type"])
+        _print_kgs_saved_summary(
+            identity["article_id"],
+            identity["article_type"],
+        )
 
         if followup_drop_last > 0:
+            canonical_id = _resolve_saved_article_id(
+                state["db_path"],
+                identity["canonical_url"],
+                identity["article_type"],
+            )
+
             print("Phase: bounded-follow-up")
+            print(f"KGS Debug: identity_article_id={identity['article_id']}")
+            print(f"KGS Debug: canonical_article_id={canonical_id}")
+            print(f"KGS Debug: identity_type={identity['article_type']}")
+
+            if canonical_id is None:
+                print("Result: bounded-follow-up failed")
+                print("Outcome: could not resolve canonical article id")
+                return False
+
             removed = _drop_latest_saved_responses(
-                identity["article_id"],
+                canonical_id,
                 identity["article_type"],
                 state["db_path"],
                 followup_drop_last,
             )
             print(f"Follow-Up Trimmed Responses: {removed}")
+
             result = run_scrape(identity["canonical_url"])
             if not result:
                 print("Result: bounded-follow-up failed")
@@ -28842,7 +30164,7 @@ def verify_kgs_fetch(article_url, state_dir, followup_drop_last=0):
             print("Result: bounded-follow-up passed")
             print(f"Outcome: {result.outcome}")
             _print_kgs_saved_summary(
-                identity["article_id"],
+                canonical_id,
                 identity["article_type"],
             )
 
@@ -28873,7 +30195,10 @@ def verify_kgs_batch(article_url, state_dir, run_batch_scrape_func):
         print("=== KGS BATCH SUMMARY ===")
         print(f"Final Status: {final_status}")
         print(f"Failed Targets: {failed_targets}")
-        _print_kgs_saved_summary(identity["article_id"], identity["article_type"])
+        _print_kgs_saved_summary(
+            identity["article_id"],
+            identity["article_type"],
+        )
         print(f"Telemetry DB: {state['db_path']}")
         return failed_targets == 0
 
