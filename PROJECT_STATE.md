@@ -959,6 +959,49 @@ Interpretation:
 - failure-side investigation-start detail is now part of the batch-log baseline
 - `batch_*.log` and `host_cron.log` remain distinct log layers
 
+## SUBTASK004
+Completed.
+
+Outcome summary:
+- a bounded runtime local-env / recreate / permission hardening layer was added
+  for provisional runtime operation
+- `.env.runtime.local` is now part of the intended local-only runtime config
+  shape
+- a tracked `.env.runtime.local.example` was added
+- `.gitignore` now excludes `.env.runtime.local`
+- shared runtime local-env helper behavior was added via:
+  - `tools/runtime_env.sh`
+- recreate-oriented runtime startup was added via:
+  - `bash tools/runtime_up.sh`
+- `runtime/periodic_once.sh` now loads the shared runtime env helper before
+  invoking the existing periodic-once path
+- the runtime hardening now reduces repeat failures caused by:
+  - stale baked runtime container code
+  - host port clash confusion
+  - LOCAL_UID / LOCAL_GID mismatch
+  - common writable-path mismatch
+- focused runtime-local-ops tests were added
+- existing scrape / batch / periodic / DB / queue / scheduler / Web semantics
+  were preserved
+- the task remained bounded runtime / ops hardening
+- no deployment-platform redesign or observability-platform expansion was
+  introduced
+
+Adoption result:
+- Copilot sideflow result adopted into product `main`
+- both child repositories now reflect the same adopted final state on `main`
+- `_runtime` sibling checkout also pulled merged `main`
+- helper-based recreate and periodic-once were rechecked successfully in the
+  `_runtime` checkout
+
+Interpretation:
+- current provisional runtime baseline should now be read as including local env
+  hardening and recreate guidance
+- `bash tools/runtime_up.sh` is now part of the bounded intended runtime
+  operation shape
+- `.env.runtime.local` remains local-only and should not be committed
+- runtime hardening is improved without changing product semantics
+
 Current application structure:
 
 main.py
