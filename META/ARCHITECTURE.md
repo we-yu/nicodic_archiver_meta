@@ -74,6 +74,10 @@ target_list.py
     Handles target registration, active-target reads, legacy target import,
     and bounded target identity parsing
 
+host_cron.py
+    Host-side cron log formatting / rollover / compaction seam for runtime
+    operation
+
 web_app.py
     Provides the bounded Web-facing archive-check / follow-up interface
 
@@ -142,6 +146,12 @@ target_list.py
     active target listing
     bounded legacy `targets.txt` import
     bounded target identity parsing
+
+host_cron.py
+    host/runtime-facing cron log readability layer
+    structured run-block emission
+    bounded daily rollover
+    bounded weekly log compaction
 
 web_app.py
     bounded Web-facing archive-check and follow-up actions

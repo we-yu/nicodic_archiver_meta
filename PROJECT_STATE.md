@@ -871,6 +871,94 @@ Interpretation:
   - non-gating
 - stdout-only human-readable KGS guidance remains part of the working baseline
 
+## SUBTASK002
+Completed.
+
+Outcome summary:
+- a bounded host-side cron log hygiene layer was added for the provisional
+  personal-use runtime
+- structured host cron logging now exists at:
+  - `runtime/logs/host_cron.log`
+- host cron logs now roll over daily on the next run start into:
+  - `host_cron.YYYYMMDD.log`
+- older daily host cron logs now compact in bounded weekly form into:
+  - `host_cron.YYYYMMDD-YYYYMMDD.tar.gz`
+- host cron output is now human-readable and run-block oriented
+- a small host-cron-specific helper / formatting seam was added in:
+  - `host_cron.py`
+- the periodic-one-shot runtime path now writes through the host cron log
+  formatting path
+- existing batch semantics and `batch_*.log` baseline were preserved
+- existing telemetry / DB / queue / scheduler / Web semantics were preserved
+- validation passed on the adopted implementation, including direct bounded
+  observation of:
+  - structured `host_cron.log` output
+  - `rotate_active_log(...)`
+  - `compress_weekly_archives(...)`
+  - repo validation / flake8 / pytest on converged `main`
+
+Adoption result:
+- Copilot sideflow result adopted into product `main`
+- both child repositories now reflect the same adopted final state on `main`
+
+Interpretation:
+- current runtime / operations baseline now includes bounded host cron log
+  hygiene on top of the existing personal runtime profile
+- `host_cron.log` should be read as a host/runtime operations log, distinct
+  from `batch_*.log`
+- host cron hygiene remains text-log centered and bounded
+- no observability platform or scheduler redesign was introduced
+
+## SUBTASK003
+Completed.
+
+Outcome summary:
+- a bounded batch-log readability improvement was added for `batch_*.log`
+- the task center remained single-run readout quality improvement
+- `batch_*.log` now has clearer text-log structure for:
+  - run start
+  - per-target progress
+  - failure detail
+  - run end summary
+- success-side progress visibility now includes bounded minimal verification
+  fields:
+  - `result`
+  - `target_url`
+  - `article_title`
+  - `collected_response_count`
+  - `observed_max_res_no`
+- failure-side detail now includes bounded investigation-start fields:
+  - `progress`
+  - `target_url`
+  - `article_title`
+  - `failure_page`
+  - `failure_cause`
+  - `collected_response_count`
+  - `observed_max_res_no`
+  - `short_reason`
+- run end summary now includes:
+  - `duration_seconds`
+  - `success_targets`
+  - `failed_targets`
+  - `final_status`
+- existing batch semantics were preserved
+- existing `host_cron.log` baseline remained distinct
+- existing telemetry / DB / queue / scheduler / Web semantics were preserved
+- the task remained text-log centered and bounded
+- no observability / dashboard platform expansion was introduced
+
+Adoption result:
+- Copilot sideflow result adopted into product `main`
+- both child repositories now reflect the same adopted final state on `main`
+
+Interpretation:
+- current `batch_*.log` baseline should now be read as including bounded
+  readability improvement for single-run inspection
+- success-side minimal verification visibility is now part of the batch-log
+  baseline
+- failure-side investigation-start detail is now part of the batch-log baseline
+- `batch_*.log` and `host_cron.log` remain distinct log layers
+
 Current application structure:
 
 main.py
@@ -882,6 +970,7 @@ http_client.py
 parser.py
 storage.py
 target_list.py
+host_cron.py
 
 Current test structure includes:
 
@@ -896,6 +985,7 @@ tests/test_target_list.py
 tests/test_cli.py
 tests/test_article_resolver.py
 tests/test_archive_read.py
+tests/test_host_cron.py
 
 Additional helper scripts exist:
 
