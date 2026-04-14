@@ -1034,6 +1034,32 @@ Interpretation:
 - this is a bounded UX refinement only
 - product semantics outside the Web interaction flow remain unchanged
 
+## TASK035
+Completed.
+
+Outcome summary:
+- redirect article pages are now detected as a bounded distinct outcome
+- redirect detection handles at minimum meta refresh and location.replace
+- redirect source targets are marked redirected and deactivated
+- redirect target URLs are handed off into the target registry with duplicate
+  suppression
+- redirect handoff is treated as success-class in batch handling
+- batch logs now include bounded REDIRECT_DETAIL visibility
+- archive migration / merge is not performed
+- old and new article identities remain separate in saved archive data
+
+Adoption result:
+- Double Helix comparison was attempted
+- Copilot result was adopted
+- Cursor result was preserved as non-adopted comparison evidence
+- current product mainline should be read as reflecting the adopted Copilot
+  version of TASK035
+
+Interpretation:
+- current scrape/runtime behavior now includes bounded redirect target handoff
+- this is a bounded mainline behavior change
+- archive read semantics and archive identity migration remain unchanged
+
 Current application structure:
 
 main.py
