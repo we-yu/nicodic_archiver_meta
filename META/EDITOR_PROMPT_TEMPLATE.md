@@ -53,6 +53,54 @@ These rules are normally included with little or no change.
 - Validation ownership remains on the human side.
 - The human will run the established validation workflow separately.
 
+## Completion / no-midpoint-stop rule
+
+Editor prompts should explicitly prevent "midpoint stop" behavior.
+
+This repository has observed a recurring failure mode where an editor AI:
+
+- explains a plan
+- creates one or two helper files
+- reports what it intends to do next
+- then stops before the task is actually complete
+
+That behavior must be treated as **not complete**.
+
+Editor-facing prompts should therefore explicitly state all of the following when relevant:
+
+- intermediate planning text is not completion
+- partial helper-file creation is not completion
+- "next I will ..." status text is not completion
+- the task is not complete until the central implementation files are also updated
+- the task is not complete until required tests are updated when the task calls
+  for them
+- the task is not complete until the requested repo-local report file is written
+- the task is not complete until acceptance criteria are satisfied in the edited
+  file set
+
+Recommended prompt language shape:
+
+- "Do not stop at an intermediate state."
+- "Planning text or partial helper-file creation is not completion."
+- "Complete the actual target-file edits before reporting completion."
+- "If a report file was requested, the task is not complete until that file
+  exists."
+- "If the task requires updates to central files such as `web_app.py`,
+  `tests/test_web_app.py`, `main.py`, etc., helper files alone are not
+  sufficient."
+
+Practical review rule:
+
+- if the central task files are still untouched
+- or the requested report artifact is still missing
+- or the prompt's required acceptance shape is not yet represented in the diff
+
+then the result should be treated as an incomplete implementation rather than
+as a weak-but-comparable final candidate.
+
+This rule exists to preserve Double Helix comparison quality.
+Incomplete outputs should not be treated as normal comparison candidates.
+
 ### Prompt-locality rule
 
 Editor-facing prompts must be written from the editor AI's local repository

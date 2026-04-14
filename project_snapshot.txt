@@ -1959,6 +1959,49 @@ Interpretation:
 - failure-side investigation-start detail is now part of the batch-log baseline
 - `batch_*.log` and `host_cron.log` remain distinct log layers
 
+## SUBTASK004
+Completed.
+
+Outcome summary:
+- a bounded runtime local-env / recreate / permission hardening layer was added
+  for provisional runtime operation
+- `.env.runtime.local` is now part of the intended local-only runtime config
+  shape
+- a tracked `.env.runtime.local.example` was added
+- `.gitignore` now excludes `.env.runtime.local`
+- shared runtime local-env helper behavior was added via:
+  - `tools/runtime_env.sh`
+- recreate-oriented runtime startup was added via:
+  - `bash tools/runtime_up.sh`
+- `runtime/periodic_once.sh` now loads the shared runtime env helper before
+  invoking the existing periodic-once path
+- the runtime hardening now reduces repeat failures caused by:
+  - stale baked runtime container code
+  - host port clash confusion
+  - LOCAL_UID / LOCAL_GID mismatch
+  - common writable-path mismatch
+- focused runtime-local-ops tests were added
+- existing scrape / batch / periodic / DB / queue / scheduler / Web semantics
+  were preserved
+- the task remained bounded runtime / ops hardening
+- no deployment-platform redesign or observability-platform expansion was
+  introduced
+
+Adoption result:
+- Copilot sideflow result adopted into product `main`
+- both child repositories now reflect the same adopted final state on `main`
+- `_runtime` sibling checkout also pulled merged `main`
+- helper-based recreate and periodic-once were rechecked successfully in the
+  `_runtime` checkout
+
+Interpretation:
+- current provisional runtime baseline should now be read as including local env
+  hardening and recreate guidance
+- `bash tools/runtime_up.sh` is now part of the bounded intended runtime
+  operation shape
+- `.env.runtime.local` remains local-only and should not be committed
+- runtime hardening is improved without changing product semantics
+
 Current application structure:
 
 main.py
@@ -3363,6 +3406,164 @@ Authoritative context should still be restored from:
 - `WORKSPACE.md`
 - `project_snapshot.txt`
 
+
+
+
+===== REVIEW LOG: META/review_log/SUBTASK004_runtime_local_env_hardening.md =====
+# SUBTASK004 Runtime Local Env Hardening
+
+## Task
+SUBTASK004
+
+Add bounded runtime local-env / recreate / permission hardening so that
+provisional runtime operation is less likely to fail due to stale container
+code, port clashes, or LOCAL_UID / LOCAL_GID mismatch.
+
+## Positioning
+This is a bounded runtime / ops hardening subtask.
+
+It does not change product semantics.
+It does not redesign scrape, batch, periodic, DB, queue, scheduler, or Web
+behavior.
+
+It specifically hardens the provisional runtime workflow around:
+- local runtime env handling
+- runtime recreate flow
+- permission mismatch prevention
+- bounded local preflight guidance
+
+## Background
+A provisional runtime failure was observed after mainline changes had already
+been merged and pulled into the runtime checkout.
+
+The practical failure pattern was:
+- host checkout had current code
+- long-lived runtime container still had stale baked `/app` code
+- runtime periodic execution path could therefore mismatch current DB-backed
+  target-registry baseline
+- runtime startup / recreate could also fail or become fragile due to:
+  - host port clashes
+  - LOCAL_UID / LOCAL_GID mismatch
+  - writable-path mismatch on mounted runtime data / logs
+
+The goal of this subtask was to reduce repeat failures without widening into a
+deployment-platform redesign.
+
+## What changed
+Changed files in the adopted product result:
+- `.gitignore`
+- `.env.runtime.local.example`
+- `docs/PERSONAL_RUNTIME.md`
+- `runtime/periodic_once.sh`
+- `tools/runtime_env.sh`
+- `tools/runtime_up.sh`
+- `tests/test_runtime_local_ops.py`
+
+Added / changed behavior:
+- `.env.runtime.local` is now treated as local-only runtime config
+- `.gitignore` now excludes `.env.runtime.local`
+- `.env.runtime.local.example` provides the expected local runtime keys:
+  - `WEB_BIND_HOST`
+  - `WEB_PORT`
+  - `LOCAL_UID`
+  - `LOCAL_GID`
+- `tools/runtime_env.sh` now provides bounded shared helper behavior for:
+  - local env loading
+  - safe fallback defaults
+  - host UID/GID auto-detection
+  - `WEB_PORT` validation
+  - bounded host port-busy warning
+- `tools/runtime_up.sh` now provides a bounded recreate-oriented runtime
+  startup wrapper using build + force-recreate
+- `runtime/periodic_once.sh` now loads the shared runtime env helper before
+  invoking the existing periodic-once path
+- focused runtime-local-ops tests now protect the bounded runtime hardening
+  shape
+
+## What did not change
+This subtask did not change:
+- scrape semantics
+- batch semantics
+- periodic semantics
+- DB semantics
+- queue semantics
+- scheduler semantics
+- Web semantics
+
+This subtask also did not expand into:
+- observability platform work
+- deployment-platform redesign
+- worker / queue framework redesign
+- broad container-topology redesign
+
+## Validation summary
+The following validation / review path was completed:
+
+1. Copilot-side bounded implementation review
+2. `./validate_helix.sh` passed on Copilot after focused runtime-local-ops tests
+   were added
+3. GitHub merge into `main` was completed
+4. both child repositories were realigned to merged `main`
+5. `./compare_helix.sh --all` passed after synchronization
+6. post-merge `./validate_helix.sh` passed on both child repositories
+7. `_runtime` sibling checkout pulled merged `main`
+8. `_runtime` local env file was applied with explicit `WEB_PORT`,
+   `LOCAL_UID`, and `LOCAL_GID`
+9. `_runtime` helper-based recreate succeeded
+10. `_runtime` container confirmed `uid=1001 gid=1001`
+11. `_runtime` `./runtime/periodic_once.sh` succeeded after recreate
+12. host cron log showed a new success block after the old failure history
+
+## Direct runtime observation note
+After adoption, the provisional runtime checkout was explicitly recreated with
+local runtime env settings.
+
+Confirmed practical shape:
+- local runtime env file present with:
+  - `WEB_BIND_HOST`
+  - `WEB_PORT`
+  - `LOCAL_UID`
+  - `LOCAL_GID`
+- `bash tools/runtime_up.sh` succeeded
+- runtime container came up with matching host UID/GID
+- `./runtime/periodic_once.sh` completed successfully
+- `runtime/logs/host_cron.log` showed a fresh success block
+
+Older traceback lines remained in the active host cron log as historical
+content, but the latest run block confirmed successful current behavior.
+
+## Repository outcome
+- the sideflow result was adopted into child-repo `main`
+- both `copilot/` and `cursor/` were realigned to the same merged `main`
+- the `_runtime` sibling checkout also pulled merged `main`
+- provisional runtime operation now has a bounded local-env / recreate /
+  permission-hardening baseline
+
+## Interpretation
+Current provisional runtime baseline should now be read as including:
+
+- local-only `.env.runtime.local` handling
+- a tracked `.env.runtime.local.example`
+- bounded helper-based runtime startup via `bash tools/runtime_up.sh`
+- shared local env loading for `runtime/periodic_once.sh`
+- bounded protection against:
+  - stale runtime container code
+  - port clash confusion
+  - LOCAL_UID / LOCAL_GID mismatch
+  - common runtime permission mismatch
+
+This remains bounded runtime / ops hardening.
+It does not change the product‚Äôs scrape or archive semantics.
+
+## Meta note
+This log is AI-readable review memory.
+It is not authoritative current state by itself.
+
+Authoritative context should still be restored from:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
 
 
 
@@ -7688,7 +7889,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Sun Apr 12 17:59:55 UTC 2026
+generated: Tue Apr 14 11:06:46 UTC 2026
 mode: full
 
 
@@ -10630,6 +10831,21 @@ exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/META/scripts/compare_helix.s
 
 
 =============================
+FILE: ./copilot/.env.runtime.local
+=============================
+WEB_BIND_HOST=127.0.0.1
+WEB_PORT=58011
+LOCAL_UID=1001
+LOCAL_GID=1001
+
+=============================
+FILE: ./copilot/.env.runtime.local.example
+=============================
+WEB_BIND_HOST=127.0.0.1
+WEB_PORT=8000
+LOCAL_UID=1000
+LOCAL_GID=1000
+=============================
 FILE: ./copilot/.flake8
 =============================
 [flake8]
@@ -10737,6 +10953,9 @@ project_summary.txt
 
 # For cursor setting
 .cursor/
+
+# Local-only runtime configuration
+.env.runtime.local
 
 # Report file (this is temporary utility file) is unnecessary to version-control
 TASK*report.txt
@@ -12158,6 +12377,8 @@ What this profile now adds for periodic operation:
 - a structured host cron log at runtime/logs/host_cron.log
 - daily rollover into host_cron.YYYYMMDD.log on the next run start
 - weekly tar.gz compaction for older daily host cron logs
+- a local-only runtime env file for host bind/port and UID/GID settings
+- a recreate wrapper with bounded runtime preflight checks
 
 What this profile now adds for web operation:
 - starts the existing web app inside the runtime container
@@ -12183,29 +12404,44 @@ to change.
 The runtime profile sets TARGET_DB_PATH to /app/data/nicodic.db for the web
 process and periodic wrapper.
 
+## Local Runtime Env
+
+Use `.env.runtime.local` as the local-only runtime config for this repo.
+
+Expected keys:
+- `WEB_BIND_HOST`
+- `WEB_PORT`
+- `LOCAL_UID`
+- `LOCAL_GID`
+
+The file is intentionally local-only and should not be committed. Use the
+tracked template as a starting point:
+
+`cp .env.runtime.local.example .env.runtime.local`
+
+The runtime helper scripts automatically load this file when it exists. If the
+file is missing, the helper falls back to safe defaults and auto-detects the
+host UID/GID to reduce common permission mismatches.
+
 ## Host UID/GID Handling
 
-To keep generated files writable from the host shell, pass the host UID/GID
-only when starting the runtime container.
-
-Recommended start command:
-
-```sh
-LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) \
-	docker compose -f docker-compose.runtime.yml up -d --build
-```
-
-This avoids relying on persistent host-side environment variable setup.
-The values are resolved from the current host at container start time.
+To keep generated files writable from the host shell, the runtime helper loads
+`LOCAL_UID` and `LOCAL_GID` from `.env.runtime.local` when present. If they are
+unset, the helper auto-detects the current host UID/GID before `docker compose`
+starts.
 
 ## Build And Start
 
 Build and start the provisional runtime container:
 
-```sh
-LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) \
-	docker compose -f docker-compose.runtime.yml up -d --build
-```
+`bash tools/runtime_up.sh`
+
+This wrapper performs bounded local preflight work before compose startup:
+- loads `.env.runtime.local` when present
+- auto-detects `LOCAL_UID` / `LOCAL_GID` if missing
+- validates `WEB_PORT`
+- warns when the requested host port already looks busy
+- uses `--build --force-recreate` to reduce stale container code
 
 The container starts the existing web app on port 8000 inside the container.
 By default, docker-compose.runtime.yml publishes that as 127.0.0.1:8000 on
@@ -12217,11 +12453,9 @@ Open the web UI from the host browser at:
 
 To bind a different host IP or port without editing files:
 
-```sh
-WEB_BIND_HOST=0.0.0.0 WEB_PORT=8010 \
-LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) \
-	docker compose -f docker-compose.runtime.yml up -d --build
-```
+edit `.env.runtime.local`, then run:
+
+`bash tools/runtime_up.sh`
 
 The web app remains a thin entrypoint. A web-side registration adds only the
 canonical article URL to the target table in /app/data/nicodic.db. It does not
@@ -12391,6 +12625,7 @@ Useful environment overrides for external schedulers:
 - `COMPOSE_FILE_PATH` defaults to `docker-compose.runtime.yml`
 - `COMPOSE_SERVICE_NAME` defaults to `personal_runtime`
 - `LOCK_DIR_PATH` defaults to `runtime/logs/periodic_once.lock`
+- `RUNTIME_LOCAL_ENV_FILE` defaults to `.env.runtime.local`
 
 Example scheduler-facing invocation shape:
 
@@ -15351,6 +15586,25 @@ failed_targets=0
 final_status=success
 
 =============================
+FILE: ./copilot/runtime/logs/batch_runs/batch_ae6627292ae2.log
+=============================
+BATCH_RUN_START
+  run_id=ae6627292ae2
+  started_at=2026-04-12T19:19:30.728263+00:00
+  target_db_path=/app/data/nicodic.db
+  target_source=target_table
+  total_targets=0
+BATCH_RUN_END
+  run_id=ae6627292ae2
+  started_at=2026-04-12T19:19:30.728263+00:00
+  ended_at=2026-04-12T19:19:30.728530+00:00
+  duration_seconds=0
+  total_targets=0
+  success_targets=0
+  failed_targets=0
+  final_status=success
+
+=============================
 FILE: ./copilot/runtime/logs/batch_runs/batch_c30c72b0f9fc.log
 =============================
 BATCH_RUN_START
@@ -15371,10 +15625,9 @@ FILE: ./copilot/runtime/logs/host_cron.20260316-20260322.tar.gz
 =============================
 ã‘q⁄iˇhost_cron.20260316-20260322.tar.gz.tmp Ì’Õj¬@Ü·Y{séÁú˘K°Ó\Qª*"¡Ü*T1ÇóﬂQ)u„ÆVâﬂ√¿Ñ!êÕúº¶gz/„‚0*ãè≤V7Ag◊v"Î~üèÁL¬¢ÙA˝É˝Æ)ÍÙyıú$”õfΩ)£œ≈oç„≥‹v¥ﬁ™⁄5ãe]mçê≤ÃWı˘˜Û¬i∆9zæ‹œ)ˆú^â…ß˘gÁ”¸ÊˇÊﬁ'oØs=ù'3}º]≤]ö∏Oî˛-g–Ù˝Gˇ˙ü=Hˇ˙∑˛gË?˙è˛£ˇl˝yå˛ªà˛ﬂ´ˇ"Ë?       @[|níU (  
 =============================
-FILE: ./copilot/runtime/logs/host_cron.20260327.log
+FILE: ./copilot/runtime/logs/host_cron.20260323-20260329.tar.gz
 =============================
-[RUN] START 2026-03-27 01:00:00
-
+ãB€iˇhost_cron.20260323-20260329.tar.gz.tmp Ì‘œJBA«ÒY˜ÛéÁÃ_Ñ⁄µä0[Eƒ≈.)dÆ7ÒªÊB7Ó4¢æúa80õÛ7t√Î˚j{[WØuk.BˆNuëÁ›ΩäWoÏ÷¸ÄœMWµ˝ÛÊÚ#ªÓVÎz™•§±95ó—8\¸yÀf”Ω,⁄Ê√yÒYÇ/ÓΩy;˛s˛Œ∏ñ§«}/ä—§˝Hë"©œø∆çÚqO≥«ªg˚0øôÕÌnæX—âH_¸            ø‹v8 (  
 =============================
 FILE: ./copilot/runtime/logs/host_cron.20260409.log
 =============================
@@ -15384,6 +15637,10 @@ FILE: ./copilot/runtime/logs/host_cron.20260409.log
 =============================
 FILE: ./copilot/runtime/logs/host_cron.log
 =============================
+[RUN] START 2026-04-12 19:19:30
+  [INFO] target_db_path=/app/data/nicodic.db targets=0
+[RUN] END 2026-04-12 19:19:30 status=success
+[SUMMARY] targets=0 ok=0 fail=0 duration=0s
 
 =============================
 FILE: ./copilot/runtime/periodic_once.sh
@@ -15391,11 +15648,21 @@ FILE: ./copilot/runtime/periodic_once.sh
 #!/bin/bash
 set -eu
 
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+
 COMPOSE_FILE_PATH=${COMPOSE_FILE_PATH:-docker-compose.runtime.yml}
 COMPOSE_SERVICE_NAME=${COMPOSE_SERVICE_NAME:-personal_runtime}
 TARGET_DB_PATH=${TARGET_DB_PATH:-/app/data/nicodic.db}
 LOCK_DIR_PATH=${LOCK_DIR_PATH:-runtime/logs/periodic_once.lock}
 HOST_CRON_LOG_PATH=${HOST_CRON_LOG_PATH:-/runtime/logs/host_cron.log}
+
+cd "$REPO_ROOT"
+
+. "$REPO_ROOT/tools/runtime_env.sh"
+
+runtime_local_load
+runtime_local_validate
 
 mkdir -p "$(dirname "$LOCK_DIR_PATH")"
 
@@ -15409,6 +15676,8 @@ fi
 
 echo "[periodic-once] Starting one periodic cycle"
 echo "[periodic-once] target_db_path=$TARGET_DB_PATH"
+echo "[periodic-once] If the runtime code looks stale, recreate with"
+echo "[periodic-once] bash tools/runtime_up.sh"
 
 docker compose -f "$COMPOSE_FILE_PATH" exec -T "$COMPOSE_SERVICE_NAME" \
   env HOST_CRON_LOG_PATH="$HOST_CRON_LOG_PATH" \
@@ -19314,6 +19583,54 @@ def test_parse_responses_partial_html_and_missing_res_no():
     assert response["content_html"] == ""
 
 =============================
+FILE: ./copilot/tests/test_runtime_local_ops.py
+=============================
+from pathlib import Path
+
+
+def test_runtime_local_example_contains_expected_keys():
+    example_path = Path(".env.runtime.local.example")
+    text = example_path.read_text(encoding="utf-8")
+
+    assert "WEB_BIND_HOST=" in text
+    assert "WEB_PORT=" in text
+    assert "LOCAL_UID=" in text
+    assert "LOCAL_GID=" in text
+
+
+def test_gitignore_treats_runtime_local_env_as_local_only():
+    text = Path(".gitignore").read_text(encoding="utf-8")
+
+    assert ".env.runtime.local" in text
+
+
+def test_runtime_up_wrapper_loads_local_env_and_recreates_runtime():
+    text = Path("tools/runtime_up.sh").read_text(encoding="utf-8")
+
+    assert "runtime_local_load" in text
+    assert "runtime_local_validate" in text
+    assert "runtime_local_warn_port_clash" in text
+    assert "--force-recreate" in text
+    assert "docker-compose.runtime.yml" in text
+
+
+def test_periodic_wrapper_loads_shared_runtime_env_helper():
+    text = Path("runtime/periodic_once.sh").read_text(encoding="utf-8")
+
+    assert 'tools/runtime_env.sh' in text
+    assert "runtime_local_load" in text
+    assert "runtime_local_validate" in text
+
+
+def test_personal_runtime_doc_mentions_local_env_and_wrapper():
+    text = Path("docs/PERSONAL_RUNTIME.md").read_text(encoding="utf-8")
+
+    assert ".env.runtime.local" in text
+    assert "tools/runtime_up.sh" in text
+    assert "LOCAL_UID" in text
+    assert "WEB_PORT" in text
+
+=============================
 FILE: ./copilot/tests/test_storage.py
 =============================
 """Unit tests for storage layer (storage.py).
@@ -21220,6 +21537,119 @@ cd "$REPO_ROOT"
 python main.py operator "$@"
 
 =============================
+FILE: ./copilot/tools/runtime_env.sh
+=============================
+#!/bin/bash
+
+runtime_local_env_file() {
+  printf '%s\n' "${RUNTIME_LOCAL_ENV_FILE:-.env.runtime.local}"
+}
+
+runtime_local_load() {
+  local env_file
+  env_file=$(runtime_local_env_file)
+
+  if [[ -f "$env_file" ]]; then
+    set -a
+    . "$env_file"
+    set +a
+    echo "[runtime-env] Loaded $env_file"
+  else
+    echo "[runtime-env] Local runtime env not found: $env_file"
+    echo "[runtime-env] Falling back to safe local defaults"
+  fi
+
+  : "${WEB_BIND_HOST:=127.0.0.1}"
+  : "${WEB_PORT:=8000}"
+
+  if [[ -z "${LOCAL_UID:-}" ]]; then
+    LOCAL_UID=$(id -u)
+    export LOCAL_UID
+    echo "[runtime-env] LOCAL_UID was unset; detected $LOCAL_UID"
+  fi
+
+  if [[ -z "${LOCAL_GID:-}" ]]; then
+    LOCAL_GID=$(id -g)
+    export LOCAL_GID
+    echo "[runtime-env] LOCAL_GID was unset; detected $LOCAL_GID"
+  fi
+}
+
+runtime_local_validate() {
+  if ! [[ "$WEB_PORT" =~ ^[0-9]+$ ]]; then
+    echo "[runtime-env] Invalid WEB_PORT: $WEB_PORT"
+    echo "[runtime-env] Use a numeric host port in .env.runtime.local"
+    return 1
+  fi
+
+  if (( WEB_PORT < 1 || WEB_PORT > 65535 )); then
+    echo "[runtime-env] WEB_PORT out of range: $WEB_PORT"
+    echo "[runtime-env] Use a port between 1 and 65535"
+    return 1
+  fi
+
+  if ! [[ "$LOCAL_UID" =~ ^[0-9]+$ ]]; then
+    echo "[runtime-env] Invalid LOCAL_UID: $LOCAL_UID"
+    return 1
+  fi
+
+  if ! [[ "$LOCAL_GID" =~ ^[0-9]+$ ]]; then
+    echo "[runtime-env] Invalid LOCAL_GID: $LOCAL_GID"
+    return 1
+  fi
+
+  return 0
+}
+
+runtime_local_warn_port_clash() {
+  if ! command -v ss >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if ss -ltn | grep -E "[\[.:]${WEB_PORT}[[:space:]]" >/dev/null 2>&1; then
+    echo "[runtime-env] Port $WEB_PORT already appears busy on the host"
+    echo "[runtime-env] If startup fails, change WEB_PORT or stop the other"
+    echo "[runtime-env] listener and recreate with bash tools/runtime_up.sh"
+  fi
+}
+
+runtime_local_print_summary() {
+  echo "[runtime-env] WEB_BIND_HOST=$WEB_BIND_HOST"
+  echo "[runtime-env] WEB_PORT=$WEB_PORT"
+  echo "[runtime-env] LOCAL_UID=$LOCAL_UID"
+  echo "[runtime-env] LOCAL_GID=$LOCAL_GID"
+}
+
+
+=============================
+FILE: ./copilot/tools/runtime_up.sh
+=============================
+#!/bin/bash
+set -eu
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+COMPOSE_FILE_PATH=${COMPOSE_FILE_PATH:-docker-compose.runtime.yml}
+COMPOSE_SERVICE_NAME=${COMPOSE_SERVICE_NAME:-personal_runtime}
+
+cd "$REPO_ROOT"
+
+. "$SCRIPT_DIR/runtime_env.sh"
+
+runtime_local_load
+runtime_local_validate
+runtime_local_warn_port_clash
+runtime_local_print_summary
+
+echo "[runtime-up] Starting runtime with build + force-recreate"
+echo "[runtime-up] compose_file=$COMPOSE_FILE_PATH"
+echo "[runtime-up] service=$COMPOSE_SERVICE_NAME"
+
+docker compose -f "$COMPOSE_FILE_PATH" up -d --build --force-recreate \
+  "$COMPOSE_SERVICE_NAME"
+
+
+=============================
 FILE: ./copilot/tools/verify.sh
 =============================
 #!/bin/sh
@@ -22171,6 +22601,13 @@ Apply only lightweight, mechanical guardrails.
 - If the task is a line-length-only fix, change only the minimum lines required for E501 resolution and do not change logic, wording, assertions, or control flow.
 
 =============================
+FILE: ./cursor/.env.runtime.local.example
+=============================
+WEB_BIND_HOST=127.0.0.1
+WEB_PORT=8000
+LOCAL_UID=1000
+LOCAL_GID=1000
+=============================
 FILE: ./cursor/.flake8
 =============================
 [flake8]
@@ -22249,6 +22686,9 @@ project_summary.txt
 
 # For cursor setting
 .cursor/
+
+# Local-only runtime configuration
+.env.runtime.local
 
 # Report file (this is temporary utility file) is unnecessary to version-control
 TASK*report.txt
@@ -23670,6 +24110,8 @@ What this profile now adds for periodic operation:
 - a structured host cron log at runtime/logs/host_cron.log
 - daily rollover into host_cron.YYYYMMDD.log on the next run start
 - weekly tar.gz compaction for older daily host cron logs
+- a local-only runtime env file for host bind/port and UID/GID settings
+- a recreate wrapper with bounded runtime preflight checks
 
 What this profile now adds for web operation:
 - starts the existing web app inside the runtime container
@@ -23695,29 +24137,44 @@ to change.
 The runtime profile sets TARGET_DB_PATH to /app/data/nicodic.db for the web
 process and periodic wrapper.
 
+## Local Runtime Env
+
+Use `.env.runtime.local` as the local-only runtime config for this repo.
+
+Expected keys:
+- `WEB_BIND_HOST`
+- `WEB_PORT`
+- `LOCAL_UID`
+- `LOCAL_GID`
+
+The file is intentionally local-only and should not be committed. Use the
+tracked template as a starting point:
+
+`cp .env.runtime.local.example .env.runtime.local`
+
+The runtime helper scripts automatically load this file when it exists. If the
+file is missing, the helper falls back to safe defaults and auto-detects the
+host UID/GID to reduce common permission mismatches.
+
 ## Host UID/GID Handling
 
-To keep generated files writable from the host shell, pass the host UID/GID
-only when starting the runtime container.
-
-Recommended start command:
-
-```sh
-LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) \
-	docker compose -f docker-compose.runtime.yml up -d --build
-```
-
-This avoids relying on persistent host-side environment variable setup.
-The values are resolved from the current host at container start time.
+To keep generated files writable from the host shell, the runtime helper loads
+`LOCAL_UID` and `LOCAL_GID` from `.env.runtime.local` when present. If they are
+unset, the helper auto-detects the current host UID/GID before `docker compose`
+starts.
 
 ## Build And Start
 
 Build and start the provisional runtime container:
 
-```sh
-LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) \
-	docker compose -f docker-compose.runtime.yml up -d --build
-```
+`bash tools/runtime_up.sh`
+
+This wrapper performs bounded local preflight work before compose startup:
+- loads `.env.runtime.local` when present
+- auto-detects `LOCAL_UID` / `LOCAL_GID` if missing
+- validates `WEB_PORT`
+- warns when the requested host port already looks busy
+- uses `--build --force-recreate` to reduce stale container code
 
 The container starts the existing web app on port 8000 inside the container.
 By default, docker-compose.runtime.yml publishes that as 127.0.0.1:8000 on
@@ -23729,11 +24186,9 @@ Open the web UI from the host browser at:
 
 To bind a different host IP or port without editing files:
 
-```sh
-WEB_BIND_HOST=0.0.0.0 WEB_PORT=8010 \
-LOCAL_UID=$(id -u) LOCAL_GID=$(id -g) \
-	docker compose -f docker-compose.runtime.yml up -d --build
-```
+edit `.env.runtime.local`, then run:
+
+`bash tools/runtime_up.sh`
 
 The web app remains a thin entrypoint. A web-side registration adds only the
 canonical article URL to the target table in /app/data/nicodic.db. It does not
@@ -23903,6 +24358,7 @@ Useful environment overrides for external schedulers:
 - `COMPOSE_FILE_PATH` defaults to `docker-compose.runtime.yml`
 - `COMPOSE_SERVICE_NAME` defaults to `personal_runtime`
 - `LOCK_DIR_PATH` defaults to `runtime/logs/periodic_once.lock`
+- `RUNTIME_LOCAL_ENV_FILE` defaults to `.env.runtime.local`
 
 Example scheduler-facing invocation shape:
 
@@ -26834,11 +27290,21 @@ FILE: ./cursor/runtime/periodic_once.sh
 #!/bin/bash
 set -eu
 
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+
 COMPOSE_FILE_PATH=${COMPOSE_FILE_PATH:-docker-compose.runtime.yml}
 COMPOSE_SERVICE_NAME=${COMPOSE_SERVICE_NAME:-personal_runtime}
 TARGET_DB_PATH=${TARGET_DB_PATH:-/app/data/nicodic.db}
 LOCK_DIR_PATH=${LOCK_DIR_PATH:-runtime/logs/periodic_once.lock}
 HOST_CRON_LOG_PATH=${HOST_CRON_LOG_PATH:-/runtime/logs/host_cron.log}
+
+cd "$REPO_ROOT"
+
+. "$REPO_ROOT/tools/runtime_env.sh"
+
+runtime_local_load
+runtime_local_validate
 
 mkdir -p "$(dirname "$LOCK_DIR_PATH")"
 
@@ -26852,6 +27318,8 @@ fi
 
 echo "[periodic-once] Starting one periodic cycle"
 echo "[periodic-once] target_db_path=$TARGET_DB_PATH"
+echo "[periodic-once] If the runtime code looks stale, recreate with"
+echo "[periodic-once] bash tools/runtime_up.sh"
 
 docker compose -f "$COMPOSE_FILE_PATH" exec -T "$COMPOSE_SERVICE_NAME" \
   env HOST_CRON_LOG_PATH="$HOST_CRON_LOG_PATH" \
@@ -30683,6 +31151,54 @@ def test_parse_responses_partial_html_and_missing_res_no():
     assert response["content_html"] == ""
 
 =============================
+FILE: ./cursor/tests/test_runtime_local_ops.py
+=============================
+from pathlib import Path
+
+
+def test_runtime_local_example_contains_expected_keys():
+    example_path = Path(".env.runtime.local.example")
+    text = example_path.read_text(encoding="utf-8")
+
+    assert "WEB_BIND_HOST=" in text
+    assert "WEB_PORT=" in text
+    assert "LOCAL_UID=" in text
+    assert "LOCAL_GID=" in text
+
+
+def test_gitignore_treats_runtime_local_env_as_local_only():
+    text = Path(".gitignore").read_text(encoding="utf-8")
+
+    assert ".env.runtime.local" in text
+
+
+def test_runtime_up_wrapper_loads_local_env_and_recreates_runtime():
+    text = Path("tools/runtime_up.sh").read_text(encoding="utf-8")
+
+    assert "runtime_local_load" in text
+    assert "runtime_local_validate" in text
+    assert "runtime_local_warn_port_clash" in text
+    assert "--force-recreate" in text
+    assert "docker-compose.runtime.yml" in text
+
+
+def test_periodic_wrapper_loads_shared_runtime_env_helper():
+    text = Path("runtime/periodic_once.sh").read_text(encoding="utf-8")
+
+    assert 'tools/runtime_env.sh' in text
+    assert "runtime_local_load" in text
+    assert "runtime_local_validate" in text
+
+
+def test_personal_runtime_doc_mentions_local_env_and_wrapper():
+    text = Path("docs/PERSONAL_RUNTIME.md").read_text(encoding="utf-8")
+
+    assert ".env.runtime.local" in text
+    assert "tools/runtime_up.sh" in text
+    assert "LOCAL_UID" in text
+    assert "WEB_PORT" in text
+
+=============================
 FILE: ./cursor/tests/test_storage.py
 =============================
 """Unit tests for storage layer (storage.py).
@@ -32587,6 +33103,119 @@ REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 
 cd "$REPO_ROOT"
 python main.py operator "$@"
+
+=============================
+FILE: ./cursor/tools/runtime_env.sh
+=============================
+#!/bin/bash
+
+runtime_local_env_file() {
+  printf '%s\n' "${RUNTIME_LOCAL_ENV_FILE:-.env.runtime.local}"
+}
+
+runtime_local_load() {
+  local env_file
+  env_file=$(runtime_local_env_file)
+
+  if [[ -f "$env_file" ]]; then
+    set -a
+    . "$env_file"
+    set +a
+    echo "[runtime-env] Loaded $env_file"
+  else
+    echo "[runtime-env] Local runtime env not found: $env_file"
+    echo "[runtime-env] Falling back to safe local defaults"
+  fi
+
+  : "${WEB_BIND_HOST:=127.0.0.1}"
+  : "${WEB_PORT:=8000}"
+
+  if [[ -z "${LOCAL_UID:-}" ]]; then
+    LOCAL_UID=$(id -u)
+    export LOCAL_UID
+    echo "[runtime-env] LOCAL_UID was unset; detected $LOCAL_UID"
+  fi
+
+  if [[ -z "${LOCAL_GID:-}" ]]; then
+    LOCAL_GID=$(id -g)
+    export LOCAL_GID
+    echo "[runtime-env] LOCAL_GID was unset; detected $LOCAL_GID"
+  fi
+}
+
+runtime_local_validate() {
+  if ! [[ "$WEB_PORT" =~ ^[0-9]+$ ]]; then
+    echo "[runtime-env] Invalid WEB_PORT: $WEB_PORT"
+    echo "[runtime-env] Use a numeric host port in .env.runtime.local"
+    return 1
+  fi
+
+  if (( WEB_PORT < 1 || WEB_PORT > 65535 )); then
+    echo "[runtime-env] WEB_PORT out of range: $WEB_PORT"
+    echo "[runtime-env] Use a port between 1 and 65535"
+    return 1
+  fi
+
+  if ! [[ "$LOCAL_UID" =~ ^[0-9]+$ ]]; then
+    echo "[runtime-env] Invalid LOCAL_UID: $LOCAL_UID"
+    return 1
+  fi
+
+  if ! [[ "$LOCAL_GID" =~ ^[0-9]+$ ]]; then
+    echo "[runtime-env] Invalid LOCAL_GID: $LOCAL_GID"
+    return 1
+  fi
+
+  return 0
+}
+
+runtime_local_warn_port_clash() {
+  if ! command -v ss >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if ss -ltn | grep -E "[\[.:]${WEB_PORT}[[:space:]]" >/dev/null 2>&1; then
+    echo "[runtime-env] Port $WEB_PORT already appears busy on the host"
+    echo "[runtime-env] If startup fails, change WEB_PORT or stop the other"
+    echo "[runtime-env] listener and recreate with bash tools/runtime_up.sh"
+  fi
+}
+
+runtime_local_print_summary() {
+  echo "[runtime-env] WEB_BIND_HOST=$WEB_BIND_HOST"
+  echo "[runtime-env] WEB_PORT=$WEB_PORT"
+  echo "[runtime-env] LOCAL_UID=$LOCAL_UID"
+  echo "[runtime-env] LOCAL_GID=$LOCAL_GID"
+}
+
+
+=============================
+FILE: ./cursor/tools/runtime_up.sh
+=============================
+#!/bin/bash
+set -eu
+
+SCRIPT_DIR=$(cd "$(dirname "$0")" && pwd)
+REPO_ROOT=$(cd "$SCRIPT_DIR/.." && pwd)
+COMPOSE_FILE_PATH=${COMPOSE_FILE_PATH:-docker-compose.runtime.yml}
+COMPOSE_SERVICE_NAME=${COMPOSE_SERVICE_NAME:-personal_runtime}
+
+cd "$REPO_ROOT"
+
+. "$SCRIPT_DIR/runtime_env.sh"
+
+runtime_local_load
+runtime_local_validate
+runtime_local_warn_port_clash
+runtime_local_print_summary
+
+echo "[runtime-up] Starting runtime with build + force-recreate"
+echo "[runtime-up] compose_file=$COMPOSE_FILE_PATH"
+echo "[runtime-up] service=$COMPOSE_SERVICE_NAME"
+
+docker compose -f "$COMPOSE_FILE_PATH" up -d --build --force-recreate \
+  "$COMPOSE_SERVICE_NAME"
+
 
 =============================
 FILE: ./cursor/tools/verify.sh

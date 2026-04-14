@@ -57,6 +57,17 @@ Keep the topic short, clear, and implementation-neutral.
   - fixing any such issue before the task is treated as complete
   - no ad-hoc shell validation command assumptions
 
+- Ensure the editor prompt also includes an explicit completion rule against
+  midpoint stopping.
+- The prompt should make clear that the following are **not** completion:
+  - planning text
+  - "next I will ..." progress narration
+  - creation of only helper / support files
+  - partial diffs that do not yet touch the central task files
+- If the task requires central file edits, focused tests, or a repo-local
+  report artifact, the prompt should state that the task remains incomplete
+  until those artifacts exist in the repository.
+
 ### Editor-prompt locality note
 
 When preparing prompts for editor AIs, keep the prompt local to the repository

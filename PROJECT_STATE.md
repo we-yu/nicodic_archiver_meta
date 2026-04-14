@@ -1002,6 +1002,38 @@ Interpretation:
 - `.env.runtime.local` remains local-only and should not be committed
 - runtime hardening is improved without changing product semantics
 
+## TASK034
+Completed.
+
+Outcome summary:
+- bounded Web archive-check UX was simplified into a single-submit flow
+- page title is now `NicoNicoPedia Archive Checker`
+- saved article flow now shows a short saved result and triggers bounded
+  auto-download
+- unsaved article flow now immediately registers into the target registry and
+  returns a short registration result
+- bounded short error display replaced the older operator-facing result shape
+- previous two-step follow-up action buttons were removed from the main result
+  flow
+- bounded waiting-state behavior now suppresses repeated submit attempts
+- user-facing result display is simplified
+- bounded Web action logging was added
+- Web action log blocks are human-readable and separated by blank lines
+- focused Web tests were updated to protect the adopted flow
+
+Adoption result:
+- Double Helix comparison was attempted
+- Copilot result was adopted
+- Cursor result was not adopted due to weaker practical UI behavior despite
+  passing validation
+- current product mainline should be read as reflecting the adopted Copilot
+  version of TASK034
+
+Interpretation:
+- current Web archive-check UX is now single-submit first
+- this is a bounded UX refinement only
+- product semantics outside the Web interaction flow remain unchanged
+
 Current application structure:
 
 main.py
