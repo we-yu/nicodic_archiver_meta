@@ -162,13 +162,26 @@ After a task is completed:
    using the repository-compliant method
 8. in both `copilot/` and `cursor/`, checkout `main` and pull
 9. confirm convergence using compare_helix.sh
+10. run validate_helix.sh on the synchronized child repos
+11. if the sibling runtime checkout is in use, pull adopted `main` there as well
+12. if the sibling runtime checkout is in use, recreate runtime with the bounded
+    helper flow and confirm container startup
 
 - In this project, post-adoption synchronization should normally happen
   by integrating the adopted result into child-repo `main`
   and then pulling `main` in both child repos.
 - Do not treat manual file copying between `copilot/` and `cursor/`
   as the standard completion path.
-  
+- If the provisional runtime checkout
+  `/home/manage/product/nicodic_archiver_runtime`
+  is actively used, task closeout should normally include:
+  - `git pull --ff-only origin main`
+  - `bash tools/runtime_up.sh`
+  - a bounded runtime startup confirmation
+- This runtime reflection step is operational, not part of Double Helix
+  comparison judgment, but it should not be forgotten when adopted `main`
+  needs to be exercised in the sibling runtime checkout.
+
 After adoption, a short AI-readable review log may be stored
 under META/review_log/ for future sessions.
 

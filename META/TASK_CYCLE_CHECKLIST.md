@@ -373,3 +373,23 @@ Finish the task only after:
 4. convergence passes
 5. review memory is updated
 6. authoritative snapshot is regenerated
+
+--------------------------------------------------
+
+## Sibling runtime reflection
+
+If the sibling runtime checkout is currently in use:
+
+- pull adopted `main` in `/home/manage/product/nicodic_archiver_runtime`
+- recreate runtime with the bounded helper flow
+- confirm container startup after recreate
+
+Practical default commands:
+
+- `cd /home/manage/product/nicodic_archiver_runtime && git pull --ff-only origin main`
+- `cd /home/manage/product/nicodic_archiver_runtime && bash tools/runtime_up.sh`
+- `docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | grep nicodic_archiver_runtime-personal_runtime`
+
+This runtime reflection step is not part of Copilot vs Cursor adoption judgment,
+but it is part of practical task closeout whenever adopted `main` must also be
+exercised in the provisional runtime checkout.

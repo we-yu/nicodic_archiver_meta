@@ -2002,6 +2002,38 @@ Interpretation:
 - `.env.runtime.local` remains local-only and should not be committed
 - runtime hardening is improved without changing product semantics
 
+## TASK034
+Completed.
+
+Outcome summary:
+- bounded Web archive-check UX was simplified into a single-submit flow
+- page title is now `NicoNicoPedia Archive Checker`
+- saved article flow now shows a short saved result and triggers bounded
+  auto-download
+- unsaved article flow now immediately registers into the target registry and
+  returns a short registration result
+- bounded short error display replaced the older operator-facing result shape
+- previous two-step follow-up action buttons were removed from the main result
+  flow
+- bounded waiting-state behavior now suppresses repeated submit attempts
+- user-facing result display is simplified
+- bounded Web action logging was added
+- Web action log blocks are human-readable and separated by blank lines
+- focused Web tests were updated to protect the adopted flow
+
+Adoption result:
+- Double Helix comparison was attempted
+- Copilot result was adopted
+- Cursor result was not adopted due to weaker practical UI behavior despite
+  passing validation
+- current product mainline should be read as reflecting the adopted Copilot
+  version of TASK034
+
+Interpretation:
+- current Web archive-check UX is now single-submit first
+- this is a bounded UX refinement only
+- product semantics outside the Web interaction flow remain unchanged
+
 Current application structure:
 
 main.py
@@ -2447,6 +2479,17 @@ Keep the topic short, clear, and implementation-neutral.
   - trailing newline at EOF for every edited or newly created file
   - fixing any such issue before the task is treated as complete
   - no ad-hoc shell validation command assumptions
+
+- Ensure the editor prompt also includes an explicit completion rule against
+  midpoint stopping.
+- The prompt should make clear that the following are **not** completion:
+  - planning text
+  - "next I will ..." progress narration
+  - creation of only helper / support files
+  - partial diffs that do not yet touch the central task files
+- If the task requires central file edits, focused tests, or a repo-local
+  report artifact, the prompt should state that the task remains incomplete
+  until those artifacts exist in the repository.
 
 ### Editor-prompt locality note
 
@@ -7537,6 +7580,119 @@ Authoritative context should still be restored from:
 
 
 
+===== REVIEW LOG: META/review_log/TASK034_web_archive_check_ux.md =====
+# TASK034 Web Archive Check UX Simplification
+
+## Task
+TASK034
+
+Simplify the bounded Web archive-check flow so that a single submit handles:
+- saved article -> auto-download path
+- unsaved article -> target-registry registration
+- error -> short user-facing error display
+
+Also add bounded Web action logging and light UI text externalization.
+
+## Positioning
+This is a bounded mainline Web UX task.
+
+It does not change:
+- scrape semantics
+- batch semantics
+- periodic semantics
+- DB semantics
+- queue semantics
+- scheduler semantics
+- archive semantics
+
+It refines the user-facing Web interaction flow only.
+
+## What changed
+Adopted result from Copilot sideflow:
+- `web_app.py`
+- `tests/test_web_app.py`
+
+Main adopted behavior:
+- page title is now `NicoNicoPedia Archive Checker`
+- single-submit flow is used on `POST /`
+- saved article path now renders a short user-facing result and triggers
+  bounded auto-download
+- unsaved article path now registers immediately into the target registry and
+  returns a short user-facing registration result
+- error path now returns a short user-facing error result
+- previous two-step follow-up action buttons were removed
+- processing state now disables repeated submit and shows bounded waiting state
+- user-facing result display is simplified
+- operator/debug-oriented fields are hidden from normal result display
+- bounded Web action log blocks were added
+- Web action log blocks are separated by blank lines
+- human-readable article title is preserved in the log path
+- focused Web tests were updated to protect the new bounded flow
+
+## What did not change
+This task did not change:
+- scrape logic
+- resolver semantics
+- archive storage semantics
+- target registry semantics
+- periodic runtime semantics
+- scheduler or queue design
+
+It also did not expand into:
+- async job platform work
+- observability platform work
+- Slack / mail notification work
+- auth / multi-user work
+- heavy config system work
+
+## Validation summary
+The following validation path was completed:
+
+1. Double Helix implementation was attempted in both child repositories
+2. Copilot result reached bounded completion and passed validation
+3. Cursor result reached validation pass but failed practical UI comparison
+4. Copilot result was selected for adoption
+5. `./validate_helix.sh` passed for the adopted Copilot result
+6. practical browser-side flow check was completed for the adopted result
+7. task comparison was closed in favor of Copilot
+
+## Practical UX outcome
+The adopted Web flow should now be read as:
+
+- user enters article title or URL
+- presses Submit once
+- if saved archive exists:
+  - user sees a short saved result
+  - TXT download starts automatically
+- if saved archive does not exist yet:
+  - article is registered into target registry
+  - user sees a short registration result
+- if resolution fails or another bounded error occurs:
+  - user sees a short user-facing error message
+
+## Interpretation
+Current mainline Web archive-check baseline should now be read as including:
+- bounded single-submit UX
+- simplified result display
+- bounded waiting-state submit suppression
+- bounded Web action logging
+- light UI wording refinement
+
+This remains a bounded UX refinement task, not a backend semantics change.
+
+## Meta note
+This review log is AI-readable working memory.
+It is not authoritative by itself.
+
+Authoritative current state should still be restored from:
+- `AI_CONTEXT.md`
+- `_AI_RULES.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
+
+
+
 ===== REVIEW LOG: META/review_log/task008_review.md =====
 # TASK008 Review
 
@@ -7889,7 +8045,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Tue Apr 14 11:06:46 UTC 2026
+generated: Tue Apr 14 15:18:28 UTC 2026
 mode: full
 
 
@@ -8421,6 +8577,54 @@ These rules are normally included with little or no change.
 - Do not instruct the editor AI to interrupt work for validation proposals.
 - Validation ownership remains on the human side.
 - The human will run the established validation workflow separately.
+
+## Completion / no-midpoint-stop rule
+
+Editor prompts should explicitly prevent "midpoint stop" behavior.
+
+This repository has observed a recurring failure mode where an editor AI:
+
+- explains a plan
+- creates one or two helper files
+- reports what it intends to do next
+- then stops before the task is actually complete
+
+That behavior must be treated as **not complete**.
+
+Editor-facing prompts should therefore explicitly state all of the following when relevant:
+
+- intermediate planning text is not completion
+- partial helper-file creation is not completion
+- "next I will ..." status text is not completion
+- the task is not complete until the central implementation files are also updated
+- the task is not complete until required tests are updated when the task calls
+  for them
+- the task is not complete until the requested repo-local report file is written
+- the task is not complete until acceptance criteria are satisfied in the edited
+  file set
+
+Recommended prompt language shape:
+
+- "Do not stop at an intermediate state."
+- "Planning text or partial helper-file creation is not completion."
+- "Complete the actual target-file edits before reporting completion."
+- "If a report file was requested, the task is not complete until that file
+  exists."
+- "If the task requires updates to central files such as `web_app.py`,
+  `tests/test_web_app.py`, `main.py`, etc., helper files alone are not
+  sufficient."
+
+Practical review rule:
+
+- if the central task files are still untouched
+- or the requested report artifact is still missing
+- or the prompt's required acceptance shape is not yet represented in the diff
+
+then the result should be treated as an incomplete implementation rather than
+as a weak-but-comparable final candidate.
+
+This rule exists to preserve Double Helix comparison quality.
+Incomplete outputs should not be treated as normal comparison candidates.
 
 ### Prompt-locality rule
 
@@ -20520,11 +20724,18 @@ FILE: ./copilot/tests/test_web_app.py
 from io import BytesIO
 from unittest.mock import patch
 
-from web_app import application, check_article_status, create_app
 import web_app
+from web_app import application, check_article_status, create_app
 
 
-def _run_wsgi_request(method, path="/", body="", app=None):
+def _run_wsgi_request(
+    method,
+    path="/",
+    body="",
+    query_string="",
+    app=None,
+    extra_environ=None,
+):
     encoded_body = body.encode("utf-8")
     captured = {}
 
@@ -20532,49 +20743,24 @@ def _run_wsgi_request(method, path="/", body="", app=None):
         captured["status"] = status
         captured["headers"] = headers
 
-    response = (app or application)(
-        {
-            "REQUEST_METHOD": method,
-            "PATH_INFO": path,
-            "CONTENT_LENGTH": str(len(encoded_body)),
-            "CONTENT_TYPE": "application/x-www-form-urlencoded",
-            "wsgi.input": BytesIO(encoded_body),
-        },
-        start_response,
-    )
+    environ = {
+        "REQUEST_METHOD": method,
+        "PATH_INFO": path,
+        "QUERY_STRING": query_string,
+        "CONTENT_LENGTH": str(len(encoded_body)),
+        "CONTENT_TYPE": "application/x-www-form-urlencoded",
+        "wsgi.input": BytesIO(encoded_body),
+    }
+    if extra_environ:
+        environ.update(extra_environ)
+
+    response = (app or application)(environ, start_response)
     captured["body"] = b"".join(response).decode("utf-8")
     return captured
 
 
-def test_check_article_status_returns_resolution_failure():
-    with patch(
-        "web_app.get_saved_article_summary_by_exact_title",
-        return_value={
-            "found": False,
-            "article_id": None,
-            "article_type": None,
-            "title": None,
-            "url": None,
-            "created_at": None,
-            "response_count": 0,
-        },
-    ):
-        with patch(
-            "web_app.resolve_article_input",
-            return_value={
-                "ok": False,
-                "failure_kind": "ambiguous",
-                "normalized_input": "Foo",
-            },
-        ):
-            result = check_article_status("Foo")
-
-    assert result == {
-        "status": "resolution_failure",
-        "input": "Foo",
-        "failure_kind": "ambiguous",
-        "message": "Could not resolve the input (ambiguous).",
-    }
+def _header_map(response):
+    return dict(response["headers"])
 
 
 def test_check_article_status_returns_saved_result_for_local_title_lookup():
@@ -20607,164 +20793,45 @@ def test_check_article_status_returns_saved_result_for_local_title_lookup():
     }
 
 
-def test_check_article_status_returns_saved_result_after_resolution():
-    resolution = {
-        "ok": True,
-        "canonical_target": {
-            "article_url": "https://dic.nicovideo.jp/a/12345",
-            "article_id": "12345",
-            "article_type": "a",
-        },
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "normalized_input": "Foo",
-    }
-    summary = {
-        "found": True,
-        "article_id": "12345",
-        "article_type": "a",
-        "title": "Foo",
-        "url": "https://dic.nicovideo.jp/a/12345",
-        "created_at": "2026-03-25T00:00:00+00:00",
-        "response_count": 42,
-    }
-
-    with patch(
-        "web_app.get_saved_article_summary_by_exact_title",
-        return_value={
-            "found": False,
-            "article_id": None,
-            "article_type": None,
-            "title": None,
-            "url": None,
-            "created_at": None,
-            "response_count": 0,
-        },
-    ):
-        with patch("web_app.resolve_article_input", return_value=resolution):
-            with patch("web_app.get_saved_article_summary", return_value=summary):
-                result = check_article_status("Foo")
-
-    assert result == {
-        "status": "saved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "response_count": 42,
-        "message": "Saved archive found for the resolved article.",
-    }
-
-
-def test_check_article_status_returns_unsaved_result():
-    resolution = {
-        "ok": True,
-        "canonical_target": {
-            "article_url": "https://dic.nicovideo.jp/a/12345",
-            "article_id": "12345",
-            "article_type": "a",
-        },
-        "title": "Foo",
-        "matched_by": "article_url",
-        "normalized_input": "https://dic.nicovideo.jp/a/Foo",
-    }
-    summary = {
+def test_check_article_status_classifies_temporary_fetch_failure():
+    empty_summary = {
         "found": False,
-        "article_id": "12345",
-        "article_type": "a",
+        "article_id": None,
+        "article_type": None,
         "title": None,
         "url": None,
         "created_at": None,
         "response_count": 0,
     }
 
-    with patch("web_app.resolve_article_input", return_value=resolution):
-        with patch("web_app.get_saved_article_summary", return_value=summary):
-            result = check_article_status("https://dic.nicovideo.jp/a/Foo")
-
-    assert result == {
-        "status": "unsaved",
-        "input": "https://dic.nicovideo.jp/a/Foo",
-        "title": "Foo",
-        "matched_by": "article_url",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "message": "Resolved article, but no saved archive was found yet.",
-    }
-
-
-def test_check_article_status_returns_internal_error_on_unexpected_exception():
     with patch(
         "web_app.get_saved_article_summary_by_exact_title",
-        return_value={
-            "found": False,
-            "article_id": None,
-            "article_type": None,
-            "title": None,
-            "url": None,
-            "created_at": None,
-            "response_count": 0,
-        },
+        return_value=empty_summary,
     ):
         with patch(
             "web_app.resolve_article_input",
-            side_effect=RuntimeError("boom"),
+            side_effect=RuntimeError(
+                "Failed to fetch https://dic.nicovideo.jp/a/Foo (timeout=10s)"
+            ),
         ):
             result = check_article_status("Foo")
 
-    assert result == {
-        "status": "internal_error",
-        "input": "Foo",
-        "error_kind": "RuntimeError",
-        "message": "Internal error while checking article status.",
-    }
+    assert result["status"] == "resolution_failure"
+    assert result["failure_kind"] == "temporary_fetch_failure"
 
 
-def test_check_article_status_url_input_still_uses_resolver_path():
-    resolution = {
-        "ok": True,
-        "canonical_target": {
-            "article_url": "https://dic.nicovideo.jp/a/12345",
-            "article_id": "12345",
-            "article_type": "a",
-        },
-        "title": "Foo",
-        "matched_by": "article_url",
-        "normalized_input": "https://dic.nicovideo.jp/a/g123",
-    }
-    summary = {
-        "found": True,
-        "article_id": "12345",
-        "article_type": "a",
-        "title": "Foo",
-        "url": "https://dic.nicovideo.jp/a/12345",
-        "created_at": "2026-03-25T00:00:00+00:00",
-        "response_count": 42,
-    }
-
-    with patch("web_app.get_saved_article_summary_by_exact_title") as mock_local:
-        with patch("web_app.resolve_article_input", return_value=resolution):
-            with patch("web_app.get_saved_article_summary", return_value=summary):
-                result = check_article_status("https://dic.nicovideo.jp/a/g123")
-
-    mock_local.assert_not_called()
-    assert result["status"] == "saved"
-    assert result["matched_by"] == "article_url"
-
-
-def test_application_get_renders_form_and_message_area():
+def test_application_get_renders_externalized_title_and_waiting_state():
     response = _run_wsgi_request("GET")
 
     assert response["status"] == "200 OK"
-    assert "Article name or article URL" in response["body"]
-    assert "Submit" in response["body"]
-    assert "Submit an article name or article URL" in response["body"]
+    assert web_app.UI_TEXTS["page_title"] in response["body"]
+    assert web_app.UI_TEXTS["input_placeholder"] in response["body"]
+    assert "data-archive-check-form" in response["body"]
+    assert "data-busy-message" in response["body"]
+    assert "Saved articles will download as TXT." in response["body"]
 
 
-def test_application_post_renders_saved_result_message():
+def test_application_post_saved_result_autodownloads_without_buttons():
     result = {
         "status": "saved",
         "input": "Foo",
@@ -20781,270 +20848,135 @@ def test_application_post_renders_saved_result_message():
         response = _run_wsgi_request("POST", body="article_input=Foo")
 
     assert response["status"] == "200 OK"
-    assert "Saved archive found for the resolved article." in response["body"]
-    assert "Canonical target: a/12345" in response["body"]
-    assert "Saved response count: 42" in response["body"]
-    assert "Download TXT" in response["body"]
-    assert "Add To Target Registry" in response["body"]
+    assert "Saved article found. TXT download will start automatically." in (
+        response["body"]
+    )
+    assert "Article title:</strong> Foo" in response["body"]
+    assert "Article ID:</strong> 12345" in response["body"]
+    assert "Saved response count:</strong> 42" in response["body"]
+    assert "data-auto-download-form" in response["body"]
+    assert "Download TXT" not in response["body"]
+    assert "Add To Target Registry" not in response["body"]
+    assert "Matched by" not in response["body"]
 
 
-def test_application_post_renders_title_resolution_failure_message():
-    result = {
-        "status": "resolution_failure",
-        "input": "Foo",
-        "failure_kind": "not_found",
-        "message": "Could not resolve the input (not_found).",
-    }
-
-    with patch("web_app.check_article_status", return_value=result):
-        response = _run_wsgi_request("POST", body="article_input=Foo")
-
-    assert response["status"] == "200 OK"
-    assert "Could not resolve the input (not_found)." in response["body"]
-    assert "Resolution status: <strong>not_found</strong>" in response["body"]
-
-
-def test_application_post_renders_unsaved_result_with_target_action_only():
+def test_application_post_registers_unsaved_article_and_logs_action(tmp_path):
     result = {
         "status": "unsaved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
+        "input": "https://dic.nicovideo.jp/a/%E3%83%8B%E3%82%B3",
+        "title": "ニコニコ大百科",
+        "matched_by": "article_url",
         "article_url": "https://dic.nicovideo.jp/a/12345",
         "article_id": "12345",
         "article_type": "a",
         "message": "Resolved article, but no saved archive was found yet.",
     }
+    log_path = tmp_path / "web_action.log"
 
     with patch("web_app.check_article_status", return_value=result):
-        response = _run_wsgi_request("POST", body="article_input=Foo")
+        with patch("web_app.register_target_url", return_value="added"):
+            response = _run_wsgi_request(
+                "POST",
+                body="article_input=Foo",
+                app=create_app(
+                    target_db_path="/runtime/data/custom.db",
+                    web_action_log_path=str(log_path),
+                ),
+                extra_environ={
+                    "REMOTE_ADDR": "127.0.0.1",
+                    "HTTP_USER_AGENT": "pytest-agent",
+                },
+            )
 
     assert response["status"] == "200 OK"
-    assert "Add To Target Registry" in response["body"]
-    assert "Enqueue Request" not in response["body"]
+    assert "Article registered for archive checking." in response["body"]
+    assert "Article title:</strong> ニコニコ大百科" in response["body"]
+    assert "Saved response count" not in response["body"]
+
+    log_text = log_path.read_text(encoding="utf-8")
+    assert log_text.startswith("\nWEB_ACTION_START\n")
+    assert log_text.endswith("WEB_ACTION_END\n\n")
+    assert "action_kind=registration" in log_text
+    assert "result_status=added" in log_text
+    assert "resolved_title=ニコニコ大百科" in log_text
+    assert "%E3%83%8B%E3%82%B3" not in log_text
 
 
-@patch("web_app.register_target_url", return_value="added")
-@patch("web_app.check_article_status")
-def test_application_action_add_target_uses_canonical_url(
-    mock_check_status,
-    mock_add_target_url,
-):
-    mock_check_status.return_value = {
-        "status": "unsaved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "message": "Resolved article, but no saved archive was found yet.",
-    }
+def test_download_endpoint_returns_txt_and_logs_download(tmp_path):
+    log_path = tmp_path / "web_action.log"
 
-    response = _run_wsgi_request(
-        "POST",
-        path="/action",
-        body="article_input=Foo&action=add_target",
-    )
-
-    assert response["status"] == "200 OK"
-    assert (
-        "Canonical article URL was added to the target registry."
-        in response["body"]
-    )
-    mock_add_target_url.assert_called_once_with(
-        "https://dic.nicovideo.jp/a/12345",
-        web_app.DEFAULT_TARGET_DB_PATH,
-    )
-
-
-@patch("web_app.register_target_url", return_value="added")
-@patch("web_app.check_article_status")
-def test_application_action_add_target_uses_custom_runtime_target_path(
-    mock_check_status,
-    mock_add_target_url,
-):
-    mock_check_status.return_value = {
-        "status": "unsaved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "message": "Resolved article, but no saved archive was found yet.",
-    }
-
-    response = _run_wsgi_request(
-        "POST",
-        path="/action",
-        body="article_input=Foo&action=add_target",
-        app=create_app(target_db_path="/runtime/data/custom.db"),
-    )
-
-    assert response["status"] == "200 OK"
-    mock_add_target_url.assert_called_once_with(
-        "https://dic.nicovideo.jp/a/12345",
-        "/runtime/data/custom.db",
-    )
-
-
-@patch("web_app.register_target_url", return_value="duplicate")
-@patch("web_app.check_article_status")
-def test_application_action_add_target_duplicate_is_bounded(
-    mock_check_status,
-    mock_add_target_url,
-):
-    mock_check_status.return_value = {
-        "status": "saved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "response_count": 42,
-        "message": "Saved archive found for the resolved article.",
-    }
-
-    response = _run_wsgi_request(
-        "POST",
-        path="/action",
-        body="article_input=Foo&action=add_target",
-    )
-
-    assert response["status"] == "200 OK"
-    assert (
-        "Canonical article URL is already active in the target registry."
-        in response["body"]
-    )
-    mock_add_target_url.assert_called_once_with(
-        "https://dic.nicovideo.jp/a/12345",
-        web_app.DEFAULT_TARGET_DB_PATH,
-    )
-
-
-@patch("web_app.register_target_url", return_value="reactivated")
-@patch("web_app.check_article_status")
-def test_application_action_add_target_reactivated_is_bounded(
-    mock_check_status,
-    mock_add_target_url,
-):
-    mock_check_status.return_value = {
-        "status": "unsaved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "message": "Resolved article, but no saved archive was found yet.",
-    }
-
-    response = _run_wsgi_request(
-        "POST",
-        path="/action",
-        body="article_input=Foo&action=add_target",
-    )
-
-    assert response["status"] == "200 OK"
-    assert (
-        "Canonical article URL was reactivated in the target registry."
-        in response["body"]
-    )
-    mock_add_target_url.assert_called_once_with(
-        "https://dic.nicovideo.jp/a/12345",
-        web_app.DEFAULT_TARGET_DB_PATH,
-    )
-
-
-@patch("web_app.check_article_status")
-def test_application_action_add_target_skips_write_for_unresolved_input(
-    mock_check_status,
-):
-    mock_check_status.return_value = {
-        "status": "resolution_failure",
-        "input": "Foo",
-        "failure_kind": "not_found",
-        "message": "Could not resolve the input (not_found).",
-    }
-
-    with patch("web_app.register_target_url") as mock_add_target_url:
+    with patch(
+        "web_app.get_saved_article_txt",
+        return_value={
+            "found": True,
+            "content": "=== ARTICLE META ===\nTitle: Foo",
+            "article_id": "12345",
+            "article_type": "a",
+        },
+    ):
         response = _run_wsgi_request(
-            "POST",
-            path="/action",
-            body="article_input=Foo&action=add_target",
+            "GET",
+            path="/download",
+            query_string=(
+                "article_id=12345&article_type=a&article_input=Foo"
+                "&resolved_title=Foo&article_url="
+                "https%3A%2F%2Fdic.nicovideo.jp%2Fa%2F12345"
+                "&requested_format=txt"
+            ),
+            app=create_app(web_action_log_path=str(log_path)),
+            extra_environ={
+                "REMOTE_ADDR": "127.0.0.1",
+                "HTTP_USER_AGENT": "pytest-agent",
+            },
         )
 
     assert response["status"] == "200 OK"
-    assert "Action requires a saved or unsaved resolved article." in response["body"]
-    mock_add_target_url.assert_not_called()
-
-
-@patch("web_app.get_saved_article_txt")
-@patch("web_app.check_article_status")
-def test_application_action_download_txt_for_saved(
-    mock_check_status,
-    mock_get_saved_article_txt,
-):
-    mock_check_status.return_value = {
-        "status": "saved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "response_count": 42,
-        "message": "Saved archive found for the resolved article.",
-    }
-    mock_get_saved_article_txt.return_value = {
-        "found": True,
-        "content": "=== ARTICLE META ===\nTitle: Foo",
-        "article_id": "12345",
-        "article_type": "a",
-    }
-
-    response = _run_wsgi_request(
-        "POST",
-        path="/action",
-        body="article_input=Foo&action=download_txt",
-    )
-
-    assert response["status"] == "200 OK"
-    headers = dict(response["headers"])
+    headers = _header_map(response)
     assert headers["Content-Type"] == "text/plain; charset=utf-8"
-    assert "attachment; filename=\"12345a.txt\"" in headers["Content-Disposition"]
+    assert "attachment; filename=\"12345a.txt\"" in headers[
+        "Content-Disposition"
+    ]
     assert "=== ARTICLE META ===" in response["body"]
-    mock_check_status.assert_called_once_with("Foo")
-    mock_get_saved_article_txt.assert_called_once_with("12345", "a")
+
+    log_text = log_path.read_text(encoding="utf-8")
+    assert "action_kind=download" in log_text
+    assert "requested_format=txt" in log_text
+    assert "result_status=success" in log_text
 
 
-@patch("web_app.check_article_status")
-def test_application_action_enqueue_request_is_not_supported_from_web(
-    mock_check_status,
-):
-    mock_check_status.return_value = {
-        "status": "unsaved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "message": "Resolved article, but no saved archive was found yet.",
+def test_application_post_error_result_is_short_and_logged(tmp_path):
+    result = {
+        "status": "resolution_failure",
+        "input": "https://example.com/nope",
+        "failure_kind": "invalid_input",
+        "message": "Could not resolve the input.",
     }
+    log_path = tmp_path / "web_action.log"
 
-    with patch("web_app.register_target_url") as mock_add_target_url:
+    with patch("web_app.check_article_status", return_value=result):
         response = _run_wsgi_request(
             "POST",
-            path="/action",
-            body="article_input=Foo&action=enqueue_request",
+            body="article_input=https%3A%2F%2Fexample.com%2Fnope",
+            app=create_app(web_action_log_path=str(log_path)),
+            extra_environ={
+                "REMOTE_ADDR": "127.0.0.1",
+                "HTTP_USER_AGENT": "pytest-agent",
+            },
         )
 
     assert response["status"] == "200 OK"
-    assert "Unsupported action." in response["body"]
-    mock_add_target_url.assert_not_called()
+    assert "Enter an article name or a valid Nicopedia article URL." in (
+        response["body"]
+    )
+    assert "Reference ID:</strong>" in response["body"]
+    assert "Matched by" not in response["body"]
+    assert "Resolution status" not in response["body"]
+
+    log_text = log_path.read_text(encoding="utf-8")
+    assert log_text.startswith("\nWEB_ACTION_START\n")
+    assert log_text.endswith("WEB_ACTION_END\n\n")
+    assert "action_kind=failed_action" in log_text
+    assert "error_code=invalid_input" in log_text
 
 
 def test_application_returns_not_found_for_unknown_path():
@@ -22016,21 +21948,83 @@ def verify_kgs_batch(article_url, state_dir, run_batch_scrape_func):
 FILE: ./copilot/web_app.py
 =============================
 import os
+from datetime import datetime, timezone
 from html import escape
-from urllib.parse import parse_qs
-from urllib.parse import urlparse
+from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlencode, urlparse
+from uuid import uuid4
 from wsgiref.simple_server import make_server
 
 from archive_read import (
-    get_saved_article_txt,
     get_saved_article_summary,
     get_saved_article_summary_by_exact_title,
+    get_saved_article_txt,
 )
 from article_resolver import resolve_article_input
 from target_list import register_target_url
 
 
 DEFAULT_TARGET_DB_PATH = os.environ.get("TARGET_DB_PATH", "data/nicodic.db")
+DEFAULT_WEB_ACTION_LOG_PATH = os.environ.get(
+    "WEB_ACTION_LOG_PATH",
+    "data/web_action.log",
+)
+DEFAULT_DOWNLOAD_FORMAT = "txt"
+
+UI_TEXTS = {
+    "page_title": "NicoNicoPedia Archive Checker",
+    "heading": "NicoNicoPedia Archive Checker",
+    "lede": (
+        "Enter an article name or article URL. The page will either "
+        "download a saved archive or register the article for later "
+        "collection."
+    ),
+    "input_label": "Article name or article URL",
+    "input_placeholder": (
+        "例: ニコニコ大百科 / "
+        "https://dic.nicovideo.jp/a/ニコニコ大百科"
+    ),
+    "submit_label": "Submit",
+    "result_heading": "Result",
+    "empty_message": "Submit an article name or article URL to continue.",
+    "busy_message": (
+        "Checking the archive and preparing the next step. Saved "
+        "articles will download as {format_name}."
+    ),
+    "saved_message": (
+        "Saved article found. {format_name} download will start "
+        "automatically."
+    ),
+    "saved_hint": (
+        "If the download does not start, your browser may have blocked "
+        "it."
+    ),
+    "registered_message": (
+        "Article registered for archive checking. Please try again "
+        "later."
+    ),
+    "error_messages": {
+        "not_found": "Article was not found.",
+        "invalid_input": (
+            "Enter an article name or a valid Nicopedia article URL."
+        ),
+        "ambiguous": "Could not resolve the article.",
+        "temporary_fetch_failure": (
+            "Temporary fetch failure. Please try again later."
+        ),
+        "unexpected_internal_error": "An unexpected internal error occurred.",
+    },
+    "field_labels": {
+        "title": "Article title",
+        "article_id": "Article ID",
+        "url": "URL",
+        "response_count": "Saved response count",
+        "reference_id": "Reference ID",
+    },
+    "format_labels": {
+        "txt": "TXT",
+    },
+}
 
 
 def _normalize_web_input(article_input: str) -> str:
@@ -22042,11 +22036,45 @@ def _looks_like_url_input(article_input: str) -> bool:
     return bool(parsed.scheme or parsed.netloc)
 
 
+def _display_format_name(requested_format: str) -> str:
+    return UI_TEXTS["format_labels"].get(
+        requested_format,
+        requested_format.upper(),
+    )
+
+
+def _humanize_title(value: str | None) -> str:
+    text = (value or "").strip()
+    if not text:
+        return "unknown"
+
+    if _looks_like_url_input(text):
+        parsed = urlparse(text)
+        path_parts = [part for part in parsed.path.split("/") if part]
+        if path_parts:
+            decoded = unquote(path_parts[-1]).strip()
+            if decoded:
+                return decoded
+
+    decoded = unquote(text).strip()
+    return decoded if decoded else "unknown"
+
+
+def _classify_runtime_failure(exc: RuntimeError) -> str | None:
+    detail = str(exc)
+    if "timeout=" in detail:
+        return "temporary_fetch_failure"
+    if "Failed to fetch" in detail:
+        return "temporary_fetch_failure"
+    return None
+
+
 def check_article_status(article_input: str) -> dict:
-    """Resolve input and return a bounded archive status result for the web UI."""
+    """Resolve input and return a bounded archive status result."""
+
+    normalized_input = _normalize_web_input(article_input)
 
     try:
-        normalized_input = _normalize_web_input(article_input)
         if normalized_input and not _looks_like_url_input(normalized_input):
             archive_summary = get_saved_article_summary_by_exact_title(
                 normalized_input
@@ -22066,12 +22094,11 @@ def check_article_status(article_input: str) -> dict:
 
         resolution = resolve_article_input(article_input)
         if not resolution["ok"]:
-            failure_kind = resolution["failure_kind"]
             return {
                 "status": "resolution_failure",
                 "input": resolution["normalized_input"],
-                "failure_kind": failure_kind,
-                "message": f"Could not resolve the input ({failure_kind}).",
+                "failure_kind": resolution["failure_kind"],
+                "message": "Could not resolve the input.",
             }
 
         canonical_target = resolution["canonical_target"]
@@ -22103,13 +22130,47 @@ def check_article_status(article_input: str) -> dict:
             "article_type": canonical_target["article_type"],
             "message": "Resolved article, but no saved archive was found yet.",
         }
+    except RuntimeError as exc:
+        failure_kind = _classify_runtime_failure(exc)
+        if failure_kind is not None:
+            return {
+                "status": "resolution_failure",
+                "input": normalized_input,
+                "failure_kind": failure_kind,
+                "error_detail": str(exc),
+                "message": "Temporary failure while resolving the article.",
+            }
+        return {
+            "status": "internal_error",
+            "input": normalized_input,
+            "error_kind": type(exc).__name__,
+            "error_detail": str(exc),
+            "message": "Internal error while checking article status.",
+        }
     except Exception as exc:
         return {
             "status": "internal_error",
-            "input": _normalize_web_input(article_input),
+            "input": normalized_input,
             "error_kind": type(exc).__name__,
+            "error_detail": str(exc),
             "message": "Internal error while checking article status.",
         }
+
+
+def _result_error_code(result: dict) -> str:
+    if result["status"] == "resolution_failure":
+        return result.get("failure_kind", "unknown_resolution_failure")
+    if result["status"] == "internal_error":
+        return "unexpected_internal_error"
+    return "unknown_error"
+
+
+def _user_error_message(result: dict) -> str:
+    error_code = _result_error_code(result)
+    return UI_TEXTS["error_messages"].get(
+        error_code,
+        "不明なエラーが発生しました。",
+    )
 
 
 def _read_post_form(environ: dict) -> dict:
@@ -22124,171 +22185,303 @@ def _read_post_form(environ: dict) -> dict:
     return {key: values[0] if values else "" for key, values in form_data.items()}
 
 
-def _build_action_result_message(action_result: dict) -> str:
-    status = action_result["status"]
-    if status == "download_ready":
-        return "Saved article TXT download is ready."
-    if status == "target_added":
-        return "Canonical article URL was added to the target registry."
-    if status == "target_reactivated":
-        return "Canonical article URL was reactivated in the target registry."
-    if status == "target_duplicate":
-        return "Canonical article URL is already active in the target registry."
-    if status == "action_error":
-        return action_result["message"]
-    return "Action completed."
+def _read_query_params(environ: dict) -> dict:
+    query = environ.get("QUERY_STRING", "")
+    parsed = parse_qs(query, keep_blank_values=True)
+    return {key: values[0] if values else "" for key, values in parsed.items()}
 
 
-def _followup_action(
+def _web_log_value(value: object) -> str:
+    if value is None:
+        return "unknown"
+    text = str(value).strip()
+    return text if text else "unknown"
+
+
+def _visitor_hint(environ: dict) -> str:
+    remote_addr = environ.get("HTTP_X_FORWARDED_FOR") or environ.get(
+        "REMOTE_ADDR",
+        "unknown",
+    )
+    user_agent = " ".join(environ.get("HTTP_USER_AGENT", "unknown").split())
+    if len(user_agent) > 60:
+        user_agent = f"{user_agent[:57]}..."
+    return f"addr={remote_addr} ua={user_agent}"
+
+
+def _append_web_action_log_lines(log_path: Path, lines: list[str]) -> None:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as stream:
+        for line in lines:
+            stream.write(f"{line}\n")
+
+
+def _log_web_action(
+    web_action_log_path: str,
+    environ: dict,
+    action_kind: str,
+    input_value: str,
+    requested_format: str | None,
+    result_status: str,
+    resolved_title: str | None = None,
+    resolved_article_id: str | None = None,
+    resolved_article_type: str | None = None,
+    resolved_canonical_url: str | None = None,
+    error_code: str | None = None,
+    error_detail: str | None = None,
+) -> str:
+    action_id = uuid4().hex
+    timestamp = datetime.now(timezone.utc).isoformat()
+    title = _humanize_title(
+        resolved_title or input_value or resolved_canonical_url
+    )
+    _append_web_action_log_lines(
+        Path(web_action_log_path),
+        [
+            "",
+            "WEB_ACTION_START",
+            f"  action_id={action_id}",
+            f"  timestamp={timestamp}",
+            f"  action_kind={action_kind}",
+            f"  visitor_hint={_visitor_hint(environ)}",
+            f"  input_value={_web_log_value(input_value)}",
+            f"  resolved_title={_web_log_value(title)}",
+            (
+                "  resolved_article_id="
+                f"{_web_log_value(resolved_article_id)}"
+            ),
+            (
+                "  resolved_article_type="
+                f"{_web_log_value(resolved_article_type)}"
+            ),
+            (
+                "  resolved_canonical_url="
+                f"{_web_log_value(resolved_canonical_url)}"
+            ),
+            f"  requested_format={_web_log_value(requested_format)}",
+            f"  result_status={_web_log_value(result_status)}",
+            f"  error_code={_web_log_value(error_code)}",
+            f"  error_detail={_web_log_value(error_detail)}",
+            "WEB_ACTION_END",
+            "",
+        ],
+    )
+    return action_id
+
+
+def _build_saved_ui_result(check_result: dict) -> dict:
+    return {
+        "status": "saved",
+        "message": UI_TEXTS["saved_message"].format(
+            format_name=_display_format_name(DEFAULT_DOWNLOAD_FORMAT)
+        ),
+        "title": check_result["title"],
+        "article_id": check_result["article_id"],
+        "article_url": check_result["article_url"],
+        "article_type": check_result["article_type"],
+        "response_count": check_result["response_count"],
+        "input": check_result["input"],
+    }
+
+
+def _build_registered_ui_result(check_result: dict) -> dict:
+    return {
+        "status": "registered",
+        "message": UI_TEXTS["registered_message"],
+        "title": check_result["title"],
+        "article_id": check_result["article_id"],
+        "article_url": check_result["article_url"],
+        "article_type": check_result["article_type"],
+        "input": check_result["input"],
+    }
+
+
+def _build_error_ui_result(result: dict, reference_id: str | None) -> dict:
+    error_result = {
+        "status": "error",
+        "message": _user_error_message(result),
+        "error_code": _result_error_code(result),
+    }
+    if reference_id is not None:
+        error_result["reference_id"] = reference_id
+    return error_result
+
+
+def _build_download_query(check_result: dict) -> str:
+    return urlencode(
+        {
+            "article_id": check_result["article_id"],
+            "article_type": check_result["article_type"],
+            "article_input": check_result["input"],
+            "resolved_title": check_result["title"],
+            "article_url": check_result["article_url"],
+            "requested_format": DEFAULT_DOWNLOAD_FORMAT,
+        }
+    )
+
+
+def _submit_archive_check(
     article_input: str,
-    action: str,
     target_db_path: str,
-) -> dict:
-    status_result = check_article_status(article_input)
-    if status_result["status"] not in {"saved", "unsaved"}:
-        return {
-            "status": "action_error",
-            "message": "Action requires a saved or unsaved resolved article.",
-            "check_result": status_result,
-        }
+    web_action_log_path: str,
+    environ: dict,
+) -> tuple[dict, str | None]:
+    check_result = check_article_status(article_input)
 
-    if action == "download_txt":
-        if status_result["status"] != "saved":
-            return {
-                "status": "action_error",
-                "message": "TXT download is only available for saved articles.",
-                "check_result": status_result,
-            }
-        return {
-            "status": "download_ready",
-            "check_result": status_result,
-        }
+    if check_result["status"] == "saved":
+        return _build_saved_ui_result(check_result), _build_download_query(
+            check_result
+        )
 
-    if action == "add_target":
-        add_result = register_target_url(
-            status_result["article_url"],
+    if check_result["status"] == "unsaved":
+        registration_status = register_target_url(
+            check_result["article_url"],
             target_db_path,
         )
-        if add_result == "added":
-            return {
-                "status": "target_added",
-                "check_result": status_result,
-            }
-        if add_result == "reactivated":
-            return {
-                "status": "target_reactivated",
-                "check_result": status_result,
-            }
-        if add_result == "duplicate":
-            return {
-                "status": "target_duplicate",
-                "check_result": status_result,
-            }
-        return {
-            "status": "action_error",
-            "message": "Canonical article URL could not be added.",
-            "check_result": status_result,
-        }
+        if registration_status in {"added", "reactivated", "duplicate"}:
+            _log_web_action(
+                web_action_log_path,
+                environ,
+                action_kind="registration",
+                input_value=article_input,
+                requested_format=None,
+                result_status=registration_status,
+                resolved_title=check_result["title"],
+                resolved_article_id=check_result["article_id"],
+                resolved_article_type=check_result["article_type"],
+                resolved_canonical_url=check_result["article_url"],
+            )
+            return _build_registered_ui_result(check_result), None
 
-    return {
-        "status": "action_error",
-        "message": "Unsupported action.",
-        "check_result": status_result,
-    }
+        failure_result = {
+            "status": "internal_error",
+            "input": check_result["input"],
+            "error_kind": "RegistrationError",
+            "error_detail": "Canonical article URL could not be added.",
+            "message": "Internal error while checking article status.",
+        }
+        reference_id = _log_web_action(
+            web_action_log_path,
+            environ,
+            action_kind="failed_action",
+            input_value=article_input,
+            requested_format=None,
+            result_status="registration_failed",
+            resolved_title=check_result["title"],
+            resolved_article_id=check_result["article_id"],
+            resolved_article_type=check_result["article_type"],
+            resolved_canonical_url=check_result["article_url"],
+            error_code="registration_failed",
+            error_detail=failure_result["error_detail"],
+        )
+        return _build_error_ui_result(failure_result, reference_id), None
+
+    reference_id = _log_web_action(
+        web_action_log_path,
+        environ,
+        action_kind="failed_action",
+        input_value=article_input,
+        requested_format=None,
+        result_status=check_result["status"],
+        resolved_title=check_result.get("title") or check_result.get("input"),
+        resolved_article_id=check_result.get("article_id"),
+        resolved_article_type=check_result.get("article_type"),
+        resolved_canonical_url=check_result.get("article_url"),
+        error_code=_result_error_code(check_result),
+        error_detail=check_result.get("error_detail") or check_result["message"],
+    )
+    return _build_error_ui_result(check_result, reference_id), None
+
+
+def _render_result_detail(label: str, value: str) -> str:
+    return f"<p><strong>{escape(label)}:</strong> {escape(value)}</p>"
 
 
 def _render_message_area(
     result: dict | None,
-    action_result: dict | None = None,
+    download_query: str | None = None,
 ) -> str:
     if result is None:
         return (
             '<section class="message-area empty">'
-            "<h2>Result</h2>"
-            "<p>"
-            "Submit an article name or article URL to check whether it "
-            "is already saved."
-            "</p>"
+            f"<h2>{escape(UI_TEXTS['result_heading'])}</h2>"
+            f"<p>{escape(UI_TEXTS['empty_message'])}</p>"
             "</section>"
         )
 
-    status = escape(result["status"])
-    message = escape(result["message"])
     lines = [
-        f'<section class="message-area {status}">',
-        "<h2>Result</h2>",
-        f'<p class="status-line">{message}</p>',
+        f'<section class="message-area {escape(result["status"])}">',
+        f"<h2>{escape(UI_TEXTS['result_heading'])}</h2>",
+        f'<p class="status-line">{escape(result["message"])}</p>',
     ]
 
-    if action_result is not None:
-        lines.append(
-            "<p>Action status: "
-            f"<strong>{escape(_build_action_result_message(action_result))}</strong>"
-            "</p>"
-        )
-
-    if result["status"] == "resolution_failure":
-        lines.append(
-            "<p>Resolution status: "
-            f"<strong>{escape(result['failure_kind'])}</strong></p>"
-        )
-
-    if result["status"] == "internal_error":
-        lines.append(
-            "<p>Error type: "
-            f"<strong>{escape(result['error_kind'])}</strong></p>"
-        )
-
-    if result["status"] in {"saved", "unsaved"}:
+    if result["status"] == "saved":
         lines.extend(
             [
-                f"<p>Title: <strong>{escape(result['title'])}</strong></p>",
-                (
-                    "<p>Canonical target: "
-                    f"{escape(result['article_type'])}/"
-                    f"{escape(result['article_id'])}</p>"
+                _render_result_detail(
+                    UI_TEXTS["field_labels"]["title"],
+                    result["title"],
                 ),
-                f"<p>Matched by: {escape(result['matched_by'])}</p>",
-                f"<p>URL: {escape(result['article_url'])}</p>",
+                _render_result_detail(
+                    UI_TEXTS["field_labels"]["article_id"],
+                    result["article_id"],
+                ),
+                _render_result_detail(
+                    UI_TEXTS["field_labels"]["url"],
+                    result["article_url"],
+                ),
+                _render_result_detail(
+                    UI_TEXTS["field_labels"]["response_count"],
+                    str(result["response_count"]),
+                ),
+                f'<p class="followup-note">{escape(UI_TEXTS["saved_hint"])}</p>',
+            ]
+        )
+        if download_query is not None:
+            lines.append(
+                '<iframe name="download_frame" class="download-frame"></iframe>'
+            )
+            lines.append(
+                (
+                    '<form method="get" action="/download" '
+                    'target="download_frame" data-auto-download-form hidden>'
+                )
+            )
+            for key, value in parse_qs(download_query).items():
+                if not value:
+                    continue
+                lines.append(
+                    (
+                        '<input type="hidden" '
+                        f'name="{escape(key)}" '
+                        f'value="{escape(value[0])}">'
+                    )
+                )
+            lines.append("</form>")
+
+    if result["status"] == "registered":
+        lines.extend(
+            [
+                _render_result_detail(
+                    UI_TEXTS["field_labels"]["title"],
+                    result["title"],
+                ),
+                _render_result_detail(
+                    UI_TEXTS["field_labels"]["article_id"],
+                    result["article_id"],
+                ),
+                _render_result_detail(
+                    UI_TEXTS["field_labels"]["url"],
+                    result["article_url"],
+                ),
             ]
         )
 
-    if result["status"] == "saved":
+    if result["status"] == "error" and "reference_id" in result:
         lines.append(
-            "<p>Saved response count: "
-            f"{escape(str(result['response_count']))}</p>"
-        )
-        lines.append(
-            (
-                "<form method=\"post\" action=\"/action\">"
-                f"<input type=\"hidden\" name=\"article_input\" "
-                f"value=\"{escape(result['input'])}\">"
-                "<input type=\"hidden\" name=\"action\" "
-                "value=\"download_txt\">"
-                "<button type=\"submit\">Download TXT</button>"
-                "</form>"
-            )
-        )
-        lines.append(
-            (
-                "<form method=\"post\" action=\"/action\">"
-                f"<input type=\"hidden\" name=\"article_input\" "
-                f"value=\"{escape(result['input'])}\">"
-                "<input type=\"hidden\" name=\"action\" value=\"add_target\">"
-                "<button type=\"submit\">Add To Target Registry</button>"
-                "</form>"
-            )
-        )
-
-    if result["status"] == "unsaved":
-        lines.append(
-            (
-                "<form method=\"post\" action=\"/action\">"
-                f"<input type=\"hidden\" name=\"article_input\" "
-                f"value=\"{escape(result['input'])}\">"
-                "<input type=\"hidden\" name=\"action\" value=\"add_target\">"
-                "<button type=\"submit\">Add To Target Registry</button>"
-                "</form>"
+            _render_result_detail(
+                UI_TEXTS["field_labels"]["reference_id"],
+                result["reference_id"],
             )
         )
 
@@ -22299,16 +22492,17 @@ def _render_message_area(
 def _render_page(
     article_input: str,
     result: dict | None = None,
-    action_result: dict | None = None,
+    download_query: str | None = None,
 ) -> bytes:
     safe_input = escape(article_input)
-    message_area = _render_message_area(result, action_result)
+    format_name = _display_format_name(DEFAULT_DOWNLOAD_FORMAT)
+    message_area = _render_message_area(result, download_query)
     html = f"""<!doctype html>
 <html lang=\"en\">
 <head>
   <meta charset=\"utf-8\">
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
-  <title>Nicodic Archive Checker</title>
+  <title>{escape(UI_TEXTS['page_title'])}</title>
   <style>
     :root {{
       color-scheme: light;
@@ -22316,17 +22510,17 @@ def _render_page(
       --panel: #fffaf2;
       --ink: #1f2430;
       --accent: #0f766e;
+      --accent-disabled: #6b8f8b;
       --border: #d9ccb4;
       --muted: #6b7280;
       --saved: #14532d;
-      --unsaved: #92400e;
-      --failure: #9f1239;
+      --registered: #92400e;
       --error: #991b1b;
     }}
     * {{ box-sizing: border-box; }}
     body {{
       margin: 0;
-      font-family: Georgia, "Times New Roman", serif;
+      font-family: Georgia, \"Times New Roman\", serif;
       color: var(--ink);
       background:
         radial-gradient(circle at top, rgba(15, 118, 110, 0.12), transparent 35%),
@@ -22371,6 +22565,15 @@ def _render_page(
       font: inherit;
       cursor: pointer;
     }}
+    button[disabled] {{
+      background: var(--accent-disabled);
+      cursor: progress;
+    }}
+    .busy-message {{
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }}
     .message-area {{
       margin-top: 24px;
       padding: 18px;
@@ -22381,9 +22584,10 @@ def _render_page(
     .message-area h2 {{ margin-top: 0; font-size: 1.2rem; }}
     .message-area.empty {{ color: var(--muted); }}
     .message-area.saved .status-line {{ color: var(--saved); }}
-    .message-area.unsaved .status-line {{ color: var(--unsaved); }}
-    .message-area.resolution_failure .status-line {{ color: var(--failure); }}
-    .message-area.internal_error .status-line {{ color: var(--error); }}
+    .message-area.registered .status-line {{ color: var(--registered); }}
+    .message-area.error .status-line {{ color: var(--error); }}
+    .followup-note {{ color: var(--muted); }}
+    .download-frame {{ display: none; width: 0; height: 0; border: 0; }}
     @media (max-width: 640px) {{
       main {{ padding: 24px 14px 36px; }}
       .panel {{ padding: 18px; }}
@@ -22394,32 +22598,69 @@ def _render_page(
 <body>
   <main>
     <section class=\"panel\">
-      <h1>Archive Checker</h1>
-      <p class=\"lede\">
-        Enter an article name or article URL to see whether a saved
-        archive already exists.
-      </p>
-      <form method=\"post\" action=\"/\">
-        <label for=\"article_input\">Article name or article URL</label>
+      <h1>{escape(UI_TEXTS['heading'])}</h1>
+      <p class=\"lede\">{escape(UI_TEXTS['lede'])}</p>
+      <form method=\"post\" action=\"/\" data-archive-check-form>
+        <label for=\"article_input\">{escape(UI_TEXTS['input_label'])}</label>
         <input
           id=\"article_input\"
           name=\"article_input\"
           type=\"text\"
           value=\"{safe_input}\"
-          placeholder=\"https://dic.nicovideo.jp/a/... or exact title\"
+          placeholder=\"{escape(UI_TEXTS['input_placeholder'])}\"
+          autocomplete=\"off\"
         >
-        <button type=\"submit\">Submit</button>
+        <button type=\"submit\" data-submit-button>
+          {escape(UI_TEXTS['submit_label'])}
+        </button>
+        <p class=\"busy-message\" data-busy-message hidden aria-live=\"polite\">
+          {escape(UI_TEXTS['busy_message'].format(format_name=format_name))}
+        </p>
       </form>
       {message_area}
     </section>
   </main>
+  <script>
+    const form = document.querySelector("[data-archive-check-form]");
+    if (form) {{
+      form.addEventListener("submit", (event) => {{
+        if (form.dataset.submitting === "true") {{
+          event.preventDefault();
+          return;
+        }}
+        form.dataset.submitting = "true";
+        const input = form.querySelector("[name='article_input']");
+        const button = form.querySelector("[data-submit-button]");
+        const busy = form.querySelector("[data-busy-message]");
+        if (input) {{
+          input.setAttribute("readonly", "readonly");
+          input.setAttribute("aria-disabled", "true");
+        }}
+        if (button) {{
+          button.disabled = true;
+        }}
+        if (busy) {{
+          busy.hidden = false;
+        }}
+      }});
+    }}
+    const autoDownloadForm = document.querySelector(
+      "[data-auto-download-form]"
+    );
+    if (autoDownloadForm) {{
+      autoDownloadForm.submit();
+    }}
+  </script>
 </body>
 </html>
 """
     return html.encode("utf-8")
 
 
-def create_app(target_db_path: str = DEFAULT_TARGET_DB_PATH):
+def create_app(
+    target_db_path: str = DEFAULT_TARGET_DB_PATH,
+    web_action_log_path: str = DEFAULT_WEB_ACTION_LOG_PATH,
+):
     def app(environ, start_response):
         method = environ.get("REQUEST_METHOD", "GET").upper()
         path = environ.get("PATH_INFO", "/")
@@ -22438,7 +22679,13 @@ def create_app(target_db_path: str = DEFAULT_TARGET_DB_PATH):
         if method == "POST" and path == "/":
             form = _read_post_form(environ)
             article_input = form.get("article_input", "")
-            body = _render_page(article_input, check_article_status(article_input))
+            result, download_query = _submit_archive_check(
+                article_input,
+                target_db_path,
+                web_action_log_path,
+                environ,
+            )
+            body = _render_page(article_input, result, download_query)
             start_response(
                 "200 OK",
                 [
@@ -22448,69 +22695,89 @@ def create_app(target_db_path: str = DEFAULT_TARGET_DB_PATH):
             )
             return [body]
 
-        if method == "POST" and path == "/action":
-            form = _read_post_form(environ)
-            article_input = form.get("article_input", "")
-            action = form.get("action", "")
-
-            action_result = _followup_action(
-                article_input,
-                action,
-                target_db_path,
+        if method == "GET" and path == "/download":
+            query = _read_query_params(environ)
+            article_id = query.get("article_id", "")
+            article_type = query.get("article_type", "")
+            article_input = query.get("article_input", "")
+            requested_format = query.get(
+                "requested_format",
+                DEFAULT_DOWNLOAD_FORMAT,
             )
-            check_result = action_result["check_result"]
 
-            if action_result["status"] == "download_ready":
-                txt_result = get_saved_article_txt(
-                    check_result["article_id"],
-                    check_result["article_type"],
-                )
-                if not txt_result["found"]:
-                    body = _render_page(
-                        article_input,
-                        check_result,
-                        {
-                            "status": "action_error",
-                            "message": "Saved article was not found for TXT download.",
-                        },
-                    )
-                    start_response(
-                        "200 OK",
-                        [
-                            ("Content-Type", "text/html; charset=utf-8"),
-                            ("Content-Length", str(len(body))),
-                        ],
-                    )
-                    return [body]
-
-                filename = (
-                    f"{check_result['article_id']}{check_result['article_type']}.txt"
-                )
-                body = txt_result["content"].encode("utf-8")
+            if not article_id or not article_type:
+                body = b"Bad Request"
                 start_response(
-                    "200 OK",
+                    "400 Bad Request",
                     [
                         ("Content-Type", "text/plain; charset=utf-8"),
-                        (
-                            "Content-Disposition",
-                            f'attachment; filename="{filename}"',
-                        ),
                         ("Content-Length", str(len(body))),
                     ],
                 )
                 return [body]
 
-            body = _render_page(article_input, check_result, action_result)
+            txt_result = get_saved_article_txt(article_id, article_type)
+            if not txt_result["found"]:
+                reference_id = _log_web_action(
+                    web_action_log_path,
+                    environ,
+                    action_kind="failed_action",
+                    input_value=article_input,
+                    requested_format=requested_format,
+                    result_status="download_missing",
+                    resolved_title=query.get("resolved_title"),
+                    resolved_article_id=article_id,
+                    resolved_article_type=article_type,
+                    resolved_canonical_url=query.get("article_url"),
+                    error_code="download_missing",
+                    error_detail="Saved article was not found for download.",
+                )
+                body = _render_page(
+                    article_input,
+                    {
+                        "status": "error",
+                        "message": "An unexpected internal error occurred.",
+                        "error_code": "download_missing",
+                        "reference_id": reference_id,
+                    },
+                )
+                start_response(
+                    "200 OK",
+                    [
+                        ("Content-Type", "text/html; charset=utf-8"),
+                        ("Content-Length", str(len(body))),
+                    ],
+                )
+                return [body]
+
+            _log_web_action(
+                web_action_log_path,
+                environ,
+                action_kind="download",
+                input_value=article_input,
+                requested_format=requested_format,
+                result_status="success",
+                resolved_title=query.get("resolved_title"),
+                resolved_article_id=article_id,
+                resolved_article_type=article_type,
+                resolved_canonical_url=query.get("article_url"),
+            )
+            filename = f"{article_id}{article_type}.{requested_format}"
+            body = txt_result["content"].encode("utf-8")
             start_response(
                 "200 OK",
                 [
-                    ("Content-Type", "text/html; charset=utf-8"),
+                    ("Content-Type", "text/plain; charset=utf-8"),
+                    (
+                        "Content-Disposition",
+                        f'attachment; filename="{filename}"',
+                    ),
                     ("Content-Length", str(len(body))),
                 ],
             )
             return [body]
 
-        if path not in {"/", "/action"}:
+        if path not in {"/", "/download"}:
             body = b"Not Found"
             start_response(
                 "404 Not Found",
@@ -22535,6 +22802,12 @@ def create_app(target_db_path: str = DEFAULT_TARGET_DB_PATH):
 
 
 application = create_app()
+
+
+def run_web(host: str = "127.0.0.1", port: int = 8080) -> None:
+    with make_server(host, port, application) as httpd:
+        print(f"Serving web UI on http://{host}:{port}")
+        httpd.serve_forever()
 
 
 def serve_web_app(
@@ -22599,6 +22872,14 @@ Apply only lightweight, mechanical guardrails.
 - All newly created or edited text/source files must end with a trailing newline.
 - Do not perform unrelated formatting-only cleanup outside touched areas.
 - If the task is a line-length-only fix, change only the minimum lines required for E501 resolution and do not change logic, wording, assertions, or control flow.
+
+=============================
+FILE: ./cursor/.env.runtime.local
+=============================
+WEB_BIND_HOST=127.0.0.1
+WEB_PORT=58021
+LOCAL_UID=1001
+LOCAL_GID=1001
 
 =============================
 FILE: ./cursor/.env.runtime.local.example
@@ -32088,11 +32369,18 @@ FILE: ./cursor/tests/test_web_app.py
 from io import BytesIO
 from unittest.mock import patch
 
-from web_app import application, check_article_status, create_app
 import web_app
+from web_app import application, check_article_status, create_app
 
 
-def _run_wsgi_request(method, path="/", body="", app=None):
+def _run_wsgi_request(
+    method,
+    path="/",
+    body="",
+    query_string="",
+    app=None,
+    extra_environ=None,
+):
     encoded_body = body.encode("utf-8")
     captured = {}
 
@@ -32100,49 +32388,24 @@ def _run_wsgi_request(method, path="/", body="", app=None):
         captured["status"] = status
         captured["headers"] = headers
 
-    response = (app or application)(
-        {
-            "REQUEST_METHOD": method,
-            "PATH_INFO": path,
-            "CONTENT_LENGTH": str(len(encoded_body)),
-            "CONTENT_TYPE": "application/x-www-form-urlencoded",
-            "wsgi.input": BytesIO(encoded_body),
-        },
-        start_response,
-    )
+    environ = {
+        "REQUEST_METHOD": method,
+        "PATH_INFO": path,
+        "QUERY_STRING": query_string,
+        "CONTENT_LENGTH": str(len(encoded_body)),
+        "CONTENT_TYPE": "application/x-www-form-urlencoded",
+        "wsgi.input": BytesIO(encoded_body),
+    }
+    if extra_environ:
+        environ.update(extra_environ)
+
+    response = (app or application)(environ, start_response)
     captured["body"] = b"".join(response).decode("utf-8")
     return captured
 
 
-def test_check_article_status_returns_resolution_failure():
-    with patch(
-        "web_app.get_saved_article_summary_by_exact_title",
-        return_value={
-            "found": False,
-            "article_id": None,
-            "article_type": None,
-            "title": None,
-            "url": None,
-            "created_at": None,
-            "response_count": 0,
-        },
-    ):
-        with patch(
-            "web_app.resolve_article_input",
-            return_value={
-                "ok": False,
-                "failure_kind": "ambiguous",
-                "normalized_input": "Foo",
-            },
-        ):
-            result = check_article_status("Foo")
-
-    assert result == {
-        "status": "resolution_failure",
-        "input": "Foo",
-        "failure_kind": "ambiguous",
-        "message": "Could not resolve the input (ambiguous).",
-    }
+def _header_map(response):
+    return dict(response["headers"])
 
 
 def test_check_article_status_returns_saved_result_for_local_title_lookup():
@@ -32175,164 +32438,45 @@ def test_check_article_status_returns_saved_result_for_local_title_lookup():
     }
 
 
-def test_check_article_status_returns_saved_result_after_resolution():
-    resolution = {
-        "ok": True,
-        "canonical_target": {
-            "article_url": "https://dic.nicovideo.jp/a/12345",
-            "article_id": "12345",
-            "article_type": "a",
-        },
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "normalized_input": "Foo",
-    }
-    summary = {
-        "found": True,
-        "article_id": "12345",
-        "article_type": "a",
-        "title": "Foo",
-        "url": "https://dic.nicovideo.jp/a/12345",
-        "created_at": "2026-03-25T00:00:00+00:00",
-        "response_count": 42,
-    }
-
-    with patch(
-        "web_app.get_saved_article_summary_by_exact_title",
-        return_value={
-            "found": False,
-            "article_id": None,
-            "article_type": None,
-            "title": None,
-            "url": None,
-            "created_at": None,
-            "response_count": 0,
-        },
-    ):
-        with patch("web_app.resolve_article_input", return_value=resolution):
-            with patch("web_app.get_saved_article_summary", return_value=summary):
-                result = check_article_status("Foo")
-
-    assert result == {
-        "status": "saved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "response_count": 42,
-        "message": "Saved archive found for the resolved article.",
-    }
-
-
-def test_check_article_status_returns_unsaved_result():
-    resolution = {
-        "ok": True,
-        "canonical_target": {
-            "article_url": "https://dic.nicovideo.jp/a/12345",
-            "article_id": "12345",
-            "article_type": "a",
-        },
-        "title": "Foo",
-        "matched_by": "article_url",
-        "normalized_input": "https://dic.nicovideo.jp/a/Foo",
-    }
-    summary = {
+def test_check_article_status_classifies_temporary_fetch_failure():
+    empty_summary = {
         "found": False,
-        "article_id": "12345",
-        "article_type": "a",
+        "article_id": None,
+        "article_type": None,
         "title": None,
         "url": None,
         "created_at": None,
         "response_count": 0,
     }
 
-    with patch("web_app.resolve_article_input", return_value=resolution):
-        with patch("web_app.get_saved_article_summary", return_value=summary):
-            result = check_article_status("https://dic.nicovideo.jp/a/Foo")
-
-    assert result == {
-        "status": "unsaved",
-        "input": "https://dic.nicovideo.jp/a/Foo",
-        "title": "Foo",
-        "matched_by": "article_url",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "message": "Resolved article, but no saved archive was found yet.",
-    }
-
-
-def test_check_article_status_returns_internal_error_on_unexpected_exception():
     with patch(
         "web_app.get_saved_article_summary_by_exact_title",
-        return_value={
-            "found": False,
-            "article_id": None,
-            "article_type": None,
-            "title": None,
-            "url": None,
-            "created_at": None,
-            "response_count": 0,
-        },
+        return_value=empty_summary,
     ):
         with patch(
             "web_app.resolve_article_input",
-            side_effect=RuntimeError("boom"),
+            side_effect=RuntimeError(
+                "Failed to fetch https://dic.nicovideo.jp/a/Foo (timeout=10s)"
+            ),
         ):
             result = check_article_status("Foo")
 
-    assert result == {
-        "status": "internal_error",
-        "input": "Foo",
-        "error_kind": "RuntimeError",
-        "message": "Internal error while checking article status.",
-    }
+    assert result["status"] == "resolution_failure"
+    assert result["failure_kind"] == "temporary_fetch_failure"
 
 
-def test_check_article_status_url_input_still_uses_resolver_path():
-    resolution = {
-        "ok": True,
-        "canonical_target": {
-            "article_url": "https://dic.nicovideo.jp/a/12345",
-            "article_id": "12345",
-            "article_type": "a",
-        },
-        "title": "Foo",
-        "matched_by": "article_url",
-        "normalized_input": "https://dic.nicovideo.jp/a/g123",
-    }
-    summary = {
-        "found": True,
-        "article_id": "12345",
-        "article_type": "a",
-        "title": "Foo",
-        "url": "https://dic.nicovideo.jp/a/12345",
-        "created_at": "2026-03-25T00:00:00+00:00",
-        "response_count": 42,
-    }
-
-    with patch("web_app.get_saved_article_summary_by_exact_title") as mock_local:
-        with patch("web_app.resolve_article_input", return_value=resolution):
-            with patch("web_app.get_saved_article_summary", return_value=summary):
-                result = check_article_status("https://dic.nicovideo.jp/a/g123")
-
-    mock_local.assert_not_called()
-    assert result["status"] == "saved"
-    assert result["matched_by"] == "article_url"
-
-
-def test_application_get_renders_form_and_message_area():
+def test_application_get_renders_externalized_title_and_waiting_state():
     response = _run_wsgi_request("GET")
 
     assert response["status"] == "200 OK"
-    assert "Article name or article URL" in response["body"]
-    assert "Submit" in response["body"]
-    assert "Submit an article name or article URL" in response["body"]
+    assert web_app.UI_TEXTS["page_title"] in response["body"]
+    assert web_app.UI_TEXTS["input_placeholder"] in response["body"]
+    assert "data-archive-check-form" in response["body"]
+    assert "data-busy-message" in response["body"]
+    assert "Saved articles will download as TXT." in response["body"]
 
 
-def test_application_post_renders_saved_result_message():
+def test_application_post_saved_result_autodownloads_without_buttons():
     result = {
         "status": "saved",
         "input": "Foo",
@@ -32349,270 +32493,135 @@ def test_application_post_renders_saved_result_message():
         response = _run_wsgi_request("POST", body="article_input=Foo")
 
     assert response["status"] == "200 OK"
-    assert "Saved archive found for the resolved article." in response["body"]
-    assert "Canonical target: a/12345" in response["body"]
-    assert "Saved response count: 42" in response["body"]
-    assert "Download TXT" in response["body"]
-    assert "Add To Target Registry" in response["body"]
+    assert "Saved article found. TXT download will start automatically." in (
+        response["body"]
+    )
+    assert "Article title:</strong> Foo" in response["body"]
+    assert "Article ID:</strong> 12345" in response["body"]
+    assert "Saved response count:</strong> 42" in response["body"]
+    assert "data-auto-download-form" in response["body"]
+    assert "Download TXT" not in response["body"]
+    assert "Add To Target Registry" not in response["body"]
+    assert "Matched by" not in response["body"]
 
 
-def test_application_post_renders_title_resolution_failure_message():
-    result = {
-        "status": "resolution_failure",
-        "input": "Foo",
-        "failure_kind": "not_found",
-        "message": "Could not resolve the input (not_found).",
-    }
-
-    with patch("web_app.check_article_status", return_value=result):
-        response = _run_wsgi_request("POST", body="article_input=Foo")
-
-    assert response["status"] == "200 OK"
-    assert "Could not resolve the input (not_found)." in response["body"]
-    assert "Resolution status: <strong>not_found</strong>" in response["body"]
-
-
-def test_application_post_renders_unsaved_result_with_target_action_only():
+def test_application_post_registers_unsaved_article_and_logs_action(tmp_path):
     result = {
         "status": "unsaved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
+        "input": "https://dic.nicovideo.jp/a/%E3%83%8B%E3%82%B3",
+        "title": "ニコニコ大百科",
+        "matched_by": "article_url",
         "article_url": "https://dic.nicovideo.jp/a/12345",
         "article_id": "12345",
         "article_type": "a",
         "message": "Resolved article, but no saved archive was found yet.",
     }
+    log_path = tmp_path / "web_action.log"
 
     with patch("web_app.check_article_status", return_value=result):
-        response = _run_wsgi_request("POST", body="article_input=Foo")
+        with patch("web_app.register_target_url", return_value="added"):
+            response = _run_wsgi_request(
+                "POST",
+                body="article_input=Foo",
+                app=create_app(
+                    target_db_path="/runtime/data/custom.db",
+                    web_action_log_path=str(log_path),
+                ),
+                extra_environ={
+                    "REMOTE_ADDR": "127.0.0.1",
+                    "HTTP_USER_AGENT": "pytest-agent",
+                },
+            )
 
     assert response["status"] == "200 OK"
-    assert "Add To Target Registry" in response["body"]
-    assert "Enqueue Request" not in response["body"]
+    assert "Article registered for archive checking." in response["body"]
+    assert "Article title:</strong> ニコニコ大百科" in response["body"]
+    assert "Saved response count" not in response["body"]
+
+    log_text = log_path.read_text(encoding="utf-8")
+    assert log_text.startswith("\nWEB_ACTION_START\n")
+    assert log_text.endswith("WEB_ACTION_END\n\n")
+    assert "action_kind=registration" in log_text
+    assert "result_status=added" in log_text
+    assert "resolved_title=ニコニコ大百科" in log_text
+    assert "%E3%83%8B%E3%82%B3" not in log_text
 
 
-@patch("web_app.register_target_url", return_value="added")
-@patch("web_app.check_article_status")
-def test_application_action_add_target_uses_canonical_url(
-    mock_check_status,
-    mock_add_target_url,
-):
-    mock_check_status.return_value = {
-        "status": "unsaved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "message": "Resolved article, but no saved archive was found yet.",
-    }
+def test_download_endpoint_returns_txt_and_logs_download(tmp_path):
+    log_path = tmp_path / "web_action.log"
 
-    response = _run_wsgi_request(
-        "POST",
-        path="/action",
-        body="article_input=Foo&action=add_target",
-    )
-
-    assert response["status"] == "200 OK"
-    assert (
-        "Canonical article URL was added to the target registry."
-        in response["body"]
-    )
-    mock_add_target_url.assert_called_once_with(
-        "https://dic.nicovideo.jp/a/12345",
-        web_app.DEFAULT_TARGET_DB_PATH,
-    )
-
-
-@patch("web_app.register_target_url", return_value="added")
-@patch("web_app.check_article_status")
-def test_application_action_add_target_uses_custom_runtime_target_path(
-    mock_check_status,
-    mock_add_target_url,
-):
-    mock_check_status.return_value = {
-        "status": "unsaved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "message": "Resolved article, but no saved archive was found yet.",
-    }
-
-    response = _run_wsgi_request(
-        "POST",
-        path="/action",
-        body="article_input=Foo&action=add_target",
-        app=create_app(target_db_path="/runtime/data/custom.db"),
-    )
-
-    assert response["status"] == "200 OK"
-    mock_add_target_url.assert_called_once_with(
-        "https://dic.nicovideo.jp/a/12345",
-        "/runtime/data/custom.db",
-    )
-
-
-@patch("web_app.register_target_url", return_value="duplicate")
-@patch("web_app.check_article_status")
-def test_application_action_add_target_duplicate_is_bounded(
-    mock_check_status,
-    mock_add_target_url,
-):
-    mock_check_status.return_value = {
-        "status": "saved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "response_count": 42,
-        "message": "Saved archive found for the resolved article.",
-    }
-
-    response = _run_wsgi_request(
-        "POST",
-        path="/action",
-        body="article_input=Foo&action=add_target",
-    )
-
-    assert response["status"] == "200 OK"
-    assert (
-        "Canonical article URL is already active in the target registry."
-        in response["body"]
-    )
-    mock_add_target_url.assert_called_once_with(
-        "https://dic.nicovideo.jp/a/12345",
-        web_app.DEFAULT_TARGET_DB_PATH,
-    )
-
-
-@patch("web_app.register_target_url", return_value="reactivated")
-@patch("web_app.check_article_status")
-def test_application_action_add_target_reactivated_is_bounded(
-    mock_check_status,
-    mock_add_target_url,
-):
-    mock_check_status.return_value = {
-        "status": "unsaved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "message": "Resolved article, but no saved archive was found yet.",
-    }
-
-    response = _run_wsgi_request(
-        "POST",
-        path="/action",
-        body="article_input=Foo&action=add_target",
-    )
-
-    assert response["status"] == "200 OK"
-    assert (
-        "Canonical article URL was reactivated in the target registry."
-        in response["body"]
-    )
-    mock_add_target_url.assert_called_once_with(
-        "https://dic.nicovideo.jp/a/12345",
-        web_app.DEFAULT_TARGET_DB_PATH,
-    )
-
-
-@patch("web_app.check_article_status")
-def test_application_action_add_target_skips_write_for_unresolved_input(
-    mock_check_status,
-):
-    mock_check_status.return_value = {
-        "status": "resolution_failure",
-        "input": "Foo",
-        "failure_kind": "not_found",
-        "message": "Could not resolve the input (not_found).",
-    }
-
-    with patch("web_app.register_target_url") as mock_add_target_url:
+    with patch(
+        "web_app.get_saved_article_txt",
+        return_value={
+            "found": True,
+            "content": "=== ARTICLE META ===\nTitle: Foo",
+            "article_id": "12345",
+            "article_type": "a",
+        },
+    ):
         response = _run_wsgi_request(
-            "POST",
-            path="/action",
-            body="article_input=Foo&action=add_target",
+            "GET",
+            path="/download",
+            query_string=(
+                "article_id=12345&article_type=a&article_input=Foo"
+                "&resolved_title=Foo&article_url="
+                "https%3A%2F%2Fdic.nicovideo.jp%2Fa%2F12345"
+                "&requested_format=txt"
+            ),
+            app=create_app(web_action_log_path=str(log_path)),
+            extra_environ={
+                "REMOTE_ADDR": "127.0.0.1",
+                "HTTP_USER_AGENT": "pytest-agent",
+            },
         )
 
     assert response["status"] == "200 OK"
-    assert "Action requires a saved or unsaved resolved article." in response["body"]
-    mock_add_target_url.assert_not_called()
-
-
-@patch("web_app.get_saved_article_txt")
-@patch("web_app.check_article_status")
-def test_application_action_download_txt_for_saved(
-    mock_check_status,
-    mock_get_saved_article_txt,
-):
-    mock_check_status.return_value = {
-        "status": "saved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "response_count": 42,
-        "message": "Saved archive found for the resolved article.",
-    }
-    mock_get_saved_article_txt.return_value = {
-        "found": True,
-        "content": "=== ARTICLE META ===\nTitle: Foo",
-        "article_id": "12345",
-        "article_type": "a",
-    }
-
-    response = _run_wsgi_request(
-        "POST",
-        path="/action",
-        body="article_input=Foo&action=download_txt",
-    )
-
-    assert response["status"] == "200 OK"
-    headers = dict(response["headers"])
+    headers = _header_map(response)
     assert headers["Content-Type"] == "text/plain; charset=utf-8"
-    assert "attachment; filename=\"12345a.txt\"" in headers["Content-Disposition"]
+    assert "attachment; filename=\"12345a.txt\"" in headers[
+        "Content-Disposition"
+    ]
     assert "=== ARTICLE META ===" in response["body"]
-    mock_check_status.assert_called_once_with("Foo")
-    mock_get_saved_article_txt.assert_called_once_with("12345", "a")
+
+    log_text = log_path.read_text(encoding="utf-8")
+    assert "action_kind=download" in log_text
+    assert "requested_format=txt" in log_text
+    assert "result_status=success" in log_text
 
 
-@patch("web_app.check_article_status")
-def test_application_action_enqueue_request_is_not_supported_from_web(
-    mock_check_status,
-):
-    mock_check_status.return_value = {
-        "status": "unsaved",
-        "input": "Foo",
-        "title": "Foo",
-        "matched_by": "exact_title",
-        "article_url": "https://dic.nicovideo.jp/a/12345",
-        "article_id": "12345",
-        "article_type": "a",
-        "message": "Resolved article, but no saved archive was found yet.",
+def test_application_post_error_result_is_short_and_logged(tmp_path):
+    result = {
+        "status": "resolution_failure",
+        "input": "https://example.com/nope",
+        "failure_kind": "invalid_input",
+        "message": "Could not resolve the input.",
     }
+    log_path = tmp_path / "web_action.log"
 
-    with patch("web_app.register_target_url") as mock_add_target_url:
+    with patch("web_app.check_article_status", return_value=result):
         response = _run_wsgi_request(
             "POST",
-            path="/action",
-            body="article_input=Foo&action=enqueue_request",
+            body="article_input=https%3A%2F%2Fexample.com%2Fnope",
+            app=create_app(web_action_log_path=str(log_path)),
+            extra_environ={
+                "REMOTE_ADDR": "127.0.0.1",
+                "HTTP_USER_AGENT": "pytest-agent",
+            },
         )
 
     assert response["status"] == "200 OK"
-    assert "Unsupported action." in response["body"]
-    mock_add_target_url.assert_not_called()
+    assert "Enter an article name or a valid Nicopedia article URL." in (
+        response["body"]
+    )
+    assert "Reference ID:</strong>" in response["body"]
+    assert "Matched by" not in response["body"]
+    assert "Resolution status" not in response["body"]
+
+    log_text = log_path.read_text(encoding="utf-8")
+    assert log_text.startswith("\nWEB_ACTION_START\n")
+    assert log_text.endswith("WEB_ACTION_END\n\n")
+    assert "action_kind=failed_action" in log_text
+    assert "error_code=invalid_input" in log_text
 
 
 def test_application_returns_not_found_for_unknown_path():
@@ -33584,21 +33593,83 @@ def verify_kgs_batch(article_url, state_dir, run_batch_scrape_func):
 FILE: ./cursor/web_app.py
 =============================
 import os
+from datetime import datetime, timezone
 from html import escape
-from urllib.parse import parse_qs
-from urllib.parse import urlparse
+from pathlib import Path
+from urllib.parse import parse_qs, unquote, urlencode, urlparse
+from uuid import uuid4
 from wsgiref.simple_server import make_server
 
 from archive_read import (
-    get_saved_article_txt,
     get_saved_article_summary,
     get_saved_article_summary_by_exact_title,
+    get_saved_article_txt,
 )
 from article_resolver import resolve_article_input
 from target_list import register_target_url
 
 
 DEFAULT_TARGET_DB_PATH = os.environ.get("TARGET_DB_PATH", "data/nicodic.db")
+DEFAULT_WEB_ACTION_LOG_PATH = os.environ.get(
+    "WEB_ACTION_LOG_PATH",
+    "data/web_action.log",
+)
+DEFAULT_DOWNLOAD_FORMAT = "txt"
+
+UI_TEXTS = {
+    "page_title": "NicoNicoPedia Archive Checker",
+    "heading": "NicoNicoPedia Archive Checker",
+    "lede": (
+        "Enter an article name or article URL. The page will either "
+        "download a saved archive or register the article for later "
+        "collection."
+    ),
+    "input_label": "Article name or article URL",
+    "input_placeholder": (
+        "例: ニコニコ大百科 / "
+        "https://dic.nicovideo.jp/a/ニコニコ大百科"
+    ),
+    "submit_label": "Submit",
+    "result_heading": "Result",
+    "empty_message": "Submit an article name or article URL to continue.",
+    "busy_message": (
+        "Checking the archive and preparing the next step. Saved "
+        "articles will download as {format_name}."
+    ),
+    "saved_message": (
+        "Saved article found. {format_name} download will start "
+        "automatically."
+    ),
+    "saved_hint": (
+        "If the download does not start, your browser may have blocked "
+        "it."
+    ),
+    "registered_message": (
+        "Article registered for archive checking. Please try again "
+        "later."
+    ),
+    "error_messages": {
+        "not_found": "Article was not found.",
+        "invalid_input": (
+            "Enter an article name or a valid Nicopedia article URL."
+        ),
+        "ambiguous": "Could not resolve the article.",
+        "temporary_fetch_failure": (
+            "Temporary fetch failure. Please try again later."
+        ),
+        "unexpected_internal_error": "An unexpected internal error occurred.",
+    },
+    "field_labels": {
+        "title": "Article title",
+        "article_id": "Article ID",
+        "url": "URL",
+        "response_count": "Saved response count",
+        "reference_id": "Reference ID",
+    },
+    "format_labels": {
+        "txt": "TXT",
+    },
+}
 
 
 def _normalize_web_input(article_input: str) -> str:
@@ -33610,11 +33681,45 @@ def _looks_like_url_input(article_input: str) -> bool:
     return bool(parsed.scheme or parsed.netloc)
 
 
+def _display_format_name(requested_format: str) -> str:
+    return UI_TEXTS["format_labels"].get(
+        requested_format,
+        requested_format.upper(),
+    )
+
+
+def _humanize_title(value: str | None) -> str:
+    text = (value or "").strip()
+    if not text:
+        return "unknown"
+
+    if _looks_like_url_input(text):
+        parsed = urlparse(text)
+        path_parts = [part for part in parsed.path.split("/") if part]
+        if path_parts:
+            decoded = unquote(path_parts[-1]).strip()
+            if decoded:
+                return decoded
+
+    decoded = unquote(text).strip()
+    return decoded if decoded else "unknown"
+
+
+def _classify_runtime_failure(exc: RuntimeError) -> str | None:
+    detail = str(exc)
+    if "timeout=" in detail:
+        return "temporary_fetch_failure"
+    if "Failed to fetch" in detail:
+        return "temporary_fetch_failure"
+    return None
+
+
 def check_article_status(article_input: str) -> dict:
-    """Resolve input and return a bounded archive status result for the web UI."""
+    """Resolve input and return a bounded archive status result."""
+
+    normalized_input = _normalize_web_input(article_input)
 
     try:
-        normalized_input = _normalize_web_input(article_input)
         if normalized_input and not _looks_like_url_input(normalized_input):
             archive_summary = get_saved_article_summary_by_exact_title(
                 normalized_input
@@ -33634,12 +33739,11 @@ def check_article_status(article_input: str) -> dict:
 
         resolution = resolve_article_input(article_input)
         if not resolution["ok"]:
-            failure_kind = resolution["failure_kind"]
             return {
                 "status": "resolution_failure",
                 "input": resolution["normalized_input"],
-                "failure_kind": failure_kind,
-                "message": f"Could not resolve the input ({failure_kind}).",
+                "failure_kind": resolution["failure_kind"],
+                "message": "Could not resolve the input.",
             }
 
         canonical_target = resolution["canonical_target"]
@@ -33671,13 +33775,47 @@ def check_article_status(article_input: str) -> dict:
             "article_type": canonical_target["article_type"],
             "message": "Resolved article, but no saved archive was found yet.",
         }
+    except RuntimeError as exc:
+        failure_kind = _classify_runtime_failure(exc)
+        if failure_kind is not None:
+            return {
+                "status": "resolution_failure",
+                "input": normalized_input,
+                "failure_kind": failure_kind,
+                "error_detail": str(exc),
+                "message": "Temporary failure while resolving the article.",
+            }
+        return {
+            "status": "internal_error",
+            "input": normalized_input,
+            "error_kind": type(exc).__name__,
+            "error_detail": str(exc),
+            "message": "Internal error while checking article status.",
+        }
     except Exception as exc:
         return {
             "status": "internal_error",
-            "input": _normalize_web_input(article_input),
+            "input": normalized_input,
             "error_kind": type(exc).__name__,
+            "error_detail": str(exc),
             "message": "Internal error while checking article status.",
         }
+
+
+def _result_error_code(result: dict) -> str:
+    if result["status"] == "resolution_failure":
+        return result.get("failure_kind", "unknown_resolution_failure")
+    if result["status"] == "internal_error":
+        return "unexpected_internal_error"
+    return "unknown_error"
+
+
+def _user_error_message(result: dict) -> str:
+    error_code = _result_error_code(result)
+    return UI_TEXTS["error_messages"].get(
+        error_code,
+        "不明なエラーが発生しました。",
+    )
 
 
 def _read_post_form(environ: dict) -> dict:
@@ -33692,171 +33830,303 @@ def _read_post_form(environ: dict) -> dict:
     return {key: values[0] if values else "" for key, values in form_data.items()}
 
 
-def _build_action_result_message(action_result: dict) -> str:
-    status = action_result["status"]
-    if status == "download_ready":
-        return "Saved article TXT download is ready."
-    if status == "target_added":
-        return "Canonical article URL was added to the target registry."
-    if status == "target_reactivated":
-        return "Canonical article URL was reactivated in the target registry."
-    if status == "target_duplicate":
-        return "Canonical article URL is already active in the target registry."
-    if status == "action_error":
-        return action_result["message"]
-    return "Action completed."
+def _read_query_params(environ: dict) -> dict:
+    query = environ.get("QUERY_STRING", "")
+    parsed = parse_qs(query, keep_blank_values=True)
+    return {key: values[0] if values else "" for key, values in parsed.items()}
 
 
-def _followup_action(
+def _web_log_value(value: object) -> str:
+    if value is None:
+        return "unknown"
+    text = str(value).strip()
+    return text if text else "unknown"
+
+
+def _visitor_hint(environ: dict) -> str:
+    remote_addr = environ.get("HTTP_X_FORWARDED_FOR") or environ.get(
+        "REMOTE_ADDR",
+        "unknown",
+    )
+    user_agent = " ".join(environ.get("HTTP_USER_AGENT", "unknown").split())
+    if len(user_agent) > 60:
+        user_agent = f"{user_agent[:57]}..."
+    return f"addr={remote_addr} ua={user_agent}"
+
+
+def _append_web_action_log_lines(log_path: Path, lines: list[str]) -> None:
+    log_path.parent.mkdir(parents=True, exist_ok=True)
+    with log_path.open("a", encoding="utf-8") as stream:
+        for line in lines:
+            stream.write(f"{line}\n")
+
+
+def _log_web_action(
+    web_action_log_path: str,
+    environ: dict,
+    action_kind: str,
+    input_value: str,
+    requested_format: str | None,
+    result_status: str,
+    resolved_title: str | None = None,
+    resolved_article_id: str | None = None,
+    resolved_article_type: str | None = None,
+    resolved_canonical_url: str | None = None,
+    error_code: str | None = None,
+    error_detail: str | None = None,
+) -> str:
+    action_id = uuid4().hex
+    timestamp = datetime.now(timezone.utc).isoformat()
+    title = _humanize_title(
+        resolved_title or input_value or resolved_canonical_url
+    )
+    _append_web_action_log_lines(
+        Path(web_action_log_path),
+        [
+            "",
+            "WEB_ACTION_START",
+            f"  action_id={action_id}",
+            f"  timestamp={timestamp}",
+            f"  action_kind={action_kind}",
+            f"  visitor_hint={_visitor_hint(environ)}",
+            f"  input_value={_web_log_value(input_value)}",
+            f"  resolved_title={_web_log_value(title)}",
+            (
+                "  resolved_article_id="
+                f"{_web_log_value(resolved_article_id)}"
+            ),
+            (
+                "  resolved_article_type="
+                f"{_web_log_value(resolved_article_type)}"
+            ),
+            (
+                "  resolved_canonical_url="
+                f"{_web_log_value(resolved_canonical_url)}"
+            ),
+            f"  requested_format={_web_log_value(requested_format)}",
+            f"  result_status={_web_log_value(result_status)}",
+            f"  error_code={_web_log_value(error_code)}",
+            f"  error_detail={_web_log_value(error_detail)}",
+            "WEB_ACTION_END",
+            "",
+        ],
+    )
+    return action_id
+
+
+def _build_saved_ui_result(check_result: dict) -> dict:
+    return {
+        "status": "saved",
+        "message": UI_TEXTS["saved_message"].format(
+            format_name=_display_format_name(DEFAULT_DOWNLOAD_FORMAT)
+        ),
+        "title": check_result["title"],
+        "article_id": check_result["article_id"],
+        "article_url": check_result["article_url"],
+        "article_type": check_result["article_type"],
+        "response_count": check_result["response_count"],
+        "input": check_result["input"],
+    }
+
+
+def _build_registered_ui_result(check_result: dict) -> dict:
+    return {
+        "status": "registered",
+        "message": UI_TEXTS["registered_message"],
+        "title": check_result["title"],
+        "article_id": check_result["article_id"],
+        "article_url": check_result["article_url"],
+        "article_type": check_result["article_type"],
+        "input": check_result["input"],
+    }
+
+
+def _build_error_ui_result(result: dict, reference_id: str | None) -> dict:
+    error_result = {
+        "status": "error",
+        "message": _user_error_message(result),
+        "error_code": _result_error_code(result),
+    }
+    if reference_id is not None:
+        error_result["reference_id"] = reference_id
+    return error_result
+
+
+def _build_download_query(check_result: dict) -> str:
+    return urlencode(
+        {
+            "article_id": check_result["article_id"],
+            "article_type": check_result["article_type"],
+            "article_input": check_result["input"],
+            "resolved_title": check_result["title"],
+            "article_url": check_result["article_url"],
+            "requested_format": DEFAULT_DOWNLOAD_FORMAT,
+        }
+    )
+
+
+def _submit_archive_check(
     article_input: str,
-    action: str,
     target_db_path: str,
-) -> dict:
-    status_result = check_article_status(article_input)
-    if status_result["status"] not in {"saved", "unsaved"}:
-        return {
-            "status": "action_error",
-            "message": "Action requires a saved or unsaved resolved article.",
-            "check_result": status_result,
-        }
+    web_action_log_path: str,
+    environ: dict,
+) -> tuple[dict, str | None]:
+    check_result = check_article_status(article_input)
 
-    if action == "download_txt":
-        if status_result["status"] != "saved":
-            return {
-                "status": "action_error",
-                "message": "TXT download is only available for saved articles.",
-                "check_result": status_result,
-            }
-        return {
-            "status": "download_ready",
-            "check_result": status_result,
-        }
+    if check_result["status"] == "saved":
+        return _build_saved_ui_result(check_result), _build_download_query(
+            check_result
+        )
 
-    if action == "add_target":
-        add_result = register_target_url(
-            status_result["article_url"],
+    if check_result["status"] == "unsaved":
+        registration_status = register_target_url(
+            check_result["article_url"],
             target_db_path,
         )
-        if add_result == "added":
-            return {
-                "status": "target_added",
-                "check_result": status_result,
-            }
-        if add_result == "reactivated":
-            return {
-                "status": "target_reactivated",
-                "check_result": status_result,
-            }
-        if add_result == "duplicate":
-            return {
-                "status": "target_duplicate",
-                "check_result": status_result,
-            }
-        return {
-            "status": "action_error",
-            "message": "Canonical article URL could not be added.",
-            "check_result": status_result,
-        }
+        if registration_status in {"added", "reactivated", "duplicate"}:
+            _log_web_action(
+                web_action_log_path,
+                environ,
+                action_kind="registration",
+                input_value=article_input,
+                requested_format=None,
+                result_status=registration_status,
+                resolved_title=check_result["title"],
+                resolved_article_id=check_result["article_id"],
+                resolved_article_type=check_result["article_type"],
+                resolved_canonical_url=check_result["article_url"],
+            )
+            return _build_registered_ui_result(check_result), None
 
-    return {
-        "status": "action_error",
-        "message": "Unsupported action.",
-        "check_result": status_result,
-    }
+        failure_result = {
+            "status": "internal_error",
+            "input": check_result["input"],
+            "error_kind": "RegistrationError",
+            "error_detail": "Canonical article URL could not be added.",
+            "message": "Internal error while checking article status.",
+        }
+        reference_id = _log_web_action(
+            web_action_log_path,
+            environ,
+            action_kind="failed_action",
+            input_value=article_input,
+            requested_format=None,
+            result_status="registration_failed",
+            resolved_title=check_result["title"],
+            resolved_article_id=check_result["article_id"],
+            resolved_article_type=check_result["article_type"],
+            resolved_canonical_url=check_result["article_url"],
+            error_code="registration_failed",
+            error_detail=failure_result["error_detail"],
+        )
+        return _build_error_ui_result(failure_result, reference_id), None
+
+    reference_id = _log_web_action(
+        web_action_log_path,
+        environ,
+        action_kind="failed_action",
+        input_value=article_input,
+        requested_format=None,
+        result_status=check_result["status"],
+        resolved_title=check_result.get("title") or check_result.get("input"),
+        resolved_article_id=check_result.get("article_id"),
+        resolved_article_type=check_result.get("article_type"),
+        resolved_canonical_url=check_result.get("article_url"),
+        error_code=_result_error_code(check_result),
+        error_detail=check_result.get("error_detail") or check_result["message"],
+    )
+    return _build_error_ui_result(check_result, reference_id), None
+
+
+def _render_result_detail(label: str, value: str) -> str:
+    return f"<p><strong>{escape(label)}:</strong> {escape(value)}</p>"
 
 
 def _render_message_area(
     result: dict | None,
-    action_result: dict | None = None,
+    download_query: str | None = None,
 ) -> str:
     if result is None:
         return (
             '<section class="message-area empty">'
-            "<h2>Result</h2>"
-            "<p>"
-            "Submit an article name or article URL to check whether it "
-            "is already saved."
-            "</p>"
+            f"<h2>{escape(UI_TEXTS['result_heading'])}</h2>"
+            f"<p>{escape(UI_TEXTS['empty_message'])}</p>"
             "</section>"
         )
 
-    status = escape(result["status"])
-    message = escape(result["message"])
     lines = [
-        f'<section class="message-area {status}">',
-        "<h2>Result</h2>",
-        f'<p class="status-line">{message}</p>',
+        f'<section class="message-area {escape(result["status"])}">',
+        f"<h2>{escape(UI_TEXTS['result_heading'])}</h2>",
+        f'<p class="status-line">{escape(result["message"])}</p>',
     ]
 
-    if action_result is not None:
-        lines.append(
-            "<p>Action status: "
-            f"<strong>{escape(_build_action_result_message(action_result))}</strong>"
-            "</p>"
-        )
-
-    if result["status"] == "resolution_failure":
-        lines.append(
-            "<p>Resolution status: "
-            f"<strong>{escape(result['failure_kind'])}</strong></p>"
-        )
-
-    if result["status"] == "internal_error":
-        lines.append(
-            "<p>Error type: "
-            f"<strong>{escape(result['error_kind'])}</strong></p>"
-        )
-
-    if result["status"] in {"saved", "unsaved"}:
+    if result["status"] == "saved":
         lines.extend(
             [
-                f"<p>Title: <strong>{escape(result['title'])}</strong></p>",
-                (
-                    "<p>Canonical target: "
-                    f"{escape(result['article_type'])}/"
-                    f"{escape(result['article_id'])}</p>"
+                _render_result_detail(
+                    UI_TEXTS["field_labels"]["title"],
+                    result["title"],
                 ),
-                f"<p>Matched by: {escape(result['matched_by'])}</p>",
-                f"<p>URL: {escape(result['article_url'])}</p>",
+                _render_result_detail(
+                    UI_TEXTS["field_labels"]["article_id"],
+                    result["article_id"],
+                ),
+                _render_result_detail(
+                    UI_TEXTS["field_labels"]["url"],
+                    result["article_url"],
+                ),
+                _render_result_detail(
+                    UI_TEXTS["field_labels"]["response_count"],
+                    str(result["response_count"]),
+                ),
+                f'<p class="followup-note">{escape(UI_TEXTS["saved_hint"])}</p>',
+            ]
+        )
+        if download_query is not None:
+            lines.append(
+                '<iframe name="download_frame" class="download-frame"></iframe>'
+            )
+            lines.append(
+                (
+                    '<form method="get" action="/download" '
+                    'target="download_frame" data-auto-download-form hidden>'
+                )
+            )
+            for key, value in parse_qs(download_query).items():
+                if not value:
+                    continue
+                lines.append(
+                    (
+                        '<input type="hidden" '
+                        f'name="{escape(key)}" '
+                        f'value="{escape(value[0])}">'
+                    )
+                )
+            lines.append("</form>")
+
+    if result["status"] == "registered":
+        lines.extend(
+            [
+                _render_result_detail(
+                    UI_TEXTS["field_labels"]["title"],
+                    result["title"],
+                ),
+                _render_result_detail(
+                    UI_TEXTS["field_labels"]["article_id"],
+                    result["article_id"],
+                ),
+                _render_result_detail(
+                    UI_TEXTS["field_labels"]["url"],
+                    result["article_url"],
+                ),
             ]
         )
 
-    if result["status"] == "saved":
+    if result["status"] == "error" and "reference_id" in result:
         lines.append(
-            "<p>Saved response count: "
-            f"{escape(str(result['response_count']))}</p>"
-        )
-        lines.append(
-            (
-                "<form method=\"post\" action=\"/action\">"
-                f"<input type=\"hidden\" name=\"article_input\" "
-                f"value=\"{escape(result['input'])}\">"
-                "<input type=\"hidden\" name=\"action\" "
-                "value=\"download_txt\">"
-                "<button type=\"submit\">Download TXT</button>"
-                "</form>"
-            )
-        )
-        lines.append(
-            (
-                "<form method=\"post\" action=\"/action\">"
-                f"<input type=\"hidden\" name=\"article_input\" "
-                f"value=\"{escape(result['input'])}\">"
-                "<input type=\"hidden\" name=\"action\" value=\"add_target\">"
-                "<button type=\"submit\">Add To Target Registry</button>"
-                "</form>"
-            )
-        )
-
-    if result["status"] == "unsaved":
-        lines.append(
-            (
-                "<form method=\"post\" action=\"/action\">"
-                f"<input type=\"hidden\" name=\"article_input\" "
-                f"value=\"{escape(result['input'])}\">"
-                "<input type=\"hidden\" name=\"action\" value=\"add_target\">"
-                "<button type=\"submit\">Add To Target Registry</button>"
-                "</form>"
+            _render_result_detail(
+                UI_TEXTS["field_labels"]["reference_id"],
+                result["reference_id"],
             )
         )
 
@@ -33867,16 +34137,17 @@ def _render_message_area(
 def _render_page(
     article_input: str,
     result: dict | None = None,
-    action_result: dict | None = None,
+    download_query: str | None = None,
 ) -> bytes:
     safe_input = escape(article_input)
-    message_area = _render_message_area(result, action_result)
+    format_name = _display_format_name(DEFAULT_DOWNLOAD_FORMAT)
+    message_area = _render_message_area(result, download_query)
     html = f"""<!doctype html>
 <html lang=\"en\">
 <head>
   <meta charset=\"utf-8\">
   <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
-  <title>Nicodic Archive Checker</title>
+  <title>{escape(UI_TEXTS['page_title'])}</title>
   <style>
     :root {{
       color-scheme: light;
@@ -33884,17 +34155,17 @@ def _render_page(
       --panel: #fffaf2;
       --ink: #1f2430;
       --accent: #0f766e;
+      --accent-disabled: #6b8f8b;
       --border: #d9ccb4;
       --muted: #6b7280;
       --saved: #14532d;
-      --unsaved: #92400e;
-      --failure: #9f1239;
+      --registered: #92400e;
       --error: #991b1b;
     }}
     * {{ box-sizing: border-box; }}
     body {{
       margin: 0;
-      font-family: Georgia, "Times New Roman", serif;
+      font-family: Georgia, \"Times New Roman\", serif;
       color: var(--ink);
       background:
         radial-gradient(circle at top, rgba(15, 118, 110, 0.12), transparent 35%),
@@ -33939,6 +34210,15 @@ def _render_page(
       font: inherit;
       cursor: pointer;
     }}
+    button[disabled] {{
+      background: var(--accent-disabled);
+      cursor: progress;
+    }}
+    .busy-message {{
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.95rem;
+    }}
     .message-area {{
       margin-top: 24px;
       padding: 18px;
@@ -33949,9 +34229,10 @@ def _render_page(
     .message-area h2 {{ margin-top: 0; font-size: 1.2rem; }}
     .message-area.empty {{ color: var(--muted); }}
     .message-area.saved .status-line {{ color: var(--saved); }}
-    .message-area.unsaved .status-line {{ color: var(--unsaved); }}
-    .message-area.resolution_failure .status-line {{ color: var(--failure); }}
-    .message-area.internal_error .status-line {{ color: var(--error); }}
+    .message-area.registered .status-line {{ color: var(--registered); }}
+    .message-area.error .status-line {{ color: var(--error); }}
+    .followup-note {{ color: var(--muted); }}
+    .download-frame {{ display: none; width: 0; height: 0; border: 0; }}
     @media (max-width: 640px) {{
       main {{ padding: 24px 14px 36px; }}
       .panel {{ padding: 18px; }}
@@ -33962,32 +34243,69 @@ def _render_page(
 <body>
   <main>
     <section class=\"panel\">
-      <h1>Archive Checker</h1>
-      <p class=\"lede\">
-        Enter an article name or article URL to see whether a saved
-        archive already exists.
-      </p>
-      <form method=\"post\" action=\"/\">
-        <label for=\"article_input\">Article name or article URL</label>
+      <h1>{escape(UI_TEXTS['heading'])}</h1>
+      <p class=\"lede\">{escape(UI_TEXTS['lede'])}</p>
+      <form method=\"post\" action=\"/\" data-archive-check-form>
+        <label for=\"article_input\">{escape(UI_TEXTS['input_label'])}</label>
         <input
           id=\"article_input\"
           name=\"article_input\"
           type=\"text\"
           value=\"{safe_input}\"
-          placeholder=\"https://dic.nicovideo.jp/a/... or exact title\"
+          placeholder=\"{escape(UI_TEXTS['input_placeholder'])}\"
+          autocomplete=\"off\"
         >
-        <button type=\"submit\">Submit</button>
+        <button type=\"submit\" data-submit-button>
+          {escape(UI_TEXTS['submit_label'])}
+        </button>
+        <p class=\"busy-message\" data-busy-message hidden aria-live=\"polite\">
+          {escape(UI_TEXTS['busy_message'].format(format_name=format_name))}
+        </p>
       </form>
       {message_area}
     </section>
   </main>
+  <script>
+    const form = document.querySelector("[data-archive-check-form]");
+    if (form) {{
+      form.addEventListener("submit", (event) => {{
+        if (form.dataset.submitting === "true") {{
+          event.preventDefault();
+          return;
+        }}
+        form.dataset.submitting = "true";
+        const input = form.querySelector("[name='article_input']");
+        const button = form.querySelector("[data-submit-button]");
+        const busy = form.querySelector("[data-busy-message]");
+        if (input) {{
+          input.setAttribute("readonly", "readonly");
+          input.setAttribute("aria-disabled", "true");
+        }}
+        if (button) {{
+          button.disabled = true;
+        }}
+        if (busy) {{
+          busy.hidden = false;
+        }}
+      }});
+    }}
+    const autoDownloadForm = document.querySelector(
+      "[data-auto-download-form]"
+    );
+    if (autoDownloadForm) {{
+      autoDownloadForm.submit();
+    }}
+  </script>
 </body>
 </html>
 """
     return html.encode("utf-8")
 
 
-def create_app(target_db_path: str = DEFAULT_TARGET_DB_PATH):
+def create_app(
+    target_db_path: str = DEFAULT_TARGET_DB_PATH,
+    web_action_log_path: str = DEFAULT_WEB_ACTION_LOG_PATH,
+):
     def app(environ, start_response):
         method = environ.get("REQUEST_METHOD", "GET").upper()
         path = environ.get("PATH_INFO", "/")
@@ -34006,7 +34324,13 @@ def create_app(target_db_path: str = DEFAULT_TARGET_DB_PATH):
         if method == "POST" and path == "/":
             form = _read_post_form(environ)
             article_input = form.get("article_input", "")
-            body = _render_page(article_input, check_article_status(article_input))
+            result, download_query = _submit_archive_check(
+                article_input,
+                target_db_path,
+                web_action_log_path,
+                environ,
+            )
+            body = _render_page(article_input, result, download_query)
             start_response(
                 "200 OK",
                 [
@@ -34016,69 +34340,89 @@ def create_app(target_db_path: str = DEFAULT_TARGET_DB_PATH):
             )
             return [body]
 
-        if method == "POST" and path == "/action":
-            form = _read_post_form(environ)
-            article_input = form.get("article_input", "")
-            action = form.get("action", "")
-
-            action_result = _followup_action(
-                article_input,
-                action,
-                target_db_path,
+        if method == "GET" and path == "/download":
+            query = _read_query_params(environ)
+            article_id = query.get("article_id", "")
+            article_type = query.get("article_type", "")
+            article_input = query.get("article_input", "")
+            requested_format = query.get(
+                "requested_format",
+                DEFAULT_DOWNLOAD_FORMAT,
             )
-            check_result = action_result["check_result"]
 
-            if action_result["status"] == "download_ready":
-                txt_result = get_saved_article_txt(
-                    check_result["article_id"],
-                    check_result["article_type"],
-                )
-                if not txt_result["found"]:
-                    body = _render_page(
-                        article_input,
-                        check_result,
-                        {
-                            "status": "action_error",
-                            "message": "Saved article was not found for TXT download.",
-                        },
-                    )
-                    start_response(
-                        "200 OK",
-                        [
-                            ("Content-Type", "text/html; charset=utf-8"),
-                            ("Content-Length", str(len(body))),
-                        ],
-                    )
-                    return [body]
-
-                filename = (
-                    f"{check_result['article_id']}{check_result['article_type']}.txt"
-                )
-                body = txt_result["content"].encode("utf-8")
+            if not article_id or not article_type:
+                body = b"Bad Request"
                 start_response(
-                    "200 OK",
+                    "400 Bad Request",
                     [
                         ("Content-Type", "text/plain; charset=utf-8"),
-                        (
-                            "Content-Disposition",
-                            f'attachment; filename="{filename}"',
-                        ),
                         ("Content-Length", str(len(body))),
                     ],
                 )
                 return [body]
 
-            body = _render_page(article_input, check_result, action_result)
+            txt_result = get_saved_article_txt(article_id, article_type)
+            if not txt_result["found"]:
+                reference_id = _log_web_action(
+                    web_action_log_path,
+                    environ,
+                    action_kind="failed_action",
+                    input_value=article_input,
+                    requested_format=requested_format,
+                    result_status="download_missing",
+                    resolved_title=query.get("resolved_title"),
+                    resolved_article_id=article_id,
+                    resolved_article_type=article_type,
+                    resolved_canonical_url=query.get("article_url"),
+                    error_code="download_missing",
+                    error_detail="Saved article was not found for download.",
+                )
+                body = _render_page(
+                    article_input,
+                    {
+                        "status": "error",
+                        "message": "An unexpected internal error occurred.",
+                        "error_code": "download_missing",
+                        "reference_id": reference_id,
+                    },
+                )
+                start_response(
+                    "200 OK",
+                    [
+                        ("Content-Type", "text/html; charset=utf-8"),
+                        ("Content-Length", str(len(body))),
+                    ],
+                )
+                return [body]
+
+            _log_web_action(
+                web_action_log_path,
+                environ,
+                action_kind="download",
+                input_value=article_input,
+                requested_format=requested_format,
+                result_status="success",
+                resolved_title=query.get("resolved_title"),
+                resolved_article_id=article_id,
+                resolved_article_type=article_type,
+                resolved_canonical_url=query.get("article_url"),
+            )
+            filename = f"{article_id}{article_type}.{requested_format}"
+            body = txt_result["content"].encode("utf-8")
             start_response(
                 "200 OK",
                 [
-                    ("Content-Type", "text/html; charset=utf-8"),
+                    ("Content-Type", "text/plain; charset=utf-8"),
+                    (
+                        "Content-Disposition",
+                        f'attachment; filename="{filename}"',
+                    ),
                     ("Content-Length", str(len(body))),
                 ],
             )
             return [body]
 
-        if path not in {"/", "/action"}:
+        if path not in {"/", "/download"}:
             body = b"Not Found"
             start_response(
                 "404 Not Found",
@@ -34103,6 +34447,12 @@ def create_app(target_db_path: str = DEFAULT_TARGET_DB_PATH):
 
 
 application = create_app()
+
+
+def run_web(host: str = "127.0.0.1", port: int = 8080) -> None:
+    with make_server(host, port, application) as httpd:
+        print(f"Serving web UI on http://{host}:{port}")
+        httpd.serve_forever()
 
 
 def serve_web_app(
