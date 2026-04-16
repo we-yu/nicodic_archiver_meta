@@ -2060,6 +2060,49 @@ Interpretation:
 - this is a bounded mainline behavior change
 - archive read semantics and archive identity migration remain unchanged
 
+## TASK036
+Completed.
+
+Outcome summary:
+- saved responses from 5511090a_ニコニコ大百科:掲示板レス削除依頼 are now
+  scanned by a bounded feeder
+- explicit NicoNicoPedia URL candidates are extracted from saved response text
+- supported URL categories are classified and normalized
+- supported categories include:
+  - `/a/...`
+  - `/id/...`
+  - `/b/a/...`
+  - `/t/b/a/...`
+  - `/t/a/...`
+- `/b/a/...` and thread-style article URLs are normalized back to article URL
+  input
+- `/id/...` is handled by an internal-only helper and is not exposed as a
+  user-facing input mode
+- normalized candidates are handed off into the existing target registration
+  route
+- duplicate / invalid / redirect handling remains delegated to existing
+  mainline logic
+- feeder state tracks `last_processed_res_no`
+- batch/periodic shot now runs the feeder once at shot start and appends newly
+  queued targets at shot tail
+- inspect-delete-request-feed CLI seam exists for stdout-based human
+  verification
+- normal runtime logging remains tiny-summary only
+
+Adoption result:
+- Double Helix comparison was attempted
+- Copilot result was adopted
+- Cursor result was preserved as non-adopted comparison evidence
+- current product mainline should be read as reflecting the adopted Copilot
+  version of TASK036
+
+Interpretation:
+- current scrape/runtime behavior now includes bounded delete-request feeder
+  support
+- this is a bounded mainline behavior change
+- unsupported URL classes remain rejected for now
+- user-facing article ID input remains unsupported
+
 Current application structure:
 
 main.py
@@ -2855,6 +2898,51 @@ Practical default commands:
 This runtime reflection step is not part of Copilot vs Cursor adoption judgment,
 but it is part of practical task closeout whenever adopted `main` must also be
 exercised in the provisional runtime checkout.
+
+## Runtime reflection safety rule
+
+When the sibling runtime checkout is in active use, runtime reflection should
+not blindly recreate the runtime container.
+
+Before running:
+- `git pull --ff-only origin main`
+- `bash tools/runtime_up.sh`
+
+first confirm that no scrape-like work is currently active.
+
+At minimum, check:
+- no `runtime/logs/periodic_once.lock` directory exists
+- no `python main.py batch`
+- no `python main.py periodic`
+- no `python main.py periodic-once`
+  process is currently running inside the runtime container
+
+Preferred practice:
+- use a root helper such as `./reflect_runtime.sh`
+  so this preflight is not forgotten
+
+Interpretation:
+- runtime reflection is part of task closeout when `_runtime` is in use
+- but it should be treated as a safe operational step, not as a blind rebuild
+
+## Container-first execution rule
+
+When verifying runtime behavior, smoke behavior, or inspect behavior for the
+actively used runtime checkout, prefer container execution over host-side raw
+`python3` execution.
+
+Default rule:
+- use container exec for runtime-facing checks
+- avoid host-side ad-hoc Python execution as the default path
+
+Preferred practice:
+- use a helper such as `./runtime_exec.sh`
+  so the execution environment is explicit and repeatable
+
+Reason:
+- host Python may not match installed runtime dependencies
+- runtime behavior should be checked in the same environment actually used in
+  operation
 
 
 ===== ARCHITECTURE =====
@@ -7839,6 +7927,116 @@ Authoritative current state should still be restored from:
 - `project_snapshot.txt`
 
 
+===== REVIEW LOG: META/review_log/TASK036_delete_request_feeder.md =====
+# TASK036 Delete request feeder
+
+## Task
+TASK036
+
+Add a bounded feeder that reads saved responses from
+5511090a_ニコニコ大百科:掲示板レス削除依頼, extracts supported NicoNicoPedia
+URLs, normalizes them into article-target input, and hands them off into the
+existing target registration route.
+
+## Positioning
+This is a bounded mainline scrape/runtime task.
+
+It changes:
+- saved delete-request response scanning
+- supported / unsupported NicoNico URL classification
+- article-target normalization for accepted URL patterns
+- bounded feeder state tracking by last processed response number
+- bounded inspect seam for human verification
+- batch-shot pre-pass behavior before the normal target loop
+
+It does not change:
+- broad text understanding semantics
+- AI inference over request text
+- user-facing article ID input support
+- video / user / live support
+- queue/scheduler redesign
+- broad logging/observability platform
+
+## What changed
+Adopted result from Copilot sideflow:
+- `main.py`
+- `delete_request_feeder.py`
+- `tests/test_main.py`
+- `tests/test_delete_request_feeder.py`
+
+Main adopted behavior:
+- saved delete-request responses are scanned from the archive DB
+- only explicit URL patterns are extracted in a bounded way
+- URLs are classified into supported / unsupported categories
+- supported patterns include:
+  - `/a/...`
+  - `/id/...`
+  - `/b/a/...`
+  - `/t/b/a/...`
+  - `/t/a/...`
+- supported board/thread URLs are normalized back to article URLs
+- `/id/...` is resolved through an internal-only helper
+- extracted normalized candidates are handed off into the existing target
+  registration route
+- duplicate / invalid / redirect handling remains delegated to existing
+  mainline behavior
+- the feeder tracks `last_processed_res_no`
+- periodic/batch execution runs the feeder once at shot start
+- newly queued targets are appended to the shot tail
+- an inspect seam is available for stdout-only verification
+- normal runtime logging remains tiny-summary only
+
+## What did not change
+This task did not change:
+- user-facing input semantics
+- general article resolution semantics outside the feeder
+- archive save/read identity rules
+- broad DB platform design
+- generic URL support outside supported NicoNicoPedia article classes
+
+## Validation summary
+The following validation path was completed:
+
+1. Double Helix implementation was attempted in both child repositories
+2. Both Copilot and Cursor reached validate PASS
+3. Synthetic smoke verification was run for the adopted Copilot result
+4. Supported URL normalization behaved as expected
+5. `/id/...` internal resolution behaved as expected in synthetic inspection
+6. Reject-path handling for unsupported categories was observed
+7. Copilot result was adopted
+8. Cursor result was preserved as non-adopted comparison evidence
+9. child repo mains were re-synchronized after adoption
+
+## Synthetic smoke note
+Adopted Copilot result was manually smoke-checked with a synthetic DB and
+representative URL patterns. Observed inspect output included:
+
+- ACCEPT for `/a/...`
+- ACCEPT for `/b/a/...` normalized to `/a/...`
+- ACCEPT for `/id/...` resolved to canonical article input
+- REJECT for `/v/...`
+- final SUMMARY line
+
+## Interpretation
+Current mainline scrape/runtime behavior should now be read as including:
+- bounded delete-request feeder behavior
+- supported NicoNicoPedia URL classification
+- bounded article-target normalization
+- shot-start feeder execution with shot-tail append
+- bounded inspect seam for delete-request candidate review
+
+## Meta note
+This review log is AI-readable working memory.
+It is not authoritative by itself.
+
+Authoritative current state should still be restored from:
+- `AI_CONTEXT.md`
+- `_AI_RULES.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
+
+
 ===== REVIEW LOG: META/review_log/task008_review.md =====
 # TASK008 Review
 
@@ -8191,7 +8389,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Thu Apr 16 15:40:32 UTC 2026
+generated: Thu Apr 16 18:29:28 UTC 2026
 mode: full
 
 
@@ -9094,6 +9292,30 @@ validation handling:
 - focus on file editing and repo-local consistency
 - avoid avoidable submission-quality problems in touched code, especially overlong lines
 - do not add unnecessary patch / mock setup when the tested path does not actually reach that dependency
+
+--------------------------------------------------
+
+## Runtime / smoke execution note
+
+If the task may later require practical smoke checking, inspect checking, or
+runtime verification, do not assume host-side raw `python3` execution.
+
+Default assumption:
+- product file editing is done inside the child repository
+- review validation is controlled from the workspace root
+- runtime-facing smoke / inspect verification should usually be treated as
+  container-first
+
+Do not suggest host-side ad-hoc Python execution as the default verification
+path when the runtime environment is Docker-based.
+
+Preferred wording:
+- "use the established runtime container / compose execution path"
+instead of:
+- "run raw python on the host"
+
+If a helper such as `./runtime_exec.sh` or `./reflect_runtime.sh` exists,
+prefer those helpers in human-side workflow guidance.
 
 --------------------------------------------------
 
@@ -11500,6 +11722,70 @@ the read-first verification flow.
 See docs/PERSONAL_RUNTIME.md for runtime-container-specific notes.
 
 =============================
+FILE: ./copilot/Task036_report.txt
+=============================
+changed files:
+- main.py
+- delete_request_feeder.py
+- tests/test_main.py
+- tests/test_delete_request_feeder.py
+- Task036_report.txt
+
+実装方針:
+- 削除依頼記事 5511090a の保存済みレスを bounded に走査する専用
+  feeder を追加した。
+- URL 抽出は本文中の明示 URL のみを対象にした。
+- supported URL だけを article target 入力へ正規化し、既存の
+  resolve_article_input と register_target_url に handoff する形にした。
+- periodic / batch shot では run_batch_scrape の最初に一回だけ実行し、
+  追加 target は既存 queue の末尾に append する。
+
+追加テスト:
+- 削除依頼レス本文からの URL 抽出
+- URL カテゴリ判定
+- supported URL の正規化
+- /id/... internal helper 解決
+- handoff 時の duplicate suppression
+- last_processed_res_no 更新
+- batch shot 末尾 append
+- inspect / dry-run stdout 形
+
+URLカテゴリ判定と正規化の責務:
+- classify_delete_request_url は supported / unsupported / malformed の
+  独立判定だけを担当する。
+- normalize_supported_delete_request_input は supported category を
+  article target 入力へ還元する責務だけを持つ。
+- unsupported category は handoff 前に reject / skip される。
+
+/id/... internal helper をどう bounded に入れたか:
+- resolve_internal_article_id_input を追加した。
+- 保存済み articles テーブルだけを参照し、article_id から
+  canonical_url か title を引く最小 helper に留めた。
+- user-facing の article ID 入力機能は追加していない。
+
+last_processed_res_no state をどう持ったか:
+- data/delete_request_feeder_state.json を既定 state にした。
+- JSON の last_processed_res_no だけを保持する KISS 形にした。
+- 通常 run は前回より後ろだけを処理し、inspect は state を更新しない。
+
+shot 先頭実行と末尾 append をどう扱ったか:
+- run_batch_scrape の先頭で feeder を一回だけ実行する。
+- 既存 active target list を先に固定し、新規 queued target だけを
+  append_batch_targets で最後尾に追加する。
+- 既存順は崩さず、同じ shot の中で新規候補も回収できる。
+
+inspect / dry-run seam をどう入れたか:
+- inspect-delete-request-feed を main.py に追加した。
+- 保存済みレスを走査し、ACCEPT / REJECT と summary を stdout に出す。
+- heavy debug platform や別ログ体系は追加していない。
+
+quality gate 確認結果:
+- touched / new files は repo-local のみ。
+- central files と focused tests と report file を追加した。
+- 1行 88 文字以内と EOF newline を守る前提で整えた。
+- shell / pytest / python / flake8 実行前提の手順は入れていない。
+- root/meta repo は編集していない。
+=============================
 FILE: ./copilot/archive_read.py
 =============================
 import sqlite3
@@ -12242,6 +12528,469 @@ def inspect_article(article_id, article_type, last_n=None):
         print(f"＞{res_no}　{poster_name}　{posted_at} ID: {id_hash}")
         print(content_text or "")
         print("----")
+
+=============================
+FILE: ./copilot/delete_request_feeder.py
+=============================
+import json
+import os
+import re
+import sqlite3
+from pathlib import Path
+from urllib.parse import urlparse
+
+from article_resolver import resolve_article_input
+from storage import DEFAULT_DB_PATH, init_db
+from target_list import register_target_url
+
+
+DELETE_REQUEST_ARTICLE_ID = "5511090"
+DELETE_REQUEST_ARTICLE_TYPE = "a"
+DEFAULT_DELETE_REQUEST_FEED_STATE_PATH = os.environ.get(
+    "DELETE_REQUEST_FEED_STATE_PATH",
+    "data/delete_request_feeder_state.json",
+)
+
+SUPPORTED_DELETE_REQUEST_URL_CATEGORIES = {
+    "article_direct",
+    "article_id",
+    "article_board",
+    "article_thread_board",
+    "article_thread_direct",
+}
+
+_URL_PATTERN = re.compile(r"https?://dic\.nicovideo\.jp/[^\s<>'\"）】]+")
+_TRAILING_URL_CHARS = ".,)]}>】）"
+
+
+def extract_delete_request_urls(text: str) -> list[str]:
+    urls: list[str] = []
+    for raw_url in _URL_PATTERN.findall(text or ""):
+        urls.append(raw_url.rstrip(_TRAILING_URL_CHARS))
+    return urls
+
+
+def classify_delete_request_url(url: str) -> str:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        return "malformed"
+    if parsed.netloc != "dic.nicovideo.jp":
+        return "malformed"
+
+    parts = _split_path_parts(parsed.path)
+    if not parts:
+        return "malformed"
+
+    if parts[0] == "a":
+        if len(parts) < 2 or not parts[1]:
+            return "malformed"
+        return "article_direct"
+
+    if parts[0] == "id":
+        if len(parts) < 2 or not parts[1]:
+            return "malformed"
+        return "article_id"
+
+    if parts[0] == "b":
+        if len(parts) < 2:
+            return "malformed"
+        if parts[1] == "a":
+            if len(parts) < 3 or not parts[2]:
+                return "malformed"
+            return "article_board"
+        if parts[1] == "c":
+            return "community_board"
+        return "unsupported_board"
+
+    if parts[0] == "t":
+        if len(parts) < 2:
+            return "malformed"
+        if parts[1] == "a":
+            if len(parts) < 3 or not parts[2]:
+                return "malformed"
+            return "article_thread_direct"
+        if parts[1] == "b":
+            if len(parts) < 3:
+                return "malformed"
+            if parts[2] == "a":
+                if len(parts) < 4 or not parts[3]:
+                    return "malformed"
+                return "article_thread_board"
+            if parts[2] == "c":
+                return "community_thread_board"
+            return "unsupported_thread_board"
+        return "unsupported_thread"
+
+    if parts[0] == "v":
+        return "video"
+    if parts[0] == "u":
+        return "user"
+    if parts[0] == "l":
+        return "live"
+
+    return "unsupported"
+
+
+def normalize_supported_delete_request_input(
+    url: str,
+    category: str,
+    article_id_resolver=None,
+) -> str | None:
+    parts = _split_path_parts(urlparse(url).path)
+
+    if category == "article_direct" and len(parts) >= 2:
+        return _build_article_url(parts[1])
+
+    if category == "article_board" and len(parts) >= 3:
+        return _build_article_url(parts[2])
+
+    if category == "article_thread_board" and len(parts) >= 4:
+        return _build_article_url(parts[3])
+
+    if category == "article_thread_direct" and len(parts) >= 3:
+        return _build_article_url(parts[2])
+
+    if category == "article_id" and len(parts) >= 2:
+        if article_id_resolver is None:
+            return None
+        return article_id_resolver(parts[1])
+
+    return None
+
+
+def load_last_processed_res_no(state_path: str) -> int:
+    path = Path(state_path)
+    if not path.exists():
+        return 0
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, json.JSONDecodeError):
+        return 0
+
+    try:
+        return max(int(payload.get("last_processed_res_no", 0)), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def save_last_processed_res_no(state_path: str, res_no: int) -> None:
+    path = Path(state_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"last_processed_res_no": int(res_no)}
+    text = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    path.write_text(text, encoding="utf-8")
+
+
+def resolve_internal_article_id_input(
+    article_id: str,
+    archive_db_path: str | None = None,
+) -> str | None:
+    archive_db_path = _resolve_archive_db_path(archive_db_path)
+    if not _can_open_archive_db(archive_db_path):
+        return None
+
+    conn = init_db(archive_db_path)
+    try:
+        row = conn.execute(
+            """
+            SELECT canonical_url, title
+            FROM articles
+            WHERE article_id = ? AND article_type = ?
+            LIMIT 1
+            """,
+            (article_id, "a"),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if row is None:
+        return None
+
+    canonical_url, title = row
+    if canonical_url:
+        category = classify_delete_request_url(str(canonical_url))
+        if category != "article_id":
+            normalized = normalize_supported_delete_request_input(
+                str(canonical_url),
+                category,
+            )
+            if normalized is not None:
+                return normalized
+
+    if title:
+        return str(title)
+
+    return None
+
+
+def append_batch_targets(
+    existing_targets: list[str],
+    queued_target_urls: list[str],
+) -> list[str]:
+    merged = list(existing_targets)
+    seen = set(existing_targets)
+
+    for target_url in queued_target_urls:
+        if target_url in seen:
+            continue
+        merged.append(target_url)
+        seen.add(target_url)
+
+    return merged
+
+
+def scan_delete_request_feed(
+    archive_db_path: str | None = None,
+    state_path: str | None = None,
+    full_scan: bool = False,
+) -> dict:
+    archive_db_path = _resolve_archive_db_path(archive_db_path)
+    state_path = state_path or DEFAULT_DELETE_REQUEST_FEED_STATE_PATH
+    last_processed_res_no = 0 if full_scan else load_last_processed_res_no(state_path)
+
+    responses = _load_delete_request_responses(
+        archive_db_path,
+        last_processed_res_no,
+    )
+
+    candidates: list[dict] = []
+    accepted_candidates = 0
+    max_res_no = last_processed_res_no
+
+    for response in responses:
+        res_no = response["res_no"]
+        max_res_no = max(max_res_no, res_no)
+        for raw_url in extract_delete_request_urls(response["body"]):
+            category = classify_delete_request_url(raw_url)
+            normalized_input = None
+            if category in SUPPORTED_DELETE_REQUEST_URL_CATEGORIES:
+                normalized_input = normalize_supported_delete_request_input(
+                    raw_url,
+                    category,
+                    article_id_resolver=(
+                        lambda value: resolve_internal_article_id_input(
+                            value,
+                            archive_db_path=archive_db_path,
+                        )
+                    ),
+                )
+
+            accepted = normalized_input is not None
+            if accepted:
+                accepted_candidates += 1
+
+            candidates.append(
+                {
+                    "res_no": res_no,
+                    "raw_url": raw_url,
+                    "category": category,
+                    "accepted": accepted,
+                    "normalized_input": normalized_input,
+                }
+            )
+
+    checked_to_res_no = max_res_no if responses else None
+    updated_last_processed_res_no = max_res_no if responses else last_processed_res_no
+
+    return {
+        "candidates": candidates,
+        "summary": {
+            "checked_from_res_no": last_processed_res_no + 1,
+            "checked_to_res_no": checked_to_res_no,
+            "responses_checked": len(responses),
+            "extracted_candidates": len(candidates),
+            "accepted_candidates": accepted_candidates,
+            "handed_off_candidates": 0,
+            "updated_last_processed_res_no": updated_last_processed_res_no,
+            "queued_target_urls": [],
+            "added_targets": 0,
+            "reactivated_targets": 0,
+            "duplicate_targets": 0,
+            "invalid_targets": 0,
+        },
+    }
+
+
+def inspect_delete_request_feed(
+    archive_db_path: str | None = None,
+    state_path: str | None = None,
+    full_scan: bool = False,
+) -> dict:
+    return scan_delete_request_feed(
+        archive_db_path=archive_db_path,
+        state_path=state_path,
+        full_scan=full_scan,
+    )
+
+
+def run_delete_request_feeder(
+    target_db_path: str,
+    archive_db_path: str | None = None,
+    state_path: str | None = None,
+) -> dict:
+    state_path = state_path or DEFAULT_DELETE_REQUEST_FEED_STATE_PATH
+    scan_result = scan_delete_request_feed(
+        archive_db_path=archive_db_path,
+        state_path=state_path,
+        full_scan=False,
+    )
+    summary = dict(scan_result["summary"])
+
+    handed_off_candidates = 0
+    added_targets = 0
+    reactivated_targets = 0
+    duplicate_targets = 0
+    invalid_targets = 0
+    queued_target_urls: list[str] = []
+    seen_inputs: set[str] = set()
+
+    for candidate in scan_result["candidates"]:
+        normalized_input = candidate["normalized_input"]
+        if not normalized_input:
+            continue
+        if normalized_input in seen_inputs:
+            continue
+        seen_inputs.add(normalized_input)
+
+        handed_off_candidates += 1
+        resolution = resolve_article_input(normalized_input)
+        if not resolution["ok"]:
+            invalid_targets += 1
+            continue
+
+        canonical_url = resolution["canonical_target"]["article_url"]
+        register_status = register_target_url(canonical_url, target_db_path)
+
+        if register_status == "added":
+            added_targets += 1
+            queued_target_urls.append(canonical_url)
+            continue
+        if register_status == "reactivated":
+            reactivated_targets += 1
+            queued_target_urls.append(canonical_url)
+            continue
+        if register_status == "duplicate":
+            duplicate_targets += 1
+            continue
+
+        invalid_targets += 1
+
+    summary["handed_off_candidates"] = handed_off_candidates
+    summary["queued_target_urls"] = queued_target_urls
+    summary["added_targets"] = added_targets
+    summary["reactivated_targets"] = reactivated_targets
+    summary["duplicate_targets"] = duplicate_targets
+    summary["invalid_targets"] = invalid_targets
+
+    if summary["checked_to_res_no"] is not None:
+        save_last_processed_res_no(
+            state_path,
+            summary["updated_last_processed_res_no"],
+        )
+
+    return summary
+
+
+def format_delete_request_feed_summary(summary: dict) -> str:
+    checked_to_res_no = summary.get("checked_to_res_no")
+    if checked_to_res_no is None:
+        checked_range = "none"
+    else:
+        checked_range = (
+            f"{summary.get('checked_from_res_no')}-{checked_to_res_no}"
+        )
+
+    return " ".join(
+        [
+            f"checked_range={checked_range}",
+            f"responses_checked={summary.get('responses_checked', 0)}",
+            f"extracted_candidates={summary.get('extracted_candidates', 0)}",
+            f"handed_off_candidates={summary.get('handed_off_candidates', 0)}",
+            (
+                "updated_last_processed_res_no="
+                f"{summary.get('updated_last_processed_res_no', 0)}"
+            ),
+        ]
+    )
+
+
+def format_delete_request_feed_inspect_lines(scan_result: dict) -> list[str]:
+    lines: list[str] = []
+
+    for candidate in scan_result["candidates"]:
+        status = "ACCEPT" if candidate["accepted"] else "REJECT"
+        parts = [
+            status,
+            f"res_no={candidate['res_no']}",
+            f"category={candidate['category']}",
+            f"url={candidate['raw_url']}",
+        ]
+        if candidate["normalized_input"] is not None:
+            parts.append(
+                f"normalized_input={candidate['normalized_input']}"
+            )
+        lines.append(" ".join(parts))
+
+    lines.append(
+        "SUMMARY " + format_delete_request_feed_summary(scan_result["summary"])
+    )
+    return lines
+
+
+def _build_article_url(slug: str) -> str:
+    return f"https://dic.nicovideo.jp/a/{slug}"
+
+
+def _resolve_archive_db_path(archive_db_path: str | None) -> str:
+    if archive_db_path is not None:
+        return archive_db_path
+    return os.environ.get("NICODIC_DB_PATH", DEFAULT_DB_PATH)
+
+
+def _split_path_parts(path: str) -> list[str]:
+    return [part for part in path.split("/") if part]
+
+
+def _can_open_archive_db(archive_db_path: str) -> bool:
+    if archive_db_path == ":memory:":
+        return True
+    return Path(archive_db_path).exists()
+
+
+def _load_delete_request_responses(
+    archive_db_path: str,
+    last_processed_res_no: int,
+) -> list[dict]:
+    if not _can_open_archive_db(archive_db_path):
+        return []
+
+    conn = init_db(archive_db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT res_no, COALESCE(content_text, '')
+            FROM responses
+            WHERE article_id = ?
+              AND article_type = ?
+              AND res_no > ?
+            ORDER BY res_no ASC
+            """,
+            (
+                DELETE_REQUEST_ARTICLE_ID,
+                DELETE_REQUEST_ARTICLE_TYPE,
+                int(last_processed_res_no),
+            ),
+        ).fetchall()
+    except sqlite3.Error:
+        conn.close()
+        return []
+
+    conn.close()
+    return [
+        {"res_no": int(res_no), "body": str(body or "")}
+        for res_no, body in rows
+    ]
 
 =============================
 FILE: ./copilot/docker-compose.runtime.yml
@@ -13841,6 +14590,14 @@ from pathlib import Path
 
 from article_resolver import resolve_article_input
 from cli import export_all_articles, export_article, inspect_article, list_articles
+from delete_request_feeder import (
+    DEFAULT_DELETE_REQUEST_FEED_STATE_PATH,
+    append_batch_targets,
+    format_delete_request_feed_inspect_lines,
+    format_delete_request_feed_summary,
+    inspect_delete_request_feed,
+    run_delete_request_feeder,
+)
 from host_cron import HostCronReporter, compress_weekly_archives, local_now
 from host_cron import rotate_active_log
 from operator_cli import add_target_for_operator
@@ -14060,6 +14817,27 @@ def _append_batch_run_end(
     )
 
 
+def _append_delete_request_feed_summary(log_path: Path, summary: dict) -> None:
+    _append_batch_log_lines(
+        log_path,
+        [
+            "DELETE_REQUEST_FEED",
+            f"  {format_delete_request_feed_summary(summary)}",
+        ],
+    )
+
+
+def _emit_delete_request_feed_summary(progress_reporter, summary: dict) -> None:
+    if not hasattr(progress_reporter, "emit"):
+        return
+
+    progress_reporter.emit(
+        "FEEDER",
+        format_delete_request_feed_summary(summary),
+        indent_level=1,
+    )
+
+
 def run_batch_scrape(
     target_db_path: str,
     progress_reporter=None,
@@ -14068,22 +14846,38 @@ def run_batch_scrape(
 
     run_kind = "periodic_batch" if _inside_periodic_batch else "batch"
 
-    targets = list_active_target_urls(target_db_path)
-
-    if progress_reporter is None:
-        print(
-            f"Loaded {len(targets)} active scrape target(s) "
-            f"from target registry {target_db_path}"
-        )
-    else:
-        progress_reporter.note_targets_loaded(len(targets), target_db_path)
-
     run_id = uuid.uuid4().hex[:12]
     started_at = datetime.now(timezone.utc).isoformat()
     archive_db_path = _telemetry_archive_db_path()
     log_dir = Path(os.environ.get("BATCH_LOG_DIR", "data/batch_runs"))
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / f"batch_{run_id}.log"
+
+    existing_targets = list_active_target_urls(target_db_path)
+    delete_request_feed_summary = run_delete_request_feeder(
+        target_db_path,
+        archive_db_path=archive_db_path,
+    )
+    targets = append_batch_targets(
+        existing_targets,
+        delete_request_feed_summary["queued_target_urls"],
+    )
+
+    if progress_reporter is None:
+        print(
+            "[delete-request-feed] "
+            f"{format_delete_request_feed_summary(delete_request_feed_summary)}"
+        )
+        print(
+            f"Loaded {len(targets)} active scrape target(s) "
+            f"from target registry {target_db_path}"
+        )
+    else:
+        _emit_delete_request_feed_summary(
+            progress_reporter,
+            delete_request_feed_summary,
+        )
+        progress_reporter.note_targets_loaded(len(targets), target_db_path)
 
     _append_batch_run_start(
         log_path,
@@ -14092,6 +14886,7 @@ def run_batch_scrape(
         target_db_path,
         len(targets),
     )
+    _append_delete_request_feed_summary(log_path, delete_request_feed_summary)
 
     failed_targets = 0
     for idx, target in enumerate(targets, start=1):
@@ -14573,6 +15368,13 @@ def _print_verification_usage():
     )
 
 
+def _print_delete_request_feed_usage():
+    print(
+        "Usage: inspect-delete-request-feed "
+        "[--archive-db PATH] [--state-path PATH] [--full-scan]"
+    )
+
+
 def _handle_operator_target(args):
     if not args:
         _print_operator_usage()
@@ -14874,6 +15676,10 @@ def main():
         print("  python main.py batch <target_db_path>")
         print("  python main.py periodic-once <target_db_path>")
         print(
+            "  python main.py inspect-delete-request-feed "
+            "[--archive-db PATH] [--state-path PATH] [--full-scan]"
+        )
+        print(
             "  python main.py web [--host HOST] [--port PORT] "
             "[--target-db-path PATH]"
         )
@@ -14893,6 +15699,38 @@ def main():
 
     if sys.argv[1] == "verify":
         _handle_verification_cli(sys.argv[2:])
+        return
+
+    if sys.argv[1] == "inspect-delete-request-feed":
+        archive_db_path = _telemetry_archive_db_path()
+        state_path = DEFAULT_DELETE_REQUEST_FEED_STATE_PATH
+        full_scan = False
+
+        idx = 2
+        while idx < len(sys.argv):
+            if sys.argv[idx] == "--archive-db" and idx + 1 < len(sys.argv):
+                archive_db_path = sys.argv[idx + 1]
+                idx += 2
+                continue
+            if sys.argv[idx] == "--state-path" and idx + 1 < len(sys.argv):
+                state_path = sys.argv[idx + 1]
+                idx += 2
+                continue
+            if sys.argv[idx] == "--full-scan":
+                full_scan = True
+                idx += 1
+                continue
+
+            _print_delete_request_feed_usage()
+            sys.exit(1)
+
+        scan_result = inspect_delete_request_feed(
+            archive_db_path=archive_db_path,
+            state_path=state_path,
+            full_scan=full_scan,
+        )
+        for line in format_delete_request_feed_inspect_lines(scan_result):
+            print(line)
         return
 
     # inspectモード
@@ -17978,6 +18816,211 @@ def test_export_article_uses_archive_read_seam(mock_get_saved_article_txt, capsy
     assert "Hello" in out
 
 =============================
+FILE: ./copilot/tests/test_delete_request_feeder.py
+=============================
+import json
+import sqlite3
+from unittest.mock import patch
+
+from delete_request_feeder import (
+    append_batch_targets,
+    classify_delete_request_url,
+    extract_delete_request_urls,
+    format_delete_request_feed_inspect_lines,
+    normalize_supported_delete_request_input,
+    resolve_internal_article_id_input,
+    run_delete_request_feeder,
+)
+
+
+def test_extract_delete_request_urls_reads_explicit_urls_only():
+    text = (
+        "【掲示板URL】https://dic.nicovideo.jp/a/j-pop\n"
+        "補足 https://dic.nicovideo.jp/t/a/%E5%A5%B3%E6%80%A7】"
+    )
+
+    assert extract_delete_request_urls(text) == [
+        "https://dic.nicovideo.jp/a/j-pop",
+        "https://dic.nicovideo.jp/t/a/%E5%A5%B3%E6%80%A7",
+    ]
+
+
+def test_classify_and_normalize_supported_delete_request_urls():
+    cases = [
+        (
+            "https://dic.nicovideo.jp/a/j-pop",
+            "article_direct",
+            "https://dic.nicovideo.jp/a/j-pop",
+        ),
+        (
+            "https://dic.nicovideo.jp/b/a/%E3%81%A4%E3%81%91%E9%BA%BA/1-",
+            "article_board",
+            "https://dic.nicovideo.jp/a/%E3%81%A4%E3%81%91%E9%BA%BA",
+        ),
+        (
+            "https://dic.nicovideo.jp/t/b/a/%E8%B2%A1%E5%8B%99"
+            "%E7%9C%81/691-?from=a_bbslook_5020395",
+            "article_thread_board",
+            "https://dic.nicovideo.jp/a/%E8%B2%A1%E5%8B%99%E7%9C%81",
+        ),
+        (
+            "https://dic.nicovideo.jp/t/a/%E5%A5%B3%E6%80%A7",
+            "article_thread_direct",
+            "https://dic.nicovideo.jp/a/%E5%A5%B3%E6%80%A7",
+        ),
+    ]
+
+    for raw_url, category, expected in cases:
+        assert classify_delete_request_url(raw_url) == category
+        assert normalize_supported_delete_request_input(raw_url, category) == expected
+
+
+def test_classify_rejects_unsupported_delete_request_categories():
+    assert classify_delete_request_url("https://dic.nicovideo.jp/v/sm12825985") == (
+        "video"
+    )
+    assert classify_delete_request_url("https://dic.nicovideo.jp/u/688493") == (
+        "user"
+    )
+    assert classify_delete_request_url(
+        "https://dic.nicovideo.jp/l/%E3%82%B3%E3%83%BC%E3%83%AB"
+    ) == "live"
+    assert classify_delete_request_url("https://dic.nicovideo.jp/b/c/co2078137/") == (
+        "community_board"
+    )
+    assert classify_delete_request_url("https://dic.nicovideo.jp/a/") == (
+        "malformed"
+    )
+
+
+def test_resolve_internal_article_id_input_uses_saved_article_row(tmp_path):
+    archive_db_path = tmp_path / "archive.db"
+    conn = sqlite3.connect(archive_db_path)
+    conn.execute(
+        """
+        CREATE TABLE articles (
+            article_id TEXT,
+            article_type TEXT,
+            title TEXT,
+            canonical_url TEXT
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO articles (article_id, article_type, title, canonical_url)
+        VALUES (?, ?, ?, ?)
+        """,
+        (
+            "5728993",
+            "a",
+            "J-POP",
+            "https://dic.nicovideo.jp/a/j-pop",
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    assert resolve_internal_article_id_input(
+        "5728993",
+        archive_db_path=str(archive_db_path),
+    ) == "https://dic.nicovideo.jp/a/j-pop"
+
+
+def test_run_delete_request_feeder_updates_state_and_deduplicates(tmp_path):
+    state_path = tmp_path / "feed_state.json"
+    responses = [
+        {
+            "res_no": 12,
+            "body": (
+                "【掲示板URL】https://dic.nicovideo.jp/a/j-pop\n"
+                "重複 https://dic.nicovideo.jp/a/j-pop"
+            ),
+        }
+    ]
+
+    with patch(
+        "delete_request_feeder._load_delete_request_responses",
+        return_value=responses,
+    ), patch(
+        "delete_request_feeder.resolve_article_input",
+        return_value={
+            "ok": True,
+            "canonical_target": {
+                "article_url": "https://dic.nicovideo.jp/a/j-pop",
+                "article_id": "j-pop",
+                "article_type": "a",
+            },
+        },
+    ), patch(
+        "delete_request_feeder.register_target_url",
+        return_value="added",
+    ) as register_mock:
+        summary = run_delete_request_feeder(
+            "targets.db",
+            archive_db_path="archive.db",
+            state_path=str(state_path),
+        )
+
+    assert summary["handed_off_candidates"] == 1
+    assert summary["queued_target_urls"] == ["https://dic.nicovideo.jp/a/j-pop"]
+    assert register_mock.call_count == 1
+    saved = json.loads(state_path.read_text(encoding="utf-8"))
+    assert saved["last_processed_res_no"] == 12
+
+
+def test_append_batch_targets_appends_only_new_urls_at_tail():
+    assert append_batch_targets(
+        [
+            "https://dic.nicovideo.jp/a/base-1",
+            "https://dic.nicovideo.jp/a/base-2",
+        ],
+        [
+            "https://dic.nicovideo.jp/a/base-2",
+            "https://dic.nicovideo.jp/a/new-3",
+        ],
+    ) == [
+        "https://dic.nicovideo.jp/a/base-1",
+        "https://dic.nicovideo.jp/a/base-2",
+        "https://dic.nicovideo.jp/a/new-3",
+    ]
+
+
+def test_format_delete_request_feed_inspect_lines_is_stdout_friendly():
+    lines = format_delete_request_feed_inspect_lines(
+        {
+            "candidates": [
+                {
+                    "res_no": 3,
+                    "raw_url": "https://dic.nicovideo.jp/a/j-pop",
+                    "category": "article_direct",
+                    "accepted": True,
+                    "normalized_input": "https://dic.nicovideo.jp/a/j-pop",
+                },
+                {
+                    "res_no": 4,
+                    "raw_url": "https://dic.nicovideo.jp/v/sm9",
+                    "category": "video",
+                    "accepted": False,
+                    "normalized_input": None,
+                },
+            ],
+            "summary": {
+                "checked_from_res_no": 1,
+                "checked_to_res_no": 4,
+                "responses_checked": 2,
+                "extracted_candidates": 2,
+                "handed_off_candidates": 0,
+                "updated_last_processed_res_no": 4,
+            },
+        }
+    )
+
+    assert lines[0].startswith("ACCEPT ")
+    assert lines[1].startswith("REJECT ")
+    assert lines[2].startswith("SUMMARY ")
+
+=============================
 FILE: ./copilot/tests/test_host_cron.py
 =============================
 from datetime import date, datetime
@@ -18786,6 +19829,7 @@ def test_main_too_few_args_exits_with_usage(capsys):
     assert "targets <target_db_path>" in out
     assert "batch <target_db_path>" in out
     assert "periodic-once <target_db_path>" in out
+    assert "inspect-delete-request-feed" in out
     assert "web [--host HOST] [--port PORT] [--target-db-path PATH]" in out
     assert (
         "periodic <target_db_path> <interval_seconds> [--max-runs N]" in out
@@ -18793,13 +19837,79 @@ def test_main_too_few_args_exits_with_usage(capsys):
     assert "export-run-telemetry-csv" in out
 
 
+@patch("main.inspect_delete_request_feed")
+def test_main_inspect_delete_request_feed_prints_stdout_candidates(
+    mock_inspect_delete_request_feed,
+    capsys,
+):
+    mock_inspect_delete_request_feed.return_value = {
+        "candidates": [
+            {
+                "res_no": 10,
+                "raw_url": "https://dic.nicovideo.jp/a/j-pop",
+                "category": "article_direct",
+                "accepted": True,
+                "normalized_input": "https://dic.nicovideo.jp/a/j-pop",
+            }
+        ],
+        "summary": {
+            "checked_from_res_no": 1,
+            "checked_to_res_no": 10,
+            "responses_checked": 1,
+            "extracted_candidates": 1,
+            "handed_off_candidates": 0,
+            "updated_last_processed_res_no": 10,
+        },
+    }
+
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "inspect-delete-request-feed",
+            "--archive-db",
+            "archive.db",
+            "--state-path",
+            "state.json",
+            "--full-scan",
+        ],
+    ):
+        main_module.main()
+
+    mock_inspect_delete_request_feed.assert_called_once_with(
+        archive_db_path="archive.db",
+        state_path="state.json",
+        full_scan=True,
+    )
+    out = capsys.readouterr().out
+    assert "ACCEPT res_no=10" in out
+    assert "SUMMARY checked_range=1-10" in out
+
+
 @patch("main._record_scrape_run_observation")
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
 @patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
 ])
 @patch("main.run_scrape", return_value=ScrapeResult(True, "ok"))
 def test_main_batch_records_telemetry_once_per_target(
     mock_scrape,
+    mock_run_delete_request_feeder,
     mock_list,
     mock_record,
     tmp_path,
@@ -18886,6 +19996,22 @@ def test_main_inspect_without_id_type_exits_with_usage(capsys):
     "https://dic.nicovideo.jp/a/2",
 ])
 @patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": 10,
+        "responses_checked": 1,
+        "extracted_candidates": 1,
+        "handed_off_candidates": 1,
+        "updated_last_processed_res_no": 10,
+        "queued_target_urls": ["https://dic.nicovideo.jp/a/3"],
+        "added_targets": 1,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
+@patch(
     "main.run_scrape",
     side_effect=[
         ScrapeResult(
@@ -18903,49 +20029,87 @@ def test_main_inspect_without_id_type_exits_with_usage(capsys):
             collected_response_count=7,
             observed_max_res_no=7,
         ),
+        ScrapeResult(
+            True,
+            "ok",
+            article_title="Third Title",
+            collected_response_count=3,
+            observed_max_res_no=3,
+        ),
     ],
 )
 def test_main_batch_all_success_exits_zero(
-    mock_run_scrape, mock_load_targets, tmp_path, capsys, monkeypatch
+    mock_run_scrape,
+    mock_run_delete_request_feeder,
+    mock_load_targets,
+    tmp_path,
+    capsys,
+    monkeypatch,
 ):
     monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
     with patch("sys.argv", ["main.py", "batch", "targets.db"]):
         main_module.main()
 
-    assert mock_run_scrape.call_count == 2
+    assert mock_run_scrape.call_count == 3
+    mock_run_delete_request_feeder.assert_called_once()
     mock_run_scrape.assert_any_call("https://dic.nicovideo.jp/a/1")
     mock_run_scrape.assert_any_call("https://dic.nicovideo.jp/a/2")
+    mock_run_scrape.assert_any_call("https://dic.nicovideo.jp/a/3")
     out = capsys.readouterr().out
+    assert "[delete-request-feed] checked_range=1-10" in out
     assert "[OK] https://dic.nicovideo.jp/a/1" in out
     assert "[OK] https://dic.nicovideo.jp/a/2" in out
+    assert "[OK] https://dic.nicovideo.jp/a/3" in out
 
     logs = list(Path(tmp_path).glob("batch_*.log"))
     assert len(logs) == 1
     text = logs[0].read_text(encoding="utf-8")
     assert "BATCH_RUN_START" in text
+    assert "DELETE_REQUEST_FEED" in text
     assert "BATCH_RUN_END" in text
     assert "  target_db_path=targets.db" in text
     assert "  target_source=target_table" in text
-    assert "  total_targets=2" in text
-    assert "[PROGRESS = 1/2]" in text
-    assert "[PROGRESS = 2/2]" in text
+    assert "  total_targets=3" in text
+    assert "[PROGRESS = 1/3]" in text
+    assert "[PROGRESS = 2/3]" in text
+    assert "[PROGRESS = 3/3]" in text
     assert "  result=SUCCESS" in text
     assert "SUCCESS_PARTIAL" not in text
     assert "  target_url=https://dic.nicovideo.jp/a/1" in text
     assert "  target_url=https://dic.nicovideo.jp/a/2" in text
+    assert "  target_url=https://dic.nicovideo.jp/a/3" in text
     assert "  article_title=First Title" in text
     assert "  collected_response_count=12" in text
     assert "  observed_max_res_no=12" in text
     assert "  article_title=Second Title" in text
     assert "  collected_response_count=7" in text
     assert "  observed_max_res_no=7" in text
-    assert "  success_targets=2" in text
+    assert "  article_title=Third Title" in text
+    assert "  collected_response_count=3" in text
+    assert "  observed_max_res_no=3" in text
+    assert "  success_targets=3" in text
     assert "  failed_targets=0" in text
     assert "  duration_seconds=" in text
     assert "  final_status=success" in text
     assert "FAILURE_DETAIL" not in text
 
 
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
 @patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
     "https://dic.nicovideo.jp/a/2",
@@ -18973,7 +20137,12 @@ def test_main_batch_all_success_exits_zero(
     ],
 )
 def test_main_batch_failure_sets_nonzero_exit_and_continues(
-    mock_run_scrape, mock_load_targets, tmp_path, capsys, monkeypatch
+    mock_run_scrape,
+    mock_load_targets,
+    mock_run_delete_request_feeder,
+    tmp_path,
+    capsys,
+    monkeypatch,
 ):
     monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
     with patch("sys.argv", ["main.py", "batch", "targets.db"]):
@@ -19009,6 +20178,22 @@ def test_main_batch_failure_sets_nonzero_exit_and_continues(
 
 
 @patch("main.handoff_redirected_target")
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
 @patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
     "https://dic.nicovideo.jp/a/2",
@@ -19037,6 +20222,7 @@ def test_main_batch_failure_sets_nonzero_exit_and_continues(
 def test_main_batch_redirect_handoff_is_success_class_and_logged(
     mock_run_scrape,
     mock_load_targets,
+    mock_run_delete_request_feeder,
     mock_handoff_redirected_target,
     tmp_path,
     capsys,
@@ -19090,6 +20276,22 @@ def test_main_batch_redirect_handoff_is_success_class_and_logged(
     assert "  final_status=success" in text
 
 
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
 @patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
     "https://dic.nicovideo.jp/a/2",
@@ -19099,7 +20301,12 @@ def test_main_batch_redirect_handoff_is_success_class_and_logged(
     side_effect=[RuntimeError("boom"), ScrapeResult(True, "ok")],
 )
 def test_main_batch_exception_sets_nonzero_exit_and_continues(
-    mock_run_scrape, mock_load_targets, tmp_path, capsys, monkeypatch
+    mock_run_scrape,
+    mock_load_targets,
+    mock_run_delete_request_feeder,
+    tmp_path,
+    capsys,
+    monkeypatch,
 ):
     monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
     with patch("sys.argv", ["main.py", "batch", "targets.db"]):
@@ -24049,6 +25256,70 @@ the read-first verification flow.
 See docs/PERSONAL_RUNTIME.md for runtime-container-specific notes.
 
 =============================
+FILE: ./cursor/Task036_report.txt
+=============================
+changed files:
+- main.py
+- delete_request_feeder.py
+- tests/test_main.py
+- tests/test_delete_request_feeder.py
+- Task036_report.txt
+
+実装方針:
+- 削除依頼記事 5511090a の保存済みレスを bounded に走査する専用
+  feeder を追加した。
+- URL 抽出は本文中の明示 URL のみを対象にした。
+- supported URL だけを article target 入力へ正規化し、既存の
+  resolve_article_input と register_target_url に handoff する形にした。
+- periodic / batch shot では run_batch_scrape の最初に一回だけ実行し、
+  追加 target は既存 queue の末尾に append する。
+
+追加テスト:
+- 削除依頼レス本文からの URL 抽出
+- URL カテゴリ判定
+- supported URL の正規化
+- /id/... internal helper 解決
+- handoff 時の duplicate suppression
+- last_processed_res_no 更新
+- batch shot 末尾 append
+- inspect / dry-run stdout 形
+
+URLカテゴリ判定と正規化の責務:
+- classify_delete_request_url は supported / unsupported / malformed の
+  独立判定だけを担当する。
+- normalize_supported_delete_request_input は supported category を
+  article target 入力へ還元する責務だけを持つ。
+- unsupported category は handoff 前に reject / skip される。
+
+/id/... internal helper をどう bounded に入れたか:
+- resolve_internal_article_id_input を追加した。
+- 保存済み articles テーブルだけを参照し、article_id から
+  canonical_url か title を引く最小 helper に留めた。
+- user-facing の article ID 入力機能は追加していない。
+
+last_processed_res_no state をどう持ったか:
+- data/delete_request_feeder_state.json を既定 state にした。
+- JSON の last_processed_res_no だけを保持する KISS 形にした。
+- 通常 run は前回より後ろだけを処理し、inspect は state を更新しない。
+
+shot 先頭実行と末尾 append をどう扱ったか:
+- run_batch_scrape の先頭で feeder を一回だけ実行する。
+- 既存 active target list を先に固定し、新規 queued target だけを
+  append_batch_targets で最後尾に追加する。
+- 既存順は崩さず、同じ shot の中で新規候補も回収できる。
+
+inspect / dry-run seam をどう入れたか:
+- inspect-delete-request-feed を main.py に追加した。
+- 保存済みレスを走査し、ACCEPT / REJECT と summary を stdout に出す。
+- heavy debug platform や別ログ体系は追加していない。
+
+quality gate 確認結果:
+- touched / new files は repo-local のみ。
+- central files と focused tests と report file を追加した。
+- 1行 88 文字以内と EOF newline を守る前提で整えた。
+- shell / pytest / python / flake8 実行前提の手順は入れていない。
+- root/meta repo は編集していない。
+=============================
 FILE: ./cursor/archive_read.py
 =============================
 import sqlite3
@@ -24791,6 +26062,469 @@ def inspect_article(article_id, article_type, last_n=None):
         print(f"＞{res_no}　{poster_name}　{posted_at} ID: {id_hash}")
         print(content_text or "")
         print("----")
+
+=============================
+FILE: ./cursor/delete_request_feeder.py
+=============================
+import json
+import os
+import re
+import sqlite3
+from pathlib import Path
+from urllib.parse import urlparse
+
+from article_resolver import resolve_article_input
+from storage import DEFAULT_DB_PATH, init_db
+from target_list import register_target_url
+
+
+DELETE_REQUEST_ARTICLE_ID = "5511090"
+DELETE_REQUEST_ARTICLE_TYPE = "a"
+DEFAULT_DELETE_REQUEST_FEED_STATE_PATH = os.environ.get(
+    "DELETE_REQUEST_FEED_STATE_PATH",
+    "data/delete_request_feeder_state.json",
+)
+
+SUPPORTED_DELETE_REQUEST_URL_CATEGORIES = {
+    "article_direct",
+    "article_id",
+    "article_board",
+    "article_thread_board",
+    "article_thread_direct",
+}
+
+_URL_PATTERN = re.compile(r"https?://dic\.nicovideo\.jp/[^\s<>'\"）】]+")
+_TRAILING_URL_CHARS = ".,)]}>】）"
+
+
+def extract_delete_request_urls(text: str) -> list[str]:
+    urls: list[str] = []
+    for raw_url in _URL_PATTERN.findall(text or ""):
+        urls.append(raw_url.rstrip(_TRAILING_URL_CHARS))
+    return urls
+
+
+def classify_delete_request_url(url: str) -> str:
+    parsed = urlparse(url)
+    if parsed.scheme not in {"http", "https"}:
+        return "malformed"
+    if parsed.netloc != "dic.nicovideo.jp":
+        return "malformed"
+
+    parts = _split_path_parts(parsed.path)
+    if not parts:
+        return "malformed"
+
+    if parts[0] == "a":
+        if len(parts) < 2 or not parts[1]:
+            return "malformed"
+        return "article_direct"
+
+    if parts[0] == "id":
+        if len(parts) < 2 or not parts[1]:
+            return "malformed"
+        return "article_id"
+
+    if parts[0] == "b":
+        if len(parts) < 2:
+            return "malformed"
+        if parts[1] == "a":
+            if len(parts) < 3 or not parts[2]:
+                return "malformed"
+            return "article_board"
+        if parts[1] == "c":
+            return "community_board"
+        return "unsupported_board"
+
+    if parts[0] == "t":
+        if len(parts) < 2:
+            return "malformed"
+        if parts[1] == "a":
+            if len(parts) < 3 or not parts[2]:
+                return "malformed"
+            return "article_thread_direct"
+        if parts[1] == "b":
+            if len(parts) < 3:
+                return "malformed"
+            if parts[2] == "a":
+                if len(parts) < 4 or not parts[3]:
+                    return "malformed"
+                return "article_thread_board"
+            if parts[2] == "c":
+                return "community_thread_board"
+            return "unsupported_thread_board"
+        return "unsupported_thread"
+
+    if parts[0] == "v":
+        return "video"
+    if parts[0] == "u":
+        return "user"
+    if parts[0] == "l":
+        return "live"
+
+    return "unsupported"
+
+
+def normalize_supported_delete_request_input(
+    url: str,
+    category: str,
+    article_id_resolver=None,
+) -> str | None:
+    parts = _split_path_parts(urlparse(url).path)
+
+    if category == "article_direct" and len(parts) >= 2:
+        return _build_article_url(parts[1])
+
+    if category == "article_board" and len(parts) >= 3:
+        return _build_article_url(parts[2])
+
+    if category == "article_thread_board" and len(parts) >= 4:
+        return _build_article_url(parts[3])
+
+    if category == "article_thread_direct" and len(parts) >= 3:
+        return _build_article_url(parts[2])
+
+    if category == "article_id" and len(parts) >= 2:
+        if article_id_resolver is None:
+            return None
+        return article_id_resolver(parts[1])
+
+    return None
+
+
+def load_last_processed_res_no(state_path: str) -> int:
+    path = Path(state_path)
+    if not path.exists():
+        return 0
+
+    try:
+        payload = json.loads(path.read_text(encoding="utf-8"))
+    except (OSError, ValueError, json.JSONDecodeError):
+        return 0
+
+    try:
+        return max(int(payload.get("last_processed_res_no", 0)), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def save_last_processed_res_no(state_path: str, res_no: int) -> None:
+    path = Path(state_path)
+    path.parent.mkdir(parents=True, exist_ok=True)
+    payload = {"last_processed_res_no": int(res_no)}
+    text = json.dumps(payload, ensure_ascii=False, indent=2) + "\n"
+    path.write_text(text, encoding="utf-8")
+
+
+def resolve_internal_article_id_input(
+    article_id: str,
+    archive_db_path: str | None = None,
+) -> str | None:
+    archive_db_path = _resolve_archive_db_path(archive_db_path)
+    if not _can_open_archive_db(archive_db_path):
+        return None
+
+    conn = init_db(archive_db_path)
+    try:
+        row = conn.execute(
+            """
+            SELECT canonical_url, title
+            FROM articles
+            WHERE article_id = ? AND article_type = ?
+            LIMIT 1
+            """,
+            (article_id, "a"),
+        ).fetchone()
+    finally:
+        conn.close()
+
+    if row is None:
+        return None
+
+    canonical_url, title = row
+    if canonical_url:
+        category = classify_delete_request_url(str(canonical_url))
+        if category != "article_id":
+            normalized = normalize_supported_delete_request_input(
+                str(canonical_url),
+                category,
+            )
+            if normalized is not None:
+                return normalized
+
+    if title:
+        return str(title)
+
+    return None
+
+
+def append_batch_targets(
+    existing_targets: list[str],
+    queued_target_urls: list[str],
+) -> list[str]:
+    merged = list(existing_targets)
+    seen = set(existing_targets)
+
+    for target_url in queued_target_urls:
+        if target_url in seen:
+            continue
+        merged.append(target_url)
+        seen.add(target_url)
+
+    return merged
+
+
+def scan_delete_request_feed(
+    archive_db_path: str | None = None,
+    state_path: str | None = None,
+    full_scan: bool = False,
+) -> dict:
+    archive_db_path = _resolve_archive_db_path(archive_db_path)
+    state_path = state_path or DEFAULT_DELETE_REQUEST_FEED_STATE_PATH
+    last_processed_res_no = 0 if full_scan else load_last_processed_res_no(state_path)
+
+    responses = _load_delete_request_responses(
+        archive_db_path,
+        last_processed_res_no,
+    )
+
+    candidates: list[dict] = []
+    accepted_candidates = 0
+    max_res_no = last_processed_res_no
+
+    for response in responses:
+        res_no = response["res_no"]
+        max_res_no = max(max_res_no, res_no)
+        for raw_url in extract_delete_request_urls(response["body"]):
+            category = classify_delete_request_url(raw_url)
+            normalized_input = None
+            if category in SUPPORTED_DELETE_REQUEST_URL_CATEGORIES:
+                normalized_input = normalize_supported_delete_request_input(
+                    raw_url,
+                    category,
+                    article_id_resolver=(
+                        lambda value: resolve_internal_article_id_input(
+                            value,
+                            archive_db_path=archive_db_path,
+                        )
+                    ),
+                )
+
+            accepted = normalized_input is not None
+            if accepted:
+                accepted_candidates += 1
+
+            candidates.append(
+                {
+                    "res_no": res_no,
+                    "raw_url": raw_url,
+                    "category": category,
+                    "accepted": accepted,
+                    "normalized_input": normalized_input,
+                }
+            )
+
+    checked_to_res_no = max_res_no if responses else None
+    updated_last_processed_res_no = max_res_no if responses else last_processed_res_no
+
+    return {
+        "candidates": candidates,
+        "summary": {
+            "checked_from_res_no": last_processed_res_no + 1,
+            "checked_to_res_no": checked_to_res_no,
+            "responses_checked": len(responses),
+            "extracted_candidates": len(candidates),
+            "accepted_candidates": accepted_candidates,
+            "handed_off_candidates": 0,
+            "updated_last_processed_res_no": updated_last_processed_res_no,
+            "queued_target_urls": [],
+            "added_targets": 0,
+            "reactivated_targets": 0,
+            "duplicate_targets": 0,
+            "invalid_targets": 0,
+        },
+    }
+
+
+def inspect_delete_request_feed(
+    archive_db_path: str | None = None,
+    state_path: str | None = None,
+    full_scan: bool = False,
+) -> dict:
+    return scan_delete_request_feed(
+        archive_db_path=archive_db_path,
+        state_path=state_path,
+        full_scan=full_scan,
+    )
+
+
+def run_delete_request_feeder(
+    target_db_path: str,
+    archive_db_path: str | None = None,
+    state_path: str | None = None,
+) -> dict:
+    state_path = state_path or DEFAULT_DELETE_REQUEST_FEED_STATE_PATH
+    scan_result = scan_delete_request_feed(
+        archive_db_path=archive_db_path,
+        state_path=state_path,
+        full_scan=False,
+    )
+    summary = dict(scan_result["summary"])
+
+    handed_off_candidates = 0
+    added_targets = 0
+    reactivated_targets = 0
+    duplicate_targets = 0
+    invalid_targets = 0
+    queued_target_urls: list[str] = []
+    seen_inputs: set[str] = set()
+
+    for candidate in scan_result["candidates"]:
+        normalized_input = candidate["normalized_input"]
+        if not normalized_input:
+            continue
+        if normalized_input in seen_inputs:
+            continue
+        seen_inputs.add(normalized_input)
+
+        handed_off_candidates += 1
+        resolution = resolve_article_input(normalized_input)
+        if not resolution["ok"]:
+            invalid_targets += 1
+            continue
+
+        canonical_url = resolution["canonical_target"]["article_url"]
+        register_status = register_target_url(canonical_url, target_db_path)
+
+        if register_status == "added":
+            added_targets += 1
+            queued_target_urls.append(canonical_url)
+            continue
+        if register_status == "reactivated":
+            reactivated_targets += 1
+            queued_target_urls.append(canonical_url)
+            continue
+        if register_status == "duplicate":
+            duplicate_targets += 1
+            continue
+
+        invalid_targets += 1
+
+    summary["handed_off_candidates"] = handed_off_candidates
+    summary["queued_target_urls"] = queued_target_urls
+    summary["added_targets"] = added_targets
+    summary["reactivated_targets"] = reactivated_targets
+    summary["duplicate_targets"] = duplicate_targets
+    summary["invalid_targets"] = invalid_targets
+
+    if summary["checked_to_res_no"] is not None:
+        save_last_processed_res_no(
+            state_path,
+            summary["updated_last_processed_res_no"],
+        )
+
+    return summary
+
+
+def format_delete_request_feed_summary(summary: dict) -> str:
+    checked_to_res_no = summary.get("checked_to_res_no")
+    if checked_to_res_no is None:
+        checked_range = "none"
+    else:
+        checked_range = (
+            f"{summary.get('checked_from_res_no')}-{checked_to_res_no}"
+        )
+
+    return " ".join(
+        [
+            f"checked_range={checked_range}",
+            f"responses_checked={summary.get('responses_checked', 0)}",
+            f"extracted_candidates={summary.get('extracted_candidates', 0)}",
+            f"handed_off_candidates={summary.get('handed_off_candidates', 0)}",
+            (
+                "updated_last_processed_res_no="
+                f"{summary.get('updated_last_processed_res_no', 0)}"
+            ),
+        ]
+    )
+
+
+def format_delete_request_feed_inspect_lines(scan_result: dict) -> list[str]:
+    lines: list[str] = []
+
+    for candidate in scan_result["candidates"]:
+        status = "ACCEPT" if candidate["accepted"] else "REJECT"
+        parts = [
+            status,
+            f"res_no={candidate['res_no']}",
+            f"category={candidate['category']}",
+            f"url={candidate['raw_url']}",
+        ]
+        if candidate["normalized_input"] is not None:
+            parts.append(
+                f"normalized_input={candidate['normalized_input']}"
+            )
+        lines.append(" ".join(parts))
+
+    lines.append(
+        "SUMMARY " + format_delete_request_feed_summary(scan_result["summary"])
+    )
+    return lines
+
+
+def _build_article_url(slug: str) -> str:
+    return f"https://dic.nicovideo.jp/a/{slug}"
+
+
+def _resolve_archive_db_path(archive_db_path: str | None) -> str:
+    if archive_db_path is not None:
+        return archive_db_path
+    return os.environ.get("NICODIC_DB_PATH", DEFAULT_DB_PATH)
+
+
+def _split_path_parts(path: str) -> list[str]:
+    return [part for part in path.split("/") if part]
+
+
+def _can_open_archive_db(archive_db_path: str) -> bool:
+    if archive_db_path == ":memory:":
+        return True
+    return Path(archive_db_path).exists()
+
+
+def _load_delete_request_responses(
+    archive_db_path: str,
+    last_processed_res_no: int,
+) -> list[dict]:
+    if not _can_open_archive_db(archive_db_path):
+        return []
+
+    conn = init_db(archive_db_path)
+    try:
+        rows = conn.execute(
+            """
+            SELECT res_no, COALESCE(content_text, '')
+            FROM responses
+            WHERE article_id = ?
+              AND article_type = ?
+              AND res_no > ?
+            ORDER BY res_no ASC
+            """,
+            (
+                DELETE_REQUEST_ARTICLE_ID,
+                DELETE_REQUEST_ARTICLE_TYPE,
+                int(last_processed_res_no),
+            ),
+        ).fetchall()
+    except sqlite3.Error:
+        conn.close()
+        return []
+
+    conn.close()
+    return [
+        {"res_no": int(res_no), "body": str(body or "")}
+        for res_no, body in rows
+    ]
 
 =============================
 FILE: ./cursor/docker-compose.runtime.yml
@@ -26390,6 +28124,14 @@ from pathlib import Path
 
 from article_resolver import resolve_article_input
 from cli import export_all_articles, export_article, inspect_article, list_articles
+from delete_request_feeder import (
+    DEFAULT_DELETE_REQUEST_FEED_STATE_PATH,
+    append_batch_targets,
+    format_delete_request_feed_inspect_lines,
+    format_delete_request_feed_summary,
+    inspect_delete_request_feed,
+    run_delete_request_feeder,
+)
 from host_cron import HostCronReporter, compress_weekly_archives, local_now
 from host_cron import rotate_active_log
 from operator_cli import add_target_for_operator
@@ -26609,6 +28351,27 @@ def _append_batch_run_end(
     )
 
 
+def _append_delete_request_feed_summary(log_path: Path, summary: dict) -> None:
+    _append_batch_log_lines(
+        log_path,
+        [
+            "DELETE_REQUEST_FEED",
+            f"  {format_delete_request_feed_summary(summary)}",
+        ],
+    )
+
+
+def _emit_delete_request_feed_summary(progress_reporter, summary: dict) -> None:
+    if not hasattr(progress_reporter, "emit"):
+        return
+
+    progress_reporter.emit(
+        "FEEDER",
+        format_delete_request_feed_summary(summary),
+        indent_level=1,
+    )
+
+
 def run_batch_scrape(
     target_db_path: str,
     progress_reporter=None,
@@ -26617,22 +28380,38 @@ def run_batch_scrape(
 
     run_kind = "periodic_batch" if _inside_periodic_batch else "batch"
 
-    targets = list_active_target_urls(target_db_path)
-
-    if progress_reporter is None:
-        print(
-            f"Loaded {len(targets)} active scrape target(s) "
-            f"from target registry {target_db_path}"
-        )
-    else:
-        progress_reporter.note_targets_loaded(len(targets), target_db_path)
-
     run_id = uuid.uuid4().hex[:12]
     started_at = datetime.now(timezone.utc).isoformat()
     archive_db_path = _telemetry_archive_db_path()
     log_dir = Path(os.environ.get("BATCH_LOG_DIR", "data/batch_runs"))
     log_dir.mkdir(parents=True, exist_ok=True)
     log_path = log_dir / f"batch_{run_id}.log"
+
+    existing_targets = list_active_target_urls(target_db_path)
+    delete_request_feed_summary = run_delete_request_feeder(
+        target_db_path,
+        archive_db_path=archive_db_path,
+    )
+    targets = append_batch_targets(
+        existing_targets,
+        delete_request_feed_summary["queued_target_urls"],
+    )
+
+    if progress_reporter is None:
+        print(
+            "[delete-request-feed] "
+            f"{format_delete_request_feed_summary(delete_request_feed_summary)}"
+        )
+        print(
+            f"Loaded {len(targets)} active scrape target(s) "
+            f"from target registry {target_db_path}"
+        )
+    else:
+        _emit_delete_request_feed_summary(
+            progress_reporter,
+            delete_request_feed_summary,
+        )
+        progress_reporter.note_targets_loaded(len(targets), target_db_path)
 
     _append_batch_run_start(
         log_path,
@@ -26641,6 +28420,7 @@ def run_batch_scrape(
         target_db_path,
         len(targets),
     )
+    _append_delete_request_feed_summary(log_path, delete_request_feed_summary)
 
     failed_targets = 0
     for idx, target in enumerate(targets, start=1):
@@ -27122,6 +28902,13 @@ def _print_verification_usage():
     )
 
 
+def _print_delete_request_feed_usage():
+    print(
+        "Usage: inspect-delete-request-feed "
+        "[--archive-db PATH] [--state-path PATH] [--full-scan]"
+    )
+
+
 def _handle_operator_target(args):
     if not args:
         _print_operator_usage()
@@ -27423,6 +29210,10 @@ def main():
         print("  python main.py batch <target_db_path>")
         print("  python main.py periodic-once <target_db_path>")
         print(
+            "  python main.py inspect-delete-request-feed "
+            "[--archive-db PATH] [--state-path PATH] [--full-scan]"
+        )
+        print(
             "  python main.py web [--host HOST] [--port PORT] "
             "[--target-db-path PATH]"
         )
@@ -27442,6 +29233,38 @@ def main():
 
     if sys.argv[1] == "verify":
         _handle_verification_cli(sys.argv[2:])
+        return
+
+    if sys.argv[1] == "inspect-delete-request-feed":
+        archive_db_path = _telemetry_archive_db_path()
+        state_path = DEFAULT_DELETE_REQUEST_FEED_STATE_PATH
+        full_scan = False
+
+        idx = 2
+        while idx < len(sys.argv):
+            if sys.argv[idx] == "--archive-db" and idx + 1 < len(sys.argv):
+                archive_db_path = sys.argv[idx + 1]
+                idx += 2
+                continue
+            if sys.argv[idx] == "--state-path" and idx + 1 < len(sys.argv):
+                state_path = sys.argv[idx + 1]
+                idx += 2
+                continue
+            if sys.argv[idx] == "--full-scan":
+                full_scan = True
+                idx += 1
+                continue
+
+            _print_delete_request_feed_usage()
+            sys.exit(1)
+
+        scan_result = inspect_delete_request_feed(
+            archive_db_path=archive_db_path,
+            state_path=state_path,
+            full_scan=full_scan,
+        )
+        for line in format_delete_request_feed_inspect_lines(scan_result):
+            print(line)
         return
 
     # inspectモード
@@ -30362,6 +32185,211 @@ def test_export_article_uses_archive_read_seam(mock_get_saved_article_txt, capsy
     assert "Hello" in out
 
 =============================
+FILE: ./cursor/tests/test_delete_request_feeder.py
+=============================
+import json
+import sqlite3
+from unittest.mock import patch
+
+from delete_request_feeder import (
+    append_batch_targets,
+    classify_delete_request_url,
+    extract_delete_request_urls,
+    format_delete_request_feed_inspect_lines,
+    normalize_supported_delete_request_input,
+    resolve_internal_article_id_input,
+    run_delete_request_feeder,
+)
+
+
+def test_extract_delete_request_urls_reads_explicit_urls_only():
+    text = (
+        "【掲示板URL】https://dic.nicovideo.jp/a/j-pop\n"
+        "補足 https://dic.nicovideo.jp/t/a/%E5%A5%B3%E6%80%A7】"
+    )
+
+    assert extract_delete_request_urls(text) == [
+        "https://dic.nicovideo.jp/a/j-pop",
+        "https://dic.nicovideo.jp/t/a/%E5%A5%B3%E6%80%A7",
+    ]
+
+
+def test_classify_and_normalize_supported_delete_request_urls():
+    cases = [
+        (
+            "https://dic.nicovideo.jp/a/j-pop",
+            "article_direct",
+            "https://dic.nicovideo.jp/a/j-pop",
+        ),
+        (
+            "https://dic.nicovideo.jp/b/a/%E3%81%A4%E3%81%91%E9%BA%BA/1-",
+            "article_board",
+            "https://dic.nicovideo.jp/a/%E3%81%A4%E3%81%91%E9%BA%BA",
+        ),
+        (
+            "https://dic.nicovideo.jp/t/b/a/%E8%B2%A1%E5%8B%99"
+            "%E7%9C%81/691-?from=a_bbslook_5020395",
+            "article_thread_board",
+            "https://dic.nicovideo.jp/a/%E8%B2%A1%E5%8B%99%E7%9C%81",
+        ),
+        (
+            "https://dic.nicovideo.jp/t/a/%E5%A5%B3%E6%80%A7",
+            "article_thread_direct",
+            "https://dic.nicovideo.jp/a/%E5%A5%B3%E6%80%A7",
+        ),
+    ]
+
+    for raw_url, category, expected in cases:
+        assert classify_delete_request_url(raw_url) == category
+        assert normalize_supported_delete_request_input(raw_url, category) == expected
+
+
+def test_classify_rejects_unsupported_delete_request_categories():
+    assert classify_delete_request_url("https://dic.nicovideo.jp/v/sm12825985") == (
+        "video"
+    )
+    assert classify_delete_request_url("https://dic.nicovideo.jp/u/688493") == (
+        "user"
+    )
+    assert classify_delete_request_url(
+        "https://dic.nicovideo.jp/l/%E3%82%B3%E3%83%BC%E3%83%AB"
+    ) == "live"
+    assert classify_delete_request_url("https://dic.nicovideo.jp/b/c/co2078137/") == (
+        "community_board"
+    )
+    assert classify_delete_request_url("https://dic.nicovideo.jp/a/") == (
+        "malformed"
+    )
+
+
+def test_resolve_internal_article_id_input_uses_saved_article_row(tmp_path):
+    archive_db_path = tmp_path / "archive.db"
+    conn = sqlite3.connect(archive_db_path)
+    conn.execute(
+        """
+        CREATE TABLE articles (
+            article_id TEXT,
+            article_type TEXT,
+            title TEXT,
+            canonical_url TEXT
+        )
+        """
+    )
+    conn.execute(
+        """
+        INSERT INTO articles (article_id, article_type, title, canonical_url)
+        VALUES (?, ?, ?, ?)
+        """,
+        (
+            "5728993",
+            "a",
+            "J-POP",
+            "https://dic.nicovideo.jp/a/j-pop",
+        ),
+    )
+    conn.commit()
+    conn.close()
+
+    assert resolve_internal_article_id_input(
+        "5728993",
+        archive_db_path=str(archive_db_path),
+    ) == "https://dic.nicovideo.jp/a/j-pop"
+
+
+def test_run_delete_request_feeder_updates_state_and_deduplicates(tmp_path):
+    state_path = tmp_path / "feed_state.json"
+    responses = [
+        {
+            "res_no": 12,
+            "body": (
+                "【掲示板URL】https://dic.nicovideo.jp/a/j-pop\n"
+                "重複 https://dic.nicovideo.jp/a/j-pop"
+            ),
+        }
+    ]
+
+    with patch(
+        "delete_request_feeder._load_delete_request_responses",
+        return_value=responses,
+    ), patch(
+        "delete_request_feeder.resolve_article_input",
+        return_value={
+            "ok": True,
+            "canonical_target": {
+                "article_url": "https://dic.nicovideo.jp/a/j-pop",
+                "article_id": "j-pop",
+                "article_type": "a",
+            },
+        },
+    ), patch(
+        "delete_request_feeder.register_target_url",
+        return_value="added",
+    ) as register_mock:
+        summary = run_delete_request_feeder(
+            "targets.db",
+            archive_db_path="archive.db",
+            state_path=str(state_path),
+        )
+
+    assert summary["handed_off_candidates"] == 1
+    assert summary["queued_target_urls"] == ["https://dic.nicovideo.jp/a/j-pop"]
+    assert register_mock.call_count == 1
+    saved = json.loads(state_path.read_text(encoding="utf-8"))
+    assert saved["last_processed_res_no"] == 12
+
+
+def test_append_batch_targets_appends_only_new_urls_at_tail():
+    assert append_batch_targets(
+        [
+            "https://dic.nicovideo.jp/a/base-1",
+            "https://dic.nicovideo.jp/a/base-2",
+        ],
+        [
+            "https://dic.nicovideo.jp/a/base-2",
+            "https://dic.nicovideo.jp/a/new-3",
+        ],
+    ) == [
+        "https://dic.nicovideo.jp/a/base-1",
+        "https://dic.nicovideo.jp/a/base-2",
+        "https://dic.nicovideo.jp/a/new-3",
+    ]
+
+
+def test_format_delete_request_feed_inspect_lines_is_stdout_friendly():
+    lines = format_delete_request_feed_inspect_lines(
+        {
+            "candidates": [
+                {
+                    "res_no": 3,
+                    "raw_url": "https://dic.nicovideo.jp/a/j-pop",
+                    "category": "article_direct",
+                    "accepted": True,
+                    "normalized_input": "https://dic.nicovideo.jp/a/j-pop",
+                },
+                {
+                    "res_no": 4,
+                    "raw_url": "https://dic.nicovideo.jp/v/sm9",
+                    "category": "video",
+                    "accepted": False,
+                    "normalized_input": None,
+                },
+            ],
+            "summary": {
+                "checked_from_res_no": 1,
+                "checked_to_res_no": 4,
+                "responses_checked": 2,
+                "extracted_candidates": 2,
+                "handed_off_candidates": 0,
+                "updated_last_processed_res_no": 4,
+            },
+        }
+    )
+
+    assert lines[0].startswith("ACCEPT ")
+    assert lines[1].startswith("REJECT ")
+    assert lines[2].startswith("SUMMARY ")
+
+=============================
 FILE: ./cursor/tests/test_host_cron.py
 =============================
 from datetime import date, datetime
@@ -31170,6 +33198,7 @@ def test_main_too_few_args_exits_with_usage(capsys):
     assert "targets <target_db_path>" in out
     assert "batch <target_db_path>" in out
     assert "periodic-once <target_db_path>" in out
+    assert "inspect-delete-request-feed" in out
     assert "web [--host HOST] [--port PORT] [--target-db-path PATH]" in out
     assert (
         "periodic <target_db_path> <interval_seconds> [--max-runs N]" in out
@@ -31177,13 +33206,79 @@ def test_main_too_few_args_exits_with_usage(capsys):
     assert "export-run-telemetry-csv" in out
 
 
+@patch("main.inspect_delete_request_feed")
+def test_main_inspect_delete_request_feed_prints_stdout_candidates(
+    mock_inspect_delete_request_feed,
+    capsys,
+):
+    mock_inspect_delete_request_feed.return_value = {
+        "candidates": [
+            {
+                "res_no": 10,
+                "raw_url": "https://dic.nicovideo.jp/a/j-pop",
+                "category": "article_direct",
+                "accepted": True,
+                "normalized_input": "https://dic.nicovideo.jp/a/j-pop",
+            }
+        ],
+        "summary": {
+            "checked_from_res_no": 1,
+            "checked_to_res_no": 10,
+            "responses_checked": 1,
+            "extracted_candidates": 1,
+            "handed_off_candidates": 0,
+            "updated_last_processed_res_no": 10,
+        },
+    }
+
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "inspect-delete-request-feed",
+            "--archive-db",
+            "archive.db",
+            "--state-path",
+            "state.json",
+            "--full-scan",
+        ],
+    ):
+        main_module.main()
+
+    mock_inspect_delete_request_feed.assert_called_once_with(
+        archive_db_path="archive.db",
+        state_path="state.json",
+        full_scan=True,
+    )
+    out = capsys.readouterr().out
+    assert "ACCEPT res_no=10" in out
+    assert "SUMMARY checked_range=1-10" in out
+
+
 @patch("main._record_scrape_run_observation")
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
 @patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
 ])
 @patch("main.run_scrape", return_value=ScrapeResult(True, "ok"))
 def test_main_batch_records_telemetry_once_per_target(
     mock_scrape,
+    mock_run_delete_request_feeder,
     mock_list,
     mock_record,
     tmp_path,
@@ -31270,6 +33365,22 @@ def test_main_inspect_without_id_type_exits_with_usage(capsys):
     "https://dic.nicovideo.jp/a/2",
 ])
 @patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": 10,
+        "responses_checked": 1,
+        "extracted_candidates": 1,
+        "handed_off_candidates": 1,
+        "updated_last_processed_res_no": 10,
+        "queued_target_urls": ["https://dic.nicovideo.jp/a/3"],
+        "added_targets": 1,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
+@patch(
     "main.run_scrape",
     side_effect=[
         ScrapeResult(
@@ -31287,49 +33398,87 @@ def test_main_inspect_without_id_type_exits_with_usage(capsys):
             collected_response_count=7,
             observed_max_res_no=7,
         ),
+        ScrapeResult(
+            True,
+            "ok",
+            article_title="Third Title",
+            collected_response_count=3,
+            observed_max_res_no=3,
+        ),
     ],
 )
 def test_main_batch_all_success_exits_zero(
-    mock_run_scrape, mock_load_targets, tmp_path, capsys, monkeypatch
+    mock_run_scrape,
+    mock_run_delete_request_feeder,
+    mock_load_targets,
+    tmp_path,
+    capsys,
+    monkeypatch,
 ):
     monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
     with patch("sys.argv", ["main.py", "batch", "targets.db"]):
         main_module.main()
 
-    assert mock_run_scrape.call_count == 2
+    assert mock_run_scrape.call_count == 3
+    mock_run_delete_request_feeder.assert_called_once()
     mock_run_scrape.assert_any_call("https://dic.nicovideo.jp/a/1")
     mock_run_scrape.assert_any_call("https://dic.nicovideo.jp/a/2")
+    mock_run_scrape.assert_any_call("https://dic.nicovideo.jp/a/3")
     out = capsys.readouterr().out
+    assert "[delete-request-feed] checked_range=1-10" in out
     assert "[OK] https://dic.nicovideo.jp/a/1" in out
     assert "[OK] https://dic.nicovideo.jp/a/2" in out
+    assert "[OK] https://dic.nicovideo.jp/a/3" in out
 
     logs = list(Path(tmp_path).glob("batch_*.log"))
     assert len(logs) == 1
     text = logs[0].read_text(encoding="utf-8")
     assert "BATCH_RUN_START" in text
+    assert "DELETE_REQUEST_FEED" in text
     assert "BATCH_RUN_END" in text
     assert "  target_db_path=targets.db" in text
     assert "  target_source=target_table" in text
-    assert "  total_targets=2" in text
-    assert "[PROGRESS = 1/2]" in text
-    assert "[PROGRESS = 2/2]" in text
+    assert "  total_targets=3" in text
+    assert "[PROGRESS = 1/3]" in text
+    assert "[PROGRESS = 2/3]" in text
+    assert "[PROGRESS = 3/3]" in text
     assert "  result=SUCCESS" in text
     assert "SUCCESS_PARTIAL" not in text
     assert "  target_url=https://dic.nicovideo.jp/a/1" in text
     assert "  target_url=https://dic.nicovideo.jp/a/2" in text
+    assert "  target_url=https://dic.nicovideo.jp/a/3" in text
     assert "  article_title=First Title" in text
     assert "  collected_response_count=12" in text
     assert "  observed_max_res_no=12" in text
     assert "  article_title=Second Title" in text
     assert "  collected_response_count=7" in text
     assert "  observed_max_res_no=7" in text
-    assert "  success_targets=2" in text
+    assert "  article_title=Third Title" in text
+    assert "  collected_response_count=3" in text
+    assert "  observed_max_res_no=3" in text
+    assert "  success_targets=3" in text
     assert "  failed_targets=0" in text
     assert "  duration_seconds=" in text
     assert "  final_status=success" in text
     assert "FAILURE_DETAIL" not in text
 
 
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
 @patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
     "https://dic.nicovideo.jp/a/2",
@@ -31357,7 +33506,12 @@ def test_main_batch_all_success_exits_zero(
     ],
 )
 def test_main_batch_failure_sets_nonzero_exit_and_continues(
-    mock_run_scrape, mock_load_targets, tmp_path, capsys, monkeypatch
+    mock_run_scrape,
+    mock_load_targets,
+    mock_run_delete_request_feeder,
+    tmp_path,
+    capsys,
+    monkeypatch,
 ):
     monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
     with patch("sys.argv", ["main.py", "batch", "targets.db"]):
@@ -31393,6 +33547,22 @@ def test_main_batch_failure_sets_nonzero_exit_and_continues(
 
 
 @patch("main.handoff_redirected_target")
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
 @patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
     "https://dic.nicovideo.jp/a/2",
@@ -31421,6 +33591,7 @@ def test_main_batch_failure_sets_nonzero_exit_and_continues(
 def test_main_batch_redirect_handoff_is_success_class_and_logged(
     mock_run_scrape,
     mock_load_targets,
+    mock_run_delete_request_feeder,
     mock_handoff_redirected_target,
     tmp_path,
     capsys,
@@ -31474,6 +33645,22 @@ def test_main_batch_redirect_handoff_is_success_class_and_logged(
     assert "  final_status=success" in text
 
 
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
 @patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
     "https://dic.nicovideo.jp/a/2",
@@ -31483,7 +33670,12 @@ def test_main_batch_redirect_handoff_is_success_class_and_logged(
     side_effect=[RuntimeError("boom"), ScrapeResult(True, "ok")],
 )
 def test_main_batch_exception_sets_nonzero_exit_and_continues(
-    mock_run_scrape, mock_load_targets, tmp_path, capsys, monkeypatch
+    mock_run_scrape,
+    mock_load_targets,
+    mock_run_delete_request_feeder,
+    tmp_path,
+    capsys,
+    monkeypatch,
 ):
     monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
     with patch("sys.argv", ["main.py", "batch", "targets.db"]):
@@ -36140,6 +38332,67 @@ set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
 exec "$ROOT_DIR/META/scripts/publish_snapshots.sh" "$@"
+
+
+=============================
+FILE: ./reflect_runtime.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+RUNTIME_DIR="${RUNTIME_DIR:-/home/manage/product/nicodic_archiver_runtime}"
+RUNTIME_SERVICE="${RUNTIME_SERVICE:-nicodic_archiver_runtime-personal_runtime-1}"
+
+echo "[reflect-runtime] runtime_dir=${RUNTIME_DIR}"
+echo "[reflect-runtime] runtime_service=${RUNTIME_SERVICE}"
+
+if [[ ! -d "${RUNTIME_DIR}" ]]; then
+  echo "[reflect-runtime] ERROR: runtime dir not found: ${RUNTIME_DIR}" >&2
+  exit 1
+fi
+
+if [[ -d "${RUNTIME_DIR}/runtime/logs/periodic_once.lock" ]]; then
+  echo "[reflect-runtime] ABORT: periodic_once lock exists" >&2
+  exit 2
+fi
+
+if docker ps --format '{{.Names}}' | grep -qx "${RUNTIME_SERVICE}"; then
+  ACTIVE_PIDS="$(docker exec "${RUNTIME_SERVICE}" sh -lc "ps -eo pid,args | grep -E 'python main.py (batch|periodic|periodic-once)' | grep -v grep || true")"
+  if [[ -n "${ACTIVE_PIDS}" ]]; then
+    echo "[reflect-runtime] ABORT: scrape-like process is running inside container" >&2
+    echo "${ACTIVE_PIDS}" >&2
+    exit 3
+  fi
+fi
+
+cd "${RUNTIME_DIR}"
+git pull --ff-only origin main
+bash tools/runtime_up.sh
+docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | grep "${RUNTIME_SERVICE}"
+
+echo "[reflect-runtime] done"
+
+
+
+=============================
+FILE: ./runtime_exec.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -lt 1 ]]; then
+  echo "usage: ./runtime_exec.sh '<command>'" >&2
+  exit 1
+fi
+
+RUNTIME_DIR="${RUNTIME_DIR:-/home/manage/product/nicodic_archiver_runtime}"
+COMPOSE_FILE="${COMPOSE_FILE:-docker-compose.runtime.yml}"
+SERVICE_NAME="${SERVICE_NAME:-personal_runtime}"
+CMD_STR="$1"
+
+cd "${RUNTIME_DIR}"
+docker compose --env-file ./.env.runtime.local -f "./${COMPOSE_FILE}" exec -T "${SERVICE_NAME}" sh -lc "${CMD_STR}"
 
 
 =============================

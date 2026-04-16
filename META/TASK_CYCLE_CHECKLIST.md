@@ -393,3 +393,48 @@ Practical default commands:
 This runtime reflection step is not part of Copilot vs Cursor adoption judgment,
 but it is part of practical task closeout whenever adopted `main` must also be
 exercised in the provisional runtime checkout.
+
+## Runtime reflection safety rule
+
+When the sibling runtime checkout is in active use, runtime reflection should
+not blindly recreate the runtime container.
+
+Before running:
+- `git pull --ff-only origin main`
+- `bash tools/runtime_up.sh`
+
+first confirm that no scrape-like work is currently active.
+
+At minimum, check:
+- no `runtime/logs/periodic_once.lock` directory exists
+- no `python main.py batch`
+- no `python main.py periodic`
+- no `python main.py periodic-once`
+  process is currently running inside the runtime container
+
+Preferred practice:
+- use a root helper such as `./reflect_runtime.sh`
+  so this preflight is not forgotten
+
+Interpretation:
+- runtime reflection is part of task closeout when `_runtime` is in use
+- but it should be treated as a safe operational step, not as a blind rebuild
+
+## Container-first execution rule
+
+When verifying runtime behavior, smoke behavior, or inspect behavior for the
+actively used runtime checkout, prefer container execution over host-side raw
+`python3` execution.
+
+Default rule:
+- use container exec for runtime-facing checks
+- avoid host-side ad-hoc Python execution as the default path
+
+Preferred practice:
+- use a helper such as `./runtime_exec.sh`
+  so the execution environment is explicit and repeatable
+
+Reason:
+- host Python may not match installed runtime dependencies
+- runtime behavior should be checked in the same environment actually used in
+  operation

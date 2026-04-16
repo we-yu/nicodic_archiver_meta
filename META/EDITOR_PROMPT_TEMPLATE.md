@@ -426,6 +426,30 @@ validation handling:
 
 --------------------------------------------------
 
+## Runtime / smoke execution note
+
+If the task may later require practical smoke checking, inspect checking, or
+runtime verification, do not assume host-side raw `python3` execution.
+
+Default assumption:
+- product file editing is done inside the child repository
+- review validation is controlled from the workspace root
+- runtime-facing smoke / inspect verification should usually be treated as
+  container-first
+
+Do not suggest host-side ad-hoc Python execution as the default verification
+path when the runtime environment is Docker-based.
+
+Preferred wording:
+- "use the established runtime container / compose execution path"
+instead of:
+- "run raw python on the host"
+
+If a helper such as `./runtime_exec.sh` or `./reflect_runtime.sh` exists,
+prefer those helpers in human-side workflow guidance.
+
+--------------------------------------------------
+
 ## Fixed wording block for implementation freedom
 
 The following block can usually be reused almost verbatim:
