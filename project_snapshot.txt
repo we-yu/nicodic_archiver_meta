@@ -2034,6 +2034,32 @@ Interpretation:
 - this is a bounded UX refinement only
 - product semantics outside the Web interaction flow remain unchanged
 
+## TASK035
+Completed.
+
+Outcome summary:
+- redirect article pages are now detected as a bounded distinct outcome
+- redirect detection handles at minimum meta refresh and location.replace
+- redirect source targets are marked redirected and deactivated
+- redirect target URLs are handed off into the target registry with duplicate
+  suppression
+- redirect handoff is treated as success-class in batch handling
+- batch logs now include bounded REDIRECT_DETAIL visibility
+- archive migration / merge is not performed
+- old and new article identities remain separate in saved archive data
+
+Adoption result:
+- Double Helix comparison was attempted
+- Copilot result was adopted
+- Cursor result was preserved as non-adopted comparison evidence
+- current product mainline should be read as reflecting the adopted Copilot
+  version of TASK035
+
+Interpretation:
+- current scrape/runtime behavior now includes bounded redirect target handoff
+- this is a bounded mainline behavior change
+- archive read semantics and archive identity migration remain unchanged
+
 Current application structure:
 
 main.py
@@ -2346,13 +2372,26 @@ After a task is completed:
    using the repository-compliant method
 8. in both `copilot/` and `cursor/`, checkout `main` and pull
 9. confirm convergence using compare_helix.sh
+10. run validate_helix.sh on the synchronized child repos
+11. if the sibling runtime checkout is in use, pull adopted `main` there as well
+12. if the sibling runtime checkout is in use, recreate runtime with the bounded
+    helper flow and confirm container startup
 
 - In this project, post-adoption synchronization should normally happen
   by integrating the adopted result into child-repo `main`
   and then pulling `main` in both child repos.
 - Do not treat manual file copying between `copilot/` and `cursor/`
   as the standard completion path.
-  
+- If the provisional runtime checkout
+  `/home/manage/product/nicodic_archiver_runtime`
+  is actively used, task closeout should normally include:
+  - `git pull --ff-only origin main`
+  - `bash tools/runtime_up.sh`
+  - a bounded runtime startup confirmation
+- This runtime reflection step is operational, not part of Double Helix
+  comparison judgment, but it should not be forgotten when adopted `main`
+  needs to be exercised in the sibling runtime checkout.
+
 After adoption, a short AI-readable review log may be stored
 under META/review_log/ for future sessions.
 
@@ -2796,6 +2835,26 @@ Finish the task only after:
 4. convergence passes
 5. review memory is updated
 6. authoritative snapshot is regenerated
+
+--------------------------------------------------
+
+## Sibling runtime reflection
+
+If the sibling runtime checkout is currently in use:
+
+- pull adopted `main` in `/home/manage/product/nicodic_archiver_runtime`
+- recreate runtime with the bounded helper flow
+- confirm container startup after recreate
+
+Practical default commands:
+
+- `cd /home/manage/product/nicodic_archiver_runtime && git pull --ff-only origin main`
+- `cd /home/manage/product/nicodic_archiver_runtime && bash tools/runtime_up.sh`
+- `docker ps --format 'table {{.Names}}\t{{.Status}}\t{{.Ports}}' | grep nicodic_archiver_runtime-personal_runtime`
+
+This runtime reflection step is not part of Copilot vs Cursor adoption judgment,
+but it is part of practical task closeout whenever adopted `main` must also be
+exercised in the provisional runtime checkout.
 
 
 ===== ARCHITECTURE =====
@@ -7693,6 +7752,93 @@ Authoritative current state should still be restored from:
 
 
 
+===== REVIEW LOG: META/review_log/TASK035_redirect_target_handoff.md =====
+# TASK035 Redirect target handoff
+
+## Task
+TASK035
+
+Detect redirect articles during scrape, stop repeated failure of old targets,
+and hand off collection to redirected canonical targets in a bounded way.
+
+## Positioning
+This is a bounded mainline scrape/runtime task.
+
+It changes:
+- redirect detection during article fetch
+- target registry state for redirected targets
+- bounded target handoff behavior during batch handling
+
+It does not change:
+- archive read semantics
+- archive migration/merge behavior
+- queue/scheduler design
+- broad DB platform design
+
+## What changed
+Adopted result from Copilot sideflow:
+- `main.py`
+- `orchestrator.py`
+- `storage.py`
+- `target_list.py`
+- `tests/test_main.py`
+- `tests/test_orchestrator.py`
+- `tests/test_storage.py`
+- `tests/test_target_list.py`
+
+Main adopted behavior:
+- redirect article pages are no longer treated as plain article_not_found
+- redirect signals are detected from article HTML
+- at minimum:
+  - `meta http-equiv="refresh"`
+  - `location.replace(...)`
+  are handled
+- redirect source target is marked redirected and deactivated
+- redirect target URL is registered into the target registry with duplicate
+  suppression
+- redirect handoff is treated as success-class in batch execution
+- batch log now includes a bounded `REDIRECT_DETAIL` block
+- archive migration/merge is not performed
+- old and new article identities remain separate in saved archive data
+
+## What did not change
+This task did not change:
+- archive save/read identity rules
+- old archive data ownership
+- Web download semantics as a unified canonical redirect layer
+- scheduler/queue platform shape
+- broad observability or redirect graph tooling
+
+## Validation summary
+The following validation path was completed:
+
+1. Double Helix implementation was attempted in both child repositories
+2. Both Copilot and Cursor reached validate PASS
+3. Design comparison was completed after validation
+4. Copilot result was adopted
+5. Cursor result was preserved as non-adopted comparison evidence
+6. child repo mains were re-synchronized after adoption
+7. runtime sibling checkout was updated from adopted main
+
+## Interpretation
+Current mainline scrape/runtime behavior should now be read as including:
+- bounded redirect article detection
+- bounded redirect target handoff into registry
+- redirected old target deactivation
+- no archive migration across redirect identities
+
+## Meta note
+This review log is AI-readable working memory.
+It is not authoritative by itself.
+
+Authoritative current state should still be restored from:
+- `AI_CONTEXT.md`
+- `_AI_RULES.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
+
+
 ===== REVIEW LOG: META/review_log/task008_review.md =====
 # TASK008 Review
 
@@ -8045,7 +8191,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Tue Apr 14 15:18:28 UTC 2026
+generated: Thu Apr 16 15:40:32 UTC 2026
 mode: full
 
 
@@ -13712,6 +13858,7 @@ from storage import (
     init_db,
 )
 from target_list import (
+    handoff_redirected_target,
     import_targets_from_text_file,
     list_active_target_urls,
     parse_target_identity,
@@ -13860,6 +14007,28 @@ def _append_batch_failure_detail(
                 f"{_batch_log_value(observed_max_res_no)}"
             ),
             f"    short_reason={short_reason}",
+        ],
+    )
+
+
+def _append_batch_redirect_detail(
+    log_path: Path,
+    index: int,
+    total: int,
+    target_url: str,
+    redirect_target_url: str,
+    source_status: str,
+    register_status: str,
+) -> None:
+    _append_batch_log_lines(
+        log_path,
+        [
+            "  REDIRECT_DETAIL",
+            f"    progress={index}/{total}",
+            f"    source_target_url={target_url}",
+            f"    redirect_target_url={redirect_target_url}",
+            f"    source_status={source_status}",
+            f"    register_status={register_status}",
         ],
     )
 
@@ -14023,6 +14192,118 @@ def run_batch_scrape(
             continue
 
         ok = bool(scrape_result)
+        redirect_target_url = getattr(
+            scrape_result,
+            "redirect_target_url",
+            None,
+        )
+        if redirect_target_url is not None:
+            handoff_result = handoff_redirected_target(
+                identity["article_id"],
+                identity["article_type"],
+                redirect_target_url,
+                target_db_path,
+            )
+            redirect_status = handoff_result["status"]
+            register_status = handoff_result.get("register_status", "unknown")
+
+            if redirect_status != "redirected":
+                failed_targets += 1
+                scrape_outcome = "fail_exception"
+                if progress_reporter is None:
+                    print(
+                        f"[FAIL] {target} "
+                        f"(redirect handoff failed: {redirect_status})"
+                    )
+                else:
+                    progress_reporter.finish_target(
+                        "fail",
+                        identity["article_id"],
+                        0,
+                        identity["article_id"],
+                        reason=(
+                            "reason=redirect_handoff_failed "
+                            f"status={redirect_status}"
+                        ),
+                    )
+                _append_batch_progress(
+                    log_path,
+                    idx,
+                    len(targets),
+                    "FAIL",
+                    target,
+                    getattr(scrape_result, "article_title", "unknown"),
+                    0,
+                    None,
+                )
+                _append_batch_failure_detail(
+                    log_path,
+                    idx,
+                    len(targets),
+                    target,
+                    getattr(scrape_result, "article_title", "unknown"),
+                    target,
+                    "redirect_handoff_failed",
+                    0,
+                    None,
+                    redirect_status,
+                )
+                _record_scrape_run_observation(
+                    archive_db_path,
+                    run_id,
+                    started_at,
+                    run_kind,
+                    identity,
+                    scrape_outcome,
+                )
+                continue
+
+            if progress_reporter is None:
+                print(
+                    f"[OK] {target} "
+                    f"(redirected -> {redirect_target_url}; {register_status})"
+                )
+            else:
+                progress_reporter.finish_target(
+                    "success",
+                    getattr(scrape_result, "article_title", identity["article_id"]),
+                    0,
+                    identity["article_id"],
+                    reason=(
+                        "reason=redirect_detected "
+                        f"redirect_target={redirect_target_url} "
+                        f"handoff_status={register_status}"
+                    ),
+                )
+            _append_batch_progress(
+                log_path,
+                idx,
+                len(targets),
+                "SUCCESS",
+                target,
+                getattr(scrape_result, "article_title", "unknown"),
+                0,
+                None,
+            )
+            _append_batch_redirect_detail(
+                log_path,
+                idx,
+                len(targets),
+                target,
+                redirect_target_url,
+                redirect_status,
+                register_status,
+            )
+            _record_scrape_run_observation(
+                archive_db_path,
+                run_id,
+                started_at,
+                run_kind,
+                identity,
+                scrape_outcome,
+            )
+            continue
+
         if not ok:
             failed_targets += 1
             if progress_reporter is None:
@@ -15063,7 +15344,9 @@ def export_archive_for_operator(
 =============================
 FILE: ./copilot/orchestrator.py
 =============================
+import re
 import time
+from urllib.parse import urljoin
 from urllib.parse import urlparse
 
 from http_client import fetch_page
@@ -15075,6 +15358,7 @@ from storage import (
     save_json,
     save_to_db,
 )
+from target_list import parse_target_identity
 
 # 取得レス数の上限。未知の high-volume 記事に対する bounded protection。
 RESPONSE_CAP = 1_000_000
@@ -15099,6 +15383,7 @@ class ScrapeResult:
         "failure_page",
         "failure_cause",
         "short_reason",
+        "redirect_target_url",
     )
 
     def __init__(
@@ -15112,6 +15397,7 @@ class ScrapeResult:
         failure_page: str | None = None,
         failure_cause: str | None = None,
         short_reason: str | None = None,
+        redirect_target_url: str | None = None,
     ) -> None:
         self.ok = ok
         self.outcome = outcome
@@ -15122,6 +15408,7 @@ class ScrapeResult:
         self.failure_page = failure_page
         self.failure_cause = failure_cause
         self.short_reason = short_reason
+        self.redirect_target_url = redirect_target_url
 
     def __bool__(self) -> bool:
         return self.ok
@@ -15134,6 +15421,114 @@ def get_containing_page_start(res_no: int) -> int:
 
 class ArticleNotFoundError(RuntimeError):
     """記事ページが見つからない場合の orchestration 用例外。"""
+
+
+class RedirectArticleError(RuntimeError):
+    """記事ページが redirect article だった場合の orchestration 用例外。"""
+
+    def __init__(
+        self,
+        article_url: str,
+        redirect_target_url: str,
+        article_title: str = "unknown",
+    ) -> None:
+        self.article_url = article_url
+        self.redirect_target_url = redirect_target_url
+        self.article_title = article_title
+        super().__init__(
+            f"Redirect detected: {article_url} -> {redirect_target_url}"
+        )
+
+
+_LOCATION_REPLACE_RE = re.compile(
+    r"location\.replace\(\s*(['\"])(.*?)\1\s*\)",
+    re.IGNORECASE,
+)
+
+
+def _extract_page_title(soup) -> str:
+    meta_title = soup.find("meta", property="og:title")
+    if meta_title is not None:
+        title = meta_title.get("content", "").strip()
+        if title:
+            return title.split("とは")[0]
+
+    title_tag = soup.find("title")
+    if title_tag is None:
+        return "unknown"
+
+    title = title_tag.get_text(" ", strip=True)
+    if not title:
+        return "unknown"
+
+    return title.split("とは")[0]
+
+
+def _normalize_redirect_target_url(
+    article_url: str,
+    candidate_url: str,
+) -> str | None:
+    raw_target = candidate_url.strip().strip('"\'')
+    if not raw_target:
+        return None
+
+    resolved_target = urljoin(article_url, raw_target)
+    target_identity = parse_target_identity(resolved_target)
+    if target_identity is None:
+        return None
+    return target_identity["canonical_url"]
+
+
+def _extract_meta_refresh_target(article_url: str, soup) -> str | None:
+    for meta_tag in soup.find_all("meta"):
+        http_equiv = meta_tag.get("http-equiv", "").strip().lower()
+        if http_equiv != "refresh":
+            continue
+
+        content = meta_tag.get("content", "")
+        match = re.search(r"url\s*=\s*([^;]+)", content, re.IGNORECASE)
+        if match is None:
+            continue
+
+        redirect_target = _normalize_redirect_target_url(
+            article_url,
+            match.group(1),
+        )
+        if redirect_target is not None:
+            return redirect_target
+
+    return None
+
+
+def _extract_location_replace_target(article_url: str, soup) -> str | None:
+    for script_tag in soup.find_all("script"):
+        script_text = script_tag.get_text(" ", strip=True)
+        if not script_text:
+            continue
+
+        match = _LOCATION_REPLACE_RE.search(script_text)
+        if match is None:
+            continue
+
+        redirect_target = _normalize_redirect_target_url(
+            article_url,
+            match.group(2),
+        )
+        if redirect_target is not None:
+            return redirect_target
+
+    return None
+
+
+def extract_redirect_target_url(article_url: str, soup) -> str | None:
+    redirect_target = _extract_meta_refresh_target(article_url, soup)
+    if redirect_target is not None:
+        return redirect_target
+    return _extract_location_replace_target(article_url, soup)
+
+
+def is_redirect_article_page(article_url: str, soup) -> bool:
+    return extract_redirect_target_url(article_url, soup) is not None
 
 
 def get_max_saved_res_no(article_id: str, article_type: str) -> int | None:
@@ -15354,6 +15749,14 @@ def fetch_article_metadata(article_url: str):
             raise ArticleNotFoundError(f"Article not found: {article_url}") from exc
         raise
 
+    redirect_target_url = extract_redirect_target_url(article_url, soup)
+    if redirect_target_url is not None:
+        raise RedirectArticleError(
+            article_url,
+            redirect_target_url,
+            _extract_page_title(soup),
+        )
+
     title_tag = soup.find("meta", property="og:title")
     title = title_tag["content"].split("とは")[0] if title_tag else "unknown"
 
@@ -15378,6 +15781,25 @@ def run_scrape(
 ) -> ScrapeResult:
     try:
         article_id, article_type, title = fetch_article_metadata(article_url)
+
+    except RedirectArticleError as exc:
+        if progress_reporter is None:
+            print(
+                f"Redirect detected: {article_url} -> "
+                f"{exc.redirect_target_url}"
+            )
+        return ScrapeResult(
+            True,
+            "redirect_handoff",
+            "success",
+            article_title=exc.article_title,
+            collected_response_count=0,
+            observed_max_res_no=None,
+            failure_page=article_url,
+            failure_cause="redirect_detected",
+            short_reason="redirect_handoff",
+            redirect_target_url=exc.redirect_target_url,
+        )
 
     except ArticleNotFoundError:
         if progress_reporter is None:
@@ -15905,6 +16327,7 @@ https://dic.nicovideo.jp/id/4470620
 FILE: ./copilot/storage.py
 =============================
 import csv
+from datetime import datetime, timezone
 import json
 import os
 import sqlite3
@@ -15924,7 +16347,43 @@ def _target_row_to_entry(row):
         "canonical_url": row[3],
         "is_active": bool(row[4]),
         "created_at": row[5],
+        "is_redirected": bool(row[6]),
+        "redirect_target_url": row[7],
+        "redirect_detected_at": row[8],
     }
+
+
+def _list_column_names(conn: sqlite3.Connection, table_name: str) -> set[str]:
+    cur = conn.cursor()
+    cur.execute(f"PRAGMA table_info({table_name})")
+    return {row[1] for row in cur.fetchall()}
+
+
+def _ensure_target_redirect_columns(conn: sqlite3.Connection) -> None:
+    column_names = _list_column_names(conn, "target")
+    required_columns = {
+        "is_redirected": (
+            "ALTER TABLE target ADD COLUMN is_redirected "
+            "INTEGER NOT NULL DEFAULT 0 CHECK (is_redirected IN (0, 1))"
+        ),
+        "redirect_target_url": (
+            "ALTER TABLE target ADD COLUMN redirect_target_url TEXT"
+        ),
+        "redirect_detected_at": (
+            "ALTER TABLE target ADD COLUMN redirect_detected_at TEXT"
+        ),
+    }
+
+    cur = conn.cursor()
+    changed = False
+    for column_name, statement in required_columns.items():
+        if column_name in column_names:
+            continue
+        cur.execute(statement)
+        changed = True
+
+    if changed:
+        conn.commit()
 
 
 def init_db(db_path: str = DEFAULT_DB_PATH):
@@ -15990,10 +16449,15 @@ def init_db(db_path: str = DEFAULT_DB_PATH):
         article_type TEXT NOT NULL,
         canonical_url TEXT NOT NULL,
         is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+        is_redirected INTEGER NOT NULL DEFAULT 0 CHECK (is_redirected IN (0, 1)),
+        redirect_target_url TEXT,
+        redirect_detected_at TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(article_id, article_type)
     )
     """)
+
+    _ensure_target_redirect_columns(conn)
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS scrape_run_observation (
@@ -16195,7 +16659,9 @@ def register_target(conn, article_id, article_type, canonical_url):
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT id, article_id, article_type, canonical_url, is_active, created_at
+        SELECT id, article_id, article_type, canonical_url, is_active,
+               created_at, is_redirected, redirect_target_url,
+               redirect_detected_at
         FROM target
         WHERE article_id=? AND article_type=?
         """,
@@ -16222,7 +16688,11 @@ def register_target(conn, article_id, article_type, canonical_url):
         cur.execute(
             """
             UPDATE target
-            SET canonical_url=?, is_active=1
+            SET canonical_url=?,
+                is_active=1,
+                is_redirected=0,
+                redirect_target_url=NULL,
+                redirect_detected_at=NULL
             WHERE article_id=? AND article_type=?
             """,
             (canonical_url, article_id, article_type),
@@ -16232,7 +16702,9 @@ def register_target(conn, article_id, article_type, canonical_url):
 
     cur.execute(
         """
-        SELECT id, article_id, article_type, canonical_url, is_active, created_at
+        SELECT id, article_id, article_type, canonical_url, is_active,
+               created_at, is_redirected, redirect_target_url,
+               redirect_detected_at
         FROM target
         WHERE article_id=? AND article_type=?
         """,
@@ -16256,7 +16728,8 @@ def list_targets(conn, active_only=True):
     cur = conn.cursor()
     query = (
         "SELECT id, article_id, article_type, canonical_url, is_active, "
-        "created_at FROM target"
+        "created_at, is_redirected, redirect_target_url, "
+        "redirect_detected_at FROM target"
     )
     params = ()
     if active_only:
@@ -16273,7 +16746,9 @@ def get_target(conn, article_id, article_type):
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT id, article_id, article_type, canonical_url, is_active, created_at
+        SELECT id, article_id, article_type, canonical_url, is_active,
+               created_at, is_redirected, redirect_target_url,
+               redirect_detected_at
         FROM target
         WHERE article_id=? AND article_type=?
         """,
@@ -16307,16 +16782,91 @@ def set_target_active_state(conn, article_id, article_type, is_active):
         status = "unchanged"
     else:
         cur = conn.cursor()
+        if is_active:
+            cur.execute(
+                """
+                UPDATE target
+                SET is_active=?,
+                    is_redirected=0,
+                    redirect_target_url=NULL,
+                    redirect_detected_at=NULL
+                WHERE article_id=? AND article_type=?
+                """,
+                (desired_state, article_id, article_type),
+            )
+        else:
+            cur.execute(
+                """
+                UPDATE target
+                SET is_active=?
+                WHERE article_id=? AND article_type=?
+                """,
+                (desired_state, article_id, article_type),
+            )
+        conn.commit()
+        status = "activated" if is_active else "deactivated"
+
+    return {
+        "found": True,
+        "status": status,
+        "entry": get_target(conn, article_id, article_type),
+        "target_identity": {
+            "article_id": article_id,
+            "article_type": article_type,
+        },
+    }
+
+
+def mark_target_redirected(
+    conn,
+    article_id,
+    article_type,
+    redirect_target_url,
+    redirect_detected_at=None,
+):
+    """Persist minimal redirect state and deactivate the old scrape target."""
+
+    current_entry = get_target(conn, article_id, article_type)
+    if current_entry is None:
+        return {
+            "found": False,
+            "status": "not_found",
+            "entry": None,
+            "target_identity": {
+                "article_id": article_id,
+                "article_type": article_type,
+            },
+        }
+
+    detected_at = redirect_detected_at or datetime.now(
+        timezone.utc
+    ).isoformat()
+    if (
+        current_entry["is_redirected"]
+        and current_entry["redirect_target_url"] == redirect_target_url
+        and not current_entry["is_active"]
+    ):
+        status = "unchanged"
+    else:
+        cur = conn.cursor()
         cur.execute(
             """
             UPDATE target
-            SET is_active=?
+            SET is_active=0,
+                is_redirected=1,
+                redirect_target_url=?,
+                redirect_detected_at=?
             WHERE article_id=? AND article_type=?
             """,
-            (desired_state, article_id, article_type),
+            (
+                redirect_target_url,
+                detected_at,
+                article_id,
+                article_type,
+            ),
         )
         conn.commit()
-        status = "activated" if is_active else "deactivated"
+        status = "redirected"
 
     return {
         "found": True,
@@ -16333,6 +16883,7 @@ _RUN_KINDS = frozenset({"batch", "periodic_batch"})
 _OUTCOMES = frozenset(
     {
         "ok",
+        "redirect_handoff",
         "skip_denylist",
         "fail_article_not_found",
         "fail_false",
@@ -16380,7 +16931,7 @@ def append_scrape_run_observation(
         raise ValueError(f"invalid scrape_outcome: {scrape_outcome!r}")
 
     skipped = 1 if scrape_outcome == "skip_denylist" else 0
-    scrape_ok = 1 if scrape_outcome == "ok" else 0
+    scrape_ok = 1 if scrape_outcome in {"ok", "redirect_handoff"} else 0
     saved_n, max_res = read_saved_response_observation_stats(
         conn,
         article_id,
@@ -16544,7 +17095,8 @@ FILE: ./copilot/target_list.py
 from pathlib import Path
 from urllib.parse import urlparse
 
-from storage import get_target, init_db, list_targets, register_target
+from storage import get_target, init_db, list_targets, mark_target_redirected
+from storage import register_target
 from storage import set_target_active_state
 
 
@@ -16678,6 +17230,81 @@ def reactivate_target(
         return set_target_active_state(conn, article_id, article_type, True)
     finally:
         conn.close()
+
+
+def handoff_redirected_target(
+    article_id: str,
+    article_type: str,
+    redirect_target_url: str,
+    target_db_path: str,
+) -> dict:
+    """Deactivate a redirected source target and register the redirect target."""
+
+    redirect_identity = parse_target_identity(redirect_target_url)
+    if redirect_identity is None:
+        return {
+            "found": False,
+            "status": "invalid_redirect_target",
+            "entry": None,
+            "register_status": "invalid_redirect_target",
+            "redirect_target": None,
+            "target_identity": {
+                "article_id": article_id,
+                "article_type": article_type,
+            },
+        }
+
+    source_identity = {
+        "article_id": article_id,
+        "article_type": article_type,
+    }
+    conn = init_db(target_db_path)
+    try:
+        redirect_result = mark_target_redirected(
+            conn,
+            article_id,
+            article_type,
+            redirect_identity["canonical_url"],
+        )
+        if not redirect_result["found"]:
+            return {
+                "found": False,
+                "status": redirect_result["status"],
+                "entry": None,
+                "register_status": "skipped",
+                "redirect_target": redirect_identity,
+                "target_identity": source_identity,
+            }
+
+        register_status = "self_redirect"
+        register_entry = None
+        if (
+            article_id,
+            article_type,
+        ) != (
+            redirect_identity["article_id"],
+            redirect_identity["article_type"],
+        ):
+            register_result = register_target(
+                conn,
+                redirect_identity["article_id"],
+                redirect_identity["article_type"],
+                redirect_identity["canonical_url"],
+            )
+            register_status = register_result["status"]
+            register_entry = register_result["entry"]
+    finally:
+        conn.close()
+
+    return {
+        "found": True,
+        "status": "redirected",
+        "entry": redirect_result["entry"],
+        "register_status": register_status,
+        "register_entry": register_entry,
+        "redirect_target": redirect_identity,
+        "target_identity": source_identity,
+    }
 
 
 def import_targets_from_text_file(
@@ -18381,6 +19008,88 @@ def test_main_batch_failure_sets_nonzero_exit_and_continues(
     assert "  final_status=partial_failure" in text
 
 
+@patch("main.handoff_redirected_target")
+@patch("main.list_active_target_urls", return_value=[
+    "https://dic.nicovideo.jp/a/1",
+    "https://dic.nicovideo.jp/a/2",
+])
+@patch(
+    "main.run_scrape",
+    side_effect=[
+        ScrapeResult(
+            True,
+            "redirect_handoff",
+            article_title="Old Title",
+            failure_page="https://dic.nicovideo.jp/a/1",
+            failure_cause="redirect_detected",
+            short_reason="redirect_handoff",
+            redirect_target_url="https://dic.nicovideo.jp/a/9",
+        ),
+        ScrapeResult(
+            True,
+            "ok",
+            article_title="Second Title",
+            collected_response_count=7,
+            observed_max_res_no=7,
+        ),
+    ],
+)
+def test_main_batch_redirect_handoff_is_success_class_and_logged(
+    mock_run_scrape,
+    mock_load_targets,
+    mock_handoff_redirected_target,
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
+    mock_handoff_redirected_target.return_value = {
+        "found": True,
+        "status": "redirected",
+        "entry": {
+            "article_id": "1",
+            "article_type": "a",
+            "canonical_url": "https://dic.nicovideo.jp/a/1",
+            "is_active": False,
+            "is_redirected": True,
+            "redirect_target_url": "https://dic.nicovideo.jp/a/9",
+            "redirect_detected_at": "2026-04-14T00:00:00+00:00",
+        },
+        "register_status": "added",
+        "redirect_target": {
+            "article_id": "9",
+            "article_type": "a",
+            "canonical_url": "https://dic.nicovideo.jp/a/9",
+        },
+    }
+
+    with patch("sys.argv", ["main.py", "batch", "targets.db"]):
+        main_module.main()
+
+    out = capsys.readouterr().out
+    assert "[OK] https://dic.nicovideo.jp/a/1" in out
+    assert "redirected -> https://dic.nicovideo.jp/a/9; added" in out
+    assert "[OK] https://dic.nicovideo.jp/a/2" in out
+    mock_handoff_redirected_target.assert_called_once_with(
+        "1",
+        "a",
+        "https://dic.nicovideo.jp/a/9",
+        "targets.db",
+    )
+
+    logs = list(Path(tmp_path).glob("batch_*.log"))
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    assert "  REDIRECT_DETAIL" in text
+    assert "    source_target_url=https://dic.nicovideo.jp/a/1" in text
+    assert "    redirect_target_url=https://dic.nicovideo.jp/a/9" in text
+    assert "    source_status=redirected" in text
+    assert "    register_status=added" in text
+    assert "  success_targets=2" in text
+    assert "  failed_targets=0" in text
+    assert "  final_status=success" in text
+
+
 @patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
     "https://dic.nicovideo.jp/a/2",
@@ -18715,11 +19424,14 @@ from bs4 import BeautifulSoup
 from orchestrator import (
     ArticleNotFoundError,
     QUEUE_DRAIN_PER_ARTICLE_RESPONSE_CAP,
+    RedirectArticleError,
     build_bbs_base_url,
     fetch_article_metadata,
     collect_all_responses,
     drain_queue_requests,
+    extract_redirect_target_url,
     get_max_saved_res_no,
+    is_redirect_article_page,
     load_saved_responses,
     run_scrape,
 )
@@ -18780,6 +19492,67 @@ def test_fetch_article_metadata_wraps_404_as_article_not_found():
             match=r"Article not found: https://dic.nicovideo.jp/a/999",
         ):
             fetch_article_metadata("https://dic.nicovideo.jp/a/999")
+
+
+def test_extract_redirect_target_url_from_meta_refresh_page():
+    soup = BeautifulSoup(
+        """
+        <html><head>
+        <meta http-equiv="refresh"
+              content="0; url=https://dic.nicovideo.jp/a/redirected">
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    assert extract_redirect_target_url(
+        "https://dic.nicovideo.jp/a/original",
+        soup,
+    ) == "https://dic.nicovideo.jp/a/redirected"
+    assert is_redirect_article_page(
+        "https://dic.nicovideo.jp/a/original",
+        soup,
+    ) is True
+
+
+def test_extract_redirect_target_url_from_location_replace_script():
+    soup = BeautifulSoup(
+        """
+        <html><head>
+        <script>
+        location.replace('/a/redirected-script');
+        </script>
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    assert extract_redirect_target_url(
+        "https://dic.nicovideo.jp/a/original",
+        soup,
+    ) == "https://dic.nicovideo.jp/a/redirected-script"
+
+
+def test_fetch_article_metadata_raises_redirect_article_error():
+    soup = BeautifulSoup(
+        """
+        <html><head>
+        <title>旧記事とは - ニコニコ大百科</title>
+        <meta http-equiv="refresh"
+              content="0; url=https://dic.nicovideo.jp/a/new-article">
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    with patch("orchestrator.fetch_page", return_value=soup):
+        with pytest.raises(RedirectArticleError) as exc_info:
+            fetch_article_metadata("https://dic.nicovideo.jp/a/old-article")
+
+    assert exc_info.value.redirect_target_url == (
+        "https://dic.nicovideo.jp/a/new-article"
+    )
+    assert exc_info.value.article_title == "旧記事"
 
 
 # ----- collect_all_responses: pagination and stopping -----
@@ -19061,6 +19834,38 @@ def test_run_scrape_article_not_found_skips_save_path():
     mock_print.assert_any_call(f"Article not found: {article_url}")
     assert not ok
     assert ok.outcome == "fail_article_not_found"
+
+
+def test_run_scrape_redirect_article_handoffs_without_archive_migration():
+    article_url = "https://dic.nicovideo.jp/a/old-article"
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        side_effect=RedirectArticleError(
+            article_url,
+            "https://dic.nicovideo.jp/a/new-article",
+            "旧記事",
+        ),
+    ) as mock_meta:
+        with patch("orchestrator.collect_all_responses") as mock_collect:
+            with patch("orchestrator.save_json") as mock_save_json:
+                with patch("orchestrator.init_db") as mock_init:
+                    with patch("orchestrator.save_to_db") as mock_save_db:
+                        with patch("orchestrator.print") as mock_print:
+                            ok = run_scrape(article_url)
+
+    mock_meta.assert_called_once_with(article_url)
+    mock_collect.assert_not_called()
+    mock_save_json.assert_not_called()
+    mock_init.assert_not_called()
+    mock_save_db.assert_not_called()
+    mock_print.assert_any_call(
+        "Redirect detected: https://dic.nicovideo.jp/a/old-article -> "
+        "https://dic.nicovideo.jp/a/new-article"
+    )
+    assert ok
+    assert ok.outcome == "redirect_handoff"
+    assert ok.redirect_target_url == "https://dic.nicovideo.jp/a/new-article"
 
 
 def test_run_scrape_saves_empty_result_for_zero_response_case():
@@ -19855,6 +20660,7 @@ from storage import (
     init_db,
     list_queue_requests,
     list_targets,
+    mark_target_redirected,
     register_target,
     save_json,
     save_to_db,
@@ -20223,16 +21029,13 @@ def test_register_target_reactivates_inactive_target(tmp_path, monkeypatch):
         )
 
         assert result["status"] == "reactivated"
-        assert list_targets(conn) == [
-            {
-                "id": 1,
-                "article_id": "12345",
-                "article_type": "a",
-                "canonical_url": "https://dic.nicovideo.jp/a/12345",
-                "is_active": True,
-                "created_at": result["entry"]["created_at"],
-            }
-        ]
+        targets = list_targets(conn)
+        assert len(targets) == 1
+        assert targets[0]["article_id"] == "12345"
+        assert targets[0]["article_type"] == "a"
+        assert targets[0]["canonical_url"] == "https://dic.nicovideo.jp/a/12345"
+        assert targets[0]["is_active"] is True
+        assert targets[0]["is_redirected"] is False
     finally:
         conn.close()
 
@@ -20288,6 +21091,45 @@ def test_get_target_returns_single_registry_entry(tmp_path, monkeypatch):
         assert entry["article_type"] == "a"
         assert entry["canonical_url"] == "https://dic.nicovideo.jp/a/12345"
         assert entry["is_active"] is True
+        assert entry["is_redirected"] is False
+        assert entry["redirect_target_url"] is None
+        assert entry["redirect_detected_at"] is None
+    finally:
+        conn.close()
+
+
+def test_mark_target_redirected_persists_redirect_state_and_deactivates(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        register_target(
+            conn,
+            "12345",
+            "a",
+            "https://dic.nicovideo.jp/a/12345",
+        )
+
+        result = mark_target_redirected(
+            conn,
+            "12345",
+            "a",
+            "https://dic.nicovideo.jp/a/67890",
+            "2026-04-14T00:00:00+00:00",
+        )
+
+        assert result["found"] is True
+        assert result["status"] == "redirected"
+        assert result["entry"]["is_active"] is False
+        assert result["entry"]["is_redirected"] is True
+        assert result["entry"]["redirect_target_url"] == (
+            "https://dic.nicovideo.jp/a/67890"
+        )
+        assert result["entry"]["redirect_detected_at"] == (
+            "2026-04-14T00:00:00+00:00"
+        )
     finally:
         conn.close()
 
@@ -20390,6 +21232,7 @@ FILE: ./copilot/tests/test_target_list.py
 =============================
 from target_list import (
     deactivate_target,
+    handoff_redirected_target,
     import_targets_from_text_file,
     inspect_registered_target,
     list_registered_targets,
@@ -20530,6 +21373,48 @@ def test_deactivate_and_reactivate_target_return_operator_facing_result(tmp_path
     assert deactivated["entry"]["is_active"] is False
     assert reactivated["status"] == "activated"
     assert reactivated["entry"]["is_active"] is True
+
+
+def test_handoff_redirected_target_deactivates_old_and_registers_new(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+
+    result = handoff_redirected_target(
+        "12345",
+        "a",
+        "https://dic.nicovideo.jp/a/67890",
+        str(target_db_path),
+    )
+
+    assert result["status"] == "redirected"
+    assert result["entry"]["is_active"] is False
+    assert result["entry"]["is_redirected"] is True
+    assert result["entry"]["redirect_target_url"] == (
+        "https://dic.nicovideo.jp/a/67890"
+    )
+    assert result["register_status"] == "added"
+    assert list_active_target_urls(str(target_db_path)) == [
+        "https://dic.nicovideo.jp/a/67890",
+    ]
+
+
+def test_handoff_redirected_target_suppresses_duplicate_new_target(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+    register_target_url("https://dic.nicovideo.jp/a/67890", str(target_db_path))
+
+    result = handoff_redirected_target(
+        "12345",
+        "a",
+        "https://dic.nicovideo.jp/a/67890",
+        str(target_db_path),
+    )
+
+    assert result["status"] == "redirected"
+    assert result["register_status"] == "duplicate"
+    assert list_active_target_urls(str(target_db_path)) == [
+        "https://dic.nicovideo.jp/a/67890",
+    ]
 
 =============================
 FILE: ./copilot/tests/test_verification_cli.py
@@ -25522,6 +26407,7 @@ from storage import (
     init_db,
 )
 from target_list import (
+    handoff_redirected_target,
     import_targets_from_text_file,
     list_active_target_urls,
     parse_target_identity,
@@ -25670,6 +26556,28 @@ def _append_batch_failure_detail(
                 f"{_batch_log_value(observed_max_res_no)}"
             ),
             f"    short_reason={short_reason}",
+        ],
+    )
+
+
+def _append_batch_redirect_detail(
+    log_path: Path,
+    index: int,
+    total: int,
+    target_url: str,
+    redirect_target_url: str,
+    source_status: str,
+    register_status: str,
+) -> None:
+    _append_batch_log_lines(
+        log_path,
+        [
+            "  REDIRECT_DETAIL",
+            f"    progress={index}/{total}",
+            f"    source_target_url={target_url}",
+            f"    redirect_target_url={redirect_target_url}",
+            f"    source_status={source_status}",
+            f"    register_status={register_status}",
         ],
     )
 
@@ -25833,6 +26741,118 @@ def run_batch_scrape(
             continue
 
         ok = bool(scrape_result)
+        redirect_target_url = getattr(
+            scrape_result,
+            "redirect_target_url",
+            None,
+        )
+        if redirect_target_url is not None:
+            handoff_result = handoff_redirected_target(
+                identity["article_id"],
+                identity["article_type"],
+                redirect_target_url,
+                target_db_path,
+            )
+            redirect_status = handoff_result["status"]
+            register_status = handoff_result.get("register_status", "unknown")
+
+            if redirect_status != "redirected":
+                failed_targets += 1
+                scrape_outcome = "fail_exception"
+                if progress_reporter is None:
+                    print(
+                        f"[FAIL] {target} "
+                        f"(redirect handoff failed: {redirect_status})"
+                    )
+                else:
+                    progress_reporter.finish_target(
+                        "fail",
+                        identity["article_id"],
+                        0,
+                        identity["article_id"],
+                        reason=(
+                            "reason=redirect_handoff_failed "
+                            f"status={redirect_status}"
+                        ),
+                    )
+                _append_batch_progress(
+                    log_path,
+                    idx,
+                    len(targets),
+                    "FAIL",
+                    target,
+                    getattr(scrape_result, "article_title", "unknown"),
+                    0,
+                    None,
+                )
+                _append_batch_failure_detail(
+                    log_path,
+                    idx,
+                    len(targets),
+                    target,
+                    getattr(scrape_result, "article_title", "unknown"),
+                    target,
+                    "redirect_handoff_failed",
+                    0,
+                    None,
+                    redirect_status,
+                )
+                _record_scrape_run_observation(
+                    archive_db_path,
+                    run_id,
+                    started_at,
+                    run_kind,
+                    identity,
+                    scrape_outcome,
+                )
+                continue
+
+            if progress_reporter is None:
+                print(
+                    f"[OK] {target} "
+                    f"(redirected -> {redirect_target_url}; {register_status})"
+                )
+            else:
+                progress_reporter.finish_target(
+                    "success",
+                    getattr(scrape_result, "article_title", identity["article_id"]),
+                    0,
+                    identity["article_id"],
+                    reason=(
+                        "reason=redirect_detected "
+                        f"redirect_target={redirect_target_url} "
+                        f"handoff_status={register_status}"
+                    ),
+                )
+            _append_batch_progress(
+                log_path,
+                idx,
+                len(targets),
+                "SUCCESS",
+                target,
+                getattr(scrape_result, "article_title", "unknown"),
+                0,
+                None,
+            )
+            _append_batch_redirect_detail(
+                log_path,
+                idx,
+                len(targets),
+                target,
+                redirect_target_url,
+                redirect_status,
+                register_status,
+            )
+            _record_scrape_run_observation(
+                archive_db_path,
+                run_id,
+                started_at,
+                run_kind,
+                identity,
+                scrape_outcome,
+            )
+            continue
+
         if not ok:
             failed_targets += 1
             if progress_reporter is None:
@@ -26873,7 +27893,9 @@ def export_archive_for_operator(
 =============================
 FILE: ./cursor/orchestrator.py
 =============================
+import re
 import time
+from urllib.parse import urljoin
 from urllib.parse import urlparse
 
 from http_client import fetch_page
@@ -26885,6 +27907,7 @@ from storage import (
     save_json,
     save_to_db,
 )
+from target_list import parse_target_identity
 
 # 取得レス数の上限。未知の high-volume 記事に対する bounded protection。
 RESPONSE_CAP = 1_000_000
@@ -26909,6 +27932,7 @@ class ScrapeResult:
         "failure_page",
         "failure_cause",
         "short_reason",
+        "redirect_target_url",
     )
 
     def __init__(
@@ -26922,6 +27946,7 @@ class ScrapeResult:
         failure_page: str | None = None,
         failure_cause: str | None = None,
         short_reason: str | None = None,
+        redirect_target_url: str | None = None,
     ) -> None:
         self.ok = ok
         self.outcome = outcome
@@ -26932,6 +27957,7 @@ class ScrapeResult:
         self.failure_page = failure_page
         self.failure_cause = failure_cause
         self.short_reason = short_reason
+        self.redirect_target_url = redirect_target_url
 
     def __bool__(self) -> bool:
         return self.ok
@@ -26944,6 +27970,114 @@ def get_containing_page_start(res_no: int) -> int:
 
 class ArticleNotFoundError(RuntimeError):
     """記事ページが見つからない場合の orchestration 用例外。"""
+
+
+class RedirectArticleError(RuntimeError):
+    """記事ページが redirect article だった場合の orchestration 用例外。"""
+
+    def __init__(
+        self,
+        article_url: str,
+        redirect_target_url: str,
+        article_title: str = "unknown",
+    ) -> None:
+        self.article_url = article_url
+        self.redirect_target_url = redirect_target_url
+        self.article_title = article_title
+        super().__init__(
+            f"Redirect detected: {article_url} -> {redirect_target_url}"
+        )
+
+
+_LOCATION_REPLACE_RE = re.compile(
+    r"location\.replace\(\s*(['\"])(.*?)\1\s*\)",
+    re.IGNORECASE,
+)
+
+
+def _extract_page_title(soup) -> str:
+    meta_title = soup.find("meta", property="og:title")
+    if meta_title is not None:
+        title = meta_title.get("content", "").strip()
+        if title:
+            return title.split("とは")[0]
+
+    title_tag = soup.find("title")
+    if title_tag is None:
+        return "unknown"
+
+    title = title_tag.get_text(" ", strip=True)
+    if not title:
+        return "unknown"
+
+    return title.split("とは")[0]
+
+
+def _normalize_redirect_target_url(
+    article_url: str,
+    candidate_url: str,
+) -> str | None:
+    raw_target = candidate_url.strip().strip('"\'')
+    if not raw_target:
+        return None
+
+    resolved_target = urljoin(article_url, raw_target)
+    target_identity = parse_target_identity(resolved_target)
+    if target_identity is None:
+        return None
+    return target_identity["canonical_url"]
+
+
+def _extract_meta_refresh_target(article_url: str, soup) -> str | None:
+    for meta_tag in soup.find_all("meta"):
+        http_equiv = meta_tag.get("http-equiv", "").strip().lower()
+        if http_equiv != "refresh":
+            continue
+
+        content = meta_tag.get("content", "")
+        match = re.search(r"url\s*=\s*([^;]+)", content, re.IGNORECASE)
+        if match is None:
+            continue
+
+        redirect_target = _normalize_redirect_target_url(
+            article_url,
+            match.group(1),
+        )
+        if redirect_target is not None:
+            return redirect_target
+
+    return None
+
+
+def _extract_location_replace_target(article_url: str, soup) -> str | None:
+    for script_tag in soup.find_all("script"):
+        script_text = script_tag.get_text(" ", strip=True)
+        if not script_text:
+            continue
+
+        match = _LOCATION_REPLACE_RE.search(script_text)
+        if match is None:
+            continue
+
+        redirect_target = _normalize_redirect_target_url(
+            article_url,
+            match.group(2),
+        )
+        if redirect_target is not None:
+            return redirect_target
+
+    return None
+
+
+def extract_redirect_target_url(article_url: str, soup) -> str | None:
+    redirect_target = _extract_meta_refresh_target(article_url, soup)
+    if redirect_target is not None:
+        return redirect_target
+    return _extract_location_replace_target(article_url, soup)
+
+
+def is_redirect_article_page(article_url: str, soup) -> bool:
+    return extract_redirect_target_url(article_url, soup) is not None
 
 
 def get_max_saved_res_no(article_id: str, article_type: str) -> int | None:
@@ -27164,6 +28298,14 @@ def fetch_article_metadata(article_url: str):
             raise ArticleNotFoundError(f"Article not found: {article_url}") from exc
         raise
 
+    redirect_target_url = extract_redirect_target_url(article_url, soup)
+    if redirect_target_url is not None:
+        raise RedirectArticleError(
+            article_url,
+            redirect_target_url,
+            _extract_page_title(soup),
+        )
+
     title_tag = soup.find("meta", property="og:title")
     title = title_tag["content"].split("とは")[0] if title_tag else "unknown"
 
@@ -27188,6 +28330,25 @@ def run_scrape(
 ) -> ScrapeResult:
     try:
         article_id, article_type, title = fetch_article_metadata(article_url)
+
+    except RedirectArticleError as exc:
+        if progress_reporter is None:
+            print(
+                f"Redirect detected: {article_url} -> "
+                f"{exc.redirect_target_url}"
+            )
+        return ScrapeResult(
+            True,
+            "redirect_handoff",
+            "success",
+            article_title=exc.article_title,
+            collected_response_count=0,
+            observed_max_res_no=None,
+            failure_page=article_url,
+            failure_cause="redirect_detected",
+            short_reason="redirect_handoff",
+            redirect_target_url=exc.redirect_target_url,
+        )
 
     except ArticleNotFoundError:
         if progress_reporter is None:
@@ -27618,6 +28779,7 @@ FILE: ./cursor/runtime/targets/.gitkeep
 FILE: ./cursor/storage.py
 =============================
 import csv
+from datetime import datetime, timezone
 import json
 import os
 import sqlite3
@@ -27637,7 +28799,43 @@ def _target_row_to_entry(row):
         "canonical_url": row[3],
         "is_active": bool(row[4]),
         "created_at": row[5],
+        "is_redirected": bool(row[6]),
+        "redirect_target_url": row[7],
+        "redirect_detected_at": row[8],
     }
+
+
+def _list_column_names(conn: sqlite3.Connection, table_name: str) -> set[str]:
+    cur = conn.cursor()
+    cur.execute(f"PRAGMA table_info({table_name})")
+    return {row[1] for row in cur.fetchall()}
+
+
+def _ensure_target_redirect_columns(conn: sqlite3.Connection) -> None:
+    column_names = _list_column_names(conn, "target")
+    required_columns = {
+        "is_redirected": (
+            "ALTER TABLE target ADD COLUMN is_redirected "
+            "INTEGER NOT NULL DEFAULT 0 CHECK (is_redirected IN (0, 1))"
+        ),
+        "redirect_target_url": (
+            "ALTER TABLE target ADD COLUMN redirect_target_url TEXT"
+        ),
+        "redirect_detected_at": (
+            "ALTER TABLE target ADD COLUMN redirect_detected_at TEXT"
+        ),
+    }
+
+    cur = conn.cursor()
+    changed = False
+    for column_name, statement in required_columns.items():
+        if column_name in column_names:
+            continue
+        cur.execute(statement)
+        changed = True
+
+    if changed:
+        conn.commit()
 
 
 def init_db(db_path: str = DEFAULT_DB_PATH):
@@ -27703,10 +28901,15 @@ def init_db(db_path: str = DEFAULT_DB_PATH):
         article_type TEXT NOT NULL,
         canonical_url TEXT NOT NULL,
         is_active INTEGER NOT NULL DEFAULT 1 CHECK (is_active IN (0, 1)),
+        is_redirected INTEGER NOT NULL DEFAULT 0 CHECK (is_redirected IN (0, 1)),
+        redirect_target_url TEXT,
+        redirect_detected_at TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         UNIQUE(article_id, article_type)
     )
     """)
+
+    _ensure_target_redirect_columns(conn)
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS scrape_run_observation (
@@ -27908,7 +29111,9 @@ def register_target(conn, article_id, article_type, canonical_url):
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT id, article_id, article_type, canonical_url, is_active, created_at
+        SELECT id, article_id, article_type, canonical_url, is_active,
+               created_at, is_redirected, redirect_target_url,
+               redirect_detected_at
         FROM target
         WHERE article_id=? AND article_type=?
         """,
@@ -27935,7 +29140,11 @@ def register_target(conn, article_id, article_type, canonical_url):
         cur.execute(
             """
             UPDATE target
-            SET canonical_url=?, is_active=1
+            SET canonical_url=?,
+                is_active=1,
+                is_redirected=0,
+                redirect_target_url=NULL,
+                redirect_detected_at=NULL
             WHERE article_id=? AND article_type=?
             """,
             (canonical_url, article_id, article_type),
@@ -27945,7 +29154,9 @@ def register_target(conn, article_id, article_type, canonical_url):
 
     cur.execute(
         """
-        SELECT id, article_id, article_type, canonical_url, is_active, created_at
+        SELECT id, article_id, article_type, canonical_url, is_active,
+               created_at, is_redirected, redirect_target_url,
+               redirect_detected_at
         FROM target
         WHERE article_id=? AND article_type=?
         """,
@@ -27969,7 +29180,8 @@ def list_targets(conn, active_only=True):
     cur = conn.cursor()
     query = (
         "SELECT id, article_id, article_type, canonical_url, is_active, "
-        "created_at FROM target"
+        "created_at, is_redirected, redirect_target_url, "
+        "redirect_detected_at FROM target"
     )
     params = ()
     if active_only:
@@ -27986,7 +29198,9 @@ def get_target(conn, article_id, article_type):
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT id, article_id, article_type, canonical_url, is_active, created_at
+        SELECT id, article_id, article_type, canonical_url, is_active,
+               created_at, is_redirected, redirect_target_url,
+               redirect_detected_at
         FROM target
         WHERE article_id=? AND article_type=?
         """,
@@ -28020,16 +29234,91 @@ def set_target_active_state(conn, article_id, article_type, is_active):
         status = "unchanged"
     else:
         cur = conn.cursor()
+        if is_active:
+            cur.execute(
+                """
+                UPDATE target
+                SET is_active=?,
+                    is_redirected=0,
+                    redirect_target_url=NULL,
+                    redirect_detected_at=NULL
+                WHERE article_id=? AND article_type=?
+                """,
+                (desired_state, article_id, article_type),
+            )
+        else:
+            cur.execute(
+                """
+                UPDATE target
+                SET is_active=?
+                WHERE article_id=? AND article_type=?
+                """,
+                (desired_state, article_id, article_type),
+            )
+        conn.commit()
+        status = "activated" if is_active else "deactivated"
+
+    return {
+        "found": True,
+        "status": status,
+        "entry": get_target(conn, article_id, article_type),
+        "target_identity": {
+            "article_id": article_id,
+            "article_type": article_type,
+        },
+    }
+
+
+def mark_target_redirected(
+    conn,
+    article_id,
+    article_type,
+    redirect_target_url,
+    redirect_detected_at=None,
+):
+    """Persist minimal redirect state and deactivate the old scrape target."""
+
+    current_entry = get_target(conn, article_id, article_type)
+    if current_entry is None:
+        return {
+            "found": False,
+            "status": "not_found",
+            "entry": None,
+            "target_identity": {
+                "article_id": article_id,
+                "article_type": article_type,
+            },
+        }
+
+    detected_at = redirect_detected_at or datetime.now(
+        timezone.utc
+    ).isoformat()
+    if (
+        current_entry["is_redirected"]
+        and current_entry["redirect_target_url"] == redirect_target_url
+        and not current_entry["is_active"]
+    ):
+        status = "unchanged"
+    else:
+        cur = conn.cursor()
         cur.execute(
             """
             UPDATE target
-            SET is_active=?
+            SET is_active=0,
+                is_redirected=1,
+                redirect_target_url=?,
+                redirect_detected_at=?
             WHERE article_id=? AND article_type=?
             """,
-            (desired_state, article_id, article_type),
+            (
+                redirect_target_url,
+                detected_at,
+                article_id,
+                article_type,
+            ),
         )
         conn.commit()
-        status = "activated" if is_active else "deactivated"
+        status = "redirected"
 
     return {
         "found": True,
@@ -28046,6 +29335,7 @@ _RUN_KINDS = frozenset({"batch", "periodic_batch"})
 _OUTCOMES = frozenset(
     {
         "ok",
+        "redirect_handoff",
         "skip_denylist",
         "fail_article_not_found",
         "fail_false",
@@ -28093,7 +29383,7 @@ def append_scrape_run_observation(
         raise ValueError(f"invalid scrape_outcome: {scrape_outcome!r}")
 
     skipped = 1 if scrape_outcome == "skip_denylist" else 0
-    scrape_ok = 1 if scrape_outcome == "ok" else 0
+    scrape_ok = 1 if scrape_outcome in {"ok", "redirect_handoff"} else 0
     saved_n, max_res = read_saved_response_observation_stats(
         conn,
         article_id,
@@ -28257,7 +29547,8 @@ FILE: ./cursor/target_list.py
 from pathlib import Path
 from urllib.parse import urlparse
 
-from storage import get_target, init_db, list_targets, register_target
+from storage import get_target, init_db, list_targets, mark_target_redirected
+from storage import register_target
 from storage import set_target_active_state
 
 
@@ -28391,6 +29682,81 @@ def reactivate_target(
         return set_target_active_state(conn, article_id, article_type, True)
     finally:
         conn.close()
+
+
+def handoff_redirected_target(
+    article_id: str,
+    article_type: str,
+    redirect_target_url: str,
+    target_db_path: str,
+) -> dict:
+    """Deactivate a redirected source target and register the redirect target."""
+
+    redirect_identity = parse_target_identity(redirect_target_url)
+    if redirect_identity is None:
+        return {
+            "found": False,
+            "status": "invalid_redirect_target",
+            "entry": None,
+            "register_status": "invalid_redirect_target",
+            "redirect_target": None,
+            "target_identity": {
+                "article_id": article_id,
+                "article_type": article_type,
+            },
+        }
+
+    source_identity = {
+        "article_id": article_id,
+        "article_type": article_type,
+    }
+    conn = init_db(target_db_path)
+    try:
+        redirect_result = mark_target_redirected(
+            conn,
+            article_id,
+            article_type,
+            redirect_identity["canonical_url"],
+        )
+        if not redirect_result["found"]:
+            return {
+                "found": False,
+                "status": redirect_result["status"],
+                "entry": None,
+                "register_status": "skipped",
+                "redirect_target": redirect_identity,
+                "target_identity": source_identity,
+            }
+
+        register_status = "self_redirect"
+        register_entry = None
+        if (
+            article_id,
+            article_type,
+        ) != (
+            redirect_identity["article_id"],
+            redirect_identity["article_type"],
+        ):
+            register_result = register_target(
+                conn,
+                redirect_identity["article_id"],
+                redirect_identity["article_type"],
+                redirect_identity["canonical_url"],
+            )
+            register_status = register_result["status"]
+            register_entry = register_result["entry"]
+    finally:
+        conn.close()
+
+    return {
+        "found": True,
+        "status": "redirected",
+        "entry": redirect_result["entry"],
+        "register_status": register_status,
+        "register_entry": register_entry,
+        "redirect_target": redirect_identity,
+        "target_identity": source_identity,
+    }
 
 
 def import_targets_from_text_file(
@@ -30026,6 +31392,88 @@ def test_main_batch_failure_sets_nonzero_exit_and_continues(
     assert "  final_status=partial_failure" in text
 
 
+@patch("main.handoff_redirected_target")
+@patch("main.list_active_target_urls", return_value=[
+    "https://dic.nicovideo.jp/a/1",
+    "https://dic.nicovideo.jp/a/2",
+])
+@patch(
+    "main.run_scrape",
+    side_effect=[
+        ScrapeResult(
+            True,
+            "redirect_handoff",
+            article_title="Old Title",
+            failure_page="https://dic.nicovideo.jp/a/1",
+            failure_cause="redirect_detected",
+            short_reason="redirect_handoff",
+            redirect_target_url="https://dic.nicovideo.jp/a/9",
+        ),
+        ScrapeResult(
+            True,
+            "ok",
+            article_title="Second Title",
+            collected_response_count=7,
+            observed_max_res_no=7,
+        ),
+    ],
+)
+def test_main_batch_redirect_handoff_is_success_class_and_logged(
+    mock_run_scrape,
+    mock_load_targets,
+    mock_handoff_redirected_target,
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
+    mock_handoff_redirected_target.return_value = {
+        "found": True,
+        "status": "redirected",
+        "entry": {
+            "article_id": "1",
+            "article_type": "a",
+            "canonical_url": "https://dic.nicovideo.jp/a/1",
+            "is_active": False,
+            "is_redirected": True,
+            "redirect_target_url": "https://dic.nicovideo.jp/a/9",
+            "redirect_detected_at": "2026-04-14T00:00:00+00:00",
+        },
+        "register_status": "added",
+        "redirect_target": {
+            "article_id": "9",
+            "article_type": "a",
+            "canonical_url": "https://dic.nicovideo.jp/a/9",
+        },
+    }
+
+    with patch("sys.argv", ["main.py", "batch", "targets.db"]):
+        main_module.main()
+
+    out = capsys.readouterr().out
+    assert "[OK] https://dic.nicovideo.jp/a/1" in out
+    assert "redirected -> https://dic.nicovideo.jp/a/9; added" in out
+    assert "[OK] https://dic.nicovideo.jp/a/2" in out
+    mock_handoff_redirected_target.assert_called_once_with(
+        "1",
+        "a",
+        "https://dic.nicovideo.jp/a/9",
+        "targets.db",
+    )
+
+    logs = list(Path(tmp_path).glob("batch_*.log"))
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    assert "  REDIRECT_DETAIL" in text
+    assert "    source_target_url=https://dic.nicovideo.jp/a/1" in text
+    assert "    redirect_target_url=https://dic.nicovideo.jp/a/9" in text
+    assert "    source_status=redirected" in text
+    assert "    register_status=added" in text
+    assert "  success_targets=2" in text
+    assert "  failed_targets=0" in text
+    assert "  final_status=success" in text
+
+
 @patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
     "https://dic.nicovideo.jp/a/2",
@@ -30360,11 +31808,14 @@ from bs4 import BeautifulSoup
 from orchestrator import (
     ArticleNotFoundError,
     QUEUE_DRAIN_PER_ARTICLE_RESPONSE_CAP,
+    RedirectArticleError,
     build_bbs_base_url,
     fetch_article_metadata,
     collect_all_responses,
     drain_queue_requests,
+    extract_redirect_target_url,
     get_max_saved_res_no,
+    is_redirect_article_page,
     load_saved_responses,
     run_scrape,
 )
@@ -30425,6 +31876,67 @@ def test_fetch_article_metadata_wraps_404_as_article_not_found():
             match=r"Article not found: https://dic.nicovideo.jp/a/999",
         ):
             fetch_article_metadata("https://dic.nicovideo.jp/a/999")
+
+
+def test_extract_redirect_target_url_from_meta_refresh_page():
+    soup = BeautifulSoup(
+        """
+        <html><head>
+        <meta http-equiv="refresh"
+              content="0; url=https://dic.nicovideo.jp/a/redirected">
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    assert extract_redirect_target_url(
+        "https://dic.nicovideo.jp/a/original",
+        soup,
+    ) == "https://dic.nicovideo.jp/a/redirected"
+    assert is_redirect_article_page(
+        "https://dic.nicovideo.jp/a/original",
+        soup,
+    ) is True
+
+
+def test_extract_redirect_target_url_from_location_replace_script():
+    soup = BeautifulSoup(
+        """
+        <html><head>
+        <script>
+        location.replace('/a/redirected-script');
+        </script>
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    assert extract_redirect_target_url(
+        "https://dic.nicovideo.jp/a/original",
+        soup,
+    ) == "https://dic.nicovideo.jp/a/redirected-script"
+
+
+def test_fetch_article_metadata_raises_redirect_article_error():
+    soup = BeautifulSoup(
+        """
+        <html><head>
+        <title>旧記事とは - ニコニコ大百科</title>
+        <meta http-equiv="refresh"
+              content="0; url=https://dic.nicovideo.jp/a/new-article">
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    with patch("orchestrator.fetch_page", return_value=soup):
+        with pytest.raises(RedirectArticleError) as exc_info:
+            fetch_article_metadata("https://dic.nicovideo.jp/a/old-article")
+
+    assert exc_info.value.redirect_target_url == (
+        "https://dic.nicovideo.jp/a/new-article"
+    )
+    assert exc_info.value.article_title == "旧記事"
 
 
 # ----- collect_all_responses: pagination and stopping -----
@@ -30706,6 +32218,38 @@ def test_run_scrape_article_not_found_skips_save_path():
     mock_print.assert_any_call(f"Article not found: {article_url}")
     assert not ok
     assert ok.outcome == "fail_article_not_found"
+
+
+def test_run_scrape_redirect_article_handoffs_without_archive_migration():
+    article_url = "https://dic.nicovideo.jp/a/old-article"
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        side_effect=RedirectArticleError(
+            article_url,
+            "https://dic.nicovideo.jp/a/new-article",
+            "旧記事",
+        ),
+    ) as mock_meta:
+        with patch("orchestrator.collect_all_responses") as mock_collect:
+            with patch("orchestrator.save_json") as mock_save_json:
+                with patch("orchestrator.init_db") as mock_init:
+                    with patch("orchestrator.save_to_db") as mock_save_db:
+                        with patch("orchestrator.print") as mock_print:
+                            ok = run_scrape(article_url)
+
+    mock_meta.assert_called_once_with(article_url)
+    mock_collect.assert_not_called()
+    mock_save_json.assert_not_called()
+    mock_init.assert_not_called()
+    mock_save_db.assert_not_called()
+    mock_print.assert_any_call(
+        "Redirect detected: https://dic.nicovideo.jp/a/old-article -> "
+        "https://dic.nicovideo.jp/a/new-article"
+    )
+    assert ok
+    assert ok.outcome == "redirect_handoff"
+    assert ok.redirect_target_url == "https://dic.nicovideo.jp/a/new-article"
 
 
 def test_run_scrape_saves_empty_result_for_zero_response_case():
@@ -31500,6 +33044,7 @@ from storage import (
     init_db,
     list_queue_requests,
     list_targets,
+    mark_target_redirected,
     register_target,
     save_json,
     save_to_db,
@@ -31868,16 +33413,13 @@ def test_register_target_reactivates_inactive_target(tmp_path, monkeypatch):
         )
 
         assert result["status"] == "reactivated"
-        assert list_targets(conn) == [
-            {
-                "id": 1,
-                "article_id": "12345",
-                "article_type": "a",
-                "canonical_url": "https://dic.nicovideo.jp/a/12345",
-                "is_active": True,
-                "created_at": result["entry"]["created_at"],
-            }
-        ]
+        targets = list_targets(conn)
+        assert len(targets) == 1
+        assert targets[0]["article_id"] == "12345"
+        assert targets[0]["article_type"] == "a"
+        assert targets[0]["canonical_url"] == "https://dic.nicovideo.jp/a/12345"
+        assert targets[0]["is_active"] is True
+        assert targets[0]["is_redirected"] is False
     finally:
         conn.close()
 
@@ -31933,6 +33475,45 @@ def test_get_target_returns_single_registry_entry(tmp_path, monkeypatch):
         assert entry["article_type"] == "a"
         assert entry["canonical_url"] == "https://dic.nicovideo.jp/a/12345"
         assert entry["is_active"] is True
+        assert entry["is_redirected"] is False
+        assert entry["redirect_target_url"] is None
+        assert entry["redirect_detected_at"] is None
+    finally:
+        conn.close()
+
+
+def test_mark_target_redirected_persists_redirect_state_and_deactivates(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        register_target(
+            conn,
+            "12345",
+            "a",
+            "https://dic.nicovideo.jp/a/12345",
+        )
+
+        result = mark_target_redirected(
+            conn,
+            "12345",
+            "a",
+            "https://dic.nicovideo.jp/a/67890",
+            "2026-04-14T00:00:00+00:00",
+        )
+
+        assert result["found"] is True
+        assert result["status"] == "redirected"
+        assert result["entry"]["is_active"] is False
+        assert result["entry"]["is_redirected"] is True
+        assert result["entry"]["redirect_target_url"] == (
+            "https://dic.nicovideo.jp/a/67890"
+        )
+        assert result["entry"]["redirect_detected_at"] == (
+            "2026-04-14T00:00:00+00:00"
+        )
     finally:
         conn.close()
 
@@ -32035,6 +33616,7 @@ FILE: ./cursor/tests/test_target_list.py
 =============================
 from target_list import (
     deactivate_target,
+    handoff_redirected_target,
     import_targets_from_text_file,
     inspect_registered_target,
     list_registered_targets,
@@ -32175,6 +33757,48 @@ def test_deactivate_and_reactivate_target_return_operator_facing_result(tmp_path
     assert deactivated["entry"]["is_active"] is False
     assert reactivated["status"] == "activated"
     assert reactivated["entry"]["is_active"] is True
+
+
+def test_handoff_redirected_target_deactivates_old_and_registers_new(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+
+    result = handoff_redirected_target(
+        "12345",
+        "a",
+        "https://dic.nicovideo.jp/a/67890",
+        str(target_db_path),
+    )
+
+    assert result["status"] == "redirected"
+    assert result["entry"]["is_active"] is False
+    assert result["entry"]["is_redirected"] is True
+    assert result["entry"]["redirect_target_url"] == (
+        "https://dic.nicovideo.jp/a/67890"
+    )
+    assert result["register_status"] == "added"
+    assert list_active_target_urls(str(target_db_path)) == [
+        "https://dic.nicovideo.jp/a/67890",
+    ]
+
+
+def test_handoff_redirected_target_suppresses_duplicate_new_target(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+    register_target_url("https://dic.nicovideo.jp/a/67890", str(target_db_path))
+
+    result = handoff_redirected_target(
+        "12345",
+        "a",
+        "https://dic.nicovideo.jp/a/67890",
+        str(target_db_path),
+    )
+
+    assert result["status"] == "redirected"
+    assert result["register_status"] == "duplicate"
+    assert list_active_target_urls(str(target_db_path)) == [
+        "https://dic.nicovideo.jp/a/67890",
+    ]
 
 =============================
 FILE: ./cursor/tests/test_verification_cli.py

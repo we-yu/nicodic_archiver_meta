@@ -1060,6 +1060,49 @@ Interpretation:
 - this is a bounded mainline behavior change
 - archive read semantics and archive identity migration remain unchanged
 
+## TASK036
+Completed.
+
+Outcome summary:
+- saved responses from 5511090a_ニコニコ大百科:掲示板レス削除依頼 are now
+  scanned by a bounded feeder
+- explicit NicoNicoPedia URL candidates are extracted from saved response text
+- supported URL categories are classified and normalized
+- supported categories include:
+  - `/a/...`
+  - `/id/...`
+  - `/b/a/...`
+  - `/t/b/a/...`
+  - `/t/a/...`
+- `/b/a/...` and thread-style article URLs are normalized back to article URL
+  input
+- `/id/...` is handled by an internal-only helper and is not exposed as a
+  user-facing input mode
+- normalized candidates are handed off into the existing target registration
+  route
+- duplicate / invalid / redirect handling remains delegated to existing
+  mainline logic
+- feeder state tracks `last_processed_res_no`
+- batch/periodic shot now runs the feeder once at shot start and appends newly
+  queued targets at shot tail
+- inspect-delete-request-feed CLI seam exists for stdout-based human
+  verification
+- normal runtime logging remains tiny-summary only
+
+Adoption result:
+- Double Helix comparison was attempted
+- Copilot result was adopted
+- Cursor result was preserved as non-adopted comparison evidence
+- current product mainline should be read as reflecting the adopted Copilot
+  version of TASK036
+
+Interpretation:
+- current scrape/runtime behavior now includes bounded delete-request feeder
+  support
+- this is a bounded mainline behavior change
+- unsupported URL classes remain rejected for now
+- user-facing article ID input remains unsupported
+
 Current application structure:
 
 main.py
