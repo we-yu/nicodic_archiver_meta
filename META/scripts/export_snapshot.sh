@@ -28,7 +28,7 @@ Outputs:
 Notes:
   - review-only generated files are excluded
   - META/review_log/*.md and META/TASK_CYCLE_CHECKLIST.md are included
-  - in full mode, project files are included after priority meta files
+  - runtime state / logs / generated artifacts are excluded
 USAGE
 }
 
@@ -74,7 +74,57 @@ append_snapshot_file() {
     echo "FILE: $file" >> "$MAIN_OUT"
     echo "=============================" >> "$MAIN_OUT"
     cat "$file" >> "$MAIN_OUT"
+    echo "" >> "$MAIN_OUT"
   fi
+}
+
+is_full_snapshot_candidate() {
+  local file="$1"
+
+  case "$file" in
+    */.git/*) return 1 ;;
+    */__pycache__/*) return 1 ;;
+    */.pytest_cache/*) return 1 ;;
+    */.venv/*) return 1 ;;
+    */venv/*) return 1 ;;
+    */.mypy_cache/*) return 1 ;;
+    */.ruff_cache/*) return 1 ;;
+    */.cache/*) return 1 ;;
+    */node_modules/*) return 1 ;;
+    ./example_webpage/*) return 1 ;;
+    ./META/out/*) return 1 ;;
+    */data/*) return 1 ;;
+    */runtime/data/*) return 1 ;;
+    */runtime/logs/*) return 1 ;;
+    */runtime/targets/*) return 1 ;;
+    *.pyc) return 1 ;;
+    *.log) return 1 ;;
+    *.tar.gz) return 1 ;;
+    *.sqlite) return 1 ;;
+    *.db) return 1 ;;
+    .DS_Store) return 1 ;;
+    ./project_snapshot.txt) return 1 ;;
+    ./project_knowledge_snapshot.txt) return 1 ;;
+    ./review_snapshot.txt) return 1 ;;
+    ./review_snapshot_*.txt) return 1 ;;
+    ./git_snapshot.txt) return 1 ;;
+    ./git_snapshot_*.txt) return 1 ;;
+    ./project_summary.txt) return 1 ;;
+    ./*TASK*_report.txt) return 1 ;;
+    ./AI_BOOTSTRAP.md) return 1 ;;
+    ./AI_CONTEXT.md) return 1 ;;
+    ./_AI_EXECUTION_PROTOCOL.md) return 1 ;;
+    ./_AI_RULES.md) return 1 ;;
+    ./_AI_DEVELOPMENT_MODEL.md) return 1 ;;
+    ./_AI_ORCHESTRATION_VISION.md) return 1 ;;
+    ./PROJECT_STATE.md) return 1 ;;
+    ./WORKSPACE.md) return 1 ;;
+    ./META/TASK_CYCLE_CHECKLIST.md) return 1 ;;
+    ./META/ARCHITECTURE.md) return 1 ;;
+    ./META/review_log/*) return 1 ;;
+  esac
+
+  return 0
 }
 
 append_file "AI BOOTSTRAP" "AI_BOOTSTRAP.md"
@@ -106,19 +156,46 @@ echo "mode: ${MODE}" >> "$MAIN_OUT"
 echo "" >> "$MAIN_OUT"
 
 if [[ "$MODE" == "full" ]]; then
-find . -type f ! -path "*/.git/*" ! -path "*/example_webpage/*" ! -path "*/data/*" ! -path "*/__pycache__/*" ! -path "*/.pytest_cache/*" ! -path "*/.venv/*" ! -path "*/venv/*" ! -path "*/.mypy_cache/*" ! -path "*/.ruff_cache/*" ! -path "*/.cache/*" ! -path "*/node_modules/*" ! -name "*.pyc" ! -name ".DS_Store" ! -name "project_snapshot.txt" ! -name "project_knowledge_snapshot.txt" ! -name "review_snapshot.txt" ! -name "review_snapshot_*.txt" ! -name "git_snapshot.txt" ! -name "git_snapshot_*.txt" ! -name "project_summary.txt" ! -name "TASK*_report.txt" ! -path "./META/out/*" ! -name "AI_BOOTSTRAP.md" ! -name "AI_CONTEXT.md" ! -name "_AI_EXECUTION_PROTOCOL.md" ! -name "_AI_RULES.md" ! -name "_AI_DEVELOPMENT_MODEL.md" ! -name "_AI_ORCHESTRATION_VISION.md" ! -name "PROJECT_STATE.md" ! -name "WORKSPACE.md" ! -path "./META/TASK_CYCLE_CHECKLIST.md" ! -path "./META/ARCHITECTURE.md" ! -path "./META/review_log/*" | sort | while IFS= read -r file
-  do
-    append_snapshot_file "$file"
-  done
+  while IFS= read -r file; do
+    if is_full_snapshot_candidate "$file"; then
+      append_snapshot_file "${file#./}"
+    fi
+  done < <(find . -type f | sort)
 fi
 
 if [[ "$MODE" == "meta-only" ]]; then
-find . -maxdepth 1 -type f ! -name "project_snapshot.txt" ! -name "project_knowledge_snapshot.txt" ! -name "review_snapshot.txt" ! -name "review_snapshot_*.txt" ! -name "git_snapshot.txt" ! -name "git_snapshot_*.txt" ! -name "project_summary.txt" ! -name "TASK*_report.txt" ! -name "AI_BOOTSTRAP.md" ! -name "AI_CONTEXT.md" ! -name "_AI_EXECUTION_PROTOCOL.md" ! -name "_AI_RULES.md" ! -name "_AI_DEVELOPMENT_MODEL.md" ! -name "_AI_ORCHESTRATION_VISION.md" ! -name "PROJECT_STATE.md" ! -name "WORKSPACE.md" | sort | while IFS= read -r file
+  find . -maxdepth 1 -type f \
+    ! -name "project_snapshot.txt" \
+    ! -name "project_knowledge_snapshot.txt" \
+    ! -name "review_snapshot.txt" \
+    ! -name "review_snapshot_*.txt" \
+    ! -name "git_snapshot.txt" \
+    ! -name "git_snapshot_*.txt" \
+    ! -name "project_summary.txt" \
+    ! -name "TASK*_report.txt" \
+    ! -name "*.log" \
+    ! -name "*.tar.gz" \
+    ! -name "*.db" \
+    ! -name "*.sqlite" \
+    ! -name "AI_BOOTSTRAP.md" \
+    ! -name "AI_CONTEXT.md" \
+    ! -name "_AI_EXECUTION_PROTOCOL.md" \
+    ! -name "_AI_RULES.md" \
+    ! -name "_AI_DEVELOPMENT_MODEL.md" \
+    ! -name "_AI_ORCHESTRATION_VISION.md" \
+    ! -name "PROJECT_STATE.md" \
+    ! -name "WORKSPACE.md" | sort | while IFS= read -r file
   do
     append_snapshot_file "${file#./}"
   done
 
-  find META -type f ! -path "META/out/*" ! -path "META/review_log/*" ! -name "review_snapshot.txt" ! -name "review_snapshot_*.txt" ! -name "git_snapshot.txt" ! -name "git_snapshot_*.txt" | sort | while IFS= read -r file
+  find META -type f \
+    ! -path "META/out/*" \
+    ! -path "META/review_log/*" \
+    ! -name "review_snapshot.txt" \
+    ! -name "review_snapshot_*.txt" \
+    ! -name "git_snapshot.txt" \
+    ! -name "git_snapshot_*.txt" | sort | while IFS= read -r file
   do
     case "$file" in
       META/TASK_CYCLE_CHECKLIST.md|META/ARCHITECTURE.md|META/scripts/*)
@@ -151,4 +228,3 @@ echo "Generated files:"
 echo "  $MAIN_OUT"
 echo "  $KNOWLEDGE_OUT"
 echo ""
-

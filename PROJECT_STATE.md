@@ -1103,6 +1103,45 @@ Interpretation:
 - unsupported URL classes remain rejected for now
 - user-facing article ID input remains unsupported
 
+## TASK037
+Completed.
+
+Outcome summary:
+- a bounded external publication / ops task was completed for the current
+  runtime Web surface
+- existing host nginx multi-site operation was extended with a third site:
+  - `nicoarc-prelim.mimizuku.dev`
+- the existing nginx publication style used for:
+  - `notes.mimizuku.dev`
+  - `sandbox.mimizuku.dev`
+  was preserved
+- host nginx remains the shared public ingress on:
+  - `80`
+  - `443`
+- the runtime Web backend remains localhost-bound behind nginx at:
+  - `127.0.0.1:58001`
+- the backend container-side app port remained unchanged behind the host-local
+  proxy boundary
+- public bind expansion was not introduced
+- certbot-managed TLS was added for:
+  - `nicoarc-prelim.mimizuku.dev`
+- HTTPS browser access to the runtime Web top page was confirmed
+- existing sites:
+  - `notes.mimizuku.dev`
+  - `sandbox.mimizuku.dev`
+  remained healthy after the new site was added
+- certbot scheduled renewal presence and renewal dry-run success were confirmed
+- product semantics were not changed
+- scrape / DB / queue / scheduler / Web app behavior were not redesigned
+
+Interpretation:
+- current runtime publication baseline now includes bounded nginx front-door
+  publication for the preliminary public FQDN:
+  - `nicoarc-prelim.mimizuku.dev`
+- nginx should be read as the shared ingress layer for current public sites,
+  while runtime app backends remain closed behind host-local proxy ports
+- this task is an ops/publication task, not a product-feature redesign
+
 Current application structure:
 
 main.py
@@ -1230,21 +1269,26 @@ It is not used as:
 
 NEXT TASK
 
-TASK033 and TASK033b are complete.
+TASK037 is complete.
 
-A roadmap reference exists for future-direction context only:
+Important current interpretation:
 
-META/ROADMAP_REFERENCE.md
+- the bounded nginx-based preliminary external publication path is now active
+  for:
+  - `nicoarc-prelim.mimizuku.dev`
+- current runtime Web publication remains fronted by host nginx
+- runtime Web backend publication still remains localhost-bound behind nginx
+- this completion does not imply any product-semantics redesign
+- this completion does not imply public-bind expansion
+- the next task is not fixed by this file alone
 
-A medium-term direction reference also exists for near-term planning continuity:
+Planning continuity may still refer to:
+- `META/MEDIUM_TERM_DIRECTION.md`
+- `META/ROADMAP_REFERENCE.md`
 
-META/MEDIUM_TERM_DIRECTION.md
-
-Important:
-
-- this planning guidance is not authoritative current state
-- authoritative current state must still be restored from:
-  - AI_CONTEXT.md
-  - PROJECT_STATE.md
-  - WORKSPACE.md
-  - latest snapshot files
+But those files remain planning/reference memory only.
+Authoritative current state must still be restored from:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- latest snapshot files

@@ -247,3 +247,55 @@ Prompt design for Double Helix:
 - Practical rule:
   - be strict about `What`
   - be lighter about `How`
+
+--------------------------------------------------
+
+## Runtime-to-dev state sync helper
+
+A root helper exists for pulling current runtime state into both child
+development checkouts:
+
+- `./sync_runtime_state_to_dev.sh`
+
+Purpose:
+- copy current `_runtime` state into `copilot/` and `cursor/`
+  so development/test work can use realistic data
+
+Direction:
+- one-way only
+- `_runtime` -> `copilot`
+- `_runtime` -> `cursor`
+
+Current behavior:
+- checks that runtime reflection/scrape-like work is not obviously active
+- aborts if `runtime/logs/periodic_once.lock` exists
+- checks the runtime container process list via `docker top`
+  for `python main.py batch`, `periodic`, or `periodic-once`
+- creates a SQLite snapshot of `_runtime/runtime/data/nicodic.db`
+  using Python `sqlite3.backup()`
+- syncs:
+  - `_runtime/runtime/logs/`
+  - `_runtime/runtime/targets/`
+  - `_runtime/runtime/data/`
+  into both child repos
+- then installs the snapshot DB as:
+  - `copilot/runtime/data/nicodic.db`
+  - `cursor/runtime/data/nicodic.db`
+
+Usage:
+- `./sync_runtime_state_to_dev.sh`
+
+Optional:
+- `DELETE_MODE=1 ./sync_runtime_state_to_dev.sh`
+
+Interpretation:
+- this is a bounded workflow helper
+- it does not change product semantics
+- it exists to make runtime-derived testing easier in child repos
+
+Verification pattern:
+- compare article/response counts across `_runtime`, `copilot`, `cursor`
+- compare a representative article row such as `5511090a`
+- compare representative response count/range
+- compare `targets.txt`
+- compare latest batch log names
