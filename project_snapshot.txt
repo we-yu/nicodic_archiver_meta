@@ -3853,6 +3853,122 @@ Authoritative context should still be restored from:
 
 
 
+===== REVIEW LOG: META/review_log/SUBTASK005_web_saved_download_polish.md =====
+# SUBTASK005 Web Saved Download Polish
+
+## Task
+SUBTASK005
+
+Polish the bounded Web saved-download UX without widening into broad export,
+runtime, or scheduler redesign.
+
+## Positioning
+This is a bounded subtask on top of the adopted TASK034 Web single-submit baseline.
+
+It is not a new mainline feature family.
+It is a bounded UX / readout / download polish correction task.
+
+## Adopted result
+Adopted: Copilot
+
+Comparison status:
+- Copilot side was used as the adopted implementation path
+- Cursor side remained unchanged and was retained only as branch evidence
+
+## What changed
+Changed files in the adopted result:
+- `archive_read.py`
+- `orchestrator.py`
+- `storage.py`
+- `web_app.py`
+- `tests/test_archive_read.py`
+- `tests/test_cli.py`
+- `tests/test_orchestrator.py`
+- `tests/test_storage.py`
+- `tests/test_web_app.py`
+
+Main adopted behavior:
+- long result/status text now wraps more safely in the Web UI
+- saved TXT download filename is now human-readable with article title included
+- normal TXT response header lines no longer include the misleading leading `>`
+- misleading user-facing `Created` metadata was removed from TXT export
+- bounded article-facing metadata support was improved in additive form
+- Web action logging failure is now non-fatal
+- archive read path no longer performs write-on-read schema mutation
+- readonly-like archive read conditions now degrade safely
+- saved URL input parity was restored for:
+  - decoded article URL input
+  - percent-encoded article URL input
+- saved URL input no longer falls incorrectly into unsaved registration flow
+- bounded registration-write failure handling no longer leaks a raw server error page
+
+## Validation summary
+The following validation/review path was completed:
+
+1. Copilot implementation was iteratively corrected within bounded scope
+2. runtime-like temporary container smoke checks were performed against the Copilot branch
+3. browser checks confirmed:
+   - title input saved flow OK
+   - decoded article URL input saved flow OK
+   - encoded article URL input saved flow OK
+   - result panel healthy
+   - TXT auto-download healthy
+4. downloaded TXT content confirmed:
+   - human-readable filename
+   - expected article metadata header shape
+   - normal response header leading `>` removal
+5. `./validate_helix.sh` passed:
+   - copilot: PASS
+   - cursor: PASS
+
+## Why Copilot was adopted
+Primary reasons:
+- it reached bounded practical completion for the intended Web/TXT polish task
+- browser-side result and TXT download behavior were confirmed directly
+- the adopted result repaired runtime-like readonly/logging issues without widening scope
+- the final shape preserved the TASK034/TASK028 Web baseline while improving practical saved-download UX
+
+## Why Cursor was not adopted
+- Cursor did not carry this subtask implementation forward
+- it remained on the earlier shared baseline and served only as unchanged branch evidence
+
+## What did not change
+This subtask did not introduce:
+- CSV / MD / HTML Web download
+- scrape redesign
+- queue / scheduler redesign
+- broad storage redesign
+- runtime publication redesign
+- auth / multi-user / dashboard work
+
+## Repository outcome
+- adopted implementation branch: `task005-web-saved-download-polish-copilot`
+- adopted result was integrated into child-repo `main`
+- both child repositories were then realigned to the same adopted final state
+- `_runtime` sibling checkout was also reflected to adopted `main`
+
+## Interpretation
+Current Web saved-download baseline should now be read as including:
+- bounded long-text wrap improvement
+- bounded saved TXT filename improvement
+- bounded TXT response-header readability improvement
+- bounded metadata-header polish
+- readonly-safe archive read behavior
+- saved URL-input parity restoration for the Web archive-check flow
+
+## Meta note
+This log is AI-readable review memory.
+It is not authoritative current state by itself.
+
+Authoritative context should still be restored from:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
+
+
+
+
 ===== REVIEW LOG: META/review_log/TASK002_adoption.md =====
 # TASK002 Adoption Log
 
@@ -8595,7 +8711,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Mon Apr 20 17:31:43 UTC 2026
+generated: Tue Apr 21 17:08:49 UTC 2026
 mode: full
 
 
@@ -12035,160 +12151,48 @@ See docs/PERSONAL_RUNTIME.md for runtime-container-specific notes.
 
 
 =============================
-FILE: copilot/SubTask005.txt
+FILE: copilot/Task038_report.txt
 =============================
 files edited:
 - archive_read.py
+- web_app.py
 - tests/test_archive_read.py
 - tests/test_web_app.py
-- SubTask005.txt
-
-readonly-db corrective summary:
-- ordinary archive read path no longer calls init_db() or schema-ensure writes.
-- archive_read now opens the existing SQLite file directly for read access and
-  returns safe fallback results when the DB or expected tables are unavailable.
-- optional published_at / modified_at columns are selected only when present;
-  older schemas degrade to None without requiring mutation.
-
-focused tests:
-- old-schema DB without metadata columns still supports saved summary/TXT reads
-- archive read path no longer depends on init_db()
-- check_article_status() can return saved for an old-schema saved article lookup
-
-bounded tradeoff:
-- metadata feature remains additive and nullable.
-- read path prefers compatibility and non-fatal fallback over schema mutation.
-- write-side schema ensure remains unchanged; only read-side write-on-read was removed.
-
-=============================
-FILE: copilot/SubTask005_report.txt
-=============================
-changed files:
-- web_app.py
-- tests/test_web_app.py
-- SubTask005_report.txt
+- Task038_report.txt
 
 implementation:
-- URL input の saved parity は web_app 側で bounded に復元した。
-  resolve_article_input の canonical target で saved hit しない場合だけ、
-  matched_by=article_url の resolved title から local saved archive を再確認し、
-  同じ article_id の保存済み記事なら saved に戻す。
-- この reconnect は article_type の id/a ずれだけを吸収する。
-  saved result では archive 側の article_type と canonical_url を優先するため、
-  decoded URL input と percent-encoded URL input の両方で title input と同じ
-  saved archive identity に揃う。
-- unsaved registration path では register_target_url の persistence failure を
-  捕捉し、raw server error page ではなく reference_id 付きの bounded error UI
-  に degrade するようにした。
-- 既存の autodownload query simplification、human-readable filename、
-  TXT header polish、readonly-safe archive read behavior は維持した。
+- saved article Web download flow に format selection を追加し、
+  txt を既定のまま md / csv を選べるようにした。
+- archive_read 側に bounded format-dispatch seam を追加し、
+  get_saved_article_export() から txt / md / csv を切り替える形にした。
+- web_app 側では practical な radio selector を form と saved result に置き、
+  selected requested_format を /download へ引き渡すだけに留めた。
+
+csv shape:
+- 1 response = 1 record。
+- fields は article_id, article_type, article_title, article_url,
+  res_no, poster_name, poster_id, posted_at, content_text, content_html。
+- metadata header block は追加せず、解析しやすい stable header を優先した。
+
+future extension seam:
+- format-specific rendering は archive_read の small dispatcher に集約した。
+- 今回は txt / md / csv だけ実装し、HTML / JSON を後で追加できるが、
+  いまは framework 化しすぎない bounded 実装に留めた。
 
 focused tests:
-- saved title input が引き続き saved を返すこと
-- decoded Nicopedia URL input が id canonicalization 後でも saved parity を
-  回復すること
-- percent-encoded Nicopedia URL input が同様に saved parity を回復すること
-- saved URL input の autodownload result page が healthy なこと
-- registration write failure が 200 応答の bounded error UI に収まり、
-  raw server error を漏らさないこと
-
-quality gate:
-- 変更は repo-local files のみ。
-- corrective scope は URL-input parity restoration と registration failure
-  bounding に限定。
-- edited files は error check と 88 columns / EOF newline を見直す前提で整えた。
-
-=============================
-FILE: copilot/Task005_report.txt
-=============================
-files edited:
-- web_app.py
-- tests/test_web_app.py
-- Task005_report.txt
-
-saved-url autodownload corrective summary:
-- saved autodownload follow-up query no longer round-trips raw article_input
-  or article_url.
-- /download now uses article_id and article_type as the essential identity,
-  with resolved_title only as a bounded fallback for logging/display.
-- this restores saved URL input parity without changing archive storage,
-  scrape logic, or the current TXT download polish.
-
-focused tests:
-- saved result page stays healthy for encoded Nicopedia article URL input
-- saved result page stays healthy for decoded Japanese Nicopedia article URL
-  input
-- download endpoint still returns TXT when called with article_id,
-  article_type, and resolved_title only
-
-=============================
-FILE: copilot/Task036_report.txt
-=============================
-changed files:
-- main.py
-- delete_request_feeder.py
-- tests/test_main.py
-- tests/test_delete_request_feeder.py
-- Task036_report.txt
-
-実装方針:
-- 削除依頼記事 5511090a の保存済みレスを bounded に走査する専用
-  feeder を追加した。
-- URL 抽出は本文中の明示 URL のみを対象にした。
-- supported URL だけを article target 入力へ正規化し、既存の
-  resolve_article_input と register_target_url に handoff する形にした。
-- periodic / batch shot では run_batch_scrape の最初に一回だけ実行し、
-  追加 target は既存 queue の末尾に append する。
-
-追加テスト:
-- 削除依頼レス本文からの URL 抽出
-- URL カテゴリ判定
-- supported URL の正規化
-- /id/... internal helper 解決
-- handoff 時の duplicate suppression
-- last_processed_res_no 更新
-- batch shot 末尾 append
-- inspect / dry-run stdout 形
-
-URLカテゴリ判定と正規化の責務:
-- classify_delete_request_url は supported / unsupported / malformed の
-  独立判定だけを担当する。
-- normalize_supported_delete_request_input は supported category を
-  article target 入力へ還元する責務だけを持つ。
-- unsupported category は handoff 前に reject / skip される。
-
-/id/... internal helper をどう bounded に入れたか:
-- resolve_internal_article_id_input を追加した。
-- 保存済み articles テーブルだけを参照し、article_id から
-  canonical_url か title を引く最小 helper に留めた。
-- user-facing の article ID 入力機能は追加していない。
-
-last_processed_res_no state をどう持ったか:
-- data/delete_request_feeder_state.json を既定 state にした。
-- JSON の last_processed_res_no だけを保持する KISS 形にした。
-- 通常 run は前回より後ろだけを処理し、inspect は state を更新しない。
-
-shot 先頭実行と末尾 append をどう扱ったか:
-- run_batch_scrape の先頭で feeder を一回だけ実行する。
-- 既存 active target list を先に固定し、新規 queued target だけを
-  append_batch_targets で最後尾に追加する。
-- 既存順は崩さず、同じ shot の中で新規候補も回収できる。
-
-inspect / dry-run seam をどう入れたか:
-- inspect-delete-request-feed を main.py に追加した。
-- 保存済みレスを走査し、ACCEPT / REJECT と summary を stdout に出す。
-- heavy debug platform や別ログ体系は追加していない。
-
-quality gate 確認結果:
-- touched / new files は repo-local のみ。
-- central files と focused tests と report file を追加した。
-- 1行 88 文字以内と EOF newline を守る前提で整えた。
-- shell / pytest / python / flake8 実行前提の手順は入れていない。
-- root/meta repo は編集していない。
+- saved title input の default txt flow 維持
+- saved title input の md selection
+- saved title input の csv selection
+- saved decoded URL input の csv selection
+- saved encoded URL input の csv selection
+- current txt behavior regression protection
+- csv export header / row shape
 
 =============================
 FILE: copilot/archive_read.py
 =============================
+import csv
+from io import StringIO
 import sqlite3
 from pathlib import Path
 
@@ -12568,9 +12572,122 @@ def _render_txt_archive(archive):
     return "\n".join(lines)
 
 
-def get_saved_article_txt(article_id, article_type):
+def _render_md_archive(archive):
+    lines = [
+        f"# {archive['title']}",
+        "",
+        f"- ID: {archive['article_id']}",
+        f"- Type: {archive['article_type']}",
+        f"- URL: {archive['url']}",
+    ]
+
+    date_line = _article_date_line(archive)
+    if date_line is not None:
+        lines.append(f"- {date_line}")
+
+    lines.extend(["", "## Responses", ""])
+
+    for response in archive["responses"]:
+        res_no, poster_name, posted_at, id_hash, content_text = response
+        lines.extend(
+            [
+                f"### {res_no}",
+                f"- Name: {poster_name or 'unknown'}",
+                f"- Posted At: {posted_at or 'unknown'}",
+                f"- Poster ID: {id_hash or 'unknown'}",
+                "",
+                content_text or "",
+                "",
+            ]
+        )
+
+    return "\n".join(lines).rstrip() + "\n"
+
+
+def _csv_field_names():
+    return [
+        "article_id",
+        "article_type",
+        "article_title",
+        "article_url",
+        "res_no",
+        "poster_name",
+        "poster_id",
+        "posted_at",
+        "content_text",
+        "content_html",
+    ]
+
+
+def _read_archive_csv_rows(article_id, article_type):
+    conn = _open_archive_read_conn()
+    if conn is None:
+        return []
+    cur = conn.cursor()
+
+    try:
+        cur.execute(
+            """
+            SELECT
+                res_no,
+                poster_name,
+                posted_at,
+                id_hash,
+                content_text,
+                content_html
+            FROM responses
+            WHERE article_id=? AND article_type=?
+            ORDER BY res_no ASC
+            """,
+            (article_id, article_type),
+        )
+        return cur.fetchall()
+    except sqlite3.OperationalError:
+        return []
+    finally:
+        conn.close()
+
+
+def _render_csv_archive(archive):
+    output = StringIO()
+    writer = csv.DictWriter(output, fieldnames=_csv_field_names())
+    writer.writeheader()
+
+    for row in _read_archive_csv_rows(
+        archive["article_id"],
+        archive["article_type"],
+    ):
+        res_no, poster_name, posted_at, id_hash, content_text, content_html = row
+        writer.writerow(
+            {
+                "article_id": archive["article_id"],
+                "article_type": archive["article_type"],
+                "article_title": archive["title"],
+                "article_url": archive["url"],
+                "res_no": res_no,
+                "poster_name": poster_name or "",
+                "poster_id": id_hash or "",
+                "posted_at": posted_at or "",
+                "content_text": content_text or "",
+                "content_html": content_html or "",
+            }
+        )
+
+    return output.getvalue()
+
+
+def _render_article_export(archive, requested_format):
+    renderers = {
+        "txt": _render_txt_archive,
+        "md": _render_md_archive,
+        "csv": _render_csv_archive,
+    }
+    return renderers.get(requested_format, _render_txt_archive)(archive)
+
+
+def get_saved_article_export(article_id, article_type, requested_format="txt"):
     """
-    Return bounded one-article TXT payload for non-CLI consumers.
+    Return bounded one-article export payload for non-CLI consumers.
 
     Return shape:
       {"found": True, "content": str, "article_id": str, "article_type": str}
@@ -12588,11 +12705,16 @@ def get_saved_article_txt(article_id, article_type):
 
     return {
         "found": True,
-        "content": _render_txt_archive(archive),
+        "content": _render_article_export(archive, requested_format),
         "article_id": article_id,
         "article_type": article_type,
         "title": archive["title"],
+        "format": requested_format,
     }
+
+
+def get_saved_article_txt(article_id, article_type):
+    return get_saved_article_export(article_id, article_type, "txt")
 
 
 def read_article_summaries():
@@ -19561,10 +19683,13 @@ if str(_root) not in sys.path:
 =============================
 FILE: copilot/tests/test_archive_read.py
 =============================
+import csv
+from io import StringIO
 import sqlite3
 from unittest.mock import patch
 
 from archive_read import (
+    get_saved_article_export,
     get_saved_article_summary,
     get_saved_article_summary_by_exact_title,
     get_saved_article_txt,
@@ -19664,6 +19789,48 @@ def test_get_saved_article_txt_keeps_reply_markers_in_response_body(
     assert "Last Modified: 2025-01-02T00:00:00+09:00" in result["content"]
     assert "1 Alice 2025-01-01 00:00 ID: abc123" in result["content"]
     assert ">>123\nreply body" in result["content"]
+
+
+def test_get_saved_article_export_returns_markdown_for_existing_article(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = get_saved_article_export("12345", "a", "md")
+
+    assert result["found"] is True
+    assert result["format"] == "md"
+    assert "# First Title" in result["content"]
+    assert "## Responses" in result["content"]
+    assert "### 1" in result["content"]
+
+
+def test_get_saved_article_export_returns_csv_rows_with_stable_header(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = get_saved_article_export("12345", "a", "csv")
+    rows = list(csv.DictReader(StringIO(result["content"])))
+
+    assert result["found"] is True
+    assert result["format"] == "csv"
+    assert rows == [
+        {
+            "article_id": "12345",
+            "article_type": "a",
+            "article_title": "First Title",
+            "article_url": "https://dic.nicovideo.jp/a/12345",
+            "res_no": "1",
+            "poster_name": "Alice",
+            "poster_id": "abc123",
+            "posted_at": "2025-01-01 00:00",
+            "content_text": "First response",
+            "content_html": "<p>First response</p>",
+        }
+    ]
 
 
 def test_get_saved_article_txt_returns_missing_shape_for_missing_article(
@@ -24804,6 +24971,59 @@ def test_application_post_saved_result_autodownloads_without_buttons():
     assert "Download TXT" not in response["body"]
     assert "Add To Target Registry" not in response["body"]
     assert "Matched by" not in response["body"]
+    assert 'name="requested_format" value="txt"' in response["body"]
+
+
+def test_saved_title_input_with_md_selection_keeps_saved_download_flow():
+    result = {
+        "status": "saved",
+        "input": "Foo",
+        "title": "Foo",
+        "matched_by": "exact_title",
+        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_id": "12345",
+        "article_type": "a",
+        "response_count": 42,
+        "message": "Saved archive found for the resolved article.",
+    }
+
+    with patch("web_app.check_article_status", return_value=result):
+        response = _run_wsgi_request(
+            "POST",
+            body="article_input=Foo&requested_format=md",
+        )
+
+    assert response["status"] == "200 OK"
+    assert "Saved article found. Markdown download will start" in (
+        response["body"]
+    )
+    assert 'name="requested_format" value="md"' in response["body"]
+
+
+def test_saved_title_input_with_csv_selection_keeps_saved_download_flow():
+    result = {
+        "status": "saved",
+        "input": "Foo",
+        "title": "Foo",
+        "matched_by": "exact_title",
+        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_id": "12345",
+        "article_type": "a",
+        "response_count": 42,
+        "message": "Saved archive found for the resolved article.",
+    }
+
+    with patch("web_app.check_article_status", return_value=result):
+        response = _run_wsgi_request(
+            "POST",
+            body="article_input=Foo&requested_format=csv",
+        )
+
+    assert response["status"] == "200 OK"
+    assert "Saved article found. CSV download will start automatically." in (
+        response["body"]
+    )
+    assert 'name="requested_format" value="csv"' in response["body"]
 
 
 def test_saved_result_encoded_url_input_autodownload_ok(
@@ -24876,6 +25096,64 @@ def test_saved_result_decoded_url_input_autodownload_ok(
     assert 'name="article_type" value="a"' in response["body"]
     assert 'name="resolved_title" value="たつきショック"' in response["body"]
     assert response["body"].count('name="article_input"') == 1
+
+
+def test_saved_decoded_url_input_with_csv_selection_keeps_download_flow():
+    result = {
+        "status": "saved",
+        "input": "https://dic.nicovideo.jp/a/たつきショック",
+        "title": "たつきショック",
+        "matched_by": "article_url",
+        "article_url": "https://dic.nicovideo.jp/a/たつきショック",
+        "article_id": "5502789",
+        "article_type": "a",
+        "response_count": 42,
+        "message": "Saved archive found for the resolved article.",
+    }
+
+    with patch("web_app.check_article_status", return_value=result):
+        response = _run_wsgi_request(
+            "POST",
+            body=(
+                "article_input=https%3A%2F%2Fdic.nicovideo.jp%2Fa%2F"
+                "%E3%81%9F%E3%81%A4%E3%81%8D%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF"
+                "&requested_format=csv"
+            ),
+        )
+
+    assert response["status"] == "200 OK"
+    assert 'name="requested_format" value="csv"' in response["body"]
+
+
+def test_saved_encoded_url_input_with_csv_selection_keeps_download_flow():
+    result = {
+        "status": "saved",
+        "input": (
+            "https://dic.nicovideo.jp/a/"
+            "%E3%81%9F%E3%81%A4%E3%81%8D%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF"
+        ),
+        "title": "たつきショック",
+        "matched_by": "article_url",
+        "article_url": "https://dic.nicovideo.jp/a/たつきショック",
+        "article_id": "5502789",
+        "article_type": "a",
+        "response_count": 42,
+        "message": "Saved archive found for the resolved article.",
+    }
+
+    with patch("web_app.check_article_status", return_value=result):
+        response = _run_wsgi_request(
+            "POST",
+            body=(
+                "article_input=https%3A%2F%2Fdic.nicovideo.jp%2Fa%2F"
+                "%25E3%2581%259F%25E3%2581%25A4%25E3%2581%258D%25E3%2582%25B7"
+                "%25E3%2583%25A7%25E3%2583%2583%25E3%2582%25AF"
+                "&requested_format=csv"
+            ),
+        )
+
+    assert response["status"] == "200 OK"
+    assert 'name="requested_format" value="csv"' in response["body"]
 
 
 def test_application_post_registration_write_failure_returns_bounded_error():
@@ -25044,6 +25322,38 @@ def test_download_endpoint_returns_txt_and_logs_download(tmp_path):
     assert "action_kind=download" in log_text
     assert "requested_format=txt" in log_text
     assert "result_status=success" in log_text
+
+
+def test_download_endpoint_returns_csv_content_type(tmp_path):
+    log_path = tmp_path / "web_action.log"
+
+    with patch(
+        "web_app.get_saved_article_export",
+        return_value={
+            "found": True,
+            "content": "article_id,res_no\n12345,1\n",
+            "article_id": "12345",
+            "article_type": "a",
+            "title": "たつきショック",
+            "format": "csv",
+        },
+    ):
+        response = _run_wsgi_request(
+            "GET",
+            path="/download",
+            query_string=(
+                "article_id=12345&article_type=a"
+                "&resolved_title=Foo&requested_format=csv"
+            ),
+            app=create_app(web_action_log_path=str(log_path)),
+        )
+
+    assert response["status"] == "200 OK"
+    headers = _header_map(response)
+    assert headers["Content-Type"] == "text/csv; charset=utf-8"
+    assert "filename=\"12345a_article.csv\"" in headers[
+        "Content-Disposition"
+    ]
 
 
 def test_application_post_error_result_is_short_and_logged(tmp_path):
@@ -26067,9 +26377,9 @@ from uuid import uuid4
 from wsgiref.simple_server import make_server
 
 from archive_read import (
+    get_saved_article_export,
     get_saved_article_summary,
     get_saved_article_summary_by_exact_title,
-    get_saved_article_txt,
 )
 from article_resolver import resolve_article_input
 from target_list import register_target_url
@@ -26081,6 +26391,7 @@ DEFAULT_WEB_ACTION_LOG_PATH = os.environ.get(
     "data/web_action.log",
 )
 DEFAULT_DOWNLOAD_FORMAT = "txt"
+DOWNLOAD_FORMATS = ("txt", "md", "csv")
 
 UI_TEXTS = {
     "page_title": "NicoNicoPedia Archive Checker",
@@ -26134,6 +26445,8 @@ UI_TEXTS = {
     },
     "format_labels": {
         "txt": "TXT",
+        "md": "Markdown",
+        "csv": "CSV",
     },
 }
 
@@ -26152,6 +26465,12 @@ def _display_format_name(requested_format: str) -> str:
         requested_format,
         requested_format.upper(),
     )
+
+
+def _normalize_download_format(requested_format: str | None) -> str:
+    if requested_format in DOWNLOAD_FORMATS:
+        return requested_format
+    return DEFAULT_DOWNLOAD_FORMAT
 
 
 def _humanize_title(value: str | None) -> str:
@@ -26431,11 +26750,11 @@ def _log_web_action(
     return action_id
 
 
-def _build_saved_ui_result(check_result: dict) -> dict:
+def _build_saved_ui_result(check_result: dict, requested_format: str) -> dict:
     return {
         "status": "saved",
         "message": UI_TEXTS["saved_message"].format(
-            format_name=_display_format_name(DEFAULT_DOWNLOAD_FORMAT)
+            format_name=_display_format_name(requested_format)
         ),
         "title": check_result["title"],
         "article_id": check_result["article_id"],
@@ -26443,6 +26762,7 @@ def _build_saved_ui_result(check_result: dict) -> dict:
         "article_type": check_result["article_type"],
         "response_count": check_result["response_count"],
         "input": check_result["input"],
+        "requested_format": requested_format,
     }
 
 
@@ -26469,13 +26789,13 @@ def _build_error_ui_result(result: dict, reference_id: str | None) -> dict:
     return error_result
 
 
-def _build_download_query(check_result: dict) -> str:
+def _build_download_query(check_result: dict, requested_format: str) -> str:
     return urlencode(
         {
             "article_id": check_result["article_id"],
             "article_type": check_result["article_type"],
             "resolved_title": check_result["title"],
-            "requested_format": DEFAULT_DOWNLOAD_FORMAT,
+            "requested_format": requested_format,
         }
     )
 
@@ -26519,10 +26839,17 @@ def _submit_archive_check(
     environ: dict,
 ) -> tuple[dict, str | None]:
     check_result = check_article_status(article_input)
+    requested_format = _normalize_download_format(
+        environ.get("copilot.requested_format")
+    )
 
     if check_result["status"] == "saved":
-        return _build_saved_ui_result(check_result), _build_download_query(
-            check_result
+        return _build_saved_ui_result(
+            check_result,
+            requested_format,
+        ), _build_download_query(
+            check_result,
+            requested_format,
         )
 
     if check_result["status"] == "unsaved":
@@ -26612,6 +26939,26 @@ def _submit_archive_check(
 
 def _render_result_detail(label: str, value: str) -> str:
     return f"<p><strong>{escape(label)}:</strong> {escape(value)}</p>"
+
+
+def _render_format_selector(selected_format: str) -> str:
+    lines = [
+        '<fieldset class="format-selector">',
+        '<legend>Download format</legend>',
+    ]
+    for download_format in DOWNLOAD_FORMATS:
+        checked = " checked" if download_format == selected_format else ""
+        lines.append(
+            (
+                '<label class="format-option">'
+                f'<input type="radio" name="requested_format" '
+                f'value="{escape(download_format)}"{checked}>'
+                f'{escape(_display_format_name(download_format))}'
+                '</label>'
+            )
+        )
+    lines.append("</fieldset>")
+    return "".join(lines)
 
 
 def _render_message_area(
@@ -26712,6 +27059,12 @@ def _render_page(
     download_query: str | None = None,
 ) -> bytes:
     safe_input = escape(article_input)
+    selected_format = DEFAULT_DOWNLOAD_FORMAT
+    if result is not None:
+        selected_format = result.get(
+            "requested_format",
+            DEFAULT_DOWNLOAD_FORMAT,
+        )
     format_name = _display_format_name(DEFAULT_DOWNLOAD_FORMAT)
     message_area = _render_message_area(result, download_query)
     html = f"""<!doctype html>
@@ -26791,6 +27144,25 @@ def _render_page(
       color: var(--muted);
       font-size: 0.95rem;
     }}
+        .format-selector {{
+            margin: 16px 0;
+            padding: 12px 14px;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            display: flex;
+            gap: 14px;
+            flex-wrap: wrap;
+        }}
+        .format-selector legend {{
+            padding: 0 6px;
+            font-weight: 700;
+        }}
+        .format-option {{
+            display: inline-flex;
+            gap: 6px;
+            align-items: center;
+            font-weight: 400;
+        }}
     .message-area {{
       margin-top: 24px;
       padding: 18px;
@@ -26831,6 +27203,7 @@ def _render_page(
           placeholder=\"{escape(UI_TEXTS['input_placeholder'])}\"
           autocomplete=\"off\"
         >
+                {_render_format_selector(selected_format)}
         <button type=\"submit\" data-submit-button>
           {escape(UI_TEXTS['submit_label'])}
         </button>
@@ -26863,6 +27236,20 @@ def _render_page(
         if (busy) {{
           busy.hidden = false;
         }}
+                const selectedFormat = form.querySelector(
+                    "input[name='requested_format']:checked"
+                );
+                const autoDownload = document.querySelector(
+                    "[data-auto-download-form]"
+                );
+                if (selectedFormat && autoDownload) {{
+                    const downloadFormatInput = autoDownload.querySelector(
+                        "input[name='requested_format']"
+                    );
+                    if (downloadFormatInput) {{
+                        downloadFormatInput.value = selectedFormat.value;
+                    }}
+                }}
       }});
     }}
     const autoDownloadForm = document.querySelector(
@@ -26900,6 +27287,10 @@ def create_app(
         if method == "POST" and path == "/":
             form = _read_post_form(environ)
             article_input = form.get("article_input", "")
+            environ["copilot.requested_format"] = form.get(
+                "requested_format",
+                DEFAULT_DOWNLOAD_FORMAT,
+            )
             result, download_query = _submit_archive_check(
                 article_input,
                 target_db_path,
@@ -26921,9 +27312,11 @@ def create_app(
             article_id = query.get("article_id", "")
             article_type = query.get("article_type", "")
             article_input = _download_input_value(query)
-            requested_format = query.get(
-                "requested_format",
-                DEFAULT_DOWNLOAD_FORMAT,
+            requested_format = _normalize_download_format(
+                query.get(
+                    "requested_format",
+                    DEFAULT_DOWNLOAD_FORMAT,
+                )
             )
 
             if not article_id or not article_type:
@@ -26937,8 +27330,12 @@ def create_app(
                 )
                 return [body]
 
-            txt_result = get_saved_article_txt(article_id, article_type)
-            if not txt_result["found"]:
+            export_result = get_saved_article_export(
+                article_id,
+                article_type,
+                requested_format,
+            )
+            if not export_result["found"]:
                 reference_id = _log_web_action(
                     web_action_log_path,
                     environ,
@@ -26981,17 +27378,23 @@ def create_app(
                 resolved_article_id=article_id,
                 resolved_article_type=article_type,
             )
-            body = txt_result["content"].encode("utf-8")
+            body = export_result["content"].encode("utf-8")
+            content_type = {
+                "txt": "text/plain; charset=utf-8",
+                "md": "text/markdown; charset=utf-8",
+                "csv": "text/csv; charset=utf-8",
+            }.get(requested_format, "text/plain; charset=utf-8")
             start_response(
                 "200 OK",
                 [
-                    ("Content-Type", "text/plain; charset=utf-8"),
+                    ("Content-Type", content_type),
                     (
                         "Content-Disposition",
                         _build_content_disposition(
                             article_id,
                             article_type,
-                            txt_result.get("title") or query.get("resolved_title"),
+                            export_result.get("title")
+                            or query.get("resolved_title"),
                             requested_format,
                         ),
                     ),
@@ -27465,9 +27868,86 @@ quality gate 確認結果:
 - root/meta repo は編集していない。
 
 =============================
+FILE: cursor/Task038_report.txt
+=============================
+TASK038 web_saved_download_format_selection report
+
+Goal
+- Add bounded format selection to Web saved-article download flow.
+- Keep TXT as default and preserve current auto-download UX.
+
+What changed
+- Web saved result now shows a small format selector (txt/md/csv) plus a
+  Download button, while still auto-downloading the default txt.
+- /download now renders the selected format and sets Content-Type based on
+  it (txt: text/plain, md: text/markdown, csv: text/csv).
+
+CSV shape
+- One response is one record.
+- Header fields (stable order):
+  article_id, article_type, article_title, article_url, res_no,
+  poster_name, poster_id, posted_at, content_text, content_html
+- No extra metadata header block.
+
+Bounded seam for future formats
+- archive_read.get_saved_article_export() routes by a local
+  renderer_by_format mapping.
+- Adding a future format (ex: html/json) is a small addition of one renderer
+  and one mapping entry, without changing the Web handler shape.
+
+Tests
+- tests/test_archive_read.py
+  - CSV header stability and row count.
+  - MD output is human-readable and includes key sections.
+- tests/test_web_app.py
+  - /download keeps txt behavior and adds md/csv content types.
+
+
+
+=============================
 FILE: cursor/archive_read.py
 =============================
 import sqlite3
+import csv
+from io import StringIO
+from pathlib import Path
+
+from storage import DEFAULT_DB_PATH
+
+
+def _open_archive_read_conn() -> sqlite3.Connection | None:
+    db_path = Path(DEFAULT_DB_PATH)
+    if not db_path.exists():
+        return None
+    return sqlite3.connect(str(db_path))
+
+
+def _article_select_columns(conn) -> str:
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(articles)")
+    column_names = {row[1] for row in cur.fetchall()}
+
+    published_expr = "published_at" if "published_at" in column_names else "NULL"
+    modified_expr = "modified_at" if "modified_at" in column_names else "NULL"
+    return (
+        "title, canonical_url, created_at, "
+        f"{published_expr} AS published_at, "
+        f"{modified_expr} AS modified_at"
+    )
+
+
+def _title_lookup_select_columns(conn) -> str:
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(articles)")
+    column_names = {row[1] for row in cur.fetchall()}
+
+    published_expr = "published_at" if "published_at" in column_names else "NULL"
+    modified_expr = "modified_at" if "modified_at" in column_names else "NULL"
+    return (
+        "article_id, article_type, title, canonical_url, created_at, "
+        f"{published_expr} AS published_at, "
+        f"{modified_expr} AS modified_at"
+    )
 
 
 def _count_saved_responses(cur, article_id, article_type):
@@ -27488,6 +27968,8 @@ def _build_saved_article_summary(
     title,
     url,
     created_at,
+    published_at,
+    modified_at,
     response_count,
 ):
     return {
@@ -27497,14 +27979,17 @@ def _build_saved_article_summary(
         "title": title,
         "url": url,
         "created_at": created_at,
+        "published_at": published_at,
+        "modified_at": modified_at,
         "response_count": response_count,
     }
 
 
 def _find_saved_article_by_title_lookup(cur, title):
+    select_columns = _title_lookup_select_columns(cur.connection)
     cur.execute(
-        """
-        SELECT article_id, article_type, title, canonical_url, created_at
+        f"""
+        SELECT {select_columns}
         FROM articles
         WHERE title=?
         ORDER BY created_at ASC, article_id ASC, article_type ASC
@@ -27517,8 +28002,8 @@ def _find_saved_article_by_title_lookup(cur, title):
         return article
 
     cur.execute(
-        """
-        SELECT article_id, article_type, title, canonical_url, created_at
+        f"""
+        SELECT {select_columns}
         FROM articles
         WHERE title = ? COLLATE NOCASE
         ORDER BY created_at ASC, article_id ASC, article_type ASC
@@ -27532,68 +28017,80 @@ def _find_saved_article_by_title_lookup(cur, title):
 def has_saved_article(article_id, article_type):
     """Return True when the article exists in saved archive."""
 
-    conn = sqlite3.connect("data/nicodic.db")
+    conn = _open_archive_read_conn()
+    if conn is None:
+        return False
     cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT 1
-        FROM articles
-        WHERE article_id=? AND article_type=?
-        LIMIT 1
-        """,
-        (article_id, article_type),
-    )
-    exists = cur.fetchone() is not None
-    conn.close()
-    return exists
-
-
-def read_article_archive(article_id, article_type, last_n=None):
-    conn = sqlite3.connect("data/nicodic.db")
-    cur = conn.cursor()
-
-    cur.execute(
-        """
-        SELECT title, canonical_url, created_at
-        FROM articles
-        WHERE article_id=? AND article_type=?
-        """,
-        (article_id, article_type),
-    )
-
-    article = cur.fetchone()
-    if not article:
-        conn.close()
-        return None
-
-    title, url, created_at = article
-
-    if last_n:
+    try:
         cur.execute(
             """
-            SELECT res_no, poster_name, posted_at, id_hash, content_text
-            FROM responses
+            SELECT 1
+            FROM articles
             WHERE article_id=? AND article_type=?
-            ORDER BY res_no DESC
-            LIMIT ?
-            """,
-            (article_id, article_type, last_n),
-        )
-        rows = cur.fetchall()
-        rows.reverse()
-    else:
-        cur.execute(
-            """
-            SELECT res_no, poster_name, posted_at, id_hash, content_text
-            FROM responses
-            WHERE article_id=? AND article_type=?
-            ORDER BY res_no ASC
+            LIMIT 1
             """,
             (article_id, article_type),
         )
-        rows = cur.fetchall()
+        return cur.fetchone() is not None
+    except sqlite3.OperationalError:
+        return False
+    finally:
+        conn.close()
 
-    conn.close()
+
+def read_article_archive(article_id, article_type, last_n=None):
+    conn = _open_archive_read_conn()
+    if conn is None:
+        return None
+    cur = conn.cursor()
+
+    try:
+        article_columns = _article_select_columns(conn)
+        cur.execute(
+            f"""
+            SELECT {article_columns}
+            FROM articles
+            WHERE article_id=? AND article_type=?
+            """,
+            (article_id, article_type),
+        )
+
+        article = cur.fetchone()
+        if not article:
+            return None
+
+        title, url, created_at, published_at, modified_at = article
+
+        response_columns = _response_select_columns(conn)
+        if last_n:
+            cur.execute(
+                f"""
+                SELECT {response_columns}
+                FROM responses
+                WHERE article_id=? AND article_type=?
+                ORDER BY res_no DESC
+                LIMIT ?
+                """,
+                (article_id, article_type, last_n),
+            )
+            rows = cur.fetchall()
+            rows.reverse()
+        else:
+            cur.execute(
+                f"""
+                SELECT {response_columns}
+                FROM responses
+                WHERE article_id=? AND article_type=?
+                ORDER BY res_no ASC
+                """,
+                (article_id, article_type),
+            )
+            rows = cur.fetchall()
+    except sqlite3.OperationalError:
+        return None
+    finally:
+        if conn is not None:
+            conn.close()
 
     return {
         "article_id": article_id,
@@ -27601,28 +28098,30 @@ def read_article_archive(article_id, article_type, last_n=None):
         "title": title,
         "url": url,
         "created_at": created_at,
+        "published_at": published_at,
+        "modified_at": modified_at,
         "responses": rows,
     }
+
+
+def _response_select_columns(conn: sqlite3.Connection) -> str:
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(responses)")
+    column_names = {row[1] for row in cur.fetchall()}
+
+    if "content_html" in column_names:
+        return (
+            "res_no, poster_name, posted_at, id_hash, "
+            "content_text, content_html"
+        )
+    return "res_no, poster_name, posted_at, id_hash, content_text"
 
 
 def get_saved_article_summary(article_id, article_type):
     """Return bounded metadata for non-CLI consumers checking archive status."""
 
-    conn = sqlite3.connect("data/nicodic.db")
-    cur = conn.cursor()
-
-    cur.execute(
-        """
-        SELECT title, canonical_url, created_at
-        FROM articles
-        WHERE article_id=? AND article_type=?
-        """,
-        (article_id, article_type),
-    )
-
-    article = cur.fetchone()
-    if not article:
-        conn.close()
+    conn = _open_archive_read_conn()
+    if conn is None:
         return {
             "found": False,
             "article_id": article_id,
@@ -27630,12 +28129,54 @@ def get_saved_article_summary(article_id, article_type):
             "title": None,
             "url": None,
             "created_at": None,
+            "published_at": None,
+            "modified_at": None,
             "response_count": 0,
         }
+    cur = conn.cursor()
 
-    title, url, created_at = article
-    response_count = _count_saved_responses(cur, article_id, article_type)
-    conn.close()
+    try:
+        article_columns = _article_select_columns(conn)
+        cur.execute(
+            f"""
+            SELECT {article_columns}
+            FROM articles
+            WHERE article_id=? AND article_type=?
+            """,
+            (article_id, article_type),
+        )
+
+        article = cur.fetchone()
+        if not article:
+            return {
+                "found": False,
+                "article_id": article_id,
+                "article_type": article_type,
+                "title": None,
+                "url": None,
+                "created_at": None,
+                "published_at": None,
+                "modified_at": None,
+                "response_count": 0,
+            }
+
+        title, url, created_at, published_at, modified_at = article
+        response_count = _count_saved_responses(cur, article_id, article_type)
+    except sqlite3.OperationalError:
+        return {
+            "found": False,
+            "article_id": article_id,
+            "article_type": article_type,
+            "title": None,
+            "url": None,
+            "created_at": None,
+            "published_at": None,
+            "modified_at": None,
+            "response_count": 0,
+        }
+    finally:
+        if conn is not None:
+            conn.close()
 
     return _build_saved_article_summary(
         article_id,
@@ -27643,6 +28184,8 @@ def get_saved_article_summary(article_id, article_type):
         title,
         url,
         created_at,
+        published_at,
+        modified_at,
         response_count,
     )
 
@@ -27650,13 +28193,8 @@ def get_saved_article_summary(article_id, article_type):
 def get_saved_article_summary_by_exact_title(title):
     """Return bounded metadata for a saved-title lookup."""
 
-    conn = sqlite3.connect("data/nicodic.db")
-    cur = conn.cursor()
-
-    article = _find_saved_article_by_title_lookup(cur, title)
-
-    if not article:
-        conn.close()
+    conn = _open_archive_read_conn()
+    if conn is None:
         return {
             "found": False,
             "article_id": None,
@@ -27664,12 +28202,52 @@ def get_saved_article_summary_by_exact_title(title):
             "title": None,
             "url": None,
             "created_at": None,
+            "published_at": None,
+            "modified_at": None,
             "response_count": 0,
         }
+    cur = conn.cursor()
 
-    article_id, article_type, saved_title, url, created_at = article
-    response_count = _count_saved_responses(cur, article_id, article_type)
-    conn.close()
+    try:
+        article = _find_saved_article_by_title_lookup(cur, title)
+        if not article:
+            return {
+                "found": False,
+                "article_id": None,
+                "article_type": None,
+                "title": None,
+                "url": None,
+                "created_at": None,
+                "published_at": None,
+                "modified_at": None,
+                "response_count": 0,
+            }
+
+        (
+            article_id,
+            article_type,
+            saved_title,
+            url,
+            created_at,
+            published_at,
+            modified_at,
+        ) = article
+        response_count = _count_saved_responses(cur, article_id, article_type)
+    except sqlite3.OperationalError:
+        return {
+            "found": False,
+            "article_id": None,
+            "article_type": None,
+            "title": None,
+            "url": None,
+            "created_at": None,
+            "published_at": None,
+            "modified_at": None,
+            "response_count": 0,
+        }
+    finally:
+        if conn is not None:
+            conn.close()
 
     return _build_saved_article_summary(
         article_id,
@@ -27677,8 +28255,18 @@ def get_saved_article_summary_by_exact_title(title):
         saved_title,
         url,
         created_at,
+        published_at,
+        modified_at,
         response_count,
     )
+
+
+def _article_date_line(archive) -> str | None:
+    if archive.get("modified_at"):
+        return f"Last Modified: {archive['modified_at']}"
+    if archive.get("published_at"):
+        return f"Published: {archive['published_at']}"
+    return None
 
 
 def _render_txt_archive(archive):
@@ -27688,27 +28276,143 @@ def _render_txt_archive(archive):
         f"Type: {archive['article_type']}",
         f"Title: {archive['title']}",
         f"URL: {archive['url']}",
-        f"Created: {archive['created_at']}",
         "",
         "=== RESPONSES ===",
     ]
 
-    for (
-        res_no,
-        poster_name,
-        posted_at,
-        id_hash,
-        content_text,
-    ) in archive["responses"]:
+    date_line = _article_date_line(archive)
+    if date_line is not None:
+        lines.insert(5, date_line)
+
+    for response in archive["responses"]:
+        res_no, poster_name, posted_at, id_hash, content_text = response[:5]
         poster_name = poster_name or "unknown"
         posted_at = posted_at or "unknown"
         id_hash = id_hash or "unknown"
 
-        lines.append(f">{res_no} {poster_name} {posted_at} ID: {id_hash}")
+        lines.append(f"{res_no} {poster_name} {posted_at} ID: {id_hash}")
         lines.append(content_text or "")
         lines.append("----")
 
     return "\n".join(lines)
+
+
+def _render_md_archive(archive: dict) -> str:
+    title = archive.get("title") or "unknown"
+    lines = [f"# {title}", ""]
+    lines.append("## Meta")
+    lines.append(f"- ID: {archive.get('article_id')}")
+    lines.append(f"- Type: {archive.get('article_type')}")
+    lines.append(f"- URL: {archive.get('url')}")
+    date_line = _article_date_line(archive)
+    if date_line is not None:
+        lines.append(f"- {date_line}")
+    lines.append("")
+    lines.append("## Responses")
+    lines.append("")
+
+    for response in archive.get("responses", []):
+        res_no, poster_name, posted_at, id_hash, content_text = response[:5]
+        poster_name = poster_name or "unknown"
+        posted_at = posted_at or "unknown"
+        id_hash = id_hash or "unknown"
+        lines.append(f"### {res_no}. {poster_name}")
+        lines.append(f"- Posted at: {posted_at}")
+        lines.append(f"- Poster ID: {id_hash}")
+        lines.append("")
+        lines.append(content_text or "")
+        lines.append("")
+        lines.append("---")
+        lines.append("")
+
+    return "\n".join(lines).rstrip("\n") + "\n"
+
+
+CSV_EXPORT_FIELDS: tuple[str, ...] = (
+    "article_id",
+    "article_type",
+    "article_title",
+    "article_url",
+    "res_no",
+    "poster_name",
+    "poster_id",
+    "posted_at",
+    "content_text",
+    "content_html",
+)
+
+
+def _csv_record_for_response(archive: dict, response: tuple) -> dict[str, object]:
+    res_no, poster_name, posted_at, id_hash, content_text = response[:5]
+    content_html = response[5] if len(response) > 5 else ""
+    return {
+        "article_id": archive.get("article_id") or "",
+        "article_type": archive.get("article_type") or "",
+        "article_title": archive.get("title") or "",
+        "article_url": archive.get("url") or "",
+        "res_no": res_no,
+        "poster_name": poster_name or "",
+        "poster_id": id_hash or "",
+        "posted_at": posted_at or "",
+        "content_text": content_text or "",
+        "content_html": content_html or "",
+    }
+
+
+def _render_csv_archive(archive: dict) -> str:
+    buf = StringIO()
+    writer = csv.DictWriter(
+        buf,
+        fieldnames=list(CSV_EXPORT_FIELDS),
+        extrasaction="ignore",
+        lineterminator="\n",
+    )
+    writer.writeheader()
+    for response in archive.get("responses", []):
+        writer.writerow(_csv_record_for_response(archive, response))
+    return buf.getvalue()
+
+
+def get_saved_article_export(article_id: str, article_type: str, fmt: str) -> dict:
+    """
+    Return bounded one-article export payload for non-CLI consumers.
+
+    Supported formats: txt / md / csv
+    """
+
+    archive = read_article_archive(article_id, article_type)
+    if not archive:
+        return {
+            "found": False,
+            "content": None,
+            "article_id": article_id,
+            "article_type": article_type,
+            "format": fmt,
+        }
+
+    renderer_by_format = {
+        "txt": _render_txt_archive,
+        "md": _render_md_archive,
+        "csv": _render_csv_archive,
+    }
+    renderer = renderer_by_format.get(fmt)
+    if renderer is None:
+        return {
+            "found": False,
+            "content": None,
+            "article_id": article_id,
+            "article_type": article_type,
+            "format": fmt,
+        }
+
+    return {
+        "found": True,
+        "content": renderer(archive),
+        "article_id": article_id,
+        "article_type": article_type,
+        "title": archive.get("title"),
+        "format": fmt,
+    }
 
 
 def get_saved_article_txt(article_id, article_type):
@@ -27720,52 +28424,51 @@ def get_saved_article_txt(article_id, article_type):
       {"found": False, "content": None, "article_id": str, "article_type": str}
     """
 
-    archive = read_article_archive(article_id, article_type)
-    if not archive:
-        return {
-            "found": False,
-            "content": None,
-            "article_id": article_id,
-            "article_type": article_type,
-        }
-
+    result = get_saved_article_export(article_id, article_type, "txt")
     return {
-        "found": True,
-        "content": _render_txt_archive(archive),
-        "article_id": article_id,
-        "article_type": article_type,
+        "found": result["found"],
+        "content": result["content"],
+        "article_id": result["article_id"],
+        "article_type": result["article_type"],
+        "title": result.get("title"),
     }
 
 
 def read_article_summaries():
-    conn = sqlite3.connect("data/nicodic.db")
+    conn = _open_archive_read_conn()
+    if conn is None:
+        return []
     cur = conn.cursor()
 
-    cur.execute(
-        """
-        SELECT
-            a.article_id,
-            a.article_type,
-            a.title,
-            a.canonical_url,
-            a.created_at,
-            COUNT(r.id) AS response_count
-        FROM articles AS a
-        LEFT JOIN responses AS r
-            ON a.article_id = r.article_id
-            AND a.article_type = r.article_type
-        GROUP BY
-            a.article_id,
-            a.article_type,
-            a.title,
-            a.canonical_url,
-            a.created_at
-        ORDER BY a.created_at ASC, a.article_id ASC, a.article_type ASC
-        """
-    )
+    try:
+        cur.execute(
+            """
+            SELECT
+                a.article_id,
+                a.article_type,
+                a.title,
+                a.canonical_url,
+                a.created_at,
+                COUNT(r.id) AS response_count
+            FROM articles AS a
+            LEFT JOIN responses AS r
+                ON a.article_id = r.article_id
+                AND a.article_type = r.article_type
+            GROUP BY
+                a.article_id,
+                a.article_type,
+                a.title,
+                a.canonical_url,
+                a.created_at
+            ORDER BY a.created_at ASC, a.article_id ASC, a.article_type ASC
+            """
+        )
 
-    rows = cur.fetchall()
-    conn.close()
+        rows = cur.fetchall()
+    except sqlite3.OperationalError:
+        return []
+    finally:
+        conn.close()
 
     return [
         {
@@ -31904,6 +32607,27 @@ DENYLIST_ARTICLE_IDS = frozenset({"480340", "237789"})
 BBS_PAGE_SIZE = 30
 
 
+class ArticleMetadataResult:
+    def __init__(
+        self,
+        article_id: str,
+        article_type: str,
+        title: str,
+        published_at: str | None = None,
+        modified_at: str | None = None,
+    ) -> None:
+        self.article_id = article_id
+        self.article_type = article_type
+        self.title = title
+        self.published_at = published_at
+        self.modified_at = modified_at
+
+    def __iter__(self):
+        yield self.article_id
+        yield self.article_type
+        yield self.title
+
+
 class ScrapeResult:
     """Truthiness matches legacy bool return; ``outcome`` supports telemetry."""
 
@@ -31996,6 +32720,55 @@ def _extract_page_title(soup) -> str:
         return "unknown"
 
     return title.split("とは")[0]
+
+
+def _extract_itemprop_datetime(soup, itemprop: str) -> str | None:
+    tag = soup.find(attrs={"itemprop": itemprop})
+    if tag is None:
+        return None
+
+    content = tag.get("content", "").strip()
+    if content:
+        return content
+
+    text = tag.get_text(" ", strip=True)
+    return text or None
+
+
+def fetch_article_metadata_record(article_url: str) -> dict:
+    try:
+        soup = fetch_page(article_url)
+    except RuntimeError as exc:
+        if "status=404" in str(exc):
+            raise ArticleNotFoundError(f"Article not found: {article_url}") from exc
+        raise
+
+    redirect_target_url = extract_redirect_target_url(article_url, soup)
+    if redirect_target_url is not None:
+        raise RedirectArticleError(
+            article_url,
+            redirect_target_url,
+            _extract_page_title(soup),
+        )
+
+    title_tag = soup.find("meta", property="og:title")
+    title = title_tag["content"].split("とは")[0] if title_tag else "unknown"
+
+    og_url = soup.find("meta", property="og:url")
+    if og_url is None:
+        raise ArticleNotFoundError(f"Article not found: {article_url}")
+
+    article_id = og_url["content"].rstrip("/").split("/")[-1]
+    parsed = urlparse(article_url)
+    article_type = parsed.path.strip("/").split("/")[0]
+
+    return {
+        "article_id": article_id,
+        "article_type": article_type,
+        "title": title,
+        "published_at": _extract_itemprop_datetime(soup, "datePublished"),
+        "modified_at": _extract_itemprop_datetime(soup, "dateModified"),
+    }
 
 
 def _normalize_redirect_target_url(
@@ -32275,35 +33048,14 @@ def fetch_article_metadata(article_url: str):
       - article_type
       - title
     """
-
-    try:
-        soup = fetch_page(article_url)
-    except RuntimeError as exc:
-        if "status=404" in str(exc):
-            raise ArticleNotFoundError(f"Article not found: {article_url}") from exc
-        raise
-
-    redirect_target_url = extract_redirect_target_url(article_url, soup)
-    if redirect_target_url is not None:
-        raise RedirectArticleError(
-            article_url,
-            redirect_target_url,
-            _extract_page_title(soup),
-        )
-
-    title_tag = soup.find("meta", property="og:title")
-    title = title_tag["content"].split("とは")[0] if title_tag else "unknown"
-
-    og_url = soup.find("meta", property="og:url")
-    if og_url is None:
-        raise ArticleNotFoundError(f"Article not found: {article_url}")
-
-    article_id = og_url["content"].rstrip("/").split("/")[-1]
-
-    parsed = urlparse(article_url)
-    article_type = parsed.path.strip("/").split("/")[0]
-
-    return article_id, article_type, title
+    record = fetch_article_metadata_record(article_url)
+    return ArticleMetadataResult(
+        record["article_id"],
+        record["article_type"],
+        record["title"],
+        published_at=record.get("published_at"),
+        modified_at=record.get("modified_at"),
+    )
 
 
 def run_scrape(
@@ -32314,7 +33066,8 @@ def run_scrape(
     target_total: int | None = None,
 ) -> ScrapeResult:
     try:
-        article_id, article_type, title = fetch_article_metadata(article_url)
+        metadata_result = fetch_article_metadata(article_url)
+        article_id, article_type, title = metadata_result
 
     except RedirectArticleError as exc:
         if progress_reporter is None:
@@ -32480,7 +33233,23 @@ def run_scrape(
     )
 
     conn = init_db()
-    save_to_db(conn, article_id, article_type, title, article_url, responses)
+    save_kwargs = {}
+    published_at = getattr(metadata_result, "published_at", None)
+    modified_at = getattr(metadata_result, "modified_at", None)
+    if published_at is not None:
+        save_kwargs["published_at"] = published_at
+    if modified_at is not None:
+        save_kwargs["modified_at"] = modified_at
+
+    save_to_db(
+        conn,
+        article_id,
+        article_type,
+        title,
+        article_url,
+        responses,
+        **save_kwargs,
+    )
     conn.close()
 
     if progress_reporter is None:
@@ -33592,6 +34361,28 @@ def _ensure_target_redirect_columns(conn: sqlite3.Connection) -> None:
         conn.commit()
 
 
+def _ensure_article_metadata_columns(conn: sqlite3.Connection) -> None:
+    column_names = _list_column_names(conn, "articles")
+    required_columns = {
+        "published_at": "ALTER TABLE articles ADD COLUMN published_at TEXT",
+        "modified_at": "ALTER TABLE articles ADD COLUMN modified_at TEXT",
+        (
+            "latest_scraped_at"
+        ): "ALTER TABLE articles ADD COLUMN latest_scraped_at TEXT",
+    }
+
+    cur = conn.cursor()
+    changed = False
+    for column_name, statement in required_columns.items():
+        if column_name in column_names:
+            continue
+        cur.execute(statement)
+        changed = True
+
+    if changed:
+        conn.commit()
+
+
 def init_db(db_path: str = DEFAULT_DB_PATH):
     """
     SQLite初期化（テーブル作成）。
@@ -33663,6 +34454,7 @@ def init_db(db_path: str = DEFAULT_DB_PATH):
     )
     """)
 
+    _ensure_article_metadata_columns(conn)
     _ensure_target_redirect_columns(conn)
 
     cur.execute("""
@@ -33687,7 +34479,18 @@ def init_db(db_path: str = DEFAULT_DB_PATH):
     return conn
 
 
-def save_to_db(conn, article_id, article_type, title, article_url, responses):
+def save_to_db(
+    conn,
+    article_id,
+    article_type,
+    title,
+    article_url,
+    responses,
+    *,
+    published_at: str | None = None,
+    modified_at: str | None = None,
+    latest_scraped_at: str | None = None,
+):
     """
     記事およびレスをSQLiteへ保存。
     INSERT OR IGNORE で重複回避。
@@ -33701,6 +34504,30 @@ def save_to_db(conn, article_id, article_type, title, article_url, responses):
         (article_id, article_type, title, canonical_url)
         VALUES (?, ?, ?, ?)
     """, (article_id, article_type, title, article_url))
+
+    if latest_scraped_at is None:
+        latest_scraped_at = datetime.now(timezone.utc).isoformat()
+
+    cur.execute(
+        """
+        UPDATE articles
+        SET title = ?,
+            canonical_url = ?,
+            published_at = COALESCE(?, published_at),
+            modified_at = COALESCE(?, modified_at),
+            latest_scraped_at = ?
+        WHERE article_id = ? AND article_type = ?
+        """,
+        (
+            title,
+            article_url,
+            published_at,
+            modified_at,
+            latest_scraped_at,
+            article_id,
+            article_type,
+        ),
+    )
 
     # レス保存
     for r in responses:
@@ -34573,9 +35400,13 @@ if str(_root) not in sys.path:
 =============================
 FILE: cursor/tests/test_archive_read.py
 =============================
+import sqlite3
+from unittest.mock import patch
+
 from archive_read import (
     get_saved_article_summary,
     get_saved_article_summary_by_exact_title,
+    get_saved_article_export,
     get_saved_article_txt,
     has_saved_article,
 )
@@ -34636,7 +35467,43 @@ def test_get_saved_article_txt_returns_content_for_existing_article(
     assert result["article_type"] == "a"
     assert "=== ARTICLE META ===" in result["content"]
     assert "Title: First Title" in result["content"]
-    assert ">1 Alice 2025-01-01 00:00 ID: abc123" in result["content"]
+    assert "1 Alice 2025-01-01 00:00 ID: abc123" in result["content"]
+    assert "Created:" not in result["content"]
+
+
+def test_get_saved_article_txt_keeps_reply_markers_in_response_body(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "12345",
+            "a",
+            "Reply Title",
+            "https://dic.nicovideo.jp/a/12345",
+            [
+                {
+                    "res_no": 1,
+                    "id_hash": "abc123",
+                    "poster_name": "Alice",
+                    "posted_at": "2025-01-01 00:00",
+                    "content": ">>123\nreply body",
+                    "content_html": "<p>&gt;&gt;123</p><p>reply body</p>",
+                }
+            ],
+            modified_at="2025-01-02T00:00:00+09:00",
+        )
+    finally:
+        conn.close()
+
+    result = get_saved_article_txt("12345", "a")
+
+    assert "Last Modified: 2025-01-02T00:00:00+09:00" in result["content"]
+    assert "1 Alice 2025-01-01 00:00 ID: abc123" in result["content"]
+    assert ">>123\nreply body" in result["content"]
 
 
 def test_get_saved_article_txt_returns_missing_shape_for_missing_article(
@@ -34655,6 +35522,41 @@ def test_get_saved_article_txt_returns_missing_shape_for_missing_article(
     }
 
 
+def test_get_saved_article_export_csv_has_stable_header_and_rows(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = get_saved_article_export("12345", "a", "csv")
+
+    assert result["found"] is True
+    text = result["content"]
+    lines = text.splitlines()
+    assert lines[0] == (
+        "article_id,article_type,article_title,article_url,res_no,"
+        "poster_name,poster_id,posted_at,content_text,content_html"
+    )
+    assert len(lines) == 2
+    assert lines[1].startswith("12345,a,First Title,https://dic.nicovideo.jp/a/12345,")
+
+
+def test_get_saved_article_export_md_is_human_readable(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = get_saved_article_export("12345", "a", "md")
+
+    assert result["found"] is True
+    text = result["content"]
+    assert text.startswith("# First Title\n")
+    assert "## Meta" in text
+    assert "## Responses" in text
+    assert "### 1. Alice" in text
+
+
 def test_get_saved_article_summary_returns_bounded_metadata_for_existing_article(
     tmp_path,
     monkeypatch,
@@ -34670,6 +35572,8 @@ def test_get_saved_article_summary_returns_bounded_metadata_for_existing_article
         "title": "First Title",
         "url": "https://dic.nicovideo.jp/a/12345",
         "created_at": result["created_at"],
+        "published_at": None,
+        "modified_at": None,
         "response_count": 1,
     }
     assert result["created_at"]
@@ -34690,6 +35594,8 @@ def test_get_saved_article_summary_returns_missing_shape_for_missing_article(
         "title": None,
         "url": None,
         "created_at": None,
+        "published_at": None,
+        "modified_at": None,
         "response_count": 0,
     }
 
@@ -34709,6 +35615,8 @@ def test_get_saved_article_summary_by_exact_title_returns_existing_article(
         "title": "First Title",
         "url": "https://dic.nicovideo.jp/a/12345",
         "created_at": result["created_at"],
+        "published_at": None,
+        "modified_at": None,
         "response_count": 1,
     }
     assert result["created_at"]
@@ -34729,6 +35637,8 @@ def test_get_saved_article_summary_by_exact_title_returns_missing_shape(
         "title": None,
         "url": None,
         "created_at": None,
+        "published_at": None,
+        "modified_at": None,
         "response_count": 0,
     }
 
@@ -34769,9 +35679,108 @@ def test_get_saved_article_summary_by_exact_title_returns_ascii_case_insensitive
         "title": "G123",
         "url": "https://dic.nicovideo.jp/id/5587284",
         "created_at": result["created_at"],
+        "published_at": None,
+        "modified_at": None,
         "response_count": 1,
     }
     assert result["created_at"]
+
+
+def test_archive_read_tolerates_db_without_metadata_columns(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    conn = sqlite3.connect(data_dir / "nicodic.db")
+    try:
+        conn.execute(
+            """
+            CREATE TABLE articles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                article_id TEXT NOT NULL,
+                article_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                canonical_url TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(article_id, article_type)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE responses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                article_id TEXT NOT NULL,
+                article_type TEXT NOT NULL,
+                res_no INTEGER NOT NULL,
+                id_hash TEXT,
+                poster_name TEXT,
+                posted_at TEXT,
+                content_text TEXT,
+                UNIQUE(article_id, article_type, res_no)
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO articles (article_id, article_type, title, canonical_url)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                "12345",
+                "a",
+                "First Title",
+                "https://dic.nicovideo.jp/a/12345",
+            ),
+        )
+        conn.execute(
+            """
+            INSERT INTO responses (
+                article_id, article_type, res_no, id_hash,
+                poster_name, posted_at, content_text
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                "12345",
+                "a",
+                1,
+                "abc123",
+                "Alice",
+                "2025-01-01 00:00",
+                "First response",
+            ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    summary = get_saved_article_summary("12345", "a")
+    txt_result = get_saved_article_txt("12345", "a")
+
+    assert summary["found"] is True
+    assert summary["published_at"] is None
+    assert summary["modified_at"] is None
+    assert txt_result["found"] is True
+    assert "Title: First Title" in txt_result["content"]
+
+
+def test_archive_read_does_not_call_init_db_on_read_path(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    with patch(
+        "archive_read.sqlite3.connect",
+        wraps=sqlite3.connect,
+    ) as mock_connect:
+        result = get_saved_article_summary("12345", "a")
+
+    mock_connect.assert_called_once()
+    assert result["found"] is True
 
 
 =============================
@@ -35062,7 +36071,7 @@ def test_export_article_outputs_txt_for_saved_article(tmp_path, monkeypatch, cap
     assert "Type: a" in out
     assert "Title: First Title" in out
     assert "=== RESPONSES ===" in out
-    assert ">1 Alice 2025-01-01 00:00 ID: abc123" in out
+    assert "1 Alice 2025-01-01 00:00 ID: abc123" in out
 
 
 def test_export_article_outputs_md_for_saved_article(tmp_path, monkeypatch, capsys):
@@ -35106,7 +36115,7 @@ def test_export_article_uses_archive_read_seam(mock_get_saved_article_txt, capsy
             "Type: a\n"
             "Title: First Title\n"
             "=== RESPONSES ===\n"
-            ">1 Alice 2025-01-01 00:00 ID: abc123\n"
+            "1 Alice 2025-01-01 00:00 ID: abc123\n"
             "Hello\n"
             "----"
         ),
@@ -36941,10 +37950,12 @@ import pytest
 from bs4 import BeautifulSoup
 
 from orchestrator import (
+    ArticleMetadataResult,
     ArticleNotFoundError,
     QUEUE_DRAIN_PER_ARTICLE_RESPONSE_CAP,
     RedirectArticleError,
     build_bbs_base_url,
+    fetch_article_metadata_record,
     fetch_article_metadata,
     collect_all_responses,
     drain_queue_requests,
@@ -36977,6 +37988,8 @@ def test_fetch_article_metadata_mocked():
     <html><head>
     <meta property="og:title" content="Fooとは">
     <meta property="og:url" content="https://dic.nicovideo.jp/a/12345">
+    <meta itemprop="datePublished" content="2024-01-02T03:04:05+09:00">
+    <meta itemprop="dateModified" content="2025-02-03T04:05:06+09:00">
     </head></html>
     """
     soup = BeautifulSoup(html, "lxml")
@@ -36987,6 +38000,101 @@ def test_fetch_article_metadata_mocked():
     assert article_id == "12345"
     assert article_type == "a"
     assert title == "Foo"
+
+
+def test_fetch_article_metadata_record_reads_article_dates():
+    html = """
+    <html><head>
+    <meta property="og:title" content="Fooとは">
+    <meta property="og:url" content="https://dic.nicovideo.jp/a/12345">
+    <meta itemprop="datePublished" content="2024-01-02T03:04:05+09:00">
+    <meta itemprop="dateModified" content="2025-02-03T04:05:06+09:00">
+    </head></html>
+    """
+    soup = BeautifulSoup(html, "lxml")
+
+    with patch("orchestrator.fetch_page", return_value=soup):
+        record = fetch_article_metadata_record(
+            "https://dic.nicovideo.jp/a/12345"
+        )
+
+    assert record == {
+        "article_id": "12345",
+        "article_type": "a",
+        "title": "Foo",
+        "published_at": "2024-01-02T03:04:05+09:00",
+        "modified_at": "2025-02-03T04:05:06+09:00",
+    }
+
+
+def test_run_scrape_respects_existing_fetch_metadata_patch_seam():
+    article_url = "https://dic.nicovideo.jp/a/12345"
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=("12345", "a", "Title"),
+    ) as mock_meta:
+        with patch(
+            "orchestrator.build_bbs_base_url",
+            return_value="https://dic.nicovideo.jp/b/a/12345/",
+        ):
+            with patch("orchestrator.get_max_saved_res_no", return_value=None):
+                with patch(
+                    "orchestrator.collect_all_responses",
+                    return_value=([], False, False),
+                ):
+                    with patch("orchestrator.save_json"):
+                        conn = MagicMock()
+                        with patch(
+                            "orchestrator.init_db",
+                            return_value=conn,
+                        ):
+                            with patch("orchestrator.save_to_db") as mock_save_db:
+                                with patch("orchestrator.print"):
+                                    run_scrape(article_url)
+
+    mock_meta.assert_called_once_with(article_url)
+    assert mock_save_db.call_args.kwargs == {}
+
+
+def test_run_scrape_passes_metadata_kwargs_only_when_present():
+    article_url = "https://dic.nicovideo.jp/a/12345"
+
+    patched_result = ArticleMetadataResult(
+        "12345",
+        "a",
+        "Title",
+        published_at="2024-01-02T03:04:05+09:00",
+        modified_at="2025-02-03T04:05:06+09:00",
+    )
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=patched_result,
+    ):
+        with patch(
+            "orchestrator.build_bbs_base_url",
+            return_value="https://dic.nicovideo.jp/b/a/12345/",
+        ):
+            with patch("orchestrator.get_max_saved_res_no", return_value=None):
+                with patch(
+                    "orchestrator.collect_all_responses",
+                    return_value=([], False, False),
+                ):
+                    with patch("orchestrator.save_json"):
+                        conn = MagicMock()
+                        with patch(
+                            "orchestrator.init_db",
+                            return_value=conn,
+                        ):
+                            with patch("orchestrator.save_to_db") as mock_save_db:
+                                with patch("orchestrator.print"):
+                                    run_scrape(article_url)
+
+    assert mock_save_db.call_args.kwargs == {
+        "published_at": "2024-01-02T03:04:05+09:00",
+        "modified_at": "2025-02-03T04:05:06+09:00",
+    }
 
 
 def test_fetch_article_metadata_raises_when_article_meta_missing():
@@ -38297,6 +39405,40 @@ def test_save_to_db_insert_or_ignore_prevents_duplicate_growth(tmp_path, monkeyp
         conn.close()
 
 
+def test_save_to_db_persists_bounded_article_metadata(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "12345",
+            "a",
+            "Some Title",
+            "https://dic.nicovideo.jp/a/12345",
+            [],
+            published_at="2024-01-02T03:04:05+09:00",
+            modified_at="2025-02-03T04:05:06+09:00",
+            latest_scraped_at="2026-03-04T05:06:07+09:00",
+        )
+
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT published_at, modified_at, latest_scraped_at "
+            "FROM articles WHERE article_id=? AND article_type=?",
+            ("12345", "a"),
+        )
+        row = cur.fetchone()
+
+        assert row == (
+            "2024-01-02T03:04:05+09:00",
+            "2025-02-03T04:05:06+09:00",
+            "2026-03-04T05:06:07+09:00",
+        )
+    finally:
+        conn.close()
+
+
 def test_save_json_writes_json_and_sanitizes_title_in_filename(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(storage.time, "time", lambda: 1700000000)
@@ -39132,6 +40274,7 @@ def test_verify_kgs_batch_registers_target_and_runs_batch(tmp_path, capsys):
 FILE: cursor/tests/test_web_app.py
 =============================
 from io import BytesIO
+import sqlite3
 from unittest.mock import patch
 
 import web_app
@@ -39203,6 +40346,118 @@ def test_check_article_status_returns_saved_result_for_local_title_lookup():
     }
 
 
+def test_check_article_status_restores_saved_parity_for_decoded_url_input():
+    with patch(
+        "web_app.resolve_article_input",
+        return_value={
+            "ok": True,
+            "normalized_input": "https://dic.nicovideo.jp/a/たつきショック",
+            "matched_by": "article_url",
+            "title": "たつきショック",
+            "canonical_target": {
+                "article_url": "https://dic.nicovideo.jp/id/5502789",
+                "article_id": "5502789",
+                "article_type": "id",
+            },
+        },
+    ):
+        with patch(
+            "web_app.get_saved_article_summary",
+            return_value={
+                "found": False,
+                "article_id": "5502789",
+                "article_type": "id",
+                "title": None,
+                "url": None,
+                "created_at": None,
+                "published_at": None,
+                "modified_at": None,
+                "response_count": 0,
+            },
+        ):
+            with patch(
+                "web_app.get_saved_article_summary_by_exact_title",
+                return_value={
+                    "found": True,
+                    "article_id": "5502789",
+                    "article_type": "a",
+                    "title": "たつきショック",
+                    "url": "https://dic.nicovideo.jp/a/たつきショック",
+                    "created_at": "2026-03-25T00:00:00+00:00",
+                    "published_at": None,
+                    "modified_at": None,
+                    "response_count": 42,
+                },
+            ):
+                result = check_article_status(
+                    "https://dic.nicovideo.jp/a/たつきショック"
+                )
+
+    assert result["status"] == "saved"
+    assert result["matched_by"] == "article_url"
+    assert result["article_id"] == "5502789"
+    assert result["article_type"] == "a"
+    assert result["article_url"] == "https://dic.nicovideo.jp/a/たつきショック"
+
+
+def test_check_article_status_restores_saved_parity_for_encoded_url_input():
+    with patch(
+        "web_app.resolve_article_input",
+        return_value={
+            "ok": True,
+            "normalized_input": (
+                "https://dic.nicovideo.jp/a/"
+                "%E3%81%9F%E3%81%A4%E3%81%8D%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF"
+            ),
+            "matched_by": "article_url",
+            "title": "たつきショック",
+            "canonical_target": {
+                "article_url": "https://dic.nicovideo.jp/id/5502789",
+                "article_id": "5502789",
+                "article_type": "id",
+            },
+        },
+    ):
+        with patch(
+            "web_app.get_saved_article_summary",
+            return_value={
+                "found": False,
+                "article_id": "5502789",
+                "article_type": "id",
+                "title": None,
+                "url": None,
+                "created_at": None,
+                "published_at": None,
+                "modified_at": None,
+                "response_count": 0,
+            },
+        ):
+            with patch(
+                "web_app.get_saved_article_summary_by_exact_title",
+                return_value={
+                    "found": True,
+                    "article_id": "5502789",
+                    "article_type": "a",
+                    "title": "たつきショック",
+                    "url": "https://dic.nicovideo.jp/a/たつきショック",
+                    "created_at": "2026-03-25T00:00:00+00:00",
+                    "published_at": None,
+                    "modified_at": None,
+                    "response_count": 42,
+                },
+            ):
+                result = check_article_status(
+                    "https://dic.nicovideo.jp/a/"
+                    "%E3%81%9F%E3%81%A4%E3%81%8D%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF"
+                )
+
+    assert result["status"] == "saved"
+    assert result["matched_by"] == "article_url"
+    assert result["article_id"] == "5502789"
+    assert result["article_type"] == "a"
+    assert result["article_url"] == "https://dic.nicovideo.jp/a/たつきショック"
+
+
 def test_check_article_status_classifies_temporary_fetch_failure():
     empty_summary = {
         "found": False,
@@ -39230,6 +40485,161 @@ def test_check_article_status_classifies_temporary_fetch_failure():
     assert result["failure_kind"] == "temporary_fetch_failure"
 
 
+def test_check_article_status_tolerates_old_schema_saved_lookup(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    conn = sqlite3.connect(data_dir / "nicodic.db")
+    try:
+        conn.execute(
+            """
+            CREATE TABLE articles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                article_id TEXT NOT NULL,
+                article_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                canonical_url TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(article_id, article_type)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE responses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                article_id TEXT NOT NULL,
+                article_type TEXT NOT NULL,
+                res_no INTEGER NOT NULL,
+                id_hash TEXT,
+                poster_name TEXT,
+                posted_at TEXT,
+                content_text TEXT,
+                UNIQUE(article_id, article_type, res_no)
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO articles (article_id, article_type, title, canonical_url)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                "5502789",
+                "a",
+                "たつきショック",
+                "https://dic.nicovideo.jp/a/%E3%81%9F%E3%81%A4%E3%81%8D"
+                "%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF",
+            ),
+        )
+        conn.execute(
+            """
+            INSERT INTO responses (article_id, article_type, res_no, content_text)
+            VALUES (?, ?, ?, ?)
+            """,
+            ("5502789", "a", 1, "saved"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    with patch("web_app.resolve_article_input") as mock_resolve:
+        result = check_article_status("たつきショック")
+
+    mock_resolve.assert_not_called()
+    assert result["status"] == "saved"
+    assert result["title"] == "たつきショック"
+    assert result["response_count"] == 1
+
+
+def test_check_article_status_tolerates_old_schema_saved_lookup_for_url(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    data_dir = tmp_path / "data"
+    data_dir.mkdir()
+    conn = sqlite3.connect(data_dir / "nicodic.db")
+    try:
+        conn.execute(
+            """
+            CREATE TABLE articles (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                article_id TEXT NOT NULL,
+                article_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                canonical_url TEXT,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE(article_id, article_type)
+            )
+            """
+        )
+        conn.execute(
+            """
+            CREATE TABLE responses (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                article_id TEXT NOT NULL,
+                article_type TEXT NOT NULL,
+                res_no INTEGER NOT NULL,
+                id_hash TEXT,
+                poster_name TEXT,
+                posted_at TEXT,
+                content_text TEXT,
+                UNIQUE(article_id, article_type, res_no)
+            )
+            """
+        )
+        conn.execute(
+            """
+            INSERT INTO articles (article_id, article_type, title, canonical_url)
+            VALUES (?, ?, ?, ?)
+            """,
+            (
+                "5502789",
+                "a",
+                "たつきショック",
+                "https://dic.nicovideo.jp/a/%E3%81%9F%E3%81%A4%E3%81%8D"
+                "%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF",
+            ),
+        )
+        conn.execute(
+            """
+            INSERT INTO responses (article_id, article_type, res_no, content_text)
+            VALUES (?, ?, ?, ?)
+            """,
+            ("5502789", "a", 1, "saved"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    with patch(
+        "web_app.resolve_article_input",
+        return_value={
+            "ok": True,
+            "normalized_input": "https://dic.nicovideo.jp/a/たつきショック",
+            "matched_by": "article_url",
+            "title": "たつきショック",
+            "canonical_target": {
+                "article_id": "5502789",
+                "article_type": "a",
+                "article_url": "https://dic.nicovideo.jp/a/たつきショック",
+            },
+        },
+    ) as mock_resolve:
+        result = check_article_status(
+            "https://dic.nicovideo.jp/a/たつきショック"
+        )
+
+    mock_resolve.assert_called_once()
+    assert result["status"] == "saved"
+    assert result["matched_by"] == "article_url"
+    assert result["response_count"] == 1
+
+
 def test_application_get_renders_externalized_title_and_waiting_state():
     response = _run_wsgi_request("GET")
 
@@ -39239,6 +40649,7 @@ def test_application_get_renders_externalized_title_and_waiting_state():
     assert "data-archive-check-form" in response["body"]
     assert "data-busy-message" in response["body"]
     assert "Saved articles will download as TXT." in response["body"]
+    assert "overflow-wrap: anywhere;" in response["body"]
 
 
 def test_application_post_saved_result_autodownloads_without_buttons():
@@ -39265,9 +40676,121 @@ def test_application_post_saved_result_autodownloads_without_buttons():
     assert "Article ID:</strong> 12345" in response["body"]
     assert "Saved response count:</strong> 42" in response["body"]
     assert "data-auto-download-form" in response["body"]
+    assert 'id="download_format"' in response["body"]
+    assert 'option value="txt" selected' in response["body"]
+    assert 'option value="md"' in response["body"]
+    assert 'option value="csv"' in response["body"]
     assert "Download TXT" not in response["body"]
     assert "Add To Target Registry" not in response["body"]
     assert "Matched by" not in response["body"]
+
+
+def test_saved_result_encoded_url_input_autodownload_ok(
+):
+    result = {
+        "status": "saved",
+        "input": (
+            "https://dic.nicovideo.jp/a/"
+            "%E3%81%9F%E3%81%A4%E3%81%8D%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF"
+        ),
+        "title": "たつきショック",
+        "matched_by": "article_url",
+        "article_url": "https://dic.nicovideo.jp/a/たつきショック",
+        "article_id": "5502789",
+        "article_type": "a",
+        "response_count": 42,
+        "message": "Saved archive found for the resolved article.",
+    }
+
+    with patch("web_app.check_article_status", return_value=result):
+        response = _run_wsgi_request(
+            "POST",
+            body=(
+                "article_input=https%3A%2F%2Fdic.nicovideo.jp%2Fa%2F"
+                "%25E3%2581%259F%25E3%2581%25A4%25E3%2581%258D%25E3%2582%25B7"
+                "%25E3%2583%25A7%25E3%2583%2583%25E3%2582%25AF"
+            ),
+        )
+
+    assert response["status"] == "200 OK"
+    assert "Saved article found. TXT download will start automatically." in (
+        response["body"]
+    )
+    assert "data-auto-download-form" in response["body"]
+    assert 'id="download_format"' in response["body"]
+    assert 'option value="csv"' in response["body"]
+    assert 'name="article_id" value="5502789"' in response["body"]
+    assert 'name="article_type" value="a"' in response["body"]
+    assert 'name="resolved_title" value="たつきショック"' in response["body"]
+    assert response["body"].count('name="article_input"') == 1
+
+
+def test_saved_result_decoded_url_input_autodownload_ok(
+):
+    result = {
+        "status": "saved",
+        "input": "https://dic.nicovideo.jp/a/たつきショック",
+        "title": "たつきショック",
+        "matched_by": "article_url",
+        "article_url": "https://dic.nicovideo.jp/a/たつきショック",
+        "article_id": "5502789",
+        "article_type": "a",
+        "response_count": 42,
+        "message": "Saved archive found for the resolved article.",
+    }
+
+    with patch("web_app.check_article_status", return_value=result):
+        response = _run_wsgi_request(
+            "POST",
+            body=(
+                "article_input=https%3A%2F%2Fdic.nicovideo.jp%2Fa%2F"
+                "%E3%81%9F%E3%81%A4%E3%81%8D%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF"
+            ),
+        )
+
+    assert response["status"] == "200 OK"
+    assert "Saved article found. TXT download will start automatically." in (
+        response["body"]
+    )
+    assert "data-auto-download-form" in response["body"]
+    assert 'id="download_format"' in response["body"]
+    assert 'option value="csv"' in response["body"]
+    assert 'name="article_id" value="5502789"' in response["body"]
+    assert 'name="article_type" value="a"' in response["body"]
+    assert 'name="resolved_title" value="たつきショック"' in response["body"]
+    assert response["body"].count('name="article_input"') == 1
+
+
+def test_application_post_registration_write_failure_returns_bounded_error():
+    result = {
+        "status": "unsaved",
+        "input": "https://dic.nicovideo.jp/a/%E6%9C%AA%E4%BF%9D%E5%AD%98",
+        "title": "未保存記事",
+        "matched_by": "article_url",
+        "article_url": "https://dic.nicovideo.jp/a/%E6%9C%AA%E4%BF%9D%E5%AD%98",
+        "article_id": "12345",
+        "article_type": "a",
+        "message": "Resolved article, but no saved archive was found yet.",
+    }
+
+    with patch("web_app.check_article_status", return_value=result):
+        with patch(
+            "web_app.register_target_url",
+            side_effect=sqlite3.OperationalError(
+                "attempt to write a readonly database"
+            ),
+        ):
+            response = _run_wsgi_request(
+                "POST",
+                body=(
+                    "article_input=https%3A%2F%2Fdic.nicovideo.jp%2Fa%2F"
+                    "%E6%9C%AA%E4%BF%9D%E5%AD%98"
+                ),
+            )
+
+    assert response["status"] == "200 OK"
+    assert "An unexpected internal error occurred." in response["body"]
+    assert "Reference ID:</strong>" in response["body"]
 
 
 def test_application_post_registers_unsaved_article_and_logs_action(tmp_path):
@@ -39312,26 +40835,76 @@ def test_application_post_registers_unsaved_article_and_logs_action(tmp_path):
     assert "%E3%83%8B%E3%82%B3" not in log_text
 
 
+def test_application_post_unsaved_result_stays_200_when_log_write_fails():
+    result = {
+        "status": "unsaved",
+        "input": "Foo",
+        "title": "ニコニコ大百科",
+        "matched_by": "exact_title",
+        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_id": "12345",
+        "article_type": "a",
+        "message": "Resolved article, but no saved archive was found yet.",
+    }
+
+    with patch("web_app.check_article_status", return_value=result):
+        with patch("web_app.register_target_url", return_value="added"):
+            with patch(
+                "web_app._append_web_action_log_lines",
+                side_effect=PermissionError("denied"),
+            ):
+                response = _run_wsgi_request("POST", body="article_input=Foo")
+
+    assert response["status"] == "200 OK"
+    assert "Article registered for archive checking." in response["body"]
+    assert "Article title:</strong> ニコニコ大百科" in response["body"]
+
+
+def test_application_post_error_result_stays_200_when_log_write_fails():
+    result = {
+        "status": "resolution_failure",
+        "input": "https://example.com/nope",
+        "failure_kind": "invalid_input",
+        "message": "Could not resolve the input.",
+    }
+
+    with patch("web_app.check_article_status", return_value=result):
+        with patch(
+            "web_app._append_web_action_log_lines",
+            side_effect=PermissionError("denied"),
+        ):
+            response = _run_wsgi_request(
+                "POST",
+                body="article_input=https%3A%2F%2Fexample.com%2Fnope",
+            )
+
+    assert response["status"] == "200 OK"
+    assert "Enter an article name or a valid Nicopedia article URL." in (
+        response["body"]
+    )
+    assert "Reference ID:</strong>" in response["body"]
+
+
 def test_download_endpoint_returns_txt_and_logs_download(tmp_path):
     log_path = tmp_path / "web_action.log"
 
     with patch(
-        "web_app.get_saved_article_txt",
+        "web_app.get_saved_article_export",
         return_value={
             "found": True,
             "content": "=== ARTICLE META ===\nTitle: Foo",
             "article_id": "12345",
             "article_type": "a",
+            "title": "たつきショック",
+            "format": "txt",
         },
     ):
         response = _run_wsgi_request(
             "GET",
             path="/download",
             query_string=(
-                "article_id=12345&article_type=a&article_input=Foo"
-                "&resolved_title=Foo&article_url="
-                "https%3A%2F%2Fdic.nicovideo.jp%2Fa%2F12345"
-                "&requested_format=txt"
+                "article_id=12345&article_type=a"
+                "&resolved_title=Foo&requested_format=txt"
             ),
             app=create_app(web_action_log_path=str(log_path)),
             extra_environ={
@@ -39343,7 +40916,10 @@ def test_download_endpoint_returns_txt_and_logs_download(tmp_path):
     assert response["status"] == "200 OK"
     headers = _header_map(response)
     assert headers["Content-Type"] == "text/plain; charset=utf-8"
-    assert "attachment; filename=\"12345a.txt\"" in headers[
+    assert "filename=\"12345a_article.txt\"" in headers[
+        "Content-Disposition"
+    ]
+    assert "filename*=UTF-8''12345a_%E3%81%9F%E3%81%A4" in headers[
         "Content-Disposition"
     ]
     assert "=== ARTICLE META ===" in response["body"]
@@ -39352,6 +40928,67 @@ def test_download_endpoint_returns_txt_and_logs_download(tmp_path):
     assert "action_kind=download" in log_text
     assert "requested_format=txt" in log_text
     assert "result_status=success" in log_text
+
+
+def test_download_endpoint_returns_md_content_type(tmp_path):
+    log_path = tmp_path / "web_action.log"
+
+    with patch(
+        "web_app.get_saved_article_export",
+        return_value={
+            "found": True,
+            "content": "# Foo\n",
+            "article_id": "12345",
+            "article_type": "a",
+            "title": "Foo",
+            "format": "md",
+        },
+    ):
+        response = _run_wsgi_request(
+            "GET",
+            path="/download",
+            query_string=(
+                "article_id=12345&article_type=a"
+                "&resolved_title=Foo&requested_format=md"
+            ),
+            app=create_app(web_action_log_path=str(log_path)),
+        )
+
+    assert response["status"] == "200 OK"
+    headers = _header_map(response)
+    assert headers["Content-Type"] == "text/markdown; charset=utf-8"
+    assert headers["Content-Disposition"].endswith(".md")
+
+
+def test_download_endpoint_returns_csv_content_type(tmp_path):
+    log_path = tmp_path / "web_action.log"
+
+    with patch(
+        "web_app.get_saved_article_export",
+        return_value={
+            "found": True,
+            "content": "article_id,res_no\n12345,1\n",
+            "article_id": "12345",
+            "article_type": "a",
+            "title": "たつきショック",
+            "format": "csv",
+        },
+    ):
+        response = _run_wsgi_request(
+            "GET",
+            path="/download",
+            query_string=(
+                "article_id=12345&article_type=a"
+                "&resolved_title=%E3%81%9F%E3%81%A4%E3%81%8D"
+                "%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF&requested_format=csv"
+            ),
+            app=create_app(web_action_log_path=str(log_path)),
+        )
+
+    assert response["status"] == "200 OK"
+    headers = _header_map(response)
+    assert headers["Content-Type"] == "text/csv; charset=utf-8"
+    assert "filename=\"12345a_article.csv\"" in headers["Content-Disposition"]
 
 
 def test_application_post_error_result_is_short_and_logged(tmp_path):
@@ -40366,17 +42003,18 @@ def verify_kgs_batch(article_url, state_dir, run_batch_scrape_func):
 FILE: cursor/web_app.py
 =============================
 import os
+import re
 from datetime import datetime, timezone
 from html import escape
 from pathlib import Path
-from urllib.parse import parse_qs, unquote, urlencode, urlparse
+from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
 from uuid import uuid4
 from wsgiref.simple_server import make_server
 
 from archive_read import (
     get_saved_article_summary,
     get_saved_article_summary_by_exact_title,
-    get_saved_article_txt,
+    get_saved_article_export,
 )
 from article_resolver import resolve_article_input
 from target_list import register_target_url
@@ -40388,6 +42026,7 @@ DEFAULT_WEB_ACTION_LOG_PATH = os.environ.get(
     "data/web_action.log",
 )
 DEFAULT_DOWNLOAD_FORMAT = "txt"
+SUPPORTED_DOWNLOAD_FORMATS = ("txt", "md", "csv")
 
 UI_TEXTS = {
     "page_title": "NicoNicoPedia Archive Checker",
@@ -40441,6 +42080,8 @@ UI_TEXTS = {
     },
     "format_labels": {
         "txt": "TXT",
+        "md": "MD",
+        "csv": "CSV",
     },
 }
 
@@ -40461,6 +42102,13 @@ def _display_format_name(requested_format: str) -> str:
     )
 
 
+def _normalize_download_format(value: str | None) -> str:
+    text = (value or "").strip().lower()
+    if text in SUPPORTED_DOWNLOAD_FORMATS:
+        return text
+    return DEFAULT_DOWNLOAD_FORMAT
+
+
 def _humanize_title(value: str | None) -> str:
     text = (value or "").strip()
     if not text:
@@ -40476,6 +42124,49 @@ def _humanize_title(value: str | None) -> str:
 
     decoded = unquote(text).strip()
     return decoded if decoded else "unknown"
+
+
+def _sanitize_download_filename_title(value: str) -> str:
+    text = _humanize_title(value)
+    text = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", text)
+    text = re.sub(r"\s+", " ", text).strip(" .")
+    return text or "article"
+
+
+def _ascii_download_fallback(article_id: str, article_type: str) -> str:
+    return f"{article_id}{article_type}_article"
+
+
+def _build_download_filename(
+    article_id: str,
+    article_type: str,
+    title: str | None,
+    requested_format: str,
+) -> str:
+    safe_title = _sanitize_download_filename_title(title or "")
+    return f"{article_id}{article_type}_{safe_title}.{requested_format}"
+
+
+def _build_content_disposition(
+    article_id: str,
+    article_type: str,
+    title: str | None,
+    requested_format: str,
+) -> str:
+    utf8_filename = _build_download_filename(
+        article_id,
+        article_type,
+        title,
+        requested_format,
+    )
+    ascii_filename = (
+        f"{_ascii_download_fallback(article_id, article_type)}.{requested_format}"
+    )
+    encoded = quote(utf8_filename, safe="")
+    return (
+        f'attachment; filename="{ascii_filename}"; '
+        f"filename*=UTF-8''{encoded}"
+    )
 
 
 def _classify_runtime_failure(exc: RuntimeError) -> str | None:
@@ -40524,6 +42215,10 @@ def check_article_status(article_input: str) -> dict:
             canonical_target["article_id"],
             canonical_target["article_type"],
         )
+        archive_summary = _restore_saved_url_input_parity(
+            resolution,
+            archive_summary,
+        )
 
         if archive_summary["found"]:
             return {
@@ -40531,9 +42226,10 @@ def check_article_status(article_input: str) -> dict:
                 "input": resolution["normalized_input"],
                 "title": archive_summary["title"] or resolution["title"],
                 "matched_by": resolution["matched_by"],
-                "article_url": canonical_target["article_url"],
-                "article_id": canonical_target["article_id"],
-                "article_type": canonical_target["article_type"],
+                "article_url": archive_summary["url"]
+                or canonical_target["article_url"],
+                "article_id": archive_summary["article_id"],
+                "article_type": archive_summary["article_type"],
                 "response_count": archive_summary["response_count"],
                 "message": "Saved archive found for the resolved article.",
             }
@@ -40653,37 +42349,40 @@ def _log_web_action(
     title = _humanize_title(
         resolved_title or input_value or resolved_canonical_url
     )
-    _append_web_action_log_lines(
-        Path(web_action_log_path),
-        [
-            "",
-            "WEB_ACTION_START",
-            f"  action_id={action_id}",
-            f"  timestamp={timestamp}",
-            f"  action_kind={action_kind}",
-            f"  visitor_hint={_visitor_hint(environ)}",
-            f"  input_value={_web_log_value(input_value)}",
-            f"  resolved_title={_web_log_value(title)}",
-            (
-                "  resolved_article_id="
-                f"{_web_log_value(resolved_article_id)}"
-            ),
-            (
-                "  resolved_article_type="
-                f"{_web_log_value(resolved_article_type)}"
-            ),
-            (
-                "  resolved_canonical_url="
-                f"{_web_log_value(resolved_canonical_url)}"
-            ),
-            f"  requested_format={_web_log_value(requested_format)}",
-            f"  result_status={_web_log_value(result_status)}",
-            f"  error_code={_web_log_value(error_code)}",
-            f"  error_detail={_web_log_value(error_detail)}",
-            "WEB_ACTION_END",
-            "",
-        ],
-    )
+    try:
+        _append_web_action_log_lines(
+            Path(web_action_log_path),
+            [
+                "",
+                "WEB_ACTION_START",
+                f"  action_id={action_id}",
+                f"  timestamp={timestamp}",
+                f"  action_kind={action_kind}",
+                f"  visitor_hint={_visitor_hint(environ)}",
+                f"  input_value={_web_log_value(input_value)}",
+                f"  resolved_title={_web_log_value(title)}",
+                (
+                    "  resolved_article_id="
+                    f"{_web_log_value(resolved_article_id)}"
+                ),
+                (
+                    "  resolved_article_type="
+                    f"{_web_log_value(resolved_article_type)}"
+                ),
+                (
+                    "  resolved_canonical_url="
+                    f"{_web_log_value(resolved_canonical_url)}"
+                ),
+                f"  requested_format={_web_log_value(requested_format)}",
+                f"  result_status={_web_log_value(result_status)}",
+                f"  error_code={_web_log_value(error_code)}",
+                f"  error_detail={_web_log_value(error_detail)}",
+                "WEB_ACTION_END",
+                "",
+            ],
+        )
+    except OSError:
+        pass
     return action_id
 
 
@@ -40730,12 +42429,42 @@ def _build_download_query(check_result: dict) -> str:
         {
             "article_id": check_result["article_id"],
             "article_type": check_result["article_type"],
-            "article_input": check_result["input"],
             "resolved_title": check_result["title"],
-            "article_url": check_result["article_url"],
             "requested_format": DEFAULT_DOWNLOAD_FORMAT,
         }
     )
+
+
+def _download_input_value(query: dict) -> str:
+    return (
+        query.get("article_input")
+        or query.get("resolved_title")
+        or ""
+    )
+
+
+def _restore_saved_url_input_parity(
+    resolution: dict,
+    archive_summary: dict,
+) -> dict:
+    if archive_summary["found"]:
+        return archive_summary
+    if resolution.get("matched_by") != "article_url":
+        return archive_summary
+
+    title = resolution.get("title")
+    if not title:
+        return archive_summary
+
+    saved_title_summary = get_saved_article_summary_by_exact_title(title)
+    if not saved_title_summary["found"]:
+        return archive_summary
+
+    canonical_target = resolution["canonical_target"]
+    if saved_title_summary["article_id"] != canonical_target["article_id"]:
+        return archive_summary
+
+    return saved_title_summary
 
 
 def _submit_archive_check(
@@ -40752,10 +42481,35 @@ def _submit_archive_check(
         )
 
     if check_result["status"] == "unsaved":
-        registration_status = register_target_url(
-            check_result["article_url"],
-            target_db_path,
-        )
+        try:
+            registration_status = register_target_url(
+                check_result["article_url"],
+                target_db_path,
+            )
+        except Exception as exc:
+            failure_result = {
+                "status": "internal_error",
+                "input": check_result["input"],
+                "error_kind": type(exc).__name__,
+                "error_detail": str(exc),
+                "message": "Internal error while checking article status.",
+            }
+            reference_id = _log_web_action(
+                web_action_log_path,
+                environ,
+                action_kind="failed_action",
+                input_value=article_input,
+                requested_format=None,
+                result_status="registration_failed",
+                resolved_title=check_result["title"],
+                resolved_article_id=check_result["article_id"],
+                resolved_article_type=check_result["article_type"],
+                resolved_canonical_url=check_result["article_url"],
+                error_code="registration_failed",
+                error_detail=str(exc),
+            )
+            return _build_error_ui_result(failure_result, reference_id), None
+
         if registration_status in {"added", "reactivated", "duplicate"}:
             _log_web_action(
                 web_action_log_path,
@@ -40859,6 +42613,48 @@ def _render_message_area(
             lines.append(
                 '<iframe name="download_frame" class="download-frame"></iframe>'
             )
+            lines.append('<div class="download-controls">')
+            lines.append(
+                (
+                    '<form method="get" action="/download" '
+                    'target="download_frame" class="download-form">'
+                )
+            )
+            lines.append(
+                (
+                    '<input type="hidden" name="article_id" '
+                    f'value="{escape(result["article_id"])}">'
+                )
+            )
+            lines.append(
+                (
+                    '<input type="hidden" name="article_type" '
+                    f'value="{escape(result["article_type"])}">'
+                )
+            )
+            lines.append(
+                (
+                    '<input type="hidden" name="resolved_title" '
+                    f'value="{escape(result["title"])}">'
+                )
+            )
+            lines.append(
+                '<label class="format-label" for="download_format">Format</label>'
+            )
+            lines.append('<select id="download_format" name="requested_format">')
+            for fmt in SUPPORTED_DOWNLOAD_FORMATS:
+                label = _display_format_name(fmt)
+                selected = " selected" if fmt == DEFAULT_DOWNLOAD_FORMAT else ""
+                lines.append(
+                    (
+                        f'<option value="{escape(fmt)}"{selected}>'
+                        f"{escape(label)}</option>"
+                    )
+                )
+            lines.append("</select>")
+            lines.append('<button type="submit">Download</button>')
+            lines.append("</form>")
+            lines.append("</div>")
             lines.append(
                 (
                     '<form method="get" action="/download" '
@@ -40999,6 +42795,10 @@ def _render_page(
       border: 1px solid var(--border);
       background: rgba(255, 255, 255, 0.72);
     }}
+        .message-area p {{
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }}
     .message-area h2 {{ margin-top: 0; font-size: 1.2rem; }}
     .message-area.empty {{ color: var(--muted); }}
     .message-area.saved .status-line {{ color: var(--saved); }}
@@ -41006,10 +42806,21 @@ def _render_page(
     .message-area.error .status-line {{ color: var(--error); }}
     .followup-note {{ color: var(--muted); }}
     .download-frame {{ display: none; width: 0; height: 0; border: 0; }}
+    .download-controls {{ margin-top: 14px; }}
+    .download-form {{ display: flex; gap: 10px; align-items: center; }}
+    .download-form select {{
+      padding: 10px 12px;
+      border-radius: 12px;
+      border: 1px solid var(--border);
+      background: #fff;
+      font: inherit;
+    }}
+    .format-label {{ font-weight: 700; }}
     @media (max-width: 640px) {{
       main {{ padding: 24px 14px 36px; }}
       .panel {{ padding: 18px; }}
       button {{ width: 100%; }}
+      .download-form {{ flex-direction: column; align-items: stretch; }}
     }}
   </style>
 </head>
@@ -41117,10 +42928,9 @@ def create_app(
             query = _read_query_params(environ)
             article_id = query.get("article_id", "")
             article_type = query.get("article_type", "")
-            article_input = query.get("article_input", "")
-            requested_format = query.get(
-                "requested_format",
-                DEFAULT_DOWNLOAD_FORMAT,
+            article_input = _download_input_value(query)
+            requested_format = _normalize_download_format(
+                query.get("requested_format")
             )
 
             if not article_id or not article_type:
@@ -41134,8 +42944,12 @@ def create_app(
                 )
                 return [body]
 
-            txt_result = get_saved_article_txt(article_id, article_type)
-            if not txt_result["found"]:
+            export_result = get_saved_article_export(
+                article_id,
+                article_type,
+                requested_format,
+            )
+            if not export_result["found"]:
                 reference_id = _log_web_action(
                     web_action_log_path,
                     environ,
@@ -41146,7 +42960,6 @@ def create_app(
                     resolved_title=query.get("resolved_title"),
                     resolved_article_id=article_id,
                     resolved_article_type=article_type,
-                    resolved_canonical_url=query.get("article_url"),
                     error_code="download_missing",
                     error_detail="Saved article was not found for download.",
                 )
@@ -41178,17 +42991,26 @@ def create_app(
                 resolved_title=query.get("resolved_title"),
                 resolved_article_id=article_id,
                 resolved_article_type=article_type,
-                resolved_canonical_url=query.get("article_url"),
             )
-            filename = f"{article_id}{article_type}.{requested_format}"
-            body = txt_result["content"].encode("utf-8")
+            body = export_result["content"].encode("utf-8")
+            content_type = "text/plain; charset=utf-8"
+            if requested_format == "md":
+                content_type = "text/markdown; charset=utf-8"
+            if requested_format == "csv":
+                content_type = "text/csv; charset=utf-8"
             start_response(
                 "200 OK",
                 [
-                    ("Content-Type", "text/plain; charset=utf-8"),
+                    ("Content-Type", content_type),
                     (
                         "Content-Disposition",
-                        f'attachment; filename="{filename}"',
+                        _build_content_disposition(
+                            article_id,
+                            article_type,
+                            export_result.get("title")
+                            or query.get("resolved_title"),
+                            requested_format,
+                        ),
                     ),
                     ("Content-Length", str(len(body))),
                 ],
