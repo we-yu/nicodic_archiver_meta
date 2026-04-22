@@ -120,6 +120,15 @@ orchestrator.py
     JSON save + SQLite save flow
     bounded scrape outcome semantics
 
+delete_request_feeder.py
+    bounded delete-request candidate extraction and normalization
+    bounded candidate sanitize hardening
+    bounded self-heal of already-dirty candidate input at handoff time
+    candidate-level failure containment for:
+    - resolver failure
+    - registration failure
+    tiny-summary-only feeder outcome visibility
+
 archive_read.py
     archive-facing read and export seam
 

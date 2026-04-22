@@ -1191,6 +1191,44 @@ Interpretation:
 - JSON export is still not part of the adopted baseline
 - scrape / queue / scheduler / runtime publication semantics were not redesigned
 
+## SUBTASK006
+Completed.
+
+Outcome summary:
+- bounded delete-request feeder hardening was added
+- candidate sanitize was strengthened for malformed / contaminated inputs
+- sanitize now removes:
+  - surrounding whitespace
+  - embedded CR/LF
+  - obvious control-character contamination
+  - percent-encoded control contamination
+- candidate sanitize is applied both:
+  - after normalization during feed scan
+  - again at handoff time for bounded self-heal of already-dirty candidates
+- malformed or empty candidates are skipped without aborting the feeder run
+- candidate-level resolver failures no longer abort the whole feeder run
+- candidate-level registration failures no longer abort the whole feeder run
+- bounded tiny-summary visibility now includes:
+  - `processed_candidates`
+  - `registered_candidates`
+  - `skipped_invalid_candidates`
+  - `skipped_resolution_failures`
+  - `skipped_registration_failures`
+
+Adoption result:
+- Double Helix comparison was attempted
+- Copilot result was adopted
+- Cursor result was preserved as non-adopted comparison evidence
+
+Interpretation:
+- current bounded delete-request feeder baseline should now be read as
+  hardened against malformed candidate input and candidate-level failure
+  propagation
+- whole batch / periodic shot should no longer be expected to fail merely
+  because one delete-request candidate is malformed or transiently fails
+- this completion does not imply logging-platform redesign or DB-wide
+  cleanup framework addition
+
 Current application structure:
 
 main.py
