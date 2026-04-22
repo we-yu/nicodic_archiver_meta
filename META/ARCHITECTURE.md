@@ -156,7 +156,13 @@ host_cron.py
 web_app.py
     bounded Web-facing archive-check and follow-up actions
     bounded target registration
-    saved article TXT download
+    bounded saved-article download format selection
+    saved article download formats:
+    - txt
+    - md
+    - csv
+    default saved-download format:
+    - txt
 
 cli.py
     archive-facing CLI output formatting
@@ -231,16 +237,24 @@ For adoption history, refer to:
 Future note
 
 Unless a later task explicitly changes architecture,
-this document should be treated as the post-TASK031B baseline.
+this document should be treated as the post-TASK038 baseline.
 
 Important current interpretation:
 
 - the bounded Web/runtime publication baseline exists
-- the target source of truth is DB-backed in bounded form
-- append-only scrape-run telemetry now exists in bounded form
-- telemetry CSV export exists as a read-only derived artifact
-- the next likely bounded mainline step is still an operator-facing target /
-  archive management seam
+- the runtime Web surface is publicly reachable through bounded nginx front-door
+  publication at:
+  - `nicoarc-prelim.mimizuku.dev`
+- the current Web saved-download baseline now includes bounded format selection
+  for:
+  - `txt`
+  - `md`
+  - `csv`
+- default saved-download format remains `txt`
+- HTML export remains deferred
+- JSON export remains deferred
+- append-only scrape-run telemetry still exists in bounded form
+- telemetry CSV export remains a read-only derived artifact
 - broader observability, GUI admin expansion, PostgreSQL migration,
   DB containerization, and wider dashboard/platform work remain deferred
   unless a later task explicitly brings them into scope

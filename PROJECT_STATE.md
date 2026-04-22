@@ -1142,6 +1142,55 @@ Interpretation:
   while runtime app backends remain closed behind host-local proxy ports
 - this task is an ops/publication task, not a product-feature redesign
 
+## TASK038
+Completed.
+
+Outcome summary:
+- bounded Web saved-download format selection was added
+- current Web saved-download baseline now supports:
+  - `txt`
+  - `md`
+  - `csv`
+- default format remains `txt`
+- title-input saved flow supports selected format
+- decoded article-URL saved flow supports selected format
+- percent-encoded article-URL saved flow supports selected format
+- CSV export now provides one response per record
+- CSV header is bounded and stable:
+  - `article_id`
+  - `article_type`
+  - `article_title`
+  - `article_url`
+  - `res_no`
+  - `poster_name`
+  - `poster_id`
+  - `posted_at`
+  - `content_text`
+  - `content_html`
+- existing TXT saved-download behavior was preserved
+- Markdown export was added in bounded human-readable form
+- Markdown rendering was additionally corrected so:
+  - leading `>` lines are escaped
+  - visible line breaks are preserved in common Markdown preview behavior
+
+Adoption result:
+- Double Helix comparison was attempted
+- Copilot result was adopted
+- Cursor result was preserved as non-adopted comparison evidence
+- current product mainline should be read as reflecting the adopted Copilot
+  version of TASK038
+
+Interpretation:
+- current Web saved-download baseline now includes bounded format selection
+  for:
+  - `txt`
+  - `md`
+  - `csv`
+- this is a bounded saved-article one-download expansion only
+- HTML export is still not part of the adopted baseline
+- JSON export is still not part of the adopted baseline
+- scrape / queue / scheduler / runtime publication semantics were not redesigned
+
 Current application structure:
 
 main.py
@@ -1269,17 +1318,22 @@ It is not used as:
 
 NEXT TASK
 
-TASK037 is complete.
+TASK038 is complete.
 
 Important current interpretation:
 
-- the bounded nginx-based preliminary external publication path is now active
-  for:
-  - `nicoarc-prelim.mimizuku.dev`
-- current runtime Web publication remains fronted by host nginx
-- runtime Web backend publication still remains localhost-bound behind nginx
-- this completion does not imply any product-semantics redesign
-- this completion does not imply public-bind expansion
+- current Web saved-download baseline now includes bounded format selection for:
+  - `txt`
+  - `md`
+  - `csv`
+- default Web saved-download format remains `txt`
+- current saved-download flow should be read as supporting:
+  - title input
+  - decoded article URL input
+  - encoded article URL input
+- HTML export is not yet part of the adopted baseline
+- JSON export is not yet part of the adopted baseline
+- this completion does not imply scrape / queue / scheduler redesign
 - the next task is not fixed by this file alone
 
 Planning continuity may still refer to:
