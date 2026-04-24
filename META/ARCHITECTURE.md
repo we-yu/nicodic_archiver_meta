@@ -51,9 +51,12 @@ main.py
 orchestrator.py
     Coordinates scraping flow and persistence order
     returns bounded scrape outcome semantics compatible with telemetry insertion
+    persists normal archive data through SQLite-centered archive storage
 
 archive_read.py
     Archive-facing read / export seam
+    provides saved article summaries, registered article list data,
+    and bounded txt / md / csv export helpers
 
 article_resolver.py
     Resolves bounded article input into canonical article targets
@@ -65,10 +68,12 @@ parser.py
     Extracts response data from HTML
 
 storage.py
-    Handles SQLite and JSON persistence, including:
+    Handles SQLite-centered persistence, including:
+    - archive persistence
     - target-registry persistence
     - append-only scrape-run telemetry persistence
     - read-only telemetry CSV derivation
+    - legacy JSON helper behavior for historical compatibility only
 
 target_list.py
     Handles target registration, active-target reads, legacy target import,
@@ -80,9 +85,15 @@ host_cron.py
 
 web_app.py
     Provides the bounded Web-facing archive-check / follow-up interface
+    provides saved-download format selection and a read-only registered
+    article list page
 
 cli.py
     Provides CLI-facing archive output helpers
+
+operator_cli.py
+    Provides bounded operator-facing management and export helper behavior,
+    including ad-hoc saved article export for `tools/show_scraped_res.sh`
 
 tests/conftest.py
     Supports pytest import resolution
@@ -117,7 +128,7 @@ orchestrator.py
     article metadata fetching
     BBS base URL generation
     paginated response collection
-    JSON save + SQLite save flow
+    SQLite-centered archive save flow
     bounded scrape outcome semantics
 
 delete_request_feeder.py
@@ -143,11 +154,12 @@ parser.py
 
 storage.py
     persistence layer
-    archive persistence
+    SQLite-centered archive persistence
     queue persistence
     target-registry persistence
     append-only scrape-run telemetry persistence
     telemetry CSV derivation
+    legacy JSON helper behavior for historical compatibility only
 
 target_list.py
     target-source handling layer
@@ -166,6 +178,7 @@ web_app.py
     bounded Web-facing archive-check and follow-up actions
     bounded target registration
     bounded saved-article download format selection
+    bounded read-only registered article list page
     saved article download formats:
     - txt
     - md
@@ -246,7 +259,7 @@ For adoption history, refer to:
 Future note
 
 Unless a later task explicitly changes architecture,
-this document should be treated as the post-TASK038 baseline.
+this document should be treated as the post-TASK039 baseline.
 
 Important current interpretation:
 
@@ -260,6 +273,20 @@ Important current interpretation:
   - `md`
   - `csv`
 - default saved-download format remains `txt`
+- the Web app now includes a bounded read-only registered article list page
+- normal archive operation is now SQLite-centered
+- always-on `data/*.json` archive output is no longer part of the current
+  scrape persistence path
+- existing JSON files should be treated as historical artifacts unless a later
+  task explicitly reintroduces JSON output semantics
+- operator ad-hoc article export now includes:
+  - `tools/show_scraped_res.sh`
+  - title input by default
+  - explicit `--title TITLE`
+  - explicit `--id ID`
+  - `--txt`
+  - `--md`
+  - `--csv`
 - HTML export remains deferred
 - JSON export remains deferred
 - append-only scrape-run telemetry still exists in bounded form

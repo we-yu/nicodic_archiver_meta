@@ -1229,6 +1229,59 @@ Interpretation:
 - this completion does not imply logging-platform redesign or DB-wide
   cleanup framework addition
 
+## TASK039
+Completed.
+
+Outcome summary:
+- a bounded registered-article list view was added to the Web app
+- the Web top page now links to a read-only registered article list page
+- the registered article list is SQLite-backed and displays one row per saved
+  / registered article target
+- the list includes bounded operational fields such as:
+  - `article_type`
+  - `title`
+  - `canonical_url`
+  - `saved_response_count`
+  - `latest_scraped_max_res_no`
+  - `last_scraped_at` when available
+- archive persistence was shifted toward SQLite-centered operation
+- new scrape runs no longer perform always-on `data/*.json` archive output
+- existing JSON files are treated as historical artifacts only
+- existing JSON file physical deletion remains a human/runtime maintenance
+  action, not a product-code migration step
+- a bounded read-only scrape target summary artifact is now generated as:
+  - `runtime/data/scrape_targets.txt`
+- an admin-facing on-demand archive extraction helper was added:
+  - `tools/show_scraped_res.sh`
+- the helper supports:
+  - bare title input as the default target interpretation
+  - `--title TITLE` for explicit title input, including numeric-only titles
+  - `--id ID` for explicit article ID input
+  - `--txt`
+  - `--md`
+  - `--csv`
+- helper output keeps archive content on stdout and concise status on stderr
+- existing Web saved-download behavior and format selection were preserved
+- existing scrape / queue / scheduler / runtime publication semantics were not
+  redesigned
+
+Adoption result:
+- Double Helix comparison was completed
+- Copilot result was adopted
+- Cursor result was preserved as non-adopted comparison evidence
+
+Interpretation:
+- current archive operation should now be read as SQLite-centered for normal
+  product behavior
+- `data/*.json` should no longer be treated as a current always-on output
+  path
+- `tools/show_scraped_res.sh` is now part of the bounded operator helper
+  baseline for ad-hoc article export
+- registered article visibility is now available from the Web app, but remains
+  read-only and intentionally simple
+- richer registered-list UI polish, search, sorting, paging, editing, delete
+  actions, and auth remain out of scope unless introduced by a later task
+
 Current application structure:
 
 main.py
