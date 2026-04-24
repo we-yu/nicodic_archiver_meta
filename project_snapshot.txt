@@ -2142,6 +2142,93 @@ Interpretation:
   while runtime app backends remain closed behind host-local proxy ports
 - this task is an ops/publication task, not a product-feature redesign
 
+## TASK038
+Completed.
+
+Outcome summary:
+- bounded Web saved-download format selection was added
+- current Web saved-download baseline now supports:
+  - `txt`
+  - `md`
+  - `csv`
+- default format remains `txt`
+- title-input saved flow supports selected format
+- decoded article-URL saved flow supports selected format
+- percent-encoded article-URL saved flow supports selected format
+- CSV export now provides one response per record
+- CSV header is bounded and stable:
+  - `article_id`
+  - `article_type`
+  - `article_title`
+  - `article_url`
+  - `res_no`
+  - `poster_name`
+  - `poster_id`
+  - `posted_at`
+  - `content_text`
+  - `content_html`
+- existing TXT saved-download behavior was preserved
+- Markdown export was added in bounded human-readable form
+- Markdown rendering was additionally corrected so:
+  - leading `>` lines are escaped
+  - visible line breaks are preserved in common Markdown preview behavior
+
+Adoption result:
+- Double Helix comparison was attempted
+- Copilot result was adopted
+- Cursor result was preserved as non-adopted comparison evidence
+- current product mainline should be read as reflecting the adopted Copilot
+  version of TASK038
+
+Interpretation:
+- current Web saved-download baseline now includes bounded format selection
+  for:
+  - `txt`
+  - `md`
+  - `csv`
+- this is a bounded saved-article one-download expansion only
+- HTML export is still not part of the adopted baseline
+- JSON export is still not part of the adopted baseline
+- scrape / queue / scheduler / runtime publication semantics were not redesigned
+
+## SUBTASK006
+Completed.
+
+Outcome summary:
+- bounded delete-request feeder hardening was added
+- candidate sanitize was strengthened for malformed / contaminated inputs
+- sanitize now removes:
+  - surrounding whitespace
+  - embedded CR/LF
+  - obvious control-character contamination
+  - percent-encoded control contamination
+- candidate sanitize is applied both:
+  - after normalization during feed scan
+  - again at handoff time for bounded self-heal of already-dirty candidates
+- malformed or empty candidates are skipped without aborting the feeder run
+- candidate-level resolver failures no longer abort the whole feeder run
+- candidate-level registration failures no longer abort the whole feeder run
+- bounded tiny-summary visibility now includes:
+  - `processed_candidates`
+  - `registered_candidates`
+  - `skipped_invalid_candidates`
+  - `skipped_resolution_failures`
+  - `skipped_registration_failures`
+
+Adoption result:
+- Double Helix comparison was attempted
+- Copilot result was adopted
+- Cursor result was preserved as non-adopted comparison evidence
+
+Interpretation:
+- current bounded delete-request feeder baseline should now be read as
+  hardened against malformed candidate input and candidate-level failure
+  propagation
+- whole batch / periodic shot should no longer be expected to fail merely
+  because one delete-request candidate is malformed or transiently fails
+- this completion does not imply logging-platform redesign or DB-wide
+  cleanup framework addition
+
 Current application structure:
 
 main.py
@@ -2269,17 +2356,22 @@ It is not used as:
 
 NEXT TASK
 
-TASK037 is complete.
+TASK038 is complete.
 
 Important current interpretation:
 
-- the bounded nginx-based preliminary external publication path is now active
-  for:
-  - `nicoarc-prelim.mimizuku.dev`
-- current runtime Web publication remains fronted by host nginx
-- runtime Web backend publication still remains localhost-bound behind nginx
-- this completion does not imply any product-semantics redesign
-- this completion does not imply public-bind expansion
+- current Web saved-download baseline now includes bounded format selection for:
+  - `txt`
+  - `md`
+  - `csv`
+- default Web saved-download format remains `txt`
+- current saved-download flow should be read as supporting:
+  - title input
+  - decoded article URL input
+  - encoded article URL input
+- HTML export is not yet part of the adopted baseline
+- JSON export is not yet part of the adopted baseline
+- this completion does not imply scrape / queue / scheduler redesign
 - the next task is not fixed by this file alone
 
 Planning continuity may still refer to:
@@ -3164,6 +3256,15 @@ orchestrator.py
     JSON save + SQLite save flow
     bounded scrape outcome semantics
 
+delete_request_feeder.py
+    bounded delete-request candidate extraction and normalization
+    bounded candidate sanitize hardening
+    bounded self-heal of already-dirty candidate input at handoff time
+    candidate-level failure containment for:
+    - resolver failure
+    - registration failure
+    tiny-summary-only feeder outcome visibility
+
 archive_read.py
     archive-facing read and export seam
 
@@ -3200,7 +3301,13 @@ host_cron.py
 web_app.py
     bounded Web-facing archive-check and follow-up actions
     bounded target registration
-    saved article TXT download
+    bounded saved-article download format selection
+    saved article download formats:
+    - txt
+    - md
+    - csv
+    default saved-download format:
+    - txt
 
 cli.py
     archive-facing CLI output formatting
@@ -3275,16 +3382,24 @@ For adoption history, refer to:
 Future note
 
 Unless a later task explicitly changes architecture,
-this document should be treated as the post-TASK031B baseline.
+this document should be treated as the post-TASK038 baseline.
 
 Important current interpretation:
 
 - the bounded Web/runtime publication baseline exists
-- the target source of truth is DB-backed in bounded form
-- append-only scrape-run telemetry now exists in bounded form
-- telemetry CSV export exists as a read-only derived artifact
-- the next likely bounded mainline step is still an operator-facing target /
-  archive management seam
+- the runtime Web surface is publicly reachable through bounded nginx front-door
+  publication at:
+  - `nicoarc-prelim.mimizuku.dev`
+- the current Web saved-download baseline now includes bounded format selection
+  for:
+  - `txt`
+  - `md`
+  - `csv`
+- default saved-download format remains `txt`
+- HTML export remains deferred
+- JSON export remains deferred
+- append-only scrape-run telemetry still exists in bounded form
+- telemetry CSV export remains a read-only derived artifact
 - broader observability, GUI admin expansion, PostgreSQL migration,
   DB containerization, and wider dashboard/platform work remain deferred
   unless a later task explicitly brings them into scope
@@ -3966,6 +4081,125 @@ Authoritative context should still be restored from:
 - `WORKSPACE.md`
 - `project_snapshot.txt`
 
+
+
+
+===== REVIEW LOG: META/review_log/SUBTASK006_delete_request_feeder_hardening.md =====
+# SUBTASK006 Delete Request Feeder Hardening
+
+## Task
+SUBTASK006
+
+Harden the bounded delete-request feeder so malformed candidates and
+candidate-level resolution / fetch / registration failures do not abort the
+whole batch / periodic shot.
+
+## Positioning
+This is a bounded corrective subtask on top of the adopted TASK036 feeder
+baseline.
+
+It is not a scheduler redesign, queue redesign, runtime publication redesign,
+or logging-platform task.
+
+## Adopted result
+Adopted: Copilot
+
+Comparison status:
+- Copilot implementation was adopted
+- Cursor implementation was reviewed but not adopted
+
+## Why Copilot was adopted
+Primary reasons:
+- stronger bounded candidate sanitize behavior
+- clearer summary counters for practical runtime reading
+- better separation between invalid candidates, resolution failures, and
+  registration failures
+- runtime-like direct checks confirmed the intended sanitize behavior against
+  CR/LF-contaminated URL input
+- validate passed
+
+## Why Cursor was not adopted
+Cursor also implemented bounded hardening successfully, but its summary naming
+and failure bucket semantics were less precise for practical runtime reading.
+In particular, the adopted Copilot version better matched the intended
+interpretation of:
+- invalid candidate skip
+- resolver failure skip
+- registration failure skip
+
+## What changed
+Changed files in the adopted implementation:
+- `delete_request_feeder.py`
+- `tests/test_delete_request_feeder.py`
+
+Main adopted behavior:
+- candidate sanitize was strengthened
+- surrounding whitespace is stripped
+- embedded CR/LF and obvious control contamination are removed
+- percent-encoded control contamination is removed
+- sanitize runs both:
+  - after normalization during scan
+  - again at handoff time for bounded self-heal of already-dirty candidates
+- malformed / empty candidates are skipped without aborting the feeder run
+- candidate-level resolver failures no longer abort the whole run
+- candidate-level registration failures no longer abort the whole run
+- whole batch / periodic shot no longer needs to fail because of one bad
+  delete-request candidate
+
+## Summary visibility
+Normal runtime logging remains tiny-summary only.
+
+Bounded summary visibility was expanded with:
+- `processed_candidates`
+- `registered_candidates`
+- `skipped_invalid_candidates`
+- `skipped_resolution_failures`
+- `skipped_registration_failures`
+
+## Practical validation summary
+Validation and review path completed:
+1. Copilot and Cursor implementations were compared
+2. both child repos passed validate
+3. Copilot runtime-like temporary container check was performed
+4. direct sanitize check confirmed CR/LF-contaminated URL cleanup
+5. summary formatting check confirmed the added bounded counters
+6. no GUI review was needed for this subtask
+
+## What did not change
+This subtask did not introduce:
+- heavy debug logging platform
+- `log_AIanalyze`
+- DB-wide cleanup framework
+- scheduler redesign
+- queue redesign
+- runtime / nginx / ops redesign
+- Web UI changes
+
+## Interpretation
+Current feeder baseline should now be read as including:
+- bounded candidate sanitize hardening
+- bounded self-heal on already-dirty candidate input at handoff time
+- candidate-level resolver failure containment
+- candidate-level registration failure containment
+- tiny-summary runtime visibility for skip/failure counts
+
+## Repository outcome
+- adopted implementation branch:
+  `task006-delete-request-feeder-hardening-copilot`
+- adopted result was integrated into child-repo `main`
+- both child repositories were then realigned to the same adopted final state
+- sibling runtime checkout should also be reflected as part of practical
+  closeout
+
+## Meta note
+This log is AI-readable review memory.
+It is not authoritative current state by itself.
+
+Authoritative restore still depends on:
+- `AI_CONTEXT.md`
+- `PROJECT_STATE.md`
+- `WORKSPACE.md`
+- `project_snapshot.txt`
 
 
 
@@ -8838,7 +9072,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Tue Apr 21 18:23:03 UTC 2026
+generated: Wed Apr 22 16:44:54 UTC 2026
 mode: full
 
 
@@ -13327,6 +13561,7 @@ SUPPORTED_DELETE_REQUEST_URL_CATEGORIES = {
 
 _URL_PATTERN = re.compile(r"https?://dic\.nicovideo\.jp/[^\s<>'\"）】]+")
 _TRAILING_URL_CHARS = ".,)]}>】）"
+_CONTROL_ESCAPE_PATTERN = re.compile(r"(?i)%(?:0[0-9a-f]|1[0-9a-f]|7f)")
 
 
 def extract_delete_request_urls(text: str) -> list[str]:
@@ -13334,6 +13569,25 @@ def extract_delete_request_urls(text: str) -> list[str]:
     for raw_url in _URL_PATTERN.findall(text or ""):
         urls.append(raw_url.rstrip(_TRAILING_URL_CHARS))
     return urls
+
+
+def sanitize_delete_request_candidate(value: str | None) -> str | None:
+    if value is None:
+        return None
+
+    cleaned = value.strip()
+    cleaned = "".join(
+        character for character in cleaned if character >= " " and character != "\x7f"
+    )
+    cleaned = _CONTROL_ESCAPE_PATTERN.sub("", cleaned).strip()
+    if not cleaned:
+        return None
+
+    if _looks_like_url_input(cleaned):
+        if classify_delete_request_url(cleaned) == "malformed":
+            return None
+
+    return cleaned
 
 
 def classify_delete_request_url(url: str) -> str:
@@ -13522,6 +13776,8 @@ def scan_delete_request_feed(
 
     candidates: list[dict] = []
     accepted_candidates = 0
+    skipped_invalid_candidates = 0
+    skipped_resolution_failures = 0
     max_res_no = last_processed_res_no
 
     for response in responses:
@@ -13530,17 +13786,30 @@ def scan_delete_request_feed(
         for raw_url in extract_delete_request_urls(response["body"]):
             category = classify_delete_request_url(raw_url)
             normalized_input = None
+            failure_kind = None
             if category in SUPPORTED_DELETE_REQUEST_URL_CATEGORIES:
-                normalized_input = normalize_supported_delete_request_input(
-                    raw_url,
-                    category,
-                    article_id_resolver=(
-                        lambda value: resolve_internal_article_id_input(
-                            value,
-                            archive_db_path=archive_db_path,
-                        )
-                    ),
-                )
+                try:
+                    normalized_input = normalize_supported_delete_request_input(
+                        raw_url,
+                        category,
+                        article_id_resolver=(
+                            lambda value: resolve_internal_article_id_input(
+                                value,
+                                archive_db_path=archive_db_path,
+                            )
+                        ),
+                    )
+                except Exception:
+                    failure_kind = "resolution_failure"
+                    skipped_resolution_failures += 1
+
+            normalized_input = sanitize_delete_request_candidate(
+                normalized_input,
+            )
+            if category in SUPPORTED_DELETE_REQUEST_URL_CATEGORIES:
+                if normalized_input is None and failure_kind is None:
+                    failure_kind = "invalid_candidate"
+                    skipped_invalid_candidates += 1
 
             accepted = normalized_input is not None
             if accepted:
@@ -13553,6 +13822,7 @@ def scan_delete_request_feed(
                     "category": category,
                     "accepted": accepted,
                     "normalized_input": normalized_input,
+                    "failure_kind": failure_kind,
                 }
             )
 
@@ -13567,9 +13837,14 @@ def scan_delete_request_feed(
             "responses_checked": len(responses),
             "extracted_candidates": len(candidates),
             "accepted_candidates": accepted_candidates,
+            "skipped_invalid_candidates": skipped_invalid_candidates,
+            "skipped_resolution_failures": skipped_resolution_failures,
+            "skipped_registration_failures": 0,
             "handed_off_candidates": 0,
             "updated_last_processed_res_no": updated_last_processed_res_no,
             "queued_target_urls": [],
+            "processed_candidates": 0,
+            "registered_candidates": 0,
             "added_targets": 0,
             "reactivated_targets": 0,
             "duplicate_targets": 0,
@@ -13604,6 +13879,12 @@ def run_delete_request_feeder(
     summary = dict(scan_result["summary"])
 
     handed_off_candidates = 0
+    skipped_invalid_candidates = summary.get("skipped_invalid_candidates", 0)
+    skipped_resolution_failures = summary.get(
+        "skipped_resolution_failures",
+        0,
+    )
+    skipped_registration_failures = 0
     added_targets = 0
     reactivated_targets = 0
     duplicate_targets = 0
@@ -13612,21 +13893,35 @@ def run_delete_request_feeder(
     seen_inputs: set[str] = set()
 
     for candidate in scan_result["candidates"]:
-        normalized_input = candidate["normalized_input"]
+        normalized_input = sanitize_delete_request_candidate(
+            candidate["normalized_input"],
+        )
         if not normalized_input:
+            if candidate.get("accepted"):
+                skipped_invalid_candidates += 1
             continue
         if normalized_input in seen_inputs:
             continue
         seen_inputs.add(normalized_input)
 
         handed_off_candidates += 1
-        resolution = resolve_article_input(normalized_input)
+        try:
+            resolution = resolve_article_input(normalized_input)
+        except Exception:
+            skipped_resolution_failures += 1
+            continue
+
         if not resolution["ok"]:
+            skipped_invalid_candidates += 1
             invalid_targets += 1
             continue
 
         canonical_url = resolution["canonical_target"]["article_url"]
-        register_status = register_target_url(canonical_url, target_db_path)
+        try:
+            register_status = register_target_url(canonical_url, target_db_path)
+        except Exception:
+            skipped_registration_failures += 1
+            continue
 
         if register_status == "added":
             added_targets += 1
@@ -13643,11 +13938,16 @@ def run_delete_request_feeder(
         invalid_targets += 1
 
     summary["handed_off_candidates"] = handed_off_candidates
+    summary["processed_candidates"] = handed_off_candidates
     summary["queued_target_urls"] = queued_target_urls
+    summary["registered_candidates"] = added_targets + reactivated_targets
     summary["added_targets"] = added_targets
     summary["reactivated_targets"] = reactivated_targets
     summary["duplicate_targets"] = duplicate_targets
     summary["invalid_targets"] = invalid_targets
+    summary["skipped_invalid_candidates"] = skipped_invalid_candidates
+    summary["skipped_resolution_failures"] = skipped_resolution_failures
+    summary["skipped_registration_failures"] = skipped_registration_failures
 
     if summary["checked_to_res_no"] is not None:
         save_last_processed_res_no(
@@ -13672,7 +13972,21 @@ def format_delete_request_feed_summary(summary: dict) -> str:
             f"checked_range={checked_range}",
             f"responses_checked={summary.get('responses_checked', 0)}",
             f"extracted_candidates={summary.get('extracted_candidates', 0)}",
+            f"processed_candidates={summary.get('processed_candidates', 0)}",
+            f"registered_candidates={summary.get('registered_candidates', 0)}",
             f"handed_off_candidates={summary.get('handed_off_candidates', 0)}",
+            (
+                "skipped_invalid_candidates="
+                f"{summary.get('skipped_invalid_candidates', 0)}"
+            ),
+            (
+                "skipped_resolution_failures="
+                f"{summary.get('skipped_resolution_failures', 0)}"
+            ),
+            (
+                "skipped_registration_failures="
+                f"{summary.get('skipped_registration_failures', 0)}"
+            ),
             (
                 "updated_last_processed_res_no="
                 f"{summary.get('updated_last_processed_res_no', 0)}"
@@ -13716,6 +14030,11 @@ def _resolve_archive_db_path(archive_db_path: str | None) -> str:
 
 def _split_path_parts(path: str) -> list[str]:
     return [part for part in path.split("/") if part]
+
+
+def _looks_like_url_input(value: str) -> bool:
+    parsed = urlparse(value)
+    return bool(parsed.scheme or parsed.netloc)
 
 
 def _can_open_archive_db(archive_db_path: str) -> bool:
@@ -20536,6 +20855,7 @@ from delete_request_feeder import (
     normalize_supported_delete_request_input,
     resolve_internal_article_id_input,
     run_delete_request_feeder,
+    sanitize_delete_request_candidate,
 )
 
 
@@ -20597,6 +20917,13 @@ def test_classify_rejects_unsupported_delete_request_categories():
     assert classify_delete_request_url("https://dic.nicovideo.jp/a/") == (
         "malformed"
     )
+
+
+def test_sanitize_delete_request_candidate_strips_control_contamination():
+    assert sanitize_delete_request_candidate(
+        " \r\nhttps://dic.nicovideo.jp/a/j-pop%0D%0A\n"
+    ) == "https://dic.nicovideo.jp/a/j-pop"
+    assert sanitize_delete_request_candidate("\r\n\x01\x02") is None
 
 
 def test_resolve_internal_article_id_input_uses_saved_article_row(tmp_path):
@@ -20675,6 +21002,176 @@ def test_run_delete_request_feeder_updates_state_and_deduplicates(tmp_path):
     assert saved["last_processed_res_no"] == 12
 
 
+def test_run_delete_request_feeder_skips_malformed_candidate_without_abort(
+    tmp_path,
+):
+    state_path = tmp_path / "feed_state.json"
+    responses = [
+        {
+            "res_no": 20,
+            "body": "https://dic.nicovideo.jp/a/%0D%0A",
+        }
+    ]
+
+    with patch(
+        "delete_request_feeder._load_delete_request_responses",
+        return_value=responses,
+    ), patch(
+        "delete_request_feeder.resolve_article_input",
+    ) as resolve_mock, patch(
+        "delete_request_feeder.register_target_url",
+    ) as register_mock:
+        summary = run_delete_request_feeder(
+            "targets.db",
+            archive_db_path="archive.db",
+            state_path=str(state_path),
+        )
+
+    resolve_mock.assert_not_called()
+    register_mock.assert_not_called()
+    assert summary["skipped_invalid_candidates"] == 1
+    assert summary["handed_off_candidates"] == 0
+
+
+def test_run_delete_request_feeder_continues_after_candidate_resolver_failure(
+    tmp_path,
+):
+    state_path = tmp_path / "feed_state.json"
+    responses = [
+        {
+            "res_no": 21,
+            "body": (
+                "https://dic.nicovideo.jp/a/bad-one\n"
+                "https://dic.nicovideo.jp/a/good-one"
+            ),
+        }
+    ]
+
+    with patch(
+        "delete_request_feeder._load_delete_request_responses",
+        return_value=responses,
+    ), patch(
+        "delete_request_feeder.resolve_article_input",
+        side_effect=[ValueError("resolver broke"), {
+            "ok": True,
+            "canonical_target": {
+                "article_url": "https://dic.nicovideo.jp/a/good-one",
+                "article_id": "good-one",
+                "article_type": "a",
+            },
+        }],
+    ), patch(
+        "delete_request_feeder.register_target_url",
+        return_value="added",
+    ) as register_mock:
+        summary = run_delete_request_feeder(
+            "targets.db",
+            archive_db_path="archive.db",
+            state_path=str(state_path),
+        )
+
+    assert summary["skipped_resolution_failures"] == 1
+    assert summary["queued_target_urls"] == [
+        "https://dic.nicovideo.jp/a/good-one"
+    ]
+    assert register_mock.call_count == 1
+
+
+def test_run_delete_request_feeder_continues_after_upstream_fetch_failure(
+    tmp_path,
+):
+    state_path = tmp_path / "feed_state.json"
+    responses = [
+        {
+            "res_no": 22,
+            "body": (
+                "https://dic.nicovideo.jp/a/slow-one\n"
+                "https://dic.nicovideo.jp/a/good-two"
+            ),
+        }
+    ]
+
+    with patch(
+        "delete_request_feeder._load_delete_request_responses",
+        return_value=responses,
+    ), patch(
+        "delete_request_feeder.resolve_article_input",
+        side_effect=[RuntimeError("Failed to fetch upstream (status=500)"), {
+            "ok": True,
+            "canonical_target": {
+                "article_url": "https://dic.nicovideo.jp/a/good-two",
+                "article_id": "good-two",
+                "article_type": "a",
+            },
+        }],
+    ), patch(
+        "delete_request_feeder.register_target_url",
+        return_value="added",
+    ):
+        summary = run_delete_request_feeder(
+            "targets.db",
+            archive_db_path="archive.db",
+            state_path=str(state_path),
+        )
+
+    assert summary["skipped_resolution_failures"] == 1
+    assert summary["processed_candidates"] == 2
+    assert summary["registered_candidates"] == 1
+
+
+def test_run_delete_request_feeder_continues_after_registration_failure(
+    tmp_path,
+):
+    state_path = tmp_path / "feed_state.json"
+    responses = [
+        {
+            "res_no": 23,
+            "body": (
+                "https://dic.nicovideo.jp/a/bad-register\n"
+                "https://dic.nicovideo.jp/a/good-three"
+            ),
+        }
+    ]
+
+    with patch(
+        "delete_request_feeder._load_delete_request_responses",
+        return_value=responses,
+    ), patch(
+        "delete_request_feeder.resolve_article_input",
+        side_effect=[
+            {
+                "ok": True,
+                "canonical_target": {
+                    "article_url": "https://dic.nicovideo.jp/a/bad-register",
+                    "article_id": "bad-register",
+                    "article_type": "a",
+                },
+            },
+            {
+                "ok": True,
+                "canonical_target": {
+                    "article_url": "https://dic.nicovideo.jp/a/good-three",
+                    "article_id": "good-three",
+                    "article_type": "a",
+                },
+            },
+        ],
+    ), patch(
+        "delete_request_feeder.register_target_url",
+        side_effect=[sqlite3.OperationalError("readonly"), "added"],
+    ):
+        summary = run_delete_request_feeder(
+            "targets.db",
+            archive_db_path="archive.db",
+            state_path=str(state_path),
+        )
+
+    assert summary["skipped_registration_failures"] == 1
+    assert summary["queued_target_urls"] == [
+        "https://dic.nicovideo.jp/a/good-three"
+    ]
+
+
 def test_append_batch_targets_appends_only_new_urls_at_tail():
     assert append_batch_targets(
         [
@@ -20725,6 +21222,9 @@ def test_format_delete_request_feed_inspect_lines_is_stdout_friendly():
     assert lines[0].startswith("ACCEPT ")
     assert lines[1].startswith("REJECT ")
     assert lines[2].startswith("SUMMARY ")
+    assert "processed_candidates=0" in lines[2]
+    assert "skipped_invalid_candidates=0" in lines[2]
+    assert "skipped_registration_failures=0" in lines[2]
 
 
 =============================
@@ -28951,6 +29451,7 @@ SUPPORTED_DELETE_REQUEST_URL_CATEGORIES = {
 
 _URL_PATTERN = re.compile(r"https?://dic\.nicovideo\.jp/[^\s<>'\"）】]+")
 _TRAILING_URL_CHARS = ".,)]}>】）"
+_CONTROL_ESCAPE_PATTERN = re.compile(r"(?i)%(?:0[0-9a-f]|1[0-9a-f]|7f)")
 
 
 def extract_delete_request_urls(text: str) -> list[str]:
@@ -28958,6 +29459,25 @@ def extract_delete_request_urls(text: str) -> list[str]:
     for raw_url in _URL_PATTERN.findall(text or ""):
         urls.append(raw_url.rstrip(_TRAILING_URL_CHARS))
     return urls
+
+
+def sanitize_delete_request_candidate(value: str | None) -> str | None:
+    if value is None:
+        return None
+
+    cleaned = value.strip()
+    cleaned = "".join(
+        character for character in cleaned if character >= " " and character != "\x7f"
+    )
+    cleaned = _CONTROL_ESCAPE_PATTERN.sub("", cleaned).strip()
+    if not cleaned:
+        return None
+
+    if _looks_like_url_input(cleaned):
+        if classify_delete_request_url(cleaned) == "malformed":
+            return None
+
+    return cleaned
 
 
 def classify_delete_request_url(url: str) -> str:
@@ -29146,6 +29666,8 @@ def scan_delete_request_feed(
 
     candidates: list[dict] = []
     accepted_candidates = 0
+    skipped_invalid_candidates = 0
+    skipped_resolution_failures = 0
     max_res_no = last_processed_res_no
 
     for response in responses:
@@ -29154,17 +29676,30 @@ def scan_delete_request_feed(
         for raw_url in extract_delete_request_urls(response["body"]):
             category = classify_delete_request_url(raw_url)
             normalized_input = None
+            failure_kind = None
             if category in SUPPORTED_DELETE_REQUEST_URL_CATEGORIES:
-                normalized_input = normalize_supported_delete_request_input(
-                    raw_url,
-                    category,
-                    article_id_resolver=(
-                        lambda value: resolve_internal_article_id_input(
-                            value,
-                            archive_db_path=archive_db_path,
-                        )
-                    ),
-                )
+                try:
+                    normalized_input = normalize_supported_delete_request_input(
+                        raw_url,
+                        category,
+                        article_id_resolver=(
+                            lambda value: resolve_internal_article_id_input(
+                                value,
+                                archive_db_path=archive_db_path,
+                            )
+                        ),
+                    )
+                except Exception:
+                    failure_kind = "resolution_failure"
+                    skipped_resolution_failures += 1
+
+            normalized_input = sanitize_delete_request_candidate(
+                normalized_input,
+            )
+            if category in SUPPORTED_DELETE_REQUEST_URL_CATEGORIES:
+                if normalized_input is None and failure_kind is None:
+                    failure_kind = "invalid_candidate"
+                    skipped_invalid_candidates += 1
 
             accepted = normalized_input is not None
             if accepted:
@@ -29177,6 +29712,7 @@ def scan_delete_request_feed(
                     "category": category,
                     "accepted": accepted,
                     "normalized_input": normalized_input,
+                    "failure_kind": failure_kind,
                 }
             )
 
@@ -29191,9 +29727,14 @@ def scan_delete_request_feed(
             "responses_checked": len(responses),
             "extracted_candidates": len(candidates),
             "accepted_candidates": accepted_candidates,
+            "skipped_invalid_candidates": skipped_invalid_candidates,
+            "skipped_resolution_failures": skipped_resolution_failures,
+            "skipped_registration_failures": 0,
             "handed_off_candidates": 0,
             "updated_last_processed_res_no": updated_last_processed_res_no,
             "queued_target_urls": [],
+            "processed_candidates": 0,
+            "registered_candidates": 0,
             "added_targets": 0,
             "reactivated_targets": 0,
             "duplicate_targets": 0,
@@ -29228,6 +29769,12 @@ def run_delete_request_feeder(
     summary = dict(scan_result["summary"])
 
     handed_off_candidates = 0
+    skipped_invalid_candidates = summary.get("skipped_invalid_candidates", 0)
+    skipped_resolution_failures = summary.get(
+        "skipped_resolution_failures",
+        0,
+    )
+    skipped_registration_failures = 0
     added_targets = 0
     reactivated_targets = 0
     duplicate_targets = 0
@@ -29236,21 +29783,35 @@ def run_delete_request_feeder(
     seen_inputs: set[str] = set()
 
     for candidate in scan_result["candidates"]:
-        normalized_input = candidate["normalized_input"]
+        normalized_input = sanitize_delete_request_candidate(
+            candidate["normalized_input"],
+        )
         if not normalized_input:
+            if candidate.get("accepted"):
+                skipped_invalid_candidates += 1
             continue
         if normalized_input in seen_inputs:
             continue
         seen_inputs.add(normalized_input)
 
         handed_off_candidates += 1
-        resolution = resolve_article_input(normalized_input)
+        try:
+            resolution = resolve_article_input(normalized_input)
+        except Exception:
+            skipped_resolution_failures += 1
+            continue
+
         if not resolution["ok"]:
+            skipped_invalid_candidates += 1
             invalid_targets += 1
             continue
 
         canonical_url = resolution["canonical_target"]["article_url"]
-        register_status = register_target_url(canonical_url, target_db_path)
+        try:
+            register_status = register_target_url(canonical_url, target_db_path)
+        except Exception:
+            skipped_registration_failures += 1
+            continue
 
         if register_status == "added":
             added_targets += 1
@@ -29267,11 +29828,16 @@ def run_delete_request_feeder(
         invalid_targets += 1
 
     summary["handed_off_candidates"] = handed_off_candidates
+    summary["processed_candidates"] = handed_off_candidates
     summary["queued_target_urls"] = queued_target_urls
+    summary["registered_candidates"] = added_targets + reactivated_targets
     summary["added_targets"] = added_targets
     summary["reactivated_targets"] = reactivated_targets
     summary["duplicate_targets"] = duplicate_targets
     summary["invalid_targets"] = invalid_targets
+    summary["skipped_invalid_candidates"] = skipped_invalid_candidates
+    summary["skipped_resolution_failures"] = skipped_resolution_failures
+    summary["skipped_registration_failures"] = skipped_registration_failures
 
     if summary["checked_to_res_no"] is not None:
         save_last_processed_res_no(
@@ -29296,7 +29862,21 @@ def format_delete_request_feed_summary(summary: dict) -> str:
             f"checked_range={checked_range}",
             f"responses_checked={summary.get('responses_checked', 0)}",
             f"extracted_candidates={summary.get('extracted_candidates', 0)}",
+            f"processed_candidates={summary.get('processed_candidates', 0)}",
+            f"registered_candidates={summary.get('registered_candidates', 0)}",
             f"handed_off_candidates={summary.get('handed_off_candidates', 0)}",
+            (
+                "skipped_invalid_candidates="
+                f"{summary.get('skipped_invalid_candidates', 0)}"
+            ),
+            (
+                "skipped_resolution_failures="
+                f"{summary.get('skipped_resolution_failures', 0)}"
+            ),
+            (
+                "skipped_registration_failures="
+                f"{summary.get('skipped_registration_failures', 0)}"
+            ),
             (
                 "updated_last_processed_res_no="
                 f"{summary.get('updated_last_processed_res_no', 0)}"
@@ -29340,6 +29920,11 @@ def _resolve_archive_db_path(archive_db_path: str | None) -> str:
 
 def _split_path_parts(path: str) -> list[str]:
     return [part for part in path.split("/") if part]
+
+
+def _looks_like_url_input(value: str) -> bool:
+    parsed = urlparse(value)
+    return bool(parsed.scheme or parsed.netloc)
 
 
 def _can_open_archive_db(archive_db_path: str) -> bool:
@@ -36160,6 +36745,7 @@ from delete_request_feeder import (
     normalize_supported_delete_request_input,
     resolve_internal_article_id_input,
     run_delete_request_feeder,
+    sanitize_delete_request_candidate,
 )
 
 
@@ -36221,6 +36807,13 @@ def test_classify_rejects_unsupported_delete_request_categories():
     assert classify_delete_request_url("https://dic.nicovideo.jp/a/") == (
         "malformed"
     )
+
+
+def test_sanitize_delete_request_candidate_strips_control_contamination():
+    assert sanitize_delete_request_candidate(
+        " \r\nhttps://dic.nicovideo.jp/a/j-pop%0D%0A\n"
+    ) == "https://dic.nicovideo.jp/a/j-pop"
+    assert sanitize_delete_request_candidate("\r\n\x01\x02") is None
 
 
 def test_resolve_internal_article_id_input_uses_saved_article_row(tmp_path):
@@ -36299,6 +36892,176 @@ def test_run_delete_request_feeder_updates_state_and_deduplicates(tmp_path):
     assert saved["last_processed_res_no"] == 12
 
 
+def test_run_delete_request_feeder_skips_malformed_candidate_without_abort(
+    tmp_path,
+):
+    state_path = tmp_path / "feed_state.json"
+    responses = [
+        {
+            "res_no": 20,
+            "body": "https://dic.nicovideo.jp/a/%0D%0A",
+        }
+    ]
+
+    with patch(
+        "delete_request_feeder._load_delete_request_responses",
+        return_value=responses,
+    ), patch(
+        "delete_request_feeder.resolve_article_input",
+    ) as resolve_mock, patch(
+        "delete_request_feeder.register_target_url",
+    ) as register_mock:
+        summary = run_delete_request_feeder(
+            "targets.db",
+            archive_db_path="archive.db",
+            state_path=str(state_path),
+        )
+
+    resolve_mock.assert_not_called()
+    register_mock.assert_not_called()
+    assert summary["skipped_invalid_candidates"] == 1
+    assert summary["handed_off_candidates"] == 0
+
+
+def test_run_delete_request_feeder_continues_after_candidate_resolver_failure(
+    tmp_path,
+):
+    state_path = tmp_path / "feed_state.json"
+    responses = [
+        {
+            "res_no": 21,
+            "body": (
+                "https://dic.nicovideo.jp/a/bad-one\n"
+                "https://dic.nicovideo.jp/a/good-one"
+            ),
+        }
+    ]
+
+    with patch(
+        "delete_request_feeder._load_delete_request_responses",
+        return_value=responses,
+    ), patch(
+        "delete_request_feeder.resolve_article_input",
+        side_effect=[ValueError("resolver broke"), {
+            "ok": True,
+            "canonical_target": {
+                "article_url": "https://dic.nicovideo.jp/a/good-one",
+                "article_id": "good-one",
+                "article_type": "a",
+            },
+        }],
+    ), patch(
+        "delete_request_feeder.register_target_url",
+        return_value="added",
+    ) as register_mock:
+        summary = run_delete_request_feeder(
+            "targets.db",
+            archive_db_path="archive.db",
+            state_path=str(state_path),
+        )
+
+    assert summary["skipped_resolution_failures"] == 1
+    assert summary["queued_target_urls"] == [
+        "https://dic.nicovideo.jp/a/good-one"
+    ]
+    assert register_mock.call_count == 1
+
+
+def test_run_delete_request_feeder_continues_after_upstream_fetch_failure(
+    tmp_path,
+):
+    state_path = tmp_path / "feed_state.json"
+    responses = [
+        {
+            "res_no": 22,
+            "body": (
+                "https://dic.nicovideo.jp/a/slow-one\n"
+                "https://dic.nicovideo.jp/a/good-two"
+            ),
+        }
+    ]
+
+    with patch(
+        "delete_request_feeder._load_delete_request_responses",
+        return_value=responses,
+    ), patch(
+        "delete_request_feeder.resolve_article_input",
+        side_effect=[RuntimeError("Failed to fetch upstream (status=500)"), {
+            "ok": True,
+            "canonical_target": {
+                "article_url": "https://dic.nicovideo.jp/a/good-two",
+                "article_id": "good-two",
+                "article_type": "a",
+            },
+        }],
+    ), patch(
+        "delete_request_feeder.register_target_url",
+        return_value="added",
+    ):
+        summary = run_delete_request_feeder(
+            "targets.db",
+            archive_db_path="archive.db",
+            state_path=str(state_path),
+        )
+
+    assert summary["skipped_resolution_failures"] == 1
+    assert summary["processed_candidates"] == 2
+    assert summary["registered_candidates"] == 1
+
+
+def test_run_delete_request_feeder_continues_after_registration_failure(
+    tmp_path,
+):
+    state_path = tmp_path / "feed_state.json"
+    responses = [
+        {
+            "res_no": 23,
+            "body": (
+                "https://dic.nicovideo.jp/a/bad-register\n"
+                "https://dic.nicovideo.jp/a/good-three"
+            ),
+        }
+    ]
+
+    with patch(
+        "delete_request_feeder._load_delete_request_responses",
+        return_value=responses,
+    ), patch(
+        "delete_request_feeder.resolve_article_input",
+        side_effect=[
+            {
+                "ok": True,
+                "canonical_target": {
+                    "article_url": "https://dic.nicovideo.jp/a/bad-register",
+                    "article_id": "bad-register",
+                    "article_type": "a",
+                },
+            },
+            {
+                "ok": True,
+                "canonical_target": {
+                    "article_url": "https://dic.nicovideo.jp/a/good-three",
+                    "article_id": "good-three",
+                    "article_type": "a",
+                },
+            },
+        ],
+    ), patch(
+        "delete_request_feeder.register_target_url",
+        side_effect=[sqlite3.OperationalError("readonly"), "added"],
+    ):
+        summary = run_delete_request_feeder(
+            "targets.db",
+            archive_db_path="archive.db",
+            state_path=str(state_path),
+        )
+
+    assert summary["skipped_registration_failures"] == 1
+    assert summary["queued_target_urls"] == [
+        "https://dic.nicovideo.jp/a/good-three"
+    ]
+
+
 def test_append_batch_targets_appends_only_new_urls_at_tail():
     assert append_batch_targets(
         [
@@ -36349,6 +37112,9 @@ def test_format_delete_request_feed_inspect_lines_is_stdout_friendly():
     assert lines[0].startswith("ACCEPT ")
     assert lines[1].startswith("REJECT ")
     assert lines[2].startswith("SUMMARY ")
+    assert "processed_candidates=0" in lines[2]
+    assert "skipped_invalid_candidates=0" in lines[2]
+    assert "skipped_registration_failures=0" in lines[2]
 
 
 =============================

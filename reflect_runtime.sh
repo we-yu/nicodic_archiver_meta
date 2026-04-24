@@ -19,7 +19,10 @@ if [[ -d "${RUNTIME_DIR}/runtime/logs/periodic_once.lock" ]]; then
 fi
 
 if docker ps --format '{{.Names}}' | grep -qx "${RUNTIME_SERVICE}"; then
-  ACTIVE_PIDS="$(docker exec "${RUNTIME_SERVICE}" sh -lc "ps -eo pid,args | grep -E 'python main.py (batch|periodic|periodic-once)' | grep -v grep || true")"
+  ACTIVE_PIDS="$(
+    docker top "${RUNTIME_SERVICE}" -eo pid,args 2>/dev/null | \
+      grep -E 'python(3)? main.py (batch|periodic|periodic-once)' || true
+  )"
   if [[ -n "${ACTIVE_PIDS}" ]]; then
     echo "[reflect-runtime] ABORT: scrape-like process is running inside container" >&2
     echo "${ACTIVE_PIDS}" >&2
