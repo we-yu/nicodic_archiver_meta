@@ -1326,6 +1326,42 @@ Follow-up:
 - Existing runtime `id` targets and empty `id` article rows should be handled
   by a separate maintenance task after this fix is reflected to runtime.
 
+## SUBTASK008
+- DB cleanup, TBD. (2026-04-26 note)
+
+## SUBTASK009
+Completed.
+
+Outcome summary:
+- runtime BBS page scrape pacing was externalized through local runtime
+  environment configuration.
+- `SCRAPE_PAGE_DELAY_SECONDS` was added as the runtime setting for the delay
+  between paginated BBS page fetches.
+- the default delay is now `5.0` seconds when the environment value is unset.
+- valid decimal values such as `2.5` are accepted.
+- invalid, empty, negative, NaN, and infinite values fall back to `5.0`.
+- the setting is read by `orchestrator.get_scrape_delay_seconds()`.
+- `collect_all_responses()` uses the configured value for page-to-page sleep.
+- `.env.runtime.local.example` and `docs/PERSONAL_RUNTIME.md` were updated.
+- existing scrape flow, Web behavior, target registration, ID URL
+  normalization, saved download behavior, and DB schema were not redesigned.
+
+Adoption result:
+- Copilot-only SubTask implementation was adopted.
+- Cursor was not used for this SubTask.
+
+Validation:
+- Copilot validation passed.
+- Cursor validation passed after main synchronization.
+- Container smoke confirmed:
+  - unset value returns `5.0`
+  - `SCRAPE_PAGE_DELAY_SECONDS=2.5` returns `2.5`
+  - invalid value falls back to `5.0`
+
+Runtime note:
+- changing `.env.runtime.local` may require runtime container recreation before
+  the new environment value is visible inside the running container.
+
 Current application structure:
 
 main.py
