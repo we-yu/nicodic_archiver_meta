@@ -62,7 +62,10 @@ article_resolver.py
     Resolves bounded article input into canonical article targets
 
 http_client.py
-    Handles HTTP requests
+    HTTP fetch boundary
+    resolves Nicopedia `/id/<number>` article URLs to effective `/a/<title>`
+    URLs for target registration normalization
+    does not define scrape persistence semantics
 
 parser.py
     Extracts response data from HTML
@@ -76,8 +79,11 @@ storage.py
     - legacy JSON helper behavior for historical compatibility only
 
 target_list.py
-    Handles target registration, active-target reads, legacy target import,
-    and bounded target identity parsing
+    target registry boundary
+    validates and persists scrape targets
+    normalizes incoming Nicopedia `/id/<number>` URLs to effective `/a/<title>`
+    URLs before registration
+    keeps parse / validate helpers syntax-only
 
 host_cron.py
     Host-side cron log formatting / rollover / compaction seam for runtime
@@ -259,7 +265,7 @@ For adoption history, refer to:
 Future note
 
 Unless a later task explicitly changes architecture,
-this document should be treated as the post-TASK039 baseline.
+this document should be treated as the post-SUBTASK007 baseline.
 
 Important current interpretation:
 
@@ -294,3 +300,11 @@ Important current interpretation:
 - broader observability, GUI admin expansion, PostgreSQL migration,
   DB containerization, and wider dashboard/platform work remain deferred
   unless a later task explicitly brings them into scope
+- incoming Nicopedia `/id/<number>` article URLs should not be persisted as
+  scrape targets when they can be resolved to effective `/a/<title>` URLs
+- target registration and target import should share the same URL
+  normalization boundary
+- target parsing and URL validation remain syntax-only and must not perform
+  network access
+- existing runtime `id` rows are historical data until a separate maintenance
+  task handles them

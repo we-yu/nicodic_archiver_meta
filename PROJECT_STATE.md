@@ -1282,6 +1282,50 @@ Interpretation:
 - richer registered-list UI polish, search, sorting, paging, editing, delete
   actions, and auth remain out of scope unless introduced by a later task
 
+## SUBTASK007
+Completed.
+
+Outcome summary:
+- ID-style Nicopedia article URLs are now normalized at target registration
+  boundaries.
+- Incoming `https://dic.nicovideo.jp/id/<number>` URLs are resolved through
+  normal HTTP redirect handling before being persisted as scrape targets.
+- If the effective URL is a valid `/a/<title>` article URL, that `/a` URL is
+  registered instead of the original `/id` URL.
+- Registration and import paths now share the same normalization boundary.
+- `parse_target_identity()` remains syntax-only and does not perform network
+  access.
+- `validate_target_url()` remains syntax-only and does not perform network
+  access.
+- Existing `/a/<title>` URL behavior is preserved.
+- Existing Web, scrape, saved-download, registered-list, and storage schema
+  behavior were not redesigned.
+
+Adoption result:
+- Copilot-only SubTask implementation was adopted.
+- Cursor was not used for this SubTask.
+
+Validation:
+- Copilot validation passed.
+- Cursor validation passed after main synchronization.
+- Container smoke confirmed:
+  - `/id/5364158` resolves to the `/a/おそ松さん` URL
+  - `register_target_url()` stores the resolved `/a` URL
+  - normal `/a` URL registration is unchanged
+  - import path normalizes `/id` input through the shared boundary
+
+Non-goals:
+- existing runtime DB cleanup
+- existing `article_type='id'` row migration
+- existing `article_type='id'` target rewrite
+- schema migration
+- scrape scheduler redesign
+- Web UI changes
+
+Follow-up:
+- Existing runtime `id` targets and empty `id` article rows should be handled
+  by a separate maintenance task after this fix is reflected to runtime.
+
 Current application structure:
 
 main.py
