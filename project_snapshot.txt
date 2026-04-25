@@ -2326,6 +2326,42 @@ Follow-up:
 - Existing runtime `id` targets and empty `id` article rows should be handled
   by a separate maintenance task after this fix is reflected to runtime.
 
+## SUBTASK008
+- DB cleanup, TBD. (2026-04-26 note)
+
+## SUBTASK009
+Completed.
+
+Outcome summary:
+- runtime BBS page scrape pacing was externalized through local runtime
+  environment configuration.
+- `SCRAPE_PAGE_DELAY_SECONDS` was added as the runtime setting for the delay
+  between paginated BBS page fetches.
+- the default delay is now `5.0` seconds when the environment value is unset.
+- valid decimal values such as `2.5` are accepted.
+- invalid, empty, negative, NaN, and infinite values fall back to `5.0`.
+- the setting is read by `orchestrator.get_scrape_delay_seconds()`.
+- `collect_all_responses()` uses the configured value for page-to-page sleep.
+- `.env.runtime.local.example` and `docs/PERSONAL_RUNTIME.md` were updated.
+- existing scrape flow, Web behavior, target registration, ID URL
+  normalization, saved download behavior, and DB schema were not redesigned.
+
+Adoption result:
+- Copilot-only SubTask implementation was adopted.
+- Cursor was not used for this SubTask.
+
+Validation:
+- Copilot validation passed.
+- Cursor validation passed after main synchronization.
+- Container smoke confirmed:
+  - unset value returns `5.0`
+  - `SCRAPE_PAGE_DELAY_SECONDS=2.5` returns `2.5`
+  - invalid value falls back to `5.0`
+
+Runtime note:
+- changing `.env.runtime.local` may require runtime container recreation before
+  the new environment value is visible inside the running container.
+
 Current application structure:
 
 main.py
@@ -3285,6 +3321,8 @@ orchestrator.py
     Coordinates scraping flow and persistence order
     returns bounded scrape outcome semantics compatible with telemetry insertion
     persists normal archive data through SQLite-centered archive storage
+    reads `SCRAPE_PAGE_DELAY_SECONDS` for runtime-configurable BBS page
+    pagination delay, defaulting safely to 5.0 seconds
 
 archive_read.py
     Archive-facing read / export seam
@@ -3369,6 +3407,7 @@ orchestrator.py
     paginated response collection
     SQLite-centered archive save flow
     bounded scrape outcome semantics
+    runtime-configurable BBS page delay through `SCRAPE_PAGE_DELAY_SECONDS`
 
 delete_request_feeder.py
     bounded delete-request candidate extraction and normalization
@@ -3498,7 +3537,7 @@ For adoption history, refer to:
 Future note
 
 Unless a later task explicitly changes architecture,
-this document should be treated as the post-SUBTASK007 baseline.
+this document should be treated as the post-SUBTASK009 baseline.
 
 Important current interpretation:
 
@@ -3541,6 +3580,11 @@ Important current interpretation:
   network access
 - existing runtime `id` rows are historical data until a separate maintenance
   task handles them
+- BBS page-to-page scrape delay is runtime-configurable through
+  `SCRAPE_PAGE_DELAY_SECONDS`
+- unset or invalid scrape delay configuration falls back to 5.0 seconds
+- `.env.runtime.local` changes may require runtime container recreation before
+  they affect the running runtime container
 
 
 ===== REVIEW LOG: META/review_log/SUBTASK001_kgs_builtin_trim_fix.md =====
@@ -4435,6 +4479,105 @@ ID-style records and reset the delete-request feeder cursor so the feeder can
 rescan through the corrected registration path.
 
 That maintenance should only be done after SUBTASK007 is reflected to runtime.
+
+
+
+
+===== REVIEW LOG: META/review_log/SUBTASK009_adoption.md =====
+# SUBTASK009 Runtime Scrape Delay Config Adoption Log
+
+## Task
+SUBTASK009
+
+Externalize runtime BBS page scrape delay.
+
+## Purpose
+Make the delay between paginated BBS page fetches configurable without editing
+application code.
+
+This was introduced because early runtime collection can involve long-running
+shots and many BBS page requests. A safer default pacing value helps reduce
+load and makes runtime operation easier to adjust.
+
+## Decision
+Adopted: Copilot-only implementation
+
+Cursor was not used for this SubTask.
+
+## Final adopted shape
+Production changes were limited to:
+- `orchestrator.py`
+- `.env.runtime.local.example`
+- `docs/PERSONAL_RUNTIME.md`
+
+Focused tests were updated in:
+- `tests/test_orchestrator.py`
+
+## What changed
+A new runtime setting was added:
+
+- `SCRAPE_PAGE_DELAY_SECONDS`
+
+`orchestrator.get_scrape_delay_seconds()` reads this value from the process
+environment.
+
+Default behavior:
+- unset value falls back to `5.0`
+
+Valid behavior:
+- decimal values such as `2.5` are accepted
+
+Invalid behavior:
+- empty values
+- non-numeric values
+- negative values
+- NaN
+- positive infinity
+- negative infinity
+
+all fall back to `5.0`.
+
+`collect_all_responses()` now uses this configured delay between BBS page
+fetches.
+
+## What stayed unchanged
+This SubTask did not change:
+- target registration
+- SUBTASK007 ID URL normalization
+- delete-request feeder behavior
+- DB schema
+- Web behavior
+- saved download behavior
+- registered article list behavior
+- cron schedule
+- server timezone
+- scrape target selection
+- response parsing
+
+## Practical validation
+Validation passed.
+
+Container smoke checks confirmed:
+- unset value returns `5.0`
+- `SCRAPE_PAGE_DELAY_SECONDS=2.5` returns `2.5`
+- invalid value falls back to `5.0`
+
+## Runtime note
+`.env.runtime.local` is local-only runtime configuration.
+
+Changing it may require runtime container recreation before the new value is
+visible inside the running runtime container.
+
+## Non-goals
+This SubTask did not:
+- clean existing ID records
+- reset delete-request feeder state
+- change cron
+- change server timezone
+- add HTTP timeout configuration
+- add response cap configuration
+- add log retention configuration
+- introduce TOML/YAML/JSON config files
 
 
 
@@ -9498,7 +9641,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Sat Apr 25 17:59:09 UTC 2026
+generated: Sat Apr 25 19:14:19 UTC 2026
 mode: full
 
 
@@ -12623,6 +12766,8 @@ WEB_BIND_HOST=127.0.0.1
 WEB_PORT=8000
 LOCAL_UID=1000
 LOCAL_GID=1000
+SCRAPE_PAGE_DELAY_SECONDS=5.0
+
 
 =============================
 FILE: copilot/.flake8
@@ -14774,6 +14919,8 @@ orchestrator.py
     Coordinates scraping flow and persistence order
     returns bounded scrape outcome semantics compatible with telemetry insertion
     persists normal archive data through SQLite-centered archive storage
+    reads `SCRAPE_PAGE_DELAY_SECONDS` for runtime-configurable BBS page
+    pagination delay, defaulting safely to 5.0 seconds
 
 archive_read.py
     Archive-facing read / export seam
@@ -14858,6 +15005,7 @@ orchestrator.py
     paginated response collection
     SQLite-centered archive save flow
     bounded scrape outcome semantics
+    runtime-configurable BBS page delay through `SCRAPE_PAGE_DELAY_SECONDS`
 
 delete_request_feeder.py
     bounded delete-request candidate extraction and normalization
@@ -14987,7 +15135,7 @@ For adoption history, refer to:
 Future note
 
 Unless a later task explicitly changes architecture,
-this document should be treated as the post-SUBTASK007 baseline.
+this document should be treated as the post-SUBTASK009 baseline.
 
 Important current interpretation:
 
@@ -15030,6 +15178,11 @@ Important current interpretation:
   network access
 - existing runtime `id` rows are historical data until a separate maintenance
   task handles them
+- BBS page-to-page scrape delay is runtime-configurable through
+  `SCRAPE_PAGE_DELAY_SECONDS`
+- unset or invalid scrape delay configuration falls back to 5.0 seconds
+- `.env.runtime.local` changes may require runtime container recreation before
+  they affect the running runtime container
 
 
 =============================
@@ -15268,6 +15421,7 @@ Expected keys:
 - `WEB_PORT`
 - `LOCAL_UID`
 - `LOCAL_GID`
+- `SCRAPE_PAGE_DELAY_SECONDS`
 
 The file is intentionally local-only and should not be committed. Use the
 tracked template as a starting point:
@@ -15277,6 +15431,10 @@ tracked template as a starting point:
 The runtime helper scripts automatically load this file when it exists. If the
 file is missing, the helper falls back to safe defaults and auto-detects the
 host UID/GID to reduce common permission mismatches.
+
+`SCRAPE_PAGE_DELAY_SECONDS` controls the delay between BBS page fetches during
+scrape pagination. If it is unset or invalid, the application falls back to
+`5.0` seconds.
 
 ## Host UID/GID Handling
 
@@ -18137,6 +18295,8 @@ def show_scraped_res_for_operator(
 =============================
 FILE: copilot/orchestrator.py
 =============================
+import math
+import os
 import re
 import time
 from urllib.parse import urljoin
@@ -18160,6 +18320,7 @@ QUEUE_DRAIN_PER_ARTICLE_RESPONSE_CAP = 10_800
 DENYLIST_ARTICLE_IDS = frozenset({"480340", "237789"})
 
 BBS_PAGE_SIZE = 30
+DEFAULT_SCRAPE_PAGE_DELAY_SECONDS = 5.0
 
 
 class ArticleMetadataResult:
@@ -18225,6 +18386,24 @@ class ScrapeResult:
 
     def __bool__(self) -> bool:
         return self.ok
+
+
+def get_scrape_delay_seconds() -> float:
+    raw_value = os.environ.get("SCRAPE_PAGE_DELAY_SECONDS")
+    if raw_value is None:
+        return DEFAULT_SCRAPE_PAGE_DELAY_SECONDS
+
+    try:
+        delay_seconds = float(raw_value)
+    except (TypeError, ValueError):
+        return DEFAULT_SCRAPE_PAGE_DELAY_SECONDS
+
+    if not math.isfinite(delay_seconds):
+        return DEFAULT_SCRAPE_PAGE_DELAY_SECONDS
+    if delay_seconds < 0:
+        return DEFAULT_SCRAPE_PAGE_DELAY_SECONDS
+
+    return delay_seconds
 
 
 def get_containing_page_start(res_no: int) -> int:
@@ -18591,7 +18770,7 @@ def collect_all_responses(
         first_request = False
 
         # 過度アクセス回避
-        time.sleep(1)
+        time.sleep(get_scrape_delay_seconds())
 
     return all_responses, interrupted, cap_reached
 
@@ -23969,6 +24148,7 @@ def test_show_scraped_res_for_operator_returns_false_for_missing_id(
 FILE: copilot/tests/test_orchestrator.py
 =============================
 """Unit tests for orchestrator: URL building, metadata, pagination, orchestration."""
+import os
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -23977,6 +24157,7 @@ from bs4 import BeautifulSoup
 from orchestrator import (
     ArticleMetadataResult,
     ArticleNotFoundError,
+    DEFAULT_SCRAPE_PAGE_DELAY_SECONDS,
     QUEUE_DRAIN_PER_ARTICLE_RESPONSE_CAP,
     RedirectArticleError,
     build_bbs_base_url,
@@ -23985,6 +24166,7 @@ from orchestrator import (
     collect_all_responses,
     drain_queue_requests,
     extract_redirect_target_url,
+    get_scrape_delay_seconds,
     get_max_saved_res_no,
     is_redirect_article_page,
     load_saved_responses,
@@ -24249,6 +24431,33 @@ def test_fetch_article_metadata_raises_redirect_article_error():
 # ----- collect_all_responses: pagination and stopping -----
 
 
+def test_get_scrape_delay_seconds_defaults_to_five_when_unset():
+    with patch.dict(os.environ, {}, clear=True):
+        assert get_scrape_delay_seconds() == 5.0
+
+
+def test_get_scrape_delay_seconds_uses_valid_env_value():
+    with patch.dict(
+        os.environ,
+        {"SCRAPE_PAGE_DELAY_SECONDS": "2.5"},
+        clear=True,
+    ):
+        assert get_scrape_delay_seconds() == 2.5
+
+
+@pytest.mark.parametrize(
+    "raw_value",
+    ["", "abc", "-1", "NaN", "inf", "-inf"],
+)
+def test_get_scrape_delay_seconds_falls_back_for_invalid_values(raw_value):
+    with patch.dict(
+        os.environ,
+        {"SCRAPE_PAGE_DELAY_SECONDS": raw_value},
+        clear=True,
+    ):
+        assert get_scrape_delay_seconds() == DEFAULT_SCRAPE_PAGE_DELAY_SECONDS
+
+
 @patch("orchestrator.time.sleep")
 @patch("orchestrator.parse_responses")
 @patch("orchestrator.fetch_page")
@@ -24269,7 +24478,7 @@ def test_collect_all_responses_stops_on_empty_page(
     assert mock_fetch.call_count == 2
     mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/1-")
     mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/3-")
-    mock_sleep.assert_called_once_with(1)
+    mock_sleep.assert_called_once_with(5.0)
 
 
 @patch("orchestrator.time.sleep")
@@ -24323,7 +24532,7 @@ def test_collect_all_responses_resume_can_return_zero_new_without_failure(
     assert cap_reached is False
     mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/4-")
     mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/5-")
-    mock_sleep.assert_called_once_with(1)
+    mock_sleep.assert_called_once_with(5.0)
 
 
 @patch("orchestrator.time.sleep")
@@ -24400,7 +24609,7 @@ def test_collect_all_responses_sets_interrupted_on_later_page_error(
     assert interrupted is True
     assert cap_reached is False
     assert mock_fetch.call_count == 2
-    mock_sleep.assert_called_once_with(1)
+    mock_sleep.assert_called_once_with(5.0)
 
 
 @patch("orchestrator.time.sleep")
@@ -24423,7 +24632,33 @@ def test_collect_all_responses_stops_at_cap_and_sets_cap_reached(
     assert interrupted is False
     assert cap_reached is True
     assert mock_fetch.call_count == 2
-    mock_sleep.assert_called_once_with(1)
+    mock_sleep.assert_called_once_with(5.0)
+
+
+@patch("orchestrator.time.sleep")
+@patch("orchestrator.parse_responses")
+@patch("orchestrator.fetch_page")
+def test_collect_all_responses_uses_configured_sleep_delay(
+    mock_fetch,
+    mock_parse,
+    mock_sleep,
+):
+    mock_fetch.return_value = MagicMock()
+    mock_parse.side_effect = [[{"res_no": 1}], []]
+
+    with patch.dict(
+        os.environ,
+        {"SCRAPE_PAGE_DELAY_SECONDS": "2.5"},
+        clear=True,
+    ):
+        result, interrupted, cap_reached = collect_all_responses(
+            "https://dic.nicovideo.jp/b/a/12345/"
+        )
+
+    assert result == [{"res_no": 1}]
+    assert interrupted is False
+    assert cap_reached is False
+    mock_sleep.assert_called_once_with(2.5)
 
 
 # ----- run_scrape orchestration flow -----
@@ -29476,6 +29711,8 @@ WEB_BIND_HOST=127.0.0.1
 WEB_PORT=8000
 LOCAL_UID=1000
 LOCAL_GID=1000
+SCRAPE_PAGE_DELAY_SECONDS=5.0
+
 
 =============================
 FILE: cursor/.flake8
@@ -31597,6 +31834,8 @@ orchestrator.py
     Coordinates scraping flow and persistence order
     returns bounded scrape outcome semantics compatible with telemetry insertion
     persists normal archive data through SQLite-centered archive storage
+    reads `SCRAPE_PAGE_DELAY_SECONDS` for runtime-configurable BBS page
+    pagination delay, defaulting safely to 5.0 seconds
 
 archive_read.py
     Archive-facing read / export seam
@@ -31681,6 +31920,7 @@ orchestrator.py
     paginated response collection
     SQLite-centered archive save flow
     bounded scrape outcome semantics
+    runtime-configurable BBS page delay through `SCRAPE_PAGE_DELAY_SECONDS`
 
 delete_request_feeder.py
     bounded delete-request candidate extraction and normalization
@@ -31810,7 +32050,7 @@ For adoption history, refer to:
 Future note
 
 Unless a later task explicitly changes architecture,
-this document should be treated as the post-SUBTASK007 baseline.
+this document should be treated as the post-SUBTASK009 baseline.
 
 Important current interpretation:
 
@@ -31853,6 +32093,11 @@ Important current interpretation:
   network access
 - existing runtime `id` rows are historical data until a separate maintenance
   task handles them
+- BBS page-to-page scrape delay is runtime-configurable through
+  `SCRAPE_PAGE_DELAY_SECONDS`
+- unset or invalid scrape delay configuration falls back to 5.0 seconds
+- `.env.runtime.local` changes may require runtime container recreation before
+  they affect the running runtime container
 
 
 =============================
@@ -32091,6 +32336,7 @@ Expected keys:
 - `WEB_PORT`
 - `LOCAL_UID`
 - `LOCAL_GID`
+- `SCRAPE_PAGE_DELAY_SECONDS`
 
 The file is intentionally local-only and should not be committed. Use the
 tracked template as a starting point:
@@ -32100,6 +32346,10 @@ tracked template as a starting point:
 The runtime helper scripts automatically load this file when it exists. If the
 file is missing, the helper falls back to safe defaults and auto-detects the
 host UID/GID to reduce common permission mismatches.
+
+`SCRAPE_PAGE_DELAY_SECONDS` controls the delay between BBS page fetches during
+scrape pagination. If it is unset or invalid, the application falls back to
+`5.0` seconds.
 
 ## Host UID/GID Handling
 
@@ -34960,6 +35210,8 @@ def show_scraped_res_for_operator(
 =============================
 FILE: cursor/orchestrator.py
 =============================
+import math
+import os
 import re
 import time
 from urllib.parse import urljoin
@@ -34983,6 +35235,7 @@ QUEUE_DRAIN_PER_ARTICLE_RESPONSE_CAP = 10_800
 DENYLIST_ARTICLE_IDS = frozenset({"480340", "237789"})
 
 BBS_PAGE_SIZE = 30
+DEFAULT_SCRAPE_PAGE_DELAY_SECONDS = 5.0
 
 
 class ArticleMetadataResult:
@@ -35048,6 +35301,24 @@ class ScrapeResult:
 
     def __bool__(self) -> bool:
         return self.ok
+
+
+def get_scrape_delay_seconds() -> float:
+    raw_value = os.environ.get("SCRAPE_PAGE_DELAY_SECONDS")
+    if raw_value is None:
+        return DEFAULT_SCRAPE_PAGE_DELAY_SECONDS
+
+    try:
+        delay_seconds = float(raw_value)
+    except (TypeError, ValueError):
+        return DEFAULT_SCRAPE_PAGE_DELAY_SECONDS
+
+    if not math.isfinite(delay_seconds):
+        return DEFAULT_SCRAPE_PAGE_DELAY_SECONDS
+    if delay_seconds < 0:
+        return DEFAULT_SCRAPE_PAGE_DELAY_SECONDS
+
+    return delay_seconds
 
 
 def get_containing_page_start(res_no: int) -> int:
@@ -35414,7 +35685,7 @@ def collect_all_responses(
         first_request = False
 
         # 過度アクセス回避
-        time.sleep(1)
+        time.sleep(get_scrape_delay_seconds())
 
     return all_responses, interrupted, cap_reached
 
@@ -54738,6 +55009,7 @@ def test_show_scraped_res_for_operator_returns_false_for_missing_id(
 FILE: cursor/tests/test_orchestrator.py
 =============================
 """Unit tests for orchestrator: URL building, metadata, pagination, orchestration."""
+import os
 from unittest.mock import patch, MagicMock
 
 import pytest
@@ -54746,6 +55018,7 @@ from bs4 import BeautifulSoup
 from orchestrator import (
     ArticleMetadataResult,
     ArticleNotFoundError,
+    DEFAULT_SCRAPE_PAGE_DELAY_SECONDS,
     QUEUE_DRAIN_PER_ARTICLE_RESPONSE_CAP,
     RedirectArticleError,
     build_bbs_base_url,
@@ -54754,6 +55027,7 @@ from orchestrator import (
     collect_all_responses,
     drain_queue_requests,
     extract_redirect_target_url,
+    get_scrape_delay_seconds,
     get_max_saved_res_no,
     is_redirect_article_page,
     load_saved_responses,
@@ -55018,6 +55292,33 @@ def test_fetch_article_metadata_raises_redirect_article_error():
 # ----- collect_all_responses: pagination and stopping -----
 
 
+def test_get_scrape_delay_seconds_defaults_to_five_when_unset():
+    with patch.dict(os.environ, {}, clear=True):
+        assert get_scrape_delay_seconds() == 5.0
+
+
+def test_get_scrape_delay_seconds_uses_valid_env_value():
+    with patch.dict(
+        os.environ,
+        {"SCRAPE_PAGE_DELAY_SECONDS": "2.5"},
+        clear=True,
+    ):
+        assert get_scrape_delay_seconds() == 2.5
+
+
+@pytest.mark.parametrize(
+    "raw_value",
+    ["", "abc", "-1", "NaN", "inf", "-inf"],
+)
+def test_get_scrape_delay_seconds_falls_back_for_invalid_values(raw_value):
+    with patch.dict(
+        os.environ,
+        {"SCRAPE_PAGE_DELAY_SECONDS": raw_value},
+        clear=True,
+    ):
+        assert get_scrape_delay_seconds() == DEFAULT_SCRAPE_PAGE_DELAY_SECONDS
+
+
 @patch("orchestrator.time.sleep")
 @patch("orchestrator.parse_responses")
 @patch("orchestrator.fetch_page")
@@ -55038,7 +55339,7 @@ def test_collect_all_responses_stops_on_empty_page(
     assert mock_fetch.call_count == 2
     mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/1-")
     mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/3-")
-    mock_sleep.assert_called_once_with(1)
+    mock_sleep.assert_called_once_with(5.0)
 
 
 @patch("orchestrator.time.sleep")
@@ -55092,7 +55393,7 @@ def test_collect_all_responses_resume_can_return_zero_new_without_failure(
     assert cap_reached is False
     mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/4-")
     mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/5-")
-    mock_sleep.assert_called_once_with(1)
+    mock_sleep.assert_called_once_with(5.0)
 
 
 @patch("orchestrator.time.sleep")
@@ -55169,7 +55470,7 @@ def test_collect_all_responses_sets_interrupted_on_later_page_error(
     assert interrupted is True
     assert cap_reached is False
     assert mock_fetch.call_count == 2
-    mock_sleep.assert_called_once_with(1)
+    mock_sleep.assert_called_once_with(5.0)
 
 
 @patch("orchestrator.time.sleep")
@@ -55192,7 +55493,33 @@ def test_collect_all_responses_stops_at_cap_and_sets_cap_reached(
     assert interrupted is False
     assert cap_reached is True
     assert mock_fetch.call_count == 2
-    mock_sleep.assert_called_once_with(1)
+    mock_sleep.assert_called_once_with(5.0)
+
+
+@patch("orchestrator.time.sleep")
+@patch("orchestrator.parse_responses")
+@patch("orchestrator.fetch_page")
+def test_collect_all_responses_uses_configured_sleep_delay(
+    mock_fetch,
+    mock_parse,
+    mock_sleep,
+):
+    mock_fetch.return_value = MagicMock()
+    mock_parse.side_effect = [[{"res_no": 1}], []]
+
+    with patch.dict(
+        os.environ,
+        {"SCRAPE_PAGE_DELAY_SECONDS": "2.5"},
+        clear=True,
+    ):
+        result, interrupted, cap_reached = collect_all_responses(
+            "https://dic.nicovideo.jp/b/a/12345/"
+        )
+
+    assert result == [{"res_no": 1}]
+    assert interrupted is False
+    assert cap_reached is False
+    mock_sleep.assert_called_once_with(2.5)
 
 
 # ----- run_scrape orchestration flow -----

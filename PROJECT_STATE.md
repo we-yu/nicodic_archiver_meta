@@ -1327,7 +1327,53 @@ Follow-up:
   by a separate maintenance task after this fix is reflected to runtime.
 
 ## SUBTASK008
-- DB cleanup, TBD. (2026-04-26 note)
+Completed.
+
+Outcome summary:
+- historical runtime `article_type='id'` records were cleaned as a
+  maintenance-only SubTask after SUBTASK007
+- cleanup was intentionally simple rather than a precise ID-to-A migration
+- `article_type='id'` rows were removed from:
+  - `responses`
+  - `articles`
+  - `target`
+- delete-request feeder cursor was reset to:
+  - `last_processed_res_no = 0`
+- queue requests were checked before cleanup:
+  - `queue_id_count = 0`
+- this allows future delete-request feeder runs to rescan through the corrected
+  SUBTASK007 target registration normalization boundary
+- no product code was changed
+- no schema migration was introduced
+- no scrape / feeder / Web behavior was redesigned
+
+Validation:
+- before cleanup:
+  - `articles_by_type`: `a=77`, `id=12168`
+  - `responses_by_type`: `a=1214184`
+  - `target_by_type`: `a=82`, `id=12170`
+  - all `id` article rows were zero-response rows
+- after cleanup:
+  - `articles_by_type`: `a=77`
+  - `responses_by_type`: `a=1214184`
+  - `target_by_type`: `a=82`
+  - remaining `id` rows were `0`
+  - delete-request feeder cursor was `0`
+- runtime Web surface remained reachable
+- post-cleanup cron intake increased `/a` targets without immediate `id`
+  target re-growth
+
+Runtime note:
+- runtime reflection required a local `.dockerignore` hotfix so runtime local
+  state would not be baked into Docker images
+- a future small task should add this Docker build-context exclusion to
+  mainline
+
+Interpretation:
+- historical runtime ID-style rows should be treated as discarded bad intake
+  artifacts rather than migrated archive data
+- future ID-style URL intake should be normalized to effective `/a/<title>`
+  targets by the SUBTASK007 registration boundary
 
 ## SUBTASK009
 Completed.
