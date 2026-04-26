@@ -1408,6 +1408,43 @@ Runtime note:
 - changing `.env.runtime.local` may require runtime container recreation before
   the new environment value is visible inside the running container.
 
+## SUBTASK010
+Completed.
+
+Outcome summary:
+- fixed scrape/archive identity propagation after SUBTASK007
+- `/id/<number>` inputs no longer persist archive rows as `article_type='id'`
+  when a valid canonical `/a/<title>` URL is available
+- `run_scrape()` now carries canonical article URL through:
+  - BBS URL generation
+  - DB save boundary
+  - scrape/archive metadata identity
+- legacy tuple-style metadata test seams were preserved
+- no DB schema change was introduced
+- no Web UI change was introduced
+- no feeder redesign was introduced
+
+Validation:
+- focused orchestrator tests passed
+- full helix validation passed
+- runtime smoke with `https://dic.nicovideo.jp/id/654665` fetched `/b/a/...`
+- runtime smoke saved as `article_type='a'`
+- post-smoke runtime DB showed zero `id` rows in:
+  - `articles`
+  - `responses`
+  - `target`
+
+Runtime note:
+- runtime compose needed a local hotfix to pass
+  `SCRAPE_PAGE_DELAY_SECONDS` into the container environment
+- runtime was verified with `SCRAPE_PAGE_DELAY_SECONDS=2.5`
+- this compose forwarding should be mainlined in a small follow-up task
+
+Operational note:
+- periodic cron was paused during the investigation
+- after SUBTASK010 smoke, cron can be restored and a manual long shot can be
+  started
+
 Current application structure:
 
 main.py

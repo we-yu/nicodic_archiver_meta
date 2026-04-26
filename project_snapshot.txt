@@ -2327,7 +2327,53 @@ Follow-up:
   by a separate maintenance task after this fix is reflected to runtime.
 
 ## SUBTASK008
-- DB cleanup, TBD. (2026-04-26 note)
+Completed.
+
+Outcome summary:
+- historical runtime `article_type='id'` records were cleaned as a
+  maintenance-only SubTask after SUBTASK007
+- cleanup was intentionally simple rather than a precise ID-to-A migration
+- `article_type='id'` rows were removed from:
+  - `responses`
+  - `articles`
+  - `target`
+- delete-request feeder cursor was reset to:
+  - `last_processed_res_no = 0`
+- queue requests were checked before cleanup:
+  - `queue_id_count = 0`
+- this allows future delete-request feeder runs to rescan through the corrected
+  SUBTASK007 target registration normalization boundary
+- no product code was changed
+- no schema migration was introduced
+- no scrape / feeder / Web behavior was redesigned
+
+Validation:
+- before cleanup:
+  - `articles_by_type`: `a=77`, `id=12168`
+  - `responses_by_type`: `a=1214184`
+  - `target_by_type`: `a=82`, `id=12170`
+  - all `id` article rows were zero-response rows
+- after cleanup:
+  - `articles_by_type`: `a=77`
+  - `responses_by_type`: `a=1214184`
+  - `target_by_type`: `a=82`
+  - remaining `id` rows were `0`
+  - delete-request feeder cursor was `0`
+- runtime Web surface remained reachable
+- post-cleanup cron intake increased `/a` targets without immediate `id`
+  target re-growth
+
+Runtime note:
+- runtime reflection required a local `.dockerignore` hotfix so runtime local
+  state would not be baked into Docker images
+- a future small task should add this Docker build-context exclusion to
+  mainline
+
+Interpretation:
+- historical runtime ID-style rows should be treated as discarded bad intake
+  artifacts rather than migrated archive data
+- future ID-style URL intake should be normalized to effective `/a/<title>`
+  targets by the SUBTASK007 registration boundary
 
 ## SUBTASK009
 Completed.
@@ -2361,6 +2407,43 @@ Validation:
 Runtime note:
 - changing `.env.runtime.local` may require runtime container recreation before
   the new environment value is visible inside the running container.
+
+## SUBTASK010
+Completed.
+
+Outcome summary:
+- fixed scrape/archive identity propagation after SUBTASK007
+- `/id/<number>` inputs no longer persist archive rows as `article_type='id'`
+  when a valid canonical `/a/<title>` URL is available
+- `run_scrape()` now carries canonical article URL through:
+  - BBS URL generation
+  - DB save boundary
+  - scrape/archive metadata identity
+- legacy tuple-style metadata test seams were preserved
+- no DB schema change was introduced
+- no Web UI change was introduced
+- no feeder redesign was introduced
+
+Validation:
+- focused orchestrator tests passed
+- full helix validation passed
+- runtime smoke with `https://dic.nicovideo.jp/id/654665` fetched `/b/a/...`
+- runtime smoke saved as `article_type='a'`
+- post-smoke runtime DB showed zero `id` rows in:
+  - `articles`
+  - `responses`
+  - `target`
+
+Runtime note:
+- runtime compose needed a local hotfix to pass
+  `SCRAPE_PAGE_DELAY_SECONDS` into the container environment
+- runtime was verified with `SCRAPE_PAGE_DELAY_SECONDS=2.5`
+- this compose forwarding should be mainlined in a small follow-up task
+
+Operational note:
+- periodic cron was paused during the investigation
+- after SUBTASK010 smoke, cron can be restored and a manual long shot can be
+  started
 
 Current application structure:
 
@@ -4483,6 +4566,147 @@ That maintenance should only be done after SUBTASK007 is reflected to runtime.
 
 
 
+===== REVIEW LOG: META/review_log/SUBTASK008_runtime_id_cleanup.md =====
+# SUBTASK008 Runtime ID Record Cleanup Log
+
+## Task
+SUBTASK008
+
+Clean historical runtime ID-style records after SUBTASK007.
+
+## Purpose
+Remove historical runtime records created from Nicopedia `/id/<number>`
+targets that produced zero saved responses, then reset the delete-request
+feeder cursor so future feeder runs can rescan through the corrected
+SUBTASK007 registration boundary.
+
+## Positioning
+This was a maintenance-only SubTask.
+
+It did not change product code.
+It did not change schema.
+It did not redesign scraping, storage, Web behavior, or feeder logic.
+
+## Runtime prerequisites
+Before cleanup:
+- SUBTASK007 was reflected to runtime.
+- SUBTASK009 was reflected to runtime.
+- Runtime container was recreated successfully.
+- Runtime scrape delay returned `5.0`.
+- `/id/5364158` resolved to the effective `/a/おそ松さん` URL.
+- No periodic shot lock was active.
+
+## Safety steps
+Before cleanup:
+- Runtime SQLite DB was backed up.
+- Delete-request feeder state was backed up.
+- Queue table was checked for ID-style requests.
+
+The feeder state before reset was:
+
+- `data/delete_request_feeder_state.json`
+- `last_processed_res_no = 134305`
+
+The queue check showed:
+
+- `queue_id_count = 0`
+
+## Chosen maintenance approach
+Historical `article_type='id'` records were removed rather than migrated.
+
+Rows were deleted from:
+- `responses`
+- `articles`
+- `target`
+
+The delete-request feeder cursor was reset to:
+
+- `last_processed_res_no = 0`
+
+## Before cleanup
+Before cleanup:
+- `articles_by_type`: `a=77`, `id=12168`
+- `responses_by_type`: `a=1214184`
+- `target_by_type`: `a=82`, `id=12170`
+- `id` response rows: `0`
+- all `id` article rows were zero-response rows
+
+## After cleanup
+After cleanup:
+- `articles_by_type`: `a=77`
+- `responses_by_type`: `a=1214184`
+- `target_by_type`: `a=82`
+- remaining `id` rows:
+  - `articles=0`
+  - `responses=0`
+  - `target=0`
+- delete-request feeder cursor was `0`
+- runtime Web surface still returned HTML
+
+## Post-cleanup runtime observation
+A scheduled cron shot started at `2026-04-25 20:05:02 UTC` after cleanup.
+
+During that shot:
+- target records increased as `/a` targets
+- `remaining_id` stayed at zero
+- no immediate ID target re-growth was observed
+
+This indicates that delete-request feeder re-scan was entering the corrected
+SUBTASK007 URL normalization boundary.
+
+## Why not migrate ID rows to A rows
+A precise migration would require resolving each ID row, updating identities,
+and preserving cross-table consistency.
+
+Because the ID-style rows contained no saved responses and were created by
+best-effort delete-request feeder intake, simple removal was safer and easier
+to verify than a broad migration script.
+
+## Runtime build note
+During runtime reflection, Docker build initially failed because local runtime
+state was included in the Docker build context.
+
+A local runtime `.dockerignore` was added to exclude:
+- `runtime/data/**`
+- `runtime/logs/**`
+- `runtime/targets/**`
+
+This reduced the build context and allowed runtime reflection to complete.
+
+A future small codebase task should add the same Docker build-context exclusion
+to the mainline repository to prevent recurrence in fresh runtime checkouts.
+
+## Validation
+Validation consisted of:
+- before / after counts by `article_type`
+- confirming ID rows were removed from target and archive tables
+- confirming A rows remained
+- confirming queue had no ID requests
+- confirming feeder cursor reset to 0
+- confirming runtime Web surface remained reachable
+- confirming post-cleanup cron intake added `/a` targets without adding `id`
+  targets
+
+## Interpretation
+Historical runtime ID-style data is treated as discarded bad intake artifacts.
+
+Future ID-style URL intake should enter through the SUBTASK007 normalization
+path and be persisted as effective `/a/<title>` targets when resolvable.
+
+## Non-goals
+This SubTask did not:
+- add product code
+- add migration tooling
+- add schema fields
+- migrate ID records into A records
+- alter scrape logic
+- alter feeder logic
+- alter Web behavior
+
+
+
+
+
 ===== REVIEW LOG: META/review_log/SUBTASK009_adoption.md =====
 # SUBTASK009 Runtime Scrape Delay Config Adoption Log
 
@@ -4578,6 +4802,96 @@ This SubTask did not:
 - add response cap configuration
 - add log retention configuration
 - introduce TOML/YAML/JSON config files
+
+
+
+
+===== REVIEW LOG: META/review_log/SUBTASK010_canonical_scrape_identity.md =====
+# SUBTASK010 Canonical Scrape Identity Review Log
+
+## Task
+SUBTASK010
+
+Preserve canonical `/a` article identity at the scrape/archive boundary.
+
+## Background
+SUBTASK007 fixed the target registration boundary so `/id/<number>` inputs can
+be normalized to effective `/a/<title>` targets.
+
+A later runtime shot showed that targets were registered as `article_type='a'`,
+but scrape/archive persistence recreated many `articles.article_type='id'`
+zero-response rows.
+
+The observed shape was:
+- target rows were `/a`
+- article rows were recreated as `/id`
+- response rows for `/id` stayed at zero
+
+This meant target registration was fixed, but scrape/archive metadata identity
+could still be pulled back to `/id`.
+
+## Root cause
+Nicopedia article pages can contain:
+- `link rel="canonical"` pointing to `/a/<title>`
+- `meta property="og:url"` pointing to `/id/<number>`
+
+The scrape/archive path did not sufficiently preserve the canonical `/a` URL
+through metadata resolution, BBS URL generation, and DB save boundary.
+
+## Adopted implementation
+Copilot implementation was adopted.
+
+The implementation:
+- preserves canonical article URL in metadata result
+- keeps legacy tuple metadata test seams compatible
+- uses canonical article URL in `run_scrape()`
+- uses canonical article URL for BBS base URL construction
+- passes canonical article URL to DB save boundary
+- avoids redesigning target registration, feeder, storage schema, and Web UI
+
+## Validation
+Validation passed:
+- focused orchestrator tests passed
+- full helix validation passed
+- Copilot and Cursor main branches converged on the adopted commit
+
+Runtime smoke:
+- `/id/654665` resolved at scrape time to `/a/発達障害`
+- BBS fetch used `/b/a/...`
+- `run_scrape(..., response_cap=1)` saved one response
+- DB after smoke showed:
+  - `articles.article_type='id'` count was `0`
+  - `responses.article_type='id'` count was `0`
+  - `target.article_type='id'` count was `0`
+  - `articles_by_type` increased on `a`
+  - `responses_by_type` increased on `a`
+
+## Runtime follow-up
+The runtime checkout required a local compose hotfix so
+`SCRAPE_PAGE_DELAY_SECONDS` is passed into the container environment.
+
+Runtime was verified with:
+- `SCRAPE_PAGE_DELAY_SECONDS=2.5`
+- `get_scrape_delay_seconds()` returning `2.5`
+
+This compose environment forwarding should be reflected into mainline in a
+small follow-up task.
+
+## Operational status
+The periodic cron job was intentionally paused during investigation.
+
+After runtime smoke and cleanup, cron can be restored and a manual
+`periodic_once.sh` shot can be started.
+
+## Non-goals
+This task did not:
+- migrate historical ID rows
+- change DB schema
+- change Web UI
+- change download formats
+- redesign delete-request feeder
+- restore JSON archive output
+- introduce a new scheduler
 
 
 
@@ -9641,7 +9955,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Sat Apr 25 19:14:19 UTC 2026
+generated: Sun Apr 26 17:41:17 UTC 2026
 mode: full
 
 
@@ -18329,12 +18643,15 @@ class ArticleMetadataResult:
         article_id: str,
         article_type: str,
         title: str,
+        *,
+        article_url: str | None = None,
         published_at: str | None = None,
         modified_at: str | None = None,
     ) -> None:
         self.article_id = article_id
         self.article_type = article_type
         self.title = title
+        self.article_url = article_url
         self.published_at = published_at
         self.modified_at = modified_at
 
@@ -18469,6 +18786,53 @@ def _extract_itemprop_datetime(soup, itemprop: str) -> str | None:
     return text or None
 
 
+def _extract_canonical_article_url(article_url: str, soup) -> str | None:
+    canonical_tag = soup.find(
+        "link",
+        rel=lambda value: value and "canonical" in value,
+    )
+    if canonical_tag is not None:
+        href = canonical_tag.get("href", "").strip()
+        canonical_url = _normalize_redirect_target_url(article_url, href)
+        canonical_identity = parse_target_identity(canonical_url or "")
+        if (
+            canonical_identity is not None
+            and canonical_identity["article_type"] == "a"
+        ):
+            return canonical_url
+
+    og_url = soup.find("meta", property="og:url")
+    if og_url is None:
+        return None
+
+    return _normalize_redirect_target_url(
+        article_url,
+        og_url.get("content", "").strip(),
+    )
+
+
+def _select_scrape_identity(
+    article_url: str,
+    metadata_article_url: str | None,
+) -> dict:
+    metadata_identity = parse_target_identity(metadata_article_url or "")
+    if metadata_identity is not None and metadata_identity["article_type"] == "a":
+        return metadata_identity
+
+    input_identity = parse_target_identity(article_url)
+    if input_identity is not None and input_identity["article_type"] == "a":
+        return input_identity
+
+    if metadata_identity is not None:
+        return metadata_identity
+
+    return input_identity or {
+        "article_id": "",
+        "article_type": "",
+        "canonical_url": article_url,
+    }
+
+
 def fetch_article_metadata_record(article_url: str) -> dict:
     try:
         soup = fetch_page(article_url)
@@ -18488,17 +18852,18 @@ def fetch_article_metadata_record(article_url: str) -> dict:
     title_tag = soup.find("meta", property="og:title")
     title = title_tag["content"].split("とは")[0] if title_tag else "unknown"
 
-    og_url = soup.find("meta", property="og:url")
-    if og_url is None:
+    canonical_article_url = _extract_canonical_article_url(article_url, soup)
+    if canonical_article_url is None:
         raise ArticleNotFoundError(f"Article not found: {article_url}")
 
-    article_id = og_url["content"].rstrip("/").split("/")[-1]
-    parsed = urlparse(article_url)
-    article_type = parsed.path.strip("/").split("/")[0]
+    target_identity = parse_target_identity(canonical_article_url)
+    if target_identity is None:
+        raise ArticleNotFoundError(f"Article not found: {article_url}")
 
     return {
-        "article_id": article_id,
-        "article_type": article_type,
+        "article_id": target_identity["article_id"],
+        "article_type": target_identity["article_type"],
+        "article_url": target_identity["canonical_url"],
         "title": title,
         "published_at": _extract_itemprop_datetime(soup, "datePublished"),
         "modified_at": _extract_itemprop_datetime(soup, "dateModified"),
@@ -18787,6 +19152,7 @@ def fetch_article_metadata(article_url: str):
         record["article_id"],
         record["article_type"],
         record["title"],
+        article_url=record.get("article_url"),
         published_at=record.get("published_at"),
         modified_at=record.get("modified_at"),
     )
@@ -18802,6 +19168,14 @@ def run_scrape(
     try:
         metadata_result = fetch_article_metadata(article_url)
         article_id, article_type, title = metadata_result
+        metadata_article_url = getattr(metadata_result, "article_url", None)
+        canonical_identity = _select_scrape_identity(
+            article_url,
+            metadata_article_url,
+        )
+        article_id = canonical_identity["article_id"] or article_id
+        article_type = canonical_identity["article_type"] or article_type
+        canonical_article_url = canonical_identity["canonical_url"]
 
     except RedirectArticleError as exc:
         if progress_reporter is None:
@@ -18845,8 +19219,12 @@ def run_scrape(
             short_reason="article_not_found",
         )
 
-    display_label = _display_target_label(title, article_id, article_url)
-    target_ref = article_id or article_url
+    display_label = _display_target_label(
+        title,
+        article_id,
+        canonical_article_url,
+    )
+    target_ref = article_id or canonical_article_url
 
     if (
         progress_reporter is not None
@@ -18857,7 +19235,7 @@ def run_scrape(
             target_index,
             target_total,
             display_label,
-            article_url,
+            canonical_article_url,
         )
 
     if article_id in DENYLIST_ARTICLE_IDS:
@@ -18884,7 +19262,7 @@ def run_scrape(
         )
 
     max_saved_res_no = get_max_saved_res_no(article_id, article_type)
-    bbs_base_url = build_bbs_base_url(article_url)
+    bbs_base_url = build_bbs_base_url(canonical_article_url)
 
     if max_saved_res_no is None:
         responses, interrupted, cap_reached = collect_all_responses(
@@ -18947,14 +19325,14 @@ def run_scrape(
         if progress_reporter is None:
             print(
                 f"BBS fetch interrupted; saving partial responses "
-                f"({len(responses)} items) for: {article_url}"
+                f"({len(responses)} items) for: {canonical_article_url}"
             )
     elif cap_reached and responses:
         # 取得上限に到達。その時点までの responses を保存する。
         if progress_reporter is None:
             print(
                 f"Response cap reached; saving partial responses "
-                f"({len(responses)} items) for: {article_url}"
+                f"({len(responses)} items) for: {canonical_article_url}"
             )
 
     conn = init_db()
@@ -18971,7 +19349,7 @@ def run_scrape(
         article_id,
         article_type,
         title,
-        article_url,
+        canonical_article_url,
         responses,
         **save_kwargs,
     )
@@ -24228,10 +24606,62 @@ def test_fetch_article_metadata_record_reads_article_dates():
     assert record == {
         "article_id": "12345",
         "article_type": "a",
+        "article_url": "https://dic.nicovideo.jp/a/12345",
         "title": "Foo",
         "published_at": "2024-01-02T03:04:05+09:00",
         "modified_at": "2025-02-03T04:05:06+09:00",
     }
+
+
+def test_fetch_article_metadata_record_prefers_canonical_a_over_og_id():
+    html = """
+    <html><head>
+    <meta property="og:title" content="おそ松さんとは">
+    <link rel="canonical"
+     href="/a/%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93">
+    <meta property="og:url" content="https://dic.nicovideo.jp/id/5364158">
+    </head></html>
+    """
+    soup = BeautifulSoup(html, "lxml")
+
+    with patch("orchestrator.fetch_page", return_value=soup):
+        record = fetch_article_metadata_record(
+            "https://dic.nicovideo.jp/id/5364158"
+        )
+
+    assert record == {
+        "article_id": "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93",
+        "article_type": "a",
+        "article_url": (
+            "https://dic.nicovideo.jp/a/"
+            "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93"
+        ),
+        "title": "おそ松さん",
+        "published_at": None,
+        "modified_at": None,
+    }
+
+
+def test_fetch_article_metadata_preserves_canonical_article_url():
+    canonical_url = (
+        "https://dic.nicovideo.jp/a/"
+        "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93"
+    )
+
+    with patch(
+        "orchestrator.fetch_article_metadata_record",
+        return_value={
+            "article_id": "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93",
+            "article_type": "a",
+            "article_url": canonical_url,
+            "title": "おそ松さん",
+            "published_at": None,
+            "modified_at": None,
+        },
+    ):
+        result = fetch_article_metadata("https://dic.nicovideo.jp/id/5364158")
+
+    assert result.article_url == canonical_url
 
 
 def test_run_scrape_respects_existing_fetch_metadata_patch_seam():
@@ -24263,6 +24693,38 @@ def test_run_scrape_respects_existing_fetch_metadata_patch_seam():
 
     mock_meta.assert_called_once_with(article_url)
     assert mock_save_db.call_args.kwargs == {}
+
+
+def test_run_scrape_legacy_tuple_metadata_uses_input_a_identity():
+    article_url = "https://dic.nicovideo.jp/a/12345"
+    responses = [{"res_no": 1}]
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=("12345", "a", "Title"),
+    ):
+        with patch("orchestrator.get_max_saved_res_no", return_value=None):
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=(responses, False, False),
+            ) as mock_collect:
+                conn = MagicMock()
+                with patch("orchestrator.init_db", return_value=conn):
+                    with patch("orchestrator.save_to_db") as mock_save_db:
+                        with patch("orchestrator.print"):
+                            run_scrape(article_url)
+
+    mock_collect.assert_called_once_with(
+        "https://dic.nicovideo.jp/b/a/12345/",
+        response_cap=None,
+        progress_reporter=None,
+    )
+    assert mock_save_db.call_args.args[1:5] == (
+        "12345",
+        "a",
+        "Title",
+        article_url,
+    )
 
 
 def test_run_scrape_passes_metadata_kwargs_only_when_present():
@@ -24304,6 +24766,77 @@ def test_run_scrape_passes_metadata_kwargs_only_when_present():
         "published_at": "2024-01-02T03:04:05+09:00",
         "modified_at": "2025-02-03T04:05:06+09:00",
     }
+
+
+def test_run_scrape_uses_canonical_article_url_for_bbs_collection():
+    article_url = "https://dic.nicovideo.jp/id/5364158"
+    canonical_url = (
+        "https://dic.nicovideo.jp/a/"
+        "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93"
+    )
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=ArticleMetadataResult(
+            "5364158",
+            "id",
+            "おそ松さん",
+            article_url=canonical_url,
+        ),
+    ) as mock_meta:
+        with patch("orchestrator.get_max_saved_res_no", return_value=None):
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=([], False, False),
+            ) as mock_collect:
+                conn = MagicMock()
+                with patch("orchestrator.init_db", return_value=conn):
+                    with patch("orchestrator.save_to_db"):
+                        with patch("orchestrator.print"):
+                            run_scrape(article_url)
+
+    mock_meta.assert_called_once_with(article_url)
+    mock_collect.assert_called_once_with(
+        "https://dic.nicovideo.jp/b/a/"
+        "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93/",
+        response_cap=None,
+        progress_reporter=None,
+    )
+
+
+def test_run_scrape_persists_final_canonical_a_identity_at_save_boundary():
+    article_url = "https://dic.nicovideo.jp/id/5364158"
+    canonical_url = (
+        "https://dic.nicovideo.jp/a/"
+        "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93"
+    )
+    responses = [{"res_no": 1}]
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=ArticleMetadataResult(
+            "5364158",
+            "id",
+            "おそ松さん",
+            article_url=canonical_url,
+        ),
+    ):
+        with patch("orchestrator.get_max_saved_res_no", return_value=None):
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=(responses, False, False),
+            ):
+                conn = MagicMock()
+                with patch("orchestrator.init_db", return_value=conn):
+                    with patch("orchestrator.save_to_db") as mock_save_db:
+                        with patch("orchestrator.print"):
+                            run_scrape(article_url)
+
+    save_args = mock_save_db.call_args.args
+    assert save_args[1] == "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93"
+    assert save_args[2] == "a"
+    assert save_args[4] == canonical_url
+    assert save_args[5] == responses
 
 
 def test_run_scrape_does_not_write_json_artifact(tmp_path, monkeypatch):
@@ -35244,12 +35777,15 @@ class ArticleMetadataResult:
         article_id: str,
         article_type: str,
         title: str,
+        *,
+        article_url: str | None = None,
         published_at: str | None = None,
         modified_at: str | None = None,
     ) -> None:
         self.article_id = article_id
         self.article_type = article_type
         self.title = title
+        self.article_url = article_url
         self.published_at = published_at
         self.modified_at = modified_at
 
@@ -35384,6 +35920,53 @@ def _extract_itemprop_datetime(soup, itemprop: str) -> str | None:
     return text or None
 
 
+def _extract_canonical_article_url(article_url: str, soup) -> str | None:
+    canonical_tag = soup.find(
+        "link",
+        rel=lambda value: value and "canonical" in value,
+    )
+    if canonical_tag is not None:
+        href = canonical_tag.get("href", "").strip()
+        canonical_url = _normalize_redirect_target_url(article_url, href)
+        canonical_identity = parse_target_identity(canonical_url or "")
+        if (
+            canonical_identity is not None
+            and canonical_identity["article_type"] == "a"
+        ):
+            return canonical_url
+
+    og_url = soup.find("meta", property="og:url")
+    if og_url is None:
+        return None
+
+    return _normalize_redirect_target_url(
+        article_url,
+        og_url.get("content", "").strip(),
+    )
+
+
+def _select_scrape_identity(
+    article_url: str,
+    metadata_article_url: str | None,
+) -> dict:
+    metadata_identity = parse_target_identity(metadata_article_url or "")
+    if metadata_identity is not None and metadata_identity["article_type"] == "a":
+        return metadata_identity
+
+    input_identity = parse_target_identity(article_url)
+    if input_identity is not None and input_identity["article_type"] == "a":
+        return input_identity
+
+    if metadata_identity is not None:
+        return metadata_identity
+
+    return input_identity or {
+        "article_id": "",
+        "article_type": "",
+        "canonical_url": article_url,
+    }
+
+
 def fetch_article_metadata_record(article_url: str) -> dict:
     try:
         soup = fetch_page(article_url)
@@ -35403,17 +35986,18 @@ def fetch_article_metadata_record(article_url: str) -> dict:
     title_tag = soup.find("meta", property="og:title")
     title = title_tag["content"].split("とは")[0] if title_tag else "unknown"
 
-    og_url = soup.find("meta", property="og:url")
-    if og_url is None:
+    canonical_article_url = _extract_canonical_article_url(article_url, soup)
+    if canonical_article_url is None:
         raise ArticleNotFoundError(f"Article not found: {article_url}")
 
-    article_id = og_url["content"].rstrip("/").split("/")[-1]
-    parsed = urlparse(article_url)
-    article_type = parsed.path.strip("/").split("/")[0]
+    target_identity = parse_target_identity(canonical_article_url)
+    if target_identity is None:
+        raise ArticleNotFoundError(f"Article not found: {article_url}")
 
     return {
-        "article_id": article_id,
-        "article_type": article_type,
+        "article_id": target_identity["article_id"],
+        "article_type": target_identity["article_type"],
+        "article_url": target_identity["canonical_url"],
         "title": title,
         "published_at": _extract_itemprop_datetime(soup, "datePublished"),
         "modified_at": _extract_itemprop_datetime(soup, "dateModified"),
@@ -35702,6 +36286,7 @@ def fetch_article_metadata(article_url: str):
         record["article_id"],
         record["article_type"],
         record["title"],
+        article_url=record.get("article_url"),
         published_at=record.get("published_at"),
         modified_at=record.get("modified_at"),
     )
@@ -35717,6 +36302,14 @@ def run_scrape(
     try:
         metadata_result = fetch_article_metadata(article_url)
         article_id, article_type, title = metadata_result
+        metadata_article_url = getattr(metadata_result, "article_url", None)
+        canonical_identity = _select_scrape_identity(
+            article_url,
+            metadata_article_url,
+        )
+        article_id = canonical_identity["article_id"] or article_id
+        article_type = canonical_identity["article_type"] or article_type
+        canonical_article_url = canonical_identity["canonical_url"]
 
     except RedirectArticleError as exc:
         if progress_reporter is None:
@@ -35760,8 +36353,12 @@ def run_scrape(
             short_reason="article_not_found",
         )
 
-    display_label = _display_target_label(title, article_id, article_url)
-    target_ref = article_id or article_url
+    display_label = _display_target_label(
+        title,
+        article_id,
+        canonical_article_url,
+    )
+    target_ref = article_id or canonical_article_url
 
     if (
         progress_reporter is not None
@@ -35772,7 +36369,7 @@ def run_scrape(
             target_index,
             target_total,
             display_label,
-            article_url,
+            canonical_article_url,
         )
 
     if article_id in DENYLIST_ARTICLE_IDS:
@@ -35799,7 +36396,7 @@ def run_scrape(
         )
 
     max_saved_res_no = get_max_saved_res_no(article_id, article_type)
-    bbs_base_url = build_bbs_base_url(article_url)
+    bbs_base_url = build_bbs_base_url(canonical_article_url)
 
     if max_saved_res_no is None:
         responses, interrupted, cap_reached = collect_all_responses(
@@ -35862,14 +36459,14 @@ def run_scrape(
         if progress_reporter is None:
             print(
                 f"BBS fetch interrupted; saving partial responses "
-                f"({len(responses)} items) for: {article_url}"
+                f"({len(responses)} items) for: {canonical_article_url}"
             )
     elif cap_reached and responses:
         # 取得上限に到達。その時点までの responses を保存する。
         if progress_reporter is None:
             print(
                 f"Response cap reached; saving partial responses "
-                f"({len(responses)} items) for: {article_url}"
+                f"({len(responses)} items) for: {canonical_article_url}"
             )
 
     conn = init_db()
@@ -35886,7 +36483,7 @@ def run_scrape(
         article_id,
         article_type,
         title,
-        article_url,
+        canonical_article_url,
         responses,
         **save_kwargs,
     )
@@ -55089,10 +55686,62 @@ def test_fetch_article_metadata_record_reads_article_dates():
     assert record == {
         "article_id": "12345",
         "article_type": "a",
+        "article_url": "https://dic.nicovideo.jp/a/12345",
         "title": "Foo",
         "published_at": "2024-01-02T03:04:05+09:00",
         "modified_at": "2025-02-03T04:05:06+09:00",
     }
+
+
+def test_fetch_article_metadata_record_prefers_canonical_a_over_og_id():
+    html = """
+    <html><head>
+    <meta property="og:title" content="おそ松さんとは">
+    <link rel="canonical"
+     href="/a/%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93">
+    <meta property="og:url" content="https://dic.nicovideo.jp/id/5364158">
+    </head></html>
+    """
+    soup = BeautifulSoup(html, "lxml")
+
+    with patch("orchestrator.fetch_page", return_value=soup):
+        record = fetch_article_metadata_record(
+            "https://dic.nicovideo.jp/id/5364158"
+        )
+
+    assert record == {
+        "article_id": "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93",
+        "article_type": "a",
+        "article_url": (
+            "https://dic.nicovideo.jp/a/"
+            "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93"
+        ),
+        "title": "おそ松さん",
+        "published_at": None,
+        "modified_at": None,
+    }
+
+
+def test_fetch_article_metadata_preserves_canonical_article_url():
+    canonical_url = (
+        "https://dic.nicovideo.jp/a/"
+        "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93"
+    )
+
+    with patch(
+        "orchestrator.fetch_article_metadata_record",
+        return_value={
+            "article_id": "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93",
+            "article_type": "a",
+            "article_url": canonical_url,
+            "title": "おそ松さん",
+            "published_at": None,
+            "modified_at": None,
+        },
+    ):
+        result = fetch_article_metadata("https://dic.nicovideo.jp/id/5364158")
+
+    assert result.article_url == canonical_url
 
 
 def test_run_scrape_respects_existing_fetch_metadata_patch_seam():
@@ -55124,6 +55773,38 @@ def test_run_scrape_respects_existing_fetch_metadata_patch_seam():
 
     mock_meta.assert_called_once_with(article_url)
     assert mock_save_db.call_args.kwargs == {}
+
+
+def test_run_scrape_legacy_tuple_metadata_uses_input_a_identity():
+    article_url = "https://dic.nicovideo.jp/a/12345"
+    responses = [{"res_no": 1}]
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=("12345", "a", "Title"),
+    ):
+        with patch("orchestrator.get_max_saved_res_no", return_value=None):
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=(responses, False, False),
+            ) as mock_collect:
+                conn = MagicMock()
+                with patch("orchestrator.init_db", return_value=conn):
+                    with patch("orchestrator.save_to_db") as mock_save_db:
+                        with patch("orchestrator.print"):
+                            run_scrape(article_url)
+
+    mock_collect.assert_called_once_with(
+        "https://dic.nicovideo.jp/b/a/12345/",
+        response_cap=None,
+        progress_reporter=None,
+    )
+    assert mock_save_db.call_args.args[1:5] == (
+        "12345",
+        "a",
+        "Title",
+        article_url,
+    )
 
 
 def test_run_scrape_passes_metadata_kwargs_only_when_present():
@@ -55165,6 +55846,77 @@ def test_run_scrape_passes_metadata_kwargs_only_when_present():
         "published_at": "2024-01-02T03:04:05+09:00",
         "modified_at": "2025-02-03T04:05:06+09:00",
     }
+
+
+def test_run_scrape_uses_canonical_article_url_for_bbs_collection():
+    article_url = "https://dic.nicovideo.jp/id/5364158"
+    canonical_url = (
+        "https://dic.nicovideo.jp/a/"
+        "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93"
+    )
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=ArticleMetadataResult(
+            "5364158",
+            "id",
+            "おそ松さん",
+            article_url=canonical_url,
+        ),
+    ) as mock_meta:
+        with patch("orchestrator.get_max_saved_res_no", return_value=None):
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=([], False, False),
+            ) as mock_collect:
+                conn = MagicMock()
+                with patch("orchestrator.init_db", return_value=conn):
+                    with patch("orchestrator.save_to_db"):
+                        with patch("orchestrator.print"):
+                            run_scrape(article_url)
+
+    mock_meta.assert_called_once_with(article_url)
+    mock_collect.assert_called_once_with(
+        "https://dic.nicovideo.jp/b/a/"
+        "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93/",
+        response_cap=None,
+        progress_reporter=None,
+    )
+
+
+def test_run_scrape_persists_final_canonical_a_identity_at_save_boundary():
+    article_url = "https://dic.nicovideo.jp/id/5364158"
+    canonical_url = (
+        "https://dic.nicovideo.jp/a/"
+        "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93"
+    )
+    responses = [{"res_no": 1}]
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=ArticleMetadataResult(
+            "5364158",
+            "id",
+            "おそ松さん",
+            article_url=canonical_url,
+        ),
+    ):
+        with patch("orchestrator.get_max_saved_res_no", return_value=None):
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=(responses, False, False),
+            ):
+                conn = MagicMock()
+                with patch("orchestrator.init_db", return_value=conn):
+                    with patch("orchestrator.save_to_db") as mock_save_db:
+                        with patch("orchestrator.print"):
+                            run_scrape(article_url)
+
+    save_args = mock_save_db.call_args.args
+    assert save_args[1] == "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93"
+    assert save_args[2] == "a"
+    assert save_args[4] == canonical_url
+    assert save_args[5] == responses
 
 
 def test_run_scrape_does_not_write_json_artifact(tmp_path, monkeypatch):
