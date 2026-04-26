@@ -1444,6 +1444,11 @@ Operational note:
 - periodic cron was paused during the investigation
 - after SUBTASK010 smoke, cron can be restored and a manual long shot can be
   started
+Follow-up:
+- `SCRAPE_PAGE_DELAY_SECONDS` forwarding was mainlined in
+  `docker-compose.runtime.yml`
+- runtime local `.dockerignore` exclusion was also mainlined to prevent local
+  state from being baked into Docker images
 
 Current application structure:
 

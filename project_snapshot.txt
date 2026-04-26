@@ -2444,6 +2444,11 @@ Operational note:
 - periodic cron was paused during the investigation
 - after SUBTASK010 smoke, cron can be restored and a manual long shot can be
   started
+Follow-up:
+- `SCRAPE_PAGE_DELAY_SECONDS` forwarding was mainlined in
+  `docker-compose.runtime.yml`
+- runtime local `.dockerignore` exclusion was also mainlined to prevent local
+  state from being baked into Docker images
 
 Current application structure:
 
@@ -9955,7 +9960,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Sun Apr 26 17:41:17 UTC 2026
+generated: Sun Apr 26 17:50:07 UTC 2026
 mode: full
 
 
@@ -13065,6 +13070,16 @@ exec "$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)/META/scripts/compare_helix.s
 
 
 =============================
+FILE: copilot/.dockerignore
+=============================
+
+# runtime local state must not be baked into Docker images
+runtime/data/**
+runtime/logs/**
+runtime/targets/**
+
+
+=============================
 FILE: copilot/.env.runtime.local
 =============================
 WEB_BIND_HOST=127.0.0.1
@@ -15142,6 +15157,7 @@ services:
     environment:
       BATCH_LOG_DIR: /runtime/logs/batch_runs
       TARGET_DB_PATH: /app/data/nicodic.db
+      SCRAPE_PAGE_DELAY_SECONDS: ${SCRAPE_PAGE_DELAY_SECONDS:-5.0}
     volumes:
       - ./runtime/targets:/runtime/targets
       - ./runtime/data:/app/data
@@ -30229,6 +30245,16 @@ Apply only lightweight, mechanical guardrails.
 
 
 =============================
+FILE: cursor/.dockerignore
+=============================
+
+# runtime local state must not be baked into Docker images
+runtime/data/**
+runtime/logs/**
+runtime/targets/**
+
+
+=============================
 FILE: cursor/.env.runtime.local
 =============================
 WEB_BIND_HOST=127.0.0.1
@@ -32276,6 +32302,7 @@ services:
     environment:
       BATCH_LOG_DIR: /runtime/logs/batch_runs
       TARGET_DB_PATH: /app/data/nicodic.db
+      SCRAPE_PAGE_DELAY_SECONDS: ${SCRAPE_PAGE_DELAY_SECONDS:-5.0}
     volumes:
       - ./runtime/targets:/runtime/targets
       - ./runtime/data:/app/data
