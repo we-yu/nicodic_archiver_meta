@@ -227,23 +227,35 @@ Interpretation note:
 
 Recommended working order:
 
-1. `TASK032`
-   - bounded operator-facing target / archive management seam
-2. side-flow SubTask work after the TASK032 baseline
-   - runtime-log hygiene
-   - human-friendly logging / summary improvements
-3. later mainline task(s) to be re-sliced after the post-TASK032 picture is
-   clearer
+1. `TASK040: canonical URL identity merge`
+   - immediate correctness / maintenance task
+   - merge duplicate archive identities that share the same `canonical_url`
+   - preserve old numeric-identity responses before removing duplicate rows
+   - validate on copied DB state before touching runtime DB
+   - keep runtime periodic cron paused until migration and smoke checks pass
 
-This order is recommended because it:
+2. `SUBTASK011: script workflow hygiene and AI reminder helpers`
+   - root/meta workflow improvement task
+   - add or improve mechanical line-length / EOF helper checks
+   - improve discoverability of low-frequency workflow scripts for future AI
+     sessions
+   - optionally add target selection to frequent root workflow helpers
+   - keep this separate from product DB migration work
 
-- preserves the already-adopted bounded Web/runtime baseline
-- builds on the adopted target-registry baseline and the bounded telemetry
-  support layer without re-opening either task
-- keeps product semantics and runtime-operation support separated where useful
-- reduces the risk of mixing operator-facing management with unrelated UI polish
-- allows later log-side improvements to proceed without prematurely fixing
-  broader product-task boundaries
+3. `SUBTASK012: compact scrape progress logging`
+   - runtime/logging improvement task
+   - compact repetitive successful BBS page progress lines
+   - preserve warning/error detail visibility
+   - improve long-log readability for both humans and AI review
+
+This order is recommended because:
+
+- current runtime archive state has an active identity split that can cause
+  duplicate saved article rows and wasted scrape work
+- DB identity merge is more urgent than workflow-polish or log-size work
+- script hygiene is useful but should not be mixed with archive migration
+- compact logging is valuable but safer after archive identity behavior is
+  stable again
 
 --------------------------------------------------
 

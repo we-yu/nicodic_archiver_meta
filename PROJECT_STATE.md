@@ -1577,30 +1577,89 @@ It is not used as:
 
 NEXT TASK
 
-TASK038 is complete.
+SUBTASK010 is complete.
 
 Important current interpretation:
 
-- current Web saved-download baseline now includes bounded format selection for:
-  - `txt`
-  - `md`
-  - `csv`
-- default Web saved-download format remains `txt`
-- current saved-download flow should be read as supporting:
-  - title input
-  - decoded article URL input
-  - encoded article URL input
-- HTML export is not yet part of the adopted baseline
-- JSON export is not yet part of the adopted baseline
-- this completion does not imply scrape / queue / scheduler redesign
-- the next task is not fixed by this file alone
+- SUBTASK010 fixed future scrape/archive identity propagation so that
+  resolvable `/id/<number>` inputs no longer persist archive rows as
+  `article_type='id'` when a valid canonical `/a/<title>` URL is available.
+- SUBTASK010 did not introduce a DB schema change.
+- SUBTASK010 did not migrate historical runtime archive rows.
+- SUBTASK010 did not redesign the delete-request feeder.
+- SUBTASK010 did not redesign Web UI or saved-download behavior.
+
+Current runtime incident:
+
+- A long runtime shot after SUBTASK010 exposed a separate historical identity
+  split.
+- Existing saved archive rows often use:
+  - `article_type='a'`
+  - numeric `article_id`, such as `5601804`
+- Newer canonical scrape/save behavior uses:
+  - `article_type='a'`
+  - `/a/<title>` slug article_id, such as percent-encoded title slug
+- As a result, the same article can appear twice under the same
+  `canonical_url`.
+- The registered article list can show duplicate rows for the same article.
+- Scrape resume can miss older numeric-identity responses and begin
+  collecting the same article again under the slug identity.
+
+Confirmed runtime state before the next task:
+
+- periodic runtime shot was stopped
+- periodic cron entry was commented out
+- runtime DB backup was created before identity merge work
+- duplicate canonical URL groups were observed:
+  - `duplicate_canonical_urls = 77`
+  - `article_rows_in_duplicate_groups = 154`
+- old numeric article rows in duplicate canonical groups were observed:
+  - `numeric_article_rows = 78`
+  - `numeric_response_rows = 1217906`
+- a copy DB for testing was prepared at:
+  - `/tmp/identity_merge_test.db`
+
+Recommended next task:
+
+- `TASK040: canonical URL identity merge`
+
+Recommended task type:
+
+- MainTask / Double Helix is preferred because the task involves DB migration
+  behavior and correctness-sensitive archive identity handling.
+
+TASK040 should focus on:
+
+- designing a bounded canonical identity merge path
+- using `canonical_url` as the alias key for historical duplicate identities
+- preserving old numeric-identity response rows
+- moving missing responses into the canonical slug identity
+- avoiding duplicate response insertion
+- cleaning old duplicate numeric `articles`, `responses`, and `target` rows
+  only after safe merge rules are verified
+- validating first on a copied DB before touching the runtime DB
+- keeping runtime cron paused until merge and smoke validation complete
+
+Likely follow-up tasks:
+
+1. `SUBTASK011: script workflow hygiene and AI reminder helpers`
+   - add mechanical line-length / EOF helper checks
+   - improve workflow helper discoverability for future AI sessions
+   - optionally add target selection to frequent root workflow helpers
+
+2. `SUBTASK012: compact scrape progress logging`
+   - reduce repetitive successful page-progress log output
+   - preserve warning/error visibility
+   - make long scrape logs smaller and more AI-readable
 
 Planning continuity may still refer to:
+
 - `META/MEDIUM_TERM_DIRECTION.md`
 - `META/ROADMAP_REFERENCE.md`
 
 But those files remain planning/reference memory only.
 Authoritative current state must still be restored from:
+
 - `AI_CONTEXT.md`
 - `PROJECT_STATE.md`
 - `WORKSPACE.md`
