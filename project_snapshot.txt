@@ -9667,6 +9667,27 @@ Authoritative restore still depends on:
 
 
 
+===== REVIEW LOG: META/review_log/subtask_bbs_page_boundary_resume_20260429.md =====
+# SubTask adoption log
+
+- task: SubTask-bbs-page-boundary-resume
+- adopted: Copilot
+- reason:
+  - normalized later-page progression to BBS page boundaries
+  - resume start now rounds to containing boundary
+  - next-page progression now uses boundary + page_size
+  - partial terminal page stops without off-boundary fetch
+  - page size externalized via BBS_RESPONSES_PER_PAGE
+  - repo-local validation passed
+
+- validation:
+  - compare_helix.sh --all: expected clean after main realignment
+  - validate_helix.sh: PASS
+
+- runtime note:
+  - runtime cron remains paused until runtime smoke confirms no off-boundary later-page URLs
+
+
 ===== REVIEW LOG: META/review_log/task008_review.md =====
 # TASK008 Review
 
@@ -10045,7 +10066,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Tue Apr 28 16:51:56 UTC 2026
+generated: Wed Apr 29 16:10:28 UTC 2026
 mode: full
 
 
@@ -13193,6 +13214,7 @@ WEB_PORT=8000
 LOCAL_UID=1000
 LOCAL_GID=1000
 SCRAPE_PAGE_DELAY_SECONDS=5.0
+BBS_RESPONSES_PER_PAGE=30
 
 
 =============================
@@ -14466,388 +14488,6 @@ def resolve_article_input(article_input: str) -> dict:
         )
 
     return _resolve_from_exact_title(normalized_input)
-
-
-=============================
-FILE: copilot/canonical_identity_merge.py
-=============================
-from pathlib import Path
-import sqlite3
-
-from target_list import parse_target_identity
-
-
-def _is_numeric_article_id(article_id):
-    return article_id.isdigit()
-
-
-def _open_explicit_db(db_path, *, write):
-    db_file = Path(db_path)
-    if not db_file.is_file():
-        raise FileNotFoundError(f"Database file not found: {db_path}")
-
-    if write:
-        return sqlite3.connect(str(db_file))
-
-    return sqlite3.connect(f"file:{db_file}?mode=ro", uri=True)
-
-
-def _list_duplicate_canonical_urls(conn):
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT canonical_url
-        FROM articles
-        WHERE article_type='a'
-          AND canonical_url IS NOT NULL
-          AND canonical_url != ''
-        GROUP BY canonical_url
-        HAVING COUNT(*) > 1
-        ORDER BY canonical_url ASC
-        """
-    )
-    return [row[0] for row in cur.fetchall()]
-
-
-def _load_article_group(conn, canonical_url):
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT id, article_id, title, canonical_url, created_at
-        FROM articles
-        WHERE article_type='a' AND canonical_url=?
-        ORDER BY created_at ASC, id ASC
-        """,
-        (canonical_url,),
-    )
-    return [
-        {
-            "row_id": row[0],
-            "article_id": row[1],
-            "article_type": "a",
-            "title": row[2],
-            "canonical_url": row[3],
-            "created_at": row[4],
-        }
-        for row in cur.fetchall()
-    ]
-
-
-def _load_target_group(conn, canonical_url):
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT id, article_id, article_type, canonical_url, is_active,
-               is_redirected, redirect_target_url, redirect_detected_at,
-               created_at
-        FROM target
-        WHERE article_type='a' AND canonical_url=?
-        ORDER BY created_at ASC, id ASC
-        """,
-        (canonical_url,),
-    )
-    return [
-        {
-            "row_id": row[0],
-            "article_id": row[1],
-            "article_type": row[2],
-            "canonical_url": row[3],
-            "is_active": bool(row[4]),
-            "is_redirected": bool(row[5]),
-            "redirect_target_url": row[6],
-            "redirect_detected_at": row[7],
-            "created_at": row[8],
-        }
-        for row in cur.fetchall()
-    ]
-
-
-def _select_keep_article(rows, canonical_url):
-    parsed = parse_target_identity(canonical_url)
-    if parsed is not None and parsed["article_type"] == "a":
-        keep_article_id = parsed["article_id"]
-        for row in rows:
-            if row["article_id"] == keep_article_id:
-                return row
-
-    for row in rows:
-        if not _is_numeric_article_id(row["article_id"]):
-            return row
-
-    return rows[0]
-
-
-def _count_responses(conn, article_id):
-    cur = conn.cursor()
-    cur.execute(
-        "SELECT COUNT(*) FROM responses WHERE article_id=? AND article_type='a'",
-        (article_id,),
-    )
-    return cur.fetchone()[0]
-
-
-def _count_missing_responses(conn, source_article_id, keep_article_id):
-    cur = conn.cursor()
-    cur.execute(
-        """
-        SELECT COUNT(*)
-        FROM responses AS source
-        WHERE source.article_id=?
-          AND source.article_type='a'
-          AND NOT EXISTS (
-              SELECT 1
-              FROM responses AS keep
-              WHERE keep.article_id=?
-                AND keep.article_type='a'
-                AND keep.res_no=source.res_no
-          )
-        """,
-        (source_article_id, keep_article_id),
-    )
-    return cur.fetchone()[0]
-
-
-def _copy_missing_responses(conn, source_article_id, keep_article_id):
-    cur = conn.cursor()
-    cur.execute(
-        """
-        INSERT OR IGNORE INTO responses (
-            article_id,
-            article_type,
-            res_no,
-            id_hash,
-            poster_name,
-            posted_at,
-            content_html,
-            content_text,
-            res_hidden,
-            idhash_hidden,
-            good_count,
-            bad_count,
-            scraped_at
-        )
-        SELECT
-            ?,
-            'a',
-            source.res_no,
-            source.id_hash,
-            source.poster_name,
-            source.posted_at,
-            source.content_html,
-            source.content_text,
-            source.res_hidden,
-            source.idhash_hidden,
-            source.good_count,
-            source.bad_count,
-            source.scraped_at
-        FROM responses AS source
-        WHERE source.article_id=?
-          AND source.article_type='a'
-          AND NOT EXISTS (
-              SELECT 1
-              FROM responses AS keep
-              WHERE keep.article_id=?
-                AND keep.article_type='a'
-                AND keep.res_no=source.res_no
-          )
-        """,
-        (keep_article_id, source_article_id, keep_article_id),
-    )
-
-
-def _normalize_targets_for_group(conn, canonical_url, keep_article_id):
-    target_rows = _load_target_group(conn, canonical_url)
-    if not target_rows:
-        return {
-            "rekeyed": 0,
-            "deleted": 0,
-            "target_rows": [],
-        }
-
-    keep_target = None
-    for row in target_rows:
-        if row["article_id"] == keep_article_id:
-            keep_target = row
-            break
-
-    if keep_target is None:
-        keep_target = next(
-            (row for row in target_rows if row["is_active"]),
-            target_rows[0],
-        )
-        conn.execute(
-            """
-            UPDATE target
-            SET article_id=?, article_type='a', canonical_url=?
-            WHERE id=?
-            """,
-            (keep_article_id, canonical_url, keep_target["row_id"]),
-        )
-        keep_target = dict(keep_target)
-        keep_target["article_id"] = keep_article_id
-        keep_target["canonical_url"] = canonical_url
-        rekeyed = 1
-    else:
-        rekeyed = 0
-
-    deleted = 0
-    for row in target_rows:
-        if row["row_id"] == keep_target["row_id"]:
-            continue
-        conn.execute("DELETE FROM target WHERE id=?", (row["row_id"],))
-        deleted += 1
-
-    return {
-        "rekeyed": rekeyed,
-        "deleted": deleted,
-        "target_rows": target_rows,
-    }
-
-
-def _build_group_plan(conn, canonical_url):
-    article_rows = _load_article_group(conn, canonical_url)
-    keep_row = _select_keep_article(article_rows, canonical_url)
-    source_rows = [
-        row for row in article_rows if row["article_id"] != keep_row["article_id"]
-    ]
-
-    merge_pairs = []
-    for source_row in source_rows:
-        source_response_count = _count_responses(conn, source_row["article_id"])
-        missing_response_count = _count_missing_responses(
-            conn,
-            source_row["article_id"],
-            keep_row["article_id"],
-        )
-        merge_pairs.append(
-            {
-                "source_identity": {
-                    "article_id": source_row["article_id"],
-                    "article_type": "a",
-                },
-                "source_response_count": source_response_count,
-                "missing_response_count": missing_response_count,
-                "overlapping_response_count": (
-                    source_response_count - missing_response_count
-                ),
-            }
-        )
-
-    return {
-        "canonical_url": canonical_url,
-        "keep_identity": {
-            "article_id": keep_row["article_id"],
-            "article_type": "a",
-        },
-        "source_identities": [pair["source_identity"] for pair in merge_pairs],
-        "merge_pairs": merge_pairs,
-        "target_row_count": len(_load_target_group(conn, canonical_url)),
-    }
-
-
-def merge_canonical_a_identity_groups(db_path, *, apply=False):
-    conn = _open_explicit_db(db_path, write=apply)
-    try:
-        result = {
-            "db_path": db_path,
-            "apply": bool(apply),
-            "dry_run": not apply,
-            "group_count": 0,
-            "copied_response_count": 0,
-            "skipped_existing_response_count": 0,
-            "cleaned_article_count": 0,
-            "cleaned_response_count": 0,
-            "target_rekey_count": 0,
-            "target_deleted_count": 0,
-            "groups": [],
-        }
-
-        canonical_urls = _list_duplicate_canonical_urls(conn)
-        result["group_count"] = len(canonical_urls)
-
-        for canonical_url in canonical_urls:
-            group_result = _build_group_plan(conn, canonical_url)
-
-            if not apply:
-                result["copied_response_count"] += sum(
-                    pair["missing_response_count"]
-                    for pair in group_result["merge_pairs"]
-                )
-                result["skipped_existing_response_count"] += sum(
-                    pair["overlapping_response_count"]
-                    for pair in group_result["merge_pairs"]
-                )
-                result["groups"].append(group_result)
-                continue
-
-            conn.execute("SAVEPOINT canonical_identity_merge")
-            try:
-                group_result["verified"] = True
-                group_result["cleanup_performed"] = False
-
-                for pair in group_result["merge_pairs"]:
-                    source_article_id = pair["source_identity"]["article_id"]
-                    keep_article_id = group_result["keep_identity"]["article_id"]
-
-                    _copy_missing_responses(conn, source_article_id, keep_article_id)
-                    missing_after = _count_missing_responses(
-                        conn,
-                        source_article_id,
-                        keep_article_id,
-                    )
-                    pair["verified_missing_after"] = missing_after
-                    if missing_after != 0:
-                        group_result["verified"] = False
-                        break
-
-                    result["copied_response_count"] += pair["missing_response_count"]
-                    result["skipped_existing_response_count"] += pair[
-                        "overlapping_response_count"
-                    ]
-
-                if not group_result["verified"]:
-                    conn.execute("ROLLBACK TO SAVEPOINT canonical_identity_merge")
-                    conn.execute("RELEASE SAVEPOINT canonical_identity_merge")
-                    result["groups"].append(group_result)
-                    continue
-
-                target_changes = _normalize_targets_for_group(
-                    conn,
-                    canonical_url,
-                    group_result["keep_identity"]["article_id"],
-                )
-                group_result["target_changes"] = target_changes
-                result["target_rekey_count"] += target_changes["rekeyed"]
-                result["target_deleted_count"] += target_changes["deleted"]
-
-                for pair in group_result["merge_pairs"]:
-                    source_article_id = pair["source_identity"]["article_id"]
-                    deleted_response_count = _count_responses(conn, source_article_id)
-                    conn.execute(
-                        "DELETE FROM responses WHERE article_id=? AND article_type='a'",
-                        (source_article_id,),
-                    )
-                    conn.execute(
-                        "DELETE FROM articles WHERE article_id=? AND article_type='a'",
-                        (source_article_id,),
-                    )
-                    result["cleaned_response_count"] += deleted_response_count
-                    result["cleaned_article_count"] += 1
-
-                conn.execute("RELEASE SAVEPOINT canonical_identity_merge")
-                group_result["cleanup_performed"] = True
-                result["groups"].append(group_result)
-            except Exception:
-                conn.execute("ROLLBACK TO SAVEPOINT canonical_identity_merge")
-                conn.execute("RELEASE SAVEPOINT canonical_identity_merge")
-                raise
-
-        if apply:
-            conn.commit()
-
-        return result
-    finally:
-        conn.close()
 
 
 =============================
@@ -16231,6 +15871,7 @@ Expected keys:
 - `LOCAL_UID`
 - `LOCAL_GID`
 - `SCRAPE_PAGE_DELAY_SECONDS`
+- `BBS_RESPONSES_PER_PAGE`
 
 The file is intentionally local-only and should not be committed. Use the
 tracked template as a starting point:
@@ -16244,6 +15885,10 @@ host UID/GID to reduce common permission mismatches.
 `SCRAPE_PAGE_DELAY_SECONDS` controls the delay between BBS page fetches during
 scrape pagination. If it is unset or invalid, the application falls back to
 `5.0` seconds.
+
+`BBS_RESPONSES_PER_PAGE` controls the BBS page boundary size used for resume
+and later-page progression. If it is unset or invalid, the application falls
+back to `30` responses per page.
 
 ## Host UID/GID Handling
 
@@ -17108,6 +16753,7 @@ class HostCronReporter:
         self._partial_targets = 0
         self._error_refs: list[str] = []
         self._current_label: str | None = None
+        self._current_page_count = 0
 
     def emit(self, tag: str, message: str, indent_level: int = 0) -> None:
         indent = "  " * indent_level
@@ -17137,6 +16783,7 @@ class HostCronReporter:
         canonical_url: str,
     ) -> None:
         self._current_label = label
+        self._current_page_count = 0
         self.emit(
             "STEP",
             f"{index}/{total} title={label} url={canonical_url}",
@@ -17144,11 +16791,12 @@ class HostCronReporter:
         )
 
     def page_progress(self, page_url: str, collected: int, total: int) -> None:
-        self.emit(
-            "INFO",
-            f"page={page_url} collected={collected} total={total}",
-            indent_level=2,
-        )
+        # Compact normal-success page progress while preserving a visible
+        # heartbeat in host_cron output. Warning / error / interrupted /
+        # cap-reached paths still emit their full detail lines below.
+        self._current_page_count += 1
+        page_ref = page_url.rsplit("/", 1)[-1]
+        self.emit("INFO", f"[{page_ref}:OK]", indent_level=2)
 
     def later_page_interrupted(
         self,
@@ -17207,6 +16855,7 @@ class HostCronReporter:
             self._append_error_ref(ref)
 
         self._current_label = None
+        self._current_page_count = 0
 
     def _append_error_ref(self, ref: str) -> None:
         if ref not in self._error_refs:
@@ -17359,6 +17008,481 @@ def fetch_page(url: str) -> BeautifulSoup:
 
 
 =============================
+FILE: copilot/identity_merge.py
+=============================
+"""Canonical URL identity merge for article_type='a'.
+
+Bounded maintenance seam. It detects duplicate canonical_url groups in the
+articles table for article_type='a' (e.g. an old numeric article_id plus a
+new slug article_id derived from /a/<title> sharing the same canonical
+URL), chooses a safe keep identity (the slug form), preserves old numeric
+identity responses by transferring missing res_nos into the keep identity,
+and only after that preservation is complete and verified cleans the old
+numeric article and response rows. Target rows for the old numeric
+identity are normalized non-destructively (deactivated).
+
+Safety properties:
+- explicit DB path; no implicit runtime DB default
+- dry-run is the safe default
+- never reintroduces article_type='id'
+- only operates on rows that share a canonical_url with another
+  article_type='a' row; non-duplicate rows are never touched
+- destructive cleanup of source articles / responses runs only after
+  per-source response preservation is verified
+- target rows are deactivated, never deleted
+"""
+import sqlite3
+from pathlib import Path
+from urllib.parse import urlparse
+
+
+def _is_numeric_identity(article_id: str) -> bool:
+    return bool(article_id) and article_id.isdigit()
+
+
+def _slug_from_canonical_url(canonical_url: str | None) -> str | None:
+    if not canonical_url:
+        return None
+    parsed = urlparse(canonical_url)
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) != 2 or parts[0] != "a":
+        return None
+    slug = parts[1]
+    return slug or None
+
+
+def find_canonical_url_duplicate_groups(conn) -> list[dict]:
+    """Return duplicate canonical_url groups for article_type='a'.
+
+    Read-only. Each returned group has 2 or more rows.
+    """
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT article_id, article_type, canonical_url
+        FROM articles
+        WHERE article_type='a'
+              AND canonical_url IS NOT NULL
+              AND canonical_url <> ''
+        ORDER BY canonical_url ASC, article_id ASC
+        """
+    )
+    by_url: dict[str, list[dict]] = {}
+    for article_id, article_type, canonical_url in cur.fetchall():
+        by_url.setdefault(canonical_url, []).append(
+            {
+                "article_id": article_id,
+                "article_type": article_type,
+                "canonical_url": canonical_url,
+            }
+        )
+
+    groups: list[dict] = []
+    for canonical_url, rows in by_url.items():
+        if len(rows) < 2:
+            continue
+        groups.append({"canonical_url": canonical_url, "rows": rows})
+    groups.sort(key=lambda group: group["canonical_url"])
+    return groups
+
+
+def choose_keep_identity(group: dict) -> dict | None:
+    """Pick the row whose article_id matches the canonical_url slug.
+
+    Returns None when no row matches; the caller treats that group as
+    unsafe to auto-merge and leaves it for operator review.
+    """
+    expected_slug = _slug_from_canonical_url(group["canonical_url"])
+    if expected_slug is None:
+        return None
+
+    for row in group["rows"]:
+        if row["article_id"] == expected_slug and row["article_type"] == "a":
+            return row
+    return None
+
+
+def _list_response_res_nos(
+    cur, article_id: str, article_type: str
+) -> set[int]:
+    cur.execute(
+        """
+        SELECT res_no FROM responses
+        WHERE article_id=? AND article_type=?
+        """,
+        (article_id, article_type),
+    )
+    return {int(row[0]) for row in cur.fetchall()}
+
+
+def _count_responses(cur, article_id: str, article_type: str) -> int:
+    cur.execute(
+        """
+        SELECT COUNT(*) FROM responses
+        WHERE article_id=? AND article_type=?
+        """,
+        (article_id, article_type),
+    )
+    return int(cur.fetchone()[0])
+
+
+def _build_group_plan(conn, group: dict) -> dict:
+    keep = choose_keep_identity(group)
+
+    if keep is None:
+        sources = []
+        for row in group["rows"]:
+            sources.append(
+                {
+                    "article_id": row["article_id"],
+                    "article_type": row["article_type"],
+                    "skip_reason": "no_safe_keep_identity",
+                    "source_response_count": 0,
+                    "responses_to_transfer": 0,
+                }
+            )
+        return {
+            "canonical_url": group["canonical_url"],
+            "keep_identity": None,
+            "sources": sources,
+            "skip_reason": "no_safe_keep_identity",
+        }
+
+    cur = conn.cursor()
+    keep_res_nos = _list_response_res_nos(
+        cur, keep["article_id"], keep["article_type"]
+    )
+
+    sources = []
+    for row in group["rows"]:
+        if (
+            row["article_id"] == keep["article_id"]
+            and row["article_type"] == keep["article_type"]
+        ):
+            continue
+
+        if row["article_type"] != "a":
+            sources.append(
+                {
+                    "article_id": row["article_id"],
+                    "article_type": row["article_type"],
+                    "skip_reason": "non_a_article_type",
+                    "source_response_count": _count_responses(
+                        cur, row["article_id"], row["article_type"]
+                    ),
+                    "responses_to_transfer": 0,
+                }
+            )
+            continue
+
+        if not _is_numeric_identity(row["article_id"]):
+            sources.append(
+                {
+                    "article_id": row["article_id"],
+                    "article_type": row["article_type"],
+                    "skip_reason": "non_numeric_source_kept_safe",
+                    "source_response_count": _count_responses(
+                        cur, row["article_id"], row["article_type"]
+                    ),
+                    "responses_to_transfer": 0,
+                }
+            )
+            continue
+
+        source_res_nos = _list_response_res_nos(
+            cur, row["article_id"], row["article_type"]
+        )
+        sources.append(
+            {
+                "article_id": row["article_id"],
+                "article_type": row["article_type"],
+                "skip_reason": None,
+                "source_response_count": len(source_res_nos),
+                "responses_to_transfer": len(
+                    source_res_nos - keep_res_nos
+                ),
+            }
+        )
+
+    return {
+        "canonical_url": group["canonical_url"],
+        "keep_identity": {
+            "article_id": keep["article_id"],
+            "article_type": keep["article_type"],
+        },
+        "sources": sources,
+        "skip_reason": None,
+    }
+
+
+def plan_canonical_url_merge(conn) -> list[dict]:
+    """Return the per-group merge plan. Read-only."""
+
+    groups = find_canonical_url_duplicate_groups(conn)
+    return [_build_group_plan(conn, group) for group in groups]
+
+
+def _transfer_missing_responses(
+    conn, source: dict, keep: dict
+) -> dict:
+    """Copy source responses missing at keep into keep identity.
+
+    Uses INSERT OR IGNORE keyed on UNIQUE(article_id, article_type, res_no)
+    so an existing keep res_no is never overwritten or duplicated.
+    Returns sets used for verification.
+    """
+    cur = conn.cursor()
+    keep_res_nos_before = _list_response_res_nos(
+        cur, keep["article_id"], keep["article_type"]
+    )
+    source_res_nos = _list_response_res_nos(
+        cur, source["article_id"], source["article_type"]
+    )
+
+    cur.execute(
+        """
+        INSERT OR IGNORE INTO responses
+        (article_id, article_type, res_no, id_hash, poster_name,
+         posted_at, content_html, content_text, res_hidden,
+         idhash_hidden, good_count, bad_count, scraped_at)
+        SELECT ?, ?, res_no, id_hash, poster_name, posted_at,
+               content_html, content_text, res_hidden,
+               idhash_hidden, good_count, bad_count, scraped_at
+        FROM responses
+        WHERE article_id=? AND article_type=?
+        """,
+        (
+            keep["article_id"],
+            keep["article_type"],
+            source["article_id"],
+            source["article_type"],
+        ),
+    )
+
+    keep_res_nos_after = _list_response_res_nos(
+        cur, keep["article_id"], keep["article_type"]
+    )
+    transferred = keep_res_nos_after - keep_res_nos_before
+
+    return {
+        "source_response_count": len(source_res_nos),
+        "missing_at_keep_before": len(
+            source_res_nos - keep_res_nos_before
+        ),
+        "transferred": len(transferred),
+        "source_res_nos": source_res_nos,
+        "keep_res_nos_after": keep_res_nos_after,
+    }
+
+
+def _preservation_verified(transfer_stats: dict) -> bool:
+    return transfer_stats["source_res_nos"].issubset(
+        transfer_stats["keep_res_nos_after"]
+    )
+
+
+def _delete_old_numeric_article_rows(conn, source: dict) -> dict:
+    """Delete source articles + responses. Caller verified preservation."""
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        DELETE FROM responses
+        WHERE article_id=? AND article_type=?
+        """,
+        (source["article_id"], source["article_type"]),
+    )
+    deleted_responses = cur.rowcount
+    cur.execute(
+        """
+        DELETE FROM articles
+        WHERE article_id=? AND article_type=?
+        """,
+        (source["article_id"], source["article_type"]),
+    )
+    deleted_articles = cur.rowcount
+    return {
+        "deleted_articles": deleted_articles,
+        "deleted_responses": deleted_responses,
+    }
+
+
+def _normalize_target_row(conn, source: dict) -> str:
+    """Deactivate the source target row; never deletes target.
+
+    Returns one of: 'deactivated', 'already_inactive', 'absent'.
+    """
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT is_active FROM target
+        WHERE article_id=? AND article_type=?
+        """,
+        (source["article_id"], source["article_type"]),
+    )
+    row = cur.fetchone()
+    if row is None:
+        return "absent"
+    if not row[0]:
+        return "already_inactive"
+    cur.execute(
+        """
+        UPDATE target SET is_active=0
+        WHERE article_id=? AND article_type=?
+        """,
+        (source["article_id"], source["article_type"]),
+    )
+    return "deactivated"
+
+
+def _empty_source_entry(src_plan: dict) -> dict:
+    return {
+        "article_id": src_plan["article_id"],
+        "article_type": src_plan["article_type"],
+        "skip_reason": src_plan.get("skip_reason"),
+        "source_response_count": src_plan.get("source_response_count", 0),
+        "transferred": 0,
+        "verification": "skipped",
+        "deleted_articles": 0,
+        "deleted_responses": 0,
+        "target_normalization": "skipped",
+    }
+
+
+def apply_canonical_url_merge(
+    conn, *, dry_run: bool = True
+) -> dict:
+    """Plan or apply canonical URL identity merge.
+
+    Always returns a structured summary. When ``dry_run`` is True
+    (default), no DB writes are performed. When False, missing source
+    responses are first transferred into the keep identity. Cleanup of
+    old numeric source articles and responses runs only when the
+    transfer is verified for that source. Target rows for the source
+    identity are deactivated, never deleted.
+    """
+
+    plan = plan_canonical_url_merge(conn)
+    summary: dict = {"dry_run": dry_run, "groups": []}
+
+    for group_plan in plan:
+        group_summary = {
+            "canonical_url": group_plan["canonical_url"],
+            "keep_identity": group_plan["keep_identity"],
+            "skip_reason": group_plan["skip_reason"],
+            "sources": [],
+        }
+
+        if group_plan["skip_reason"] is not None:
+            for src_plan in group_plan["sources"]:
+                group_summary["sources"].append(_empty_source_entry(src_plan))
+            summary["groups"].append(group_summary)
+            continue
+
+        keep = group_plan["keep_identity"]
+        for src_plan in group_plan["sources"]:
+            entry = _empty_source_entry(src_plan)
+
+            if src_plan.get("skip_reason") is not None:
+                group_summary["sources"].append(entry)
+                continue
+
+            if dry_run:
+                entry["transferred"] = src_plan["responses_to_transfer"]
+                entry["verification"] = "dry_run"
+                group_summary["sources"].append(entry)
+                continue
+
+            stats = _transfer_missing_responses(conn, src_plan, keep)
+            entry["transferred"] = stats["transferred"]
+
+            if _preservation_verified(stats):
+                entry["verification"] = "ok"
+                cleanup = _delete_old_numeric_article_rows(conn, src_plan)
+                entry["deleted_articles"] = cleanup["deleted_articles"]
+                entry["deleted_responses"] = cleanup["deleted_responses"]
+                entry["target_normalization"] = _normalize_target_row(
+                    conn, src_plan
+                )
+            else:
+                entry["verification"] = "failed_no_cleanup"
+
+            group_summary["sources"].append(entry)
+
+        summary["groups"].append(group_summary)
+
+    if not dry_run:
+        conn.commit()
+
+    return summary
+
+
+def merge_canonical_url_identities(
+    db_path: str, *, apply: bool = False
+) -> dict:
+    """Operator-facing seam.
+
+    Requires an explicit DB path. ``apply=False`` (default) is a safe
+    dry-run; the runtime DB is never modified by accident.
+    """
+
+    if not db_path:
+        raise ValueError(
+            "explicit db_path is required; refusing implicit default"
+        )
+    if not Path(db_path).exists():
+        raise FileNotFoundError(f"db_path does not exist: {db_path}")
+
+    conn = sqlite3.connect(db_path)
+    try:
+        return apply_canonical_url_merge(conn, dry_run=not apply)
+    finally:
+        conn.close()
+
+
+def format_merge_summary_lines(db_path: str, summary: dict) -> list[str]:
+    """Human-readable lines for the operator. Stable, line-oriented."""
+
+    mode = "dry-run" if summary["dry_run"] else "apply"
+    lines = [
+        "=== CANONICAL URL IDENTITY MERGE ===",
+        f"DB: {db_path}",
+        f"Mode: {mode}",
+        f"Groups: {len(summary['groups'])}",
+    ]
+
+    for group in summary["groups"]:
+        lines.append(f"- canonical_url: {group['canonical_url']}")
+        keep = group["keep_identity"]
+        if keep is None:
+            lines.append(f"  keep_identity: none ({group['skip_reason']})")
+        else:
+            lines.append(
+                f"  keep_identity: {keep['article_id']} {keep['article_type']}"
+            )
+
+        for src in group["sources"]:
+            lines.append(
+                "  source: "
+                f"{src['article_id']} {src['article_type']} | "
+                f"source_responses={src['source_response_count']} | "
+                f"transferred={src['transferred']} | "
+                f"verification={src['verification']} | "
+                f"deleted_articles={src['deleted_articles']} | "
+                f"deleted_responses={src['deleted_responses']} | "
+                f"target={src['target_normalization']}"
+                + (
+                    f" | skip_reason={src['skip_reason']}"
+                    if src.get("skip_reason")
+                    else ""
+                )
+            )
+
+    return lines
+
+
+=============================
 FILE: copilot/inspect.sh
 =============================
 #!/bin/bash
@@ -17403,13 +17527,16 @@ from delete_request_feeder import (
 )
 from host_cron import HostCronReporter, compress_weekly_archives, local_now
 from host_cron import rotate_active_log
+from identity_merge import (
+    format_merge_summary_lines,
+    merge_canonical_url_identities,
+)
 from operator_cli import add_target_for_operator
 from operator_cli import deactivate_target_for_operator
 from operator_cli import export_archive_for_operator
 from operator_cli import inspect_archive_for_operator
 from operator_cli import inspect_target_for_operator
 from operator_cli import list_archives_for_operator, list_targets_for_operator
-from operator_cli import merge_canonical_identities_for_operator
 from operator_cli import reactivate_target_for_operator
 from operator_cli import show_scraped_res_for_operator
 from orchestrator import run_scrape
@@ -18151,7 +18278,7 @@ def _print_operator_usage():
         "<article_type> --format txt|md [--output PATH]"
     )
     print(
-        "  python main.py operator archive merge-canonical-identities "
+        "  python main.py operator merge canonical-url "
         "--db PATH [--apply]"
     )
 
@@ -18353,32 +18480,51 @@ def _handle_operator_archive(args):
             sys.exit(1)
         return
 
-    if action == "merge-canonical-identities":
-        try:
-            db_path = _read_optional_flag(args, "--db")
-        except ValueError:
-            print(
-                "Usage: operator archive merge-canonical-identities "
-                "--db PATH [--apply]"
-            )
-            sys.exit(1)
-
-        if db_path is None:
-            print(
-                "Usage: operator archive merge-canonical-identities "
-                "--db PATH [--apply]"
-            )
-            sys.exit(1)
-
-        if not merge_canonical_identities_for_operator(
-            db_path,
-            apply="--apply" in args[1:],
-        ):
-            sys.exit(1)
-        return
-
     _print_operator_usage()
     sys.exit(1)
+
+
+def _handle_operator_merge(args):
+    if not args or args[0] != "canonical-url":
+        print(
+            "Usage: operator merge canonical-url --db PATH [--apply]",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    try:
+        db_path = _read_optional_flag(args, "--db", None)
+    except ValueError:
+        print(
+            "Usage: operator merge canonical-url --db PATH [--apply]",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if not db_path:
+        print(
+            "operator merge canonical-url requires an explicit --db PATH",
+            file=sys.stderr,
+        )
+        print(
+            "Refusing to use the runtime DB as an implicit default.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    apply_flag = "--apply" in args[1:]
+
+    try:
+        summary = merge_canonical_url_identities(db_path, apply=apply_flag)
+    except FileNotFoundError as exc:
+        print(f"DB path does not exist: {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        print(f"Invalid input: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    for line in format_merge_summary_lines(db_path, summary):
+        print(line)
 
 
 def _handle_operator_cli(args):
@@ -18392,6 +18538,9 @@ def _handle_operator_cli(args):
         return
     if area == "archive":
         _handle_operator_archive(args[1:])
+        return
+    if area == "merge":
+        _handle_operator_merge(args[1:])
         return
 
     _print_operator_usage()
@@ -18868,7 +19017,6 @@ from archive_read import (
     read_article_archive,
     read_article_summaries,
 )
-from canonical_identity_merge import merge_canonical_a_identity_groups
 from cli import build_archive_export
 from target_list import (
     deactivate_target,
@@ -19082,43 +19230,6 @@ def export_archive_for_operator(
     return True
 
 
-def merge_canonical_identities_for_operator(db_path, apply=False):
-    try:
-        result = merge_canonical_a_identity_groups(db_path, apply=apply)
-    except FileNotFoundError as exc:
-        print("Canonical identity merge failed")
-        print(f"DB: {db_path}")
-        print(f"Reason: {exc}")
-        return False
-
-    print("=== CANONICAL IDENTITY MERGE ===")
-    print(f"DB: {db_path}")
-    print(f"Mode: {'apply' if apply else 'dry-run'}")
-    print(f"Duplicate Groups: {result['group_count']}")
-    print(f"Responses To Copy: {result['copied_response_count']}")
-    print(
-        "Overlapping Responses: "
-        f"{result['skipped_existing_response_count']}"
-    )
-
-    if apply:
-        print(f"Cleaned Article Rows: {result['cleaned_article_count']}")
-        print(f"Cleaned Response Rows: {result['cleaned_response_count']}")
-        print(f"Rekeyed Target Rows: {result['target_rekey_count']}")
-        print(f"Deleted Target Rows: {result['target_deleted_count']}")
-
-    for group in result["groups"]:
-        print(f"URL: {group['canonical_url']}")
-        print(
-            "Keep: "
-            f"{group['keep_identity']['article_id']} "
-            f"{group['keep_identity']['article_type']}"
-        )
-        print(f"Merge Sources: {len(group['source_identities'])}")
-
-    return True
-
-
 def _admin_export_filename(article_id, article_type, title, fmt):
     safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", (title or "").strip())
     safe = re.sub(r"\s+", " ", safe).strip(" .")
@@ -19195,7 +19306,7 @@ QUEUE_DRAIN_PER_ARTICLE_RESPONSE_CAP = 10_800
 # 仮置き。known high-volume article を skip するための seed。
 DENYLIST_ARTICLE_IDS = frozenset({"480340", "237789"})
 
-BBS_PAGE_SIZE = 30
+DEFAULT_BBS_RESPONSES_PER_PAGE = 30
 DEFAULT_SCRAPE_PAGE_DELAY_SECONDS = 5.0
 
 
@@ -19285,9 +19396,45 @@ def get_scrape_delay_seconds() -> float:
     return delay_seconds
 
 
-def get_containing_page_start(res_no: int) -> int:
+def get_bbs_responses_per_page() -> int:
+    raw_value = os.environ.get("BBS_RESPONSES_PER_PAGE")
+    if raw_value is None:
+        return DEFAULT_BBS_RESPONSES_PER_PAGE
+
+    try:
+        page_size = int(raw_value)
+    except (TypeError, ValueError):
+        return DEFAULT_BBS_RESPONSES_PER_PAGE
+
+    if page_size <= 0:
+        return DEFAULT_BBS_RESPONSES_PER_PAGE
+
+    return page_size
+
+
+def get_containing_page_start(
+    res_no: int,
+    page_size: int | None = None,
+) -> int:
     """Return the BBS page start that contains the given response number."""
-    return ((res_no - 1) // BBS_PAGE_SIZE) * BBS_PAGE_SIZE + 1
+    effective_page_size = page_size or get_bbs_responses_per_page()
+    return ((res_no - 1) // effective_page_size) * effective_page_size + 1
+
+
+def get_next_page_start(
+    current_page_start: int,
+    page_size: int | None = None,
+) -> int:
+    effective_page_size = page_size or get_bbs_responses_per_page()
+    return current_page_start + effective_page_size
+
+
+def build_bbs_page_url(bbs_base_url: str, page_start: int) -> str:
+    return f"{bbs_base_url}{page_start}-"
+
+
+def is_terminal_bbs_page(raw_page_responses: list[dict], page_size: int) -> bool:
+    return len(raw_page_responses) < page_size
 
 
 class ArticleNotFoundError(RuntimeError):
@@ -19617,15 +19764,15 @@ def collect_all_responses(
     """
 
     all_responses = []
-    next_start = start
+    page_size = get_bbs_responses_per_page()
+    current_page_start = get_containing_page_start(start, page_size)
     interrupted = False
     cap_reached = False
     first_request = True
     effective_cap = response_cap if response_cap is not None else RESPONSE_CAP
 
     while True:
-
-        page_url = f"{bbs_base_url}{next_start}-"
+        page_url = build_bbs_page_url(bbs_base_url, current_page_start)
         if progress_reporter is None:
             print("Fetching:", page_url)
 
@@ -19693,7 +19840,13 @@ def collect_all_responses(
                 len(all_responses),
             )
 
-        next_start += len(raw_page_responses)
+        if is_terminal_bbs_page(raw_page_responses, page_size):
+            break
+
+        current_page_start = get_next_page_start(
+            current_page_start,
+            page_size,
+        )
         first_request = False
 
         # 過度アクセス回避
@@ -19833,7 +19986,10 @@ def run_scrape(
             progress_reporter=progress_reporter,
         )
     else:
-        resume_start = get_containing_page_start(max_saved_res_no)
+        resume_start = get_containing_page_start(
+            max_saved_res_no,
+            get_bbs_responses_per_page(),
+        )
         if progress_reporter is None:
             print(
                 f"Saved article detected; resuming from max_saved_res_no="
@@ -22720,233 +22876,6 @@ def test_dummy():
 
 
 =============================
-FILE: copilot/tests/test_canonical_identity_merge.py
-=============================
-import sqlite3
-
-from canonical_identity_merge import merge_canonical_a_identity_groups
-from storage import init_db, register_target, save_to_db
-
-
-def _response(res_no, text):
-    return {
-        "res_no": res_no,
-        "id_hash": f"id-{res_no}",
-        "poster_name": f"user-{res_no}",
-        "posted_at": f"2025-01-01 00:0{res_no}",
-        "content": text,
-        "content_html": f"<p>{text}</p>",
-    }
-
-
-def _open_counts(db_path):
-    conn = sqlite3.connect(db_path)
-    try:
-        cur = conn.cursor()
-        cur.execute("SELECT COUNT(*) FROM articles")
-        article_count = cur.fetchone()[0]
-        cur.execute("SELECT COUNT(*) FROM responses")
-        response_count = cur.fetchone()[0]
-        return article_count, response_count
-    finally:
-        conn.close()
-
-
-def test_merge_canonical_identities_dry_run_keeps_db_unchanged(tmp_path):
-    db_path = tmp_path / "merge.db"
-    conn = init_db(str(db_path))
-    try:
-        save_to_db(
-            conn,
-            "12345",
-            "a",
-            "Article Title",
-            "https://dic.nicovideo.jp/a/slug-title",
-            [_response(1, "old-1"), _response(2, "old-2")],
-        )
-        save_to_db(
-            conn,
-            "slug-title",
-            "a",
-            "Article Title",
-            "https://dic.nicovideo.jp/a/slug-title",
-            [_response(2, "new-2"), _response(3, "new-3")],
-        )
-    finally:
-        conn.close()
-
-    before_counts = _open_counts(str(db_path))
-
-    result = merge_canonical_a_identity_groups(str(db_path))
-
-    assert result["dry_run"] is True
-    assert result["group_count"] == 1
-    assert result["copied_response_count"] == 1
-    assert result["skipped_existing_response_count"] == 1
-    assert result["groups"][0]["keep_identity"] == {
-        "article_id": "slug-title",
-        "article_type": "a",
-    }
-    assert result["groups"][0]["source_identities"] == [
-        {"article_id": "12345", "article_type": "a"}
-    ]
-    assert _open_counts(str(db_path)) == before_counts
-
-
-def test_merge_canonical_identities_apply_copies_missing_and_cleans_old_rows(
-    tmp_path,
-):
-    db_path = tmp_path / "merge.db"
-    conn = init_db(str(db_path))
-    try:
-        save_to_db(
-            conn,
-            "12345",
-            "a",
-            "Article Title",
-            "https://dic.nicovideo.jp/a/slug-title",
-            [_response(1, "old-1"), _response(2, "old-2")],
-        )
-        save_to_db(
-            conn,
-            "slug-title",
-            "a",
-            "Article Title",
-            "https://dic.nicovideo.jp/a/slug-title",
-            [_response(2, "new-2"), _response(3, "new-3")],
-        )
-    finally:
-        conn.close()
-
-    result = merge_canonical_a_identity_groups(str(db_path), apply=True)
-
-    assert result["dry_run"] is False
-    assert result["copied_response_count"] == 1
-    assert result["cleaned_article_count"] == 1
-    assert result["cleaned_response_count"] == 2
-    assert result["groups"][0]["cleanup_performed"] is True
-
-    conn = sqlite3.connect(str(db_path))
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT article_id FROM articles ORDER BY article_id ASC"
-        )
-        assert cur.fetchall() == [("slug-title",)]
-
-        cur.execute(
-            """
-            SELECT article_id, res_no, content_text
-            FROM responses
-            ORDER BY article_id ASC, res_no ASC
-            """
-        )
-        assert cur.fetchall() == [
-            ("slug-title", 1, "old-1"),
-            ("slug-title", 2, "new-2"),
-            ("slug-title", 3, "new-3"),
-        ]
-    finally:
-        conn.close()
-
-
-def test_merge_canonical_identities_apply_rekeys_and_dedupes_target_rows(
-    tmp_path,
-):
-    db_path = tmp_path / "merge.db"
-    conn = init_db(str(db_path))
-    try:
-        save_to_db(
-            conn,
-            "12345",
-            "a",
-            "Article Title",
-            "https://dic.nicovideo.jp/a/slug-title",
-            [_response(1, "old-1")],
-        )
-        save_to_db(
-            conn,
-            "slug-title",
-            "a",
-            "Article Title",
-            "https://dic.nicovideo.jp/a/slug-title",
-            [_response(2, "new-2")],
-        )
-        register_target(
-            conn,
-            "12345",
-            "a",
-            "https://dic.nicovideo.jp/a/slug-title",
-        )
-    finally:
-        conn.close()
-
-    result = merge_canonical_a_identity_groups(str(db_path), apply=True)
-
-    assert result["target_rekey_count"] == 1
-    assert result["target_deleted_count"] == 0
-
-    conn = sqlite3.connect(str(db_path))
-    try:
-        cur = conn.cursor()
-        cur.execute(
-            "SELECT article_id, is_active FROM target ORDER BY article_id ASC"
-        )
-        assert cur.fetchall() == [("slug-title", 1)]
-    finally:
-        conn.close()
-
-
-def test_merge_canonical_identities_apply_deletes_duplicate_target_rows(tmp_path):
-    db_path = tmp_path / "merge.db"
-    conn = init_db(str(db_path))
-    try:
-        save_to_db(
-            conn,
-            "12345",
-            "a",
-            "Article Title",
-            "https://dic.nicovideo.jp/a/slug-title",
-            [_response(1, "old-1")],
-        )
-        save_to_db(
-            conn,
-            "slug-title",
-            "a",
-            "Article Title",
-            "https://dic.nicovideo.jp/a/slug-title",
-            [_response(2, "new-2")],
-        )
-        register_target(
-            conn,
-            "12345",
-            "a",
-            "https://dic.nicovideo.jp/a/slug-title",
-        )
-        register_target(
-            conn,
-            "slug-title",
-            "a",
-            "https://dic.nicovideo.jp/a/slug-title",
-        )
-    finally:
-        conn.close()
-
-    result = merge_canonical_a_identity_groups(str(db_path), apply=True)
-
-    assert result["target_rekey_count"] == 0
-    assert result["target_deleted_count"] == 1
-
-    conn = sqlite3.connect(str(db_path))
-    try:
-        cur = conn.cursor()
-        cur.execute("SELECT article_id FROM target ORDER BY article_id ASC")
-        assert cur.fetchall() == [("slug-title",)]
-    finally:
-        conn.close()
-
-
-=============================
 FILE: copilot/tests/test_cli.py
 =============================
 from unittest.mock import patch
@@ -23650,11 +23579,18 @@ def test_host_cron_reporter_emits_run_block_and_error_summary():
     text = stream.getvalue()
     assert "[RUN] START 2026-04-09 07:00:00" in text
     assert "  [STEP] 1/2 title=UNIX url=https://dic.nicovideo.jp/a/694740" in text
+    # Normal-success per-page INFO lines are intentionally compacted out
+    # of host_cron output. Warning / error detail (later_page_interrupted)
+    # below is still emitted with its INFO detail line.
     assert (
         "    [INFO] page=https://dic.nicovideo.jp/b/a/694740/1- "
-        "collected=30 total=30" in text
-    )
+        "collected=30 total=30"
+    ) not in text
     assert "  [WARN] FamilyMart later_page_interrupted" in text
+    assert (
+        "    [INFO] page=https://dic.nicovideo.jp/b/a/218285/31- "
+        "status=404 saved_partial=30"
+    ) in text
     assert "[RUN] END 2026-04-09 07:00:09 status=partial_failure" in text
     assert "[SUMMARY] targets=2 ok=1 fail=1 duration=9s" in text
     assert "[ERROR SUMMARY] count=1 refs=218285" in text
@@ -23787,6 +23723,366 @@ def test_resolve_id_article_url_ignores_og_url_id_without_a_target():
         )
 
     assert resolved is None
+
+
+=============================
+FILE: copilot/tests/test_identity_merge.py
+=============================
+"""Focused tests for identity_merge (canonical URL identity merge seam).
+
+These tests use isolated SQLite DBs in tmp_path. They never touch the
+runtime DB. The tests cover:
+- detection of duplicate canonical_url groups for article_type='a'
+- keep-identity selection (slug match preferred, never 'id' type)
+- dry-run safety (no DB writes)
+- response transfer with INSERT OR IGNORE de-duplication
+- cleanup of old numeric source rows only after verification
+- non-destructive target normalization (deactivation)
+- explicit DB path requirement (no implicit runtime default)
+"""
+import sqlite3
+
+import pytest
+
+from identity_merge import (
+    apply_canonical_url_merge,
+    choose_keep_identity,
+    find_canonical_url_duplicate_groups,
+    merge_canonical_url_identities,
+    plan_canonical_url_merge,
+)
+from storage import init_db, register_target
+
+
+def _seed_articles_row(
+    conn, article_id, article_type, title, canonical_url
+):
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO articles (article_id, article_type, title, canonical_url)
+        VALUES (?, ?, ?, ?)
+        """,
+        (article_id, article_type, title, canonical_url),
+    )
+
+
+def _seed_response_row(
+    conn, article_id, article_type, res_no, content_text
+):
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO responses
+        (article_id, article_type, res_no, content_text)
+        VALUES (?, ?, ?, ?)
+        """,
+        (article_id, article_type, res_no, content_text),
+    )
+
+
+def _build_dup_group_db(tmp_path):
+    db_path = tmp_path / "merge.db"
+    conn = init_db(str(db_path))
+    canonical_url = "https://dic.nicovideo.jp/a/foo-slug"
+
+    _seed_articles_row(conn, "12345", "a", "Foo (old)", canonical_url)
+    _seed_articles_row(conn, "foo-slug", "a", "Foo", canonical_url)
+
+    _seed_response_row(conn, "12345", "a", 1, "OLD-1")
+    _seed_response_row(conn, "12345", "a", 2, "OLD-2-collide")
+    _seed_response_row(conn, "12345", "a", 3, "OLD-3")
+
+    _seed_response_row(conn, "foo-slug", "a", 2, "KEEP-2")
+
+    register_target(conn, "12345", "a", canonical_url)
+    register_target(conn, "foo-slug", "a", canonical_url)
+
+    conn.commit()
+    return conn, str(db_path), canonical_url
+
+
+def test_find_groups_returns_only_a_type_dups(tmp_path):
+    db_path = tmp_path / "groups.db"
+    conn = init_db(str(db_path))
+    try:
+        canonical_url = "https://dic.nicovideo.jp/a/dup-slug"
+        _seed_articles_row(conn, "1", "a", "A1", canonical_url)
+        _seed_articles_row(conn, "dup-slug", "a", "A2", canonical_url)
+
+        _seed_articles_row(
+            conn,
+            "999",
+            "a",
+            "Solo",
+            "https://dic.nicovideo.jp/a/solo",
+        )
+        conn.commit()
+
+        groups = find_canonical_url_duplicate_groups(conn)
+    finally:
+        conn.close()
+
+    assert len(groups) == 1
+    assert groups[0]["canonical_url"] == canonical_url
+    article_ids = sorted(row["article_id"] for row in groups[0]["rows"])
+    assert article_ids == ["1", "dup-slug"]
+
+
+def test_find_groups_does_not_include_id_type_rows(tmp_path):
+    db_path = tmp_path / "no_id.db"
+    conn = init_db(str(db_path))
+    try:
+        canonical_url = "https://dic.nicovideo.jp/a/foo-slug"
+        _seed_articles_row(conn, "12345", "a", "Foo", canonical_url)
+        _seed_articles_row(
+            conn,
+            "5364158",
+            "id",
+            "Foo (id legacy)",
+            canonical_url,
+        )
+        conn.commit()
+
+        groups = find_canonical_url_duplicate_groups(conn)
+    finally:
+        conn.close()
+
+    assert groups == []
+
+
+def test_choose_keep_identity_prefers_slug_match(tmp_path):
+    canonical_url = "https://dic.nicovideo.jp/a/foo-slug"
+    group = {
+        "canonical_url": canonical_url,
+        "rows": [
+            {
+                "article_id": "12345",
+                "article_type": "a",
+                "canonical_url": canonical_url,
+            },
+            {
+                "article_id": "foo-slug",
+                "article_type": "a",
+                "canonical_url": canonical_url,
+            },
+        ],
+    }
+    keep = choose_keep_identity(group)
+    assert keep["article_id"] == "foo-slug"
+    assert keep["article_type"] == "a"
+
+
+def test_choose_keep_identity_returns_none_when_no_slug_row(tmp_path):
+    canonical_url = "https://dic.nicovideo.jp/a/foo-slug"
+    group = {
+        "canonical_url": canonical_url,
+        "rows": [
+            {
+                "article_id": "12345",
+                "article_type": "a",
+                "canonical_url": canonical_url,
+            },
+            {
+                "article_id": "67890",
+                "article_type": "a",
+                "canonical_url": canonical_url,
+            },
+        ],
+    }
+    assert choose_keep_identity(group) is None
+
+
+def test_dry_run_apply_returns_plan_without_writes(tmp_path):
+    conn, db_path, canonical_url = _build_dup_group_db(tmp_path)
+    try:
+        plan = plan_canonical_url_merge(conn)
+        summary = apply_canonical_url_merge(conn, dry_run=True)
+
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM articles")
+        assert cur.fetchone()[0] == 2
+        cur.execute(
+            "SELECT COUNT(*) FROM responses WHERE article_id=?",
+            ("12345",),
+        )
+        assert cur.fetchone()[0] == 3
+        cur.execute(
+            "SELECT COUNT(*) FROM responses WHERE article_id=?",
+            ("foo-slug",),
+        )
+        assert cur.fetchone()[0] == 1
+
+    finally:
+        conn.close()
+
+    assert summary["dry_run"] is True
+    assert len(summary["groups"]) == 1
+    group = summary["groups"][0]
+    assert group["keep_identity"] == {
+        "article_id": "foo-slug",
+        "article_type": "a",
+    }
+    assert plan[0]["keep_identity"] == group["keep_identity"]
+    assert len(group["sources"]) == 1
+    src = group["sources"][0]
+    assert src["article_id"] == "12345"
+    assert src["transferred"] == 2
+    assert src["verification"] == "dry_run"
+    assert src["deleted_articles"] == 0
+    assert src["deleted_responses"] == 0
+
+
+def test_apply_transfers_only_missing_responses_then_cleans_source(tmp_path):
+    conn, db_path, canonical_url = _build_dup_group_db(tmp_path)
+    try:
+        summary = apply_canonical_url_merge(conn, dry_run=False)
+        cur = conn.cursor()
+
+        cur.execute(
+            "SELECT res_no, content_text FROM responses "
+            "WHERE article_id=? AND article_type=? ORDER BY res_no",
+            ("foo-slug", "a"),
+        )
+        keep_rows = cur.fetchall()
+        assert keep_rows == [
+            (1, "OLD-1"),
+            (2, "KEEP-2"),
+            (3, "OLD-3"),
+        ]
+
+        cur.execute(
+            "SELECT COUNT(*) FROM responses WHERE article_id=?",
+            ("12345",),
+        )
+        assert cur.fetchone()[0] == 0
+
+        cur.execute(
+            "SELECT COUNT(*) FROM articles WHERE article_id=?",
+            ("12345",),
+        )
+        assert cur.fetchone()[0] == 0
+
+        cur.execute(
+            "SELECT COUNT(*) FROM articles WHERE article_id=?",
+            ("foo-slug",),
+        )
+        assert cur.fetchone()[0] == 1
+    finally:
+        conn.close()
+
+    assert summary["dry_run"] is False
+    assert summary["groups"][0]["sources"][0]["verification"] == "ok"
+    assert summary["groups"][0]["sources"][0]["transferred"] == 2
+    assert summary["groups"][0]["sources"][0]["deleted_articles"] == 1
+    assert summary["groups"][0]["sources"][0]["deleted_responses"] == 3
+
+
+def test_apply_does_not_introduce_id_type_rows(tmp_path):
+    conn, db_path, canonical_url = _build_dup_group_db(tmp_path)
+    try:
+        apply_canonical_url_merge(conn, dry_run=False)
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT COUNT(*) FROM articles WHERE article_type='id'"
+        )
+        assert cur.fetchone()[0] == 0
+        cur.execute(
+            "SELECT COUNT(*) FROM responses WHERE article_type='id'"
+        )
+        assert cur.fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_apply_deactivates_old_numeric_target_row(tmp_path):
+    conn, db_path, canonical_url = _build_dup_group_db(tmp_path)
+    try:
+        apply_canonical_url_merge(conn, dry_run=False)
+        cur = conn.cursor()
+
+        cur.execute(
+            "SELECT is_active FROM target "
+            "WHERE article_id=? AND article_type=?",
+            ("12345", "a"),
+        )
+        row = cur.fetchone()
+        assert row is not None
+        assert row[0] == 0
+
+        cur.execute(
+            "SELECT is_active FROM target "
+            "WHERE article_id=? AND article_type=?",
+            ("foo-slug", "a"),
+        )
+        keep_row = cur.fetchone()
+        assert keep_row is not None
+        assert keep_row[0] == 1
+    finally:
+        conn.close()
+
+
+def test_apply_skips_groups_without_safe_keep_identity(tmp_path):
+    db_path = tmp_path / "no_safe.db"
+    conn = init_db(str(db_path))
+    try:
+        canonical_url = "https://dic.nicovideo.jp/a/foo-slug"
+        _seed_articles_row(conn, "12345", "a", "Old", canonical_url)
+        _seed_articles_row(conn, "67890", "a", "Older", canonical_url)
+        _seed_response_row(conn, "12345", "a", 1, "OLD-1")
+        _seed_response_row(conn, "67890", "a", 1, "OLDER-1")
+        conn.commit()
+
+        summary = apply_canonical_url_merge(conn, dry_run=False)
+
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM articles")
+        assert cur.fetchone()[0] == 2
+        cur.execute("SELECT COUNT(*) FROM responses")
+        assert cur.fetchone()[0] == 2
+    finally:
+        conn.close()
+
+    assert summary["groups"][0]["skip_reason"] == "no_safe_keep_identity"
+    for src in summary["groups"][0]["sources"]:
+        assert src["transferred"] == 0
+        assert src["verification"] == "skipped"
+        assert src["deleted_articles"] == 0
+
+
+def test_merge_canonical_url_identities_requires_explicit_db_path(tmp_path):
+    with pytest.raises(ValueError):
+        merge_canonical_url_identities("", apply=False)
+
+
+def test_merge_canonical_url_identities_rejects_missing_db_file(tmp_path):
+    missing = tmp_path / "nope.db"
+    with pytest.raises(FileNotFoundError):
+        merge_canonical_url_identities(str(missing), apply=False)
+
+
+def test_merge_canonical_url_identities_dry_run_default_does_not_write(
+    tmp_path,
+):
+    conn, db_path, canonical_url = _build_dup_group_db(tmp_path)
+    conn.close()
+
+    summary = merge_canonical_url_identities(db_path)
+
+    assert summary["dry_run"] is True
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM articles")
+        assert cur.fetchone()[0] == 2
+        cur.execute(
+            "SELECT COUNT(*) FROM responses WHERE article_id=?",
+            ("12345",),
+        )
+        assert cur.fetchone()[0] == 3
+    finally:
+        conn.close()
 
 
 =============================
@@ -24231,32 +24527,6 @@ def test_main_operator_archive_export_calls_operator_helper(mock_export_archive)
     )
 
 
-@patch("main.merge_canonical_identities_for_operator")
-def test_main_operator_archive_merge_canonical_identities_calls_helper(
-    mock_merge_canonical_identities,
-):
-    mock_merge_canonical_identities.return_value = True
-
-    with patch(
-        "sys.argv",
-        [
-            "main.py",
-            "operator",
-            "archive",
-            "merge-canonical-identities",
-            "--db",
-            "archive.db",
-            "--apply",
-        ],
-    ):
-        main_module.main()
-
-    mock_merge_canonical_identities.assert_called_once_with(
-        "archive.db",
-        apply=True,
-    )
-
-
 def test_main_operator_without_required_args_exits_with_usage(capsys):
     with patch("sys.argv", ["main.py", "operator"]):
         with pytest.raises(SystemExit) as exc_info:
@@ -24267,7 +24537,6 @@ def test_main_operator_without_required_args_exits_with_usage(capsys):
     assert "Operator usage:" in out
     assert "operator target list" in out
     assert "operator archive export" in out
-    assert "merge-canonical-identities" in out
 
 
 @patch("main.verify_one_shot_fetch")
@@ -25089,7 +25358,6 @@ from operator_cli import (
     inspect_target_for_operator,
     list_archives_for_operator,
     list_targets_for_operator,
-    merge_canonical_identities_for_operator,
     show_scraped_res_for_operator,
 )
 from storage import init_db, save_to_db
@@ -25225,41 +25493,6 @@ def test_export_archive_for_operator_writes_requested_output_file(
     assert "### Response 1" in content
 
 
-def test_merge_canonical_identities_for_operator_reports_dry_run_summary(capsys):
-    with patch(
-        "operator_cli.merge_canonical_a_identity_groups",
-        return_value={
-            "group_count": 1,
-            "copied_response_count": 2,
-            "skipped_existing_response_count": 3,
-            "cleaned_article_count": 0,
-            "cleaned_response_count": 0,
-            "target_rekey_count": 0,
-            "target_deleted_count": 0,
-            "groups": [
-                {
-                    "canonical_url": "https://dic.nicovideo.jp/a/slug-title",
-                    "keep_identity": {
-                        "article_id": "slug-title",
-                        "article_type": "a",
-                    },
-                    "source_identities": [
-                        {"article_id": "12345", "article_type": "a"}
-                    ],
-                }
-            ],
-        },
-    ) as mock_merge:
-        assert merge_canonical_identities_for_operator("archive.db") is True
-
-    mock_merge.assert_called_once_with("archive.db", apply=False)
-    out = capsys.readouterr().out
-    assert "=== CANONICAL IDENTITY MERGE ===" in out
-    assert "Mode: dry-run" in out
-    assert "Duplicate Groups: 1" in out
-    assert "Keep: slug-title a" in out
-
-
 def _seed_article(tmp_path, article_id="12345", article_type="a"):
     conn = init_db()
     try:
@@ -25387,17 +25620,23 @@ from bs4 import BeautifulSoup
 from orchestrator import (
     ArticleMetadataResult,
     ArticleNotFoundError,
+    DEFAULT_BBS_RESPONSES_PER_PAGE,
     DEFAULT_SCRAPE_PAGE_DELAY_SECONDS,
     QUEUE_DRAIN_PER_ARTICLE_RESPONSE_CAP,
     RedirectArticleError,
     build_bbs_base_url,
+    build_bbs_page_url,
     fetch_article_metadata_record,
     fetch_article_metadata,
     collect_all_responses,
     drain_queue_requests,
     extract_redirect_target_url,
+    get_bbs_responses_per_page,
+    get_containing_page_start,
+    get_next_page_start,
     get_scrape_delay_seconds,
     get_max_saved_res_no,
+    is_terminal_bbs_page,
     is_redirect_article_page,
     load_saved_responses,
     run_scrape,
@@ -25821,6 +26060,20 @@ def test_get_scrape_delay_seconds_defaults_to_five_when_unset():
         assert get_scrape_delay_seconds() == 5.0
 
 
+def test_get_bbs_responses_per_page_defaults_to_thirty_when_unset():
+    with patch.dict(os.environ, {}, clear=True):
+        assert get_bbs_responses_per_page() == 30
+
+
+def test_get_bbs_responses_per_page_uses_valid_env_value():
+    with patch.dict(
+        os.environ,
+        {"BBS_RESPONSES_PER_PAGE": "50"},
+        clear=True,
+    ):
+        assert get_bbs_responses_per_page() == 50
+
+
 def test_get_scrape_delay_seconds_uses_valid_env_value():
     with patch.dict(
         os.environ,
@@ -25843,6 +26096,38 @@ def test_get_scrape_delay_seconds_falls_back_for_invalid_values(raw_value):
         assert get_scrape_delay_seconds() == DEFAULT_SCRAPE_PAGE_DELAY_SECONDS
 
 
+@pytest.mark.parametrize("raw_value", ["", "abc", "0", "-1"])
+def test_get_bbs_responses_per_page_falls_back_for_invalid_values(raw_value):
+    with patch.dict(
+        os.environ,
+        {"BBS_RESPONSES_PER_PAGE": raw_value},
+        clear=True,
+    ):
+        assert get_bbs_responses_per_page() == DEFAULT_BBS_RESPONSES_PER_PAGE
+
+
+def test_get_containing_page_start_rounds_to_bbs_boundary():
+    assert get_containing_page_start(22384, 30) == 22381
+    assert get_containing_page_start(38805, 30) == 38791
+
+
+def test_get_next_page_start_advances_by_page_size():
+    assert get_next_page_start(22381, 30) == 22411
+    assert get_next_page_start(38791, 30) == 38821
+
+
+def test_build_bbs_page_url_uses_boundary_start():
+    assert (
+        build_bbs_page_url("https://dic.nicovideo.jp/b/a/12345/", 61)
+        == "https://dic.nicovideo.jp/b/a/12345/61-"
+    )
+
+
+def test_is_terminal_bbs_page_detects_partial_page():
+    assert is_terminal_bbs_page([{"res_no": 1}], 30) is True
+    assert is_terminal_bbs_page([{"res_no": n} for n in range(30)], 30) is False
+
+
 @patch("orchestrator.time.sleep")
 @patch("orchestrator.parse_responses")
 @patch("orchestrator.fetch_page")
@@ -25851,18 +26136,18 @@ def test_collect_all_responses_stops_on_empty_page(
 ):
     mock_fetch.return_value = MagicMock()
     mock_parse.side_effect = [
-        [{"res_no": 1}, {"res_no": 2}],
+        [{"res_no": n} for n in range(1, 31)],
         [],
     ]
     result, interrupted, cap_reached = collect_all_responses(
         "https://dic.nicovideo.jp/b/a/12345/"
     )
-    assert result == [{"res_no": 1}, {"res_no": 2}]
+    assert result == [{"res_no": n} for n in range(1, 31)]
     assert interrupted is False
     assert cap_reached is False
     assert mock_fetch.call_count == 2
     mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/1-")
-    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/3-")
+    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/31-")
     mock_sleep.assert_called_once_with(5.0)
 
 
@@ -25874,24 +26159,25 @@ def test_collect_all_responses_resumes_from_anchor_and_filters_existing_first_pa
 ):
     mock_fetch.return_value = MagicMock()
     mock_parse.side_effect = [
-        [{"res_no": 4}, {"res_no": 5}],
-        [{"res_no": 6}],
-        [],
+        [{"res_no": n} for n in range(31, 61)],
+        [{"res_no": 61}],
     ]
 
     result, interrupted, cap_reached = collect_all_responses(
         "https://dic.nicovideo.jp/b/a/12345/",
-        start=4,
-        max_saved_res_no=4,
+        start=34,
+        max_saved_res_no=34,
     )
 
-    assert result == [{"res_no": 5}, {"res_no": 6}]
+    assert result == [
+        {"res_no": n} for n in range(35, 61)
+    ] + [{"res_no": 61}]
     assert interrupted is False
     assert cap_reached is False
-    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/4-")
-    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/6-")
-    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/7-")
-    assert mock_sleep.call_count == 2
+    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/31-")
+    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/61-")
+    assert mock_fetch.call_count == 2
+    mock_sleep.assert_called_once_with(5.0)
 
 
 @patch("orchestrator.time.sleep")
@@ -25902,21 +26188,74 @@ def test_collect_all_responses_resume_can_return_zero_new_without_failure(
 ):
     mock_fetch.return_value = MagicMock()
     mock_parse.side_effect = [
-        [{"res_no": 4}],
-        [],
+        [{"res_no": n} for n in range(31, 35)],
     ]
 
     result, interrupted, cap_reached = collect_all_responses(
         "https://dic.nicovideo.jp/b/a/12345/",
-        start=4,
-        max_saved_res_no=4,
+        start=34,
+        max_saved_res_no=34,
     )
 
     assert result == []
     assert interrupted is False
     assert cap_reached is False
-    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/4-")
-    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/5-")
+    mock_fetch.assert_called_once_with("https://dic.nicovideo.jp/b/a/12345/31-")
+    mock_sleep.assert_not_called()
+
+
+@patch("orchestrator.time.sleep")
+@patch("orchestrator.parse_responses")
+@patch("orchestrator.fetch_page")
+def test_collect_all_responses_stops_after_partial_terminal_page(
+    mock_fetch, mock_parse, mock_sleep
+):
+    mock_fetch.return_value = MagicMock()
+    mock_parse.return_value = [
+        {"res_no": n} for n in range(22381, 22386)
+    ]
+
+    result, interrupted, cap_reached = collect_all_responses(
+        "https://dic.nicovideo.jp/b/a/12345/",
+        start=22384,
+        max_saved_res_no=22384,
+    )
+
+    assert result == [{"res_no": 22385}]
+    assert interrupted is False
+    assert cap_reached is False
+    mock_fetch.assert_called_once_with(
+        "https://dic.nicovideo.jp/b/a/12345/22381-"
+    )
+    mock_sleep.assert_not_called()
+
+
+@patch("orchestrator.time.sleep")
+@patch("orchestrator.parse_responses")
+@patch("orchestrator.fetch_page")
+def test_collect_all_responses_resume_uses_next_page_boundary(
+    mock_fetch, mock_parse, mock_sleep
+):
+    mock_fetch.return_value = MagicMock()
+    mock_parse.side_effect = [
+        [{"res_no": n} for n in range(38791, 38821)],
+        [{"res_no": 38821}],
+    ]
+
+    result, interrupted, cap_reached = collect_all_responses(
+        "https://dic.nicovideo.jp/b/a/12345/",
+        start=38805,
+        max_saved_res_no=38805,
+    )
+
+    assert result == [
+        {"res_no": n} for n in range(38806, 38821)
+    ] + [{"res_no": 38821}]
+    assert interrupted is False
+    assert cap_reached is False
+    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/38791-")
+    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/38821-")
+    assert mock_fetch.call_count == 2
     mock_sleep.assert_called_once_with(5.0)
 
 
@@ -25984,13 +26323,13 @@ def test_collect_all_responses_sets_interrupted_on_later_page_error(
         MagicMock(),
         RuntimeError("temporary network issue"),
     ]
-    mock_parse.return_value = [{"res_no": 1}]
+    mock_parse.return_value = [{"res_no": n} for n in range(1, 31)]
 
     result, interrupted, cap_reached = collect_all_responses(
         "https://dic.nicovideo.jp/b/a/12345/"
     )
 
-    assert result == [{"res_no": 1}]
+    assert result == [{"res_no": n} for n in range(1, 31)]
     assert interrupted is True
     assert cap_reached is False
     assert mock_fetch.call_count == 2
@@ -26005,9 +26344,10 @@ def test_collect_all_responses_stops_at_cap_and_sets_cap_reached(
     mock_fetch, mock_parse, mock_sleep
 ):
     mock_fetch.return_value = MagicMock()
+
     mock_parse.side_effect = [
-        [{"res_no": 1}, {"res_no": 2}],
-        [{"res_no": 3}, {"res_no": 4}],
+        [{"res_no": n} for n in range(1, 31)],
+        [{"res_no": 31}, {"res_no": 32}],
     ]
     result, interrupted, cap_reached = collect_all_responses(
         "https://dic.nicovideo.jp/b/a/12345/"
@@ -26016,8 +26356,8 @@ def test_collect_all_responses_stops_at_cap_and_sets_cap_reached(
     assert result == [{"res_no": 1}, {"res_no": 2}, {"res_no": 3}]
     assert interrupted is False
     assert cap_reached is True
-    assert mock_fetch.call_count == 2
-    mock_sleep.assert_called_once_with(5.0)
+    assert mock_fetch.call_count == 1
+    mock_sleep.assert_not_called()
 
 
 @patch("orchestrator.time.sleep")
@@ -26029,18 +26369,24 @@ def test_collect_all_responses_uses_configured_sleep_delay(
     mock_sleep,
 ):
     mock_fetch.return_value = MagicMock()
-    mock_parse.side_effect = [[{"res_no": 1}], []]
+    mock_parse.side_effect = [
+        [{"res_no": n} for n in range(1, 31)],
+        [],
+    ]
 
     with patch.dict(
         os.environ,
-        {"SCRAPE_PAGE_DELAY_SECONDS": "2.5"},
+        {
+            "SCRAPE_PAGE_DELAY_SECONDS": "2.5",
+            "BBS_RESPONSES_PER_PAGE": "30",
+        },
         clear=True,
     ):
         result, interrupted, cap_reached = collect_all_responses(
             "https://dic.nicovideo.jp/b/a/12345/"
         )
 
-    assert result == [{"res_no": 1}]
+    assert result == [{"res_no": n} for n in range(1, 31)]
     assert interrupted is False
     assert cap_reached is False
     mock_sleep.assert_called_once_with(2.5)
@@ -31107,6 +31453,7 @@ WEB_PORT=8000
 LOCAL_UID=1000
 LOCAL_GID=1000
 SCRAPE_PAGE_DELAY_SECONDS=5.0
+BBS_RESPONSES_PER_PAGE=30
 
 
 =============================
@@ -33733,6 +34080,7 @@ Expected keys:
 - `LOCAL_UID`
 - `LOCAL_GID`
 - `SCRAPE_PAGE_DELAY_SECONDS`
+- `BBS_RESPONSES_PER_PAGE`
 
 The file is intentionally local-only and should not be committed. Use the
 tracked template as a starting point:
@@ -33746,6 +34094,10 @@ host UID/GID to reduce common permission mismatches.
 `SCRAPE_PAGE_DELAY_SECONDS` controls the delay between BBS page fetches during
 scrape pagination. If it is unset or invalid, the application falls back to
 `5.0` seconds.
+
+`BBS_RESPONSES_PER_PAGE` controls the BBS page boundary size used for resume
+and later-page progression. If it is unset or invalid, the application falls
+back to `30` responses per page.
 
 ## Host UID/GID Handling
 
@@ -37163,7 +37515,7 @@ QUEUE_DRAIN_PER_ARTICLE_RESPONSE_CAP = 10_800
 # 仮置き。known high-volume article を skip するための seed。
 DENYLIST_ARTICLE_IDS = frozenset({"480340", "237789"})
 
-BBS_PAGE_SIZE = 30
+DEFAULT_BBS_RESPONSES_PER_PAGE = 30
 DEFAULT_SCRAPE_PAGE_DELAY_SECONDS = 5.0
 
 
@@ -37253,9 +37605,45 @@ def get_scrape_delay_seconds() -> float:
     return delay_seconds
 
 
-def get_containing_page_start(res_no: int) -> int:
+def get_bbs_responses_per_page() -> int:
+    raw_value = os.environ.get("BBS_RESPONSES_PER_PAGE")
+    if raw_value is None:
+        return DEFAULT_BBS_RESPONSES_PER_PAGE
+
+    try:
+        page_size = int(raw_value)
+    except (TypeError, ValueError):
+        return DEFAULT_BBS_RESPONSES_PER_PAGE
+
+    if page_size <= 0:
+        return DEFAULT_BBS_RESPONSES_PER_PAGE
+
+    return page_size
+
+
+def get_containing_page_start(
+    res_no: int,
+    page_size: int | None = None,
+) -> int:
     """Return the BBS page start that contains the given response number."""
-    return ((res_no - 1) // BBS_PAGE_SIZE) * BBS_PAGE_SIZE + 1
+    effective_page_size = page_size or get_bbs_responses_per_page()
+    return ((res_no - 1) // effective_page_size) * effective_page_size + 1
+
+
+def get_next_page_start(
+    current_page_start: int,
+    page_size: int | None = None,
+) -> int:
+    effective_page_size = page_size or get_bbs_responses_per_page()
+    return current_page_start + effective_page_size
+
+
+def build_bbs_page_url(bbs_base_url: str, page_start: int) -> str:
+    return f"{bbs_base_url}{page_start}-"
+
+
+def is_terminal_bbs_page(raw_page_responses: list[dict], page_size: int) -> bool:
+    return len(raw_page_responses) < page_size
 
 
 class ArticleNotFoundError(RuntimeError):
@@ -37585,15 +37973,15 @@ def collect_all_responses(
     """
 
     all_responses = []
-    next_start = start
+    page_size = get_bbs_responses_per_page()
+    current_page_start = get_containing_page_start(start, page_size)
     interrupted = False
     cap_reached = False
     first_request = True
     effective_cap = response_cap if response_cap is not None else RESPONSE_CAP
 
     while True:
-
-        page_url = f"{bbs_base_url}{next_start}-"
+        page_url = build_bbs_page_url(bbs_base_url, current_page_start)
         if progress_reporter is None:
             print("Fetching:", page_url)
 
@@ -37661,7 +38049,13 @@ def collect_all_responses(
                 len(all_responses),
             )
 
-        next_start += len(raw_page_responses)
+        if is_terminal_bbs_page(raw_page_responses, page_size):
+            break
+
+        current_page_start = get_next_page_start(
+            current_page_start,
+            page_size,
+        )
         first_request = False
 
         # 過度アクセス回避
@@ -37801,7 +38195,10 @@ def run_scrape(
             progress_reporter=progress_reporter,
         )
     else:
-        resume_start = get_containing_page_start(max_saved_res_no)
+        resume_start = get_containing_page_start(
+            max_saved_res_no,
+            get_bbs_responses_per_page(),
+        )
         if progress_reporter is None:
             print(
                 f"Saved article detected; resuming from max_saved_res_no="
@@ -57378,17 +57775,23 @@ from bs4 import BeautifulSoup
 from orchestrator import (
     ArticleMetadataResult,
     ArticleNotFoundError,
+    DEFAULT_BBS_RESPONSES_PER_PAGE,
     DEFAULT_SCRAPE_PAGE_DELAY_SECONDS,
     QUEUE_DRAIN_PER_ARTICLE_RESPONSE_CAP,
     RedirectArticleError,
     build_bbs_base_url,
+    build_bbs_page_url,
     fetch_article_metadata_record,
     fetch_article_metadata,
     collect_all_responses,
     drain_queue_requests,
     extract_redirect_target_url,
+    get_bbs_responses_per_page,
+    get_containing_page_start,
+    get_next_page_start,
     get_scrape_delay_seconds,
     get_max_saved_res_no,
+    is_terminal_bbs_page,
     is_redirect_article_page,
     load_saved_responses,
     run_scrape,
@@ -57812,6 +58215,20 @@ def test_get_scrape_delay_seconds_defaults_to_five_when_unset():
         assert get_scrape_delay_seconds() == 5.0
 
 
+def test_get_bbs_responses_per_page_defaults_to_thirty_when_unset():
+    with patch.dict(os.environ, {}, clear=True):
+        assert get_bbs_responses_per_page() == 30
+
+
+def test_get_bbs_responses_per_page_uses_valid_env_value():
+    with patch.dict(
+        os.environ,
+        {"BBS_RESPONSES_PER_PAGE": "50"},
+        clear=True,
+    ):
+        assert get_bbs_responses_per_page() == 50
+
+
 def test_get_scrape_delay_seconds_uses_valid_env_value():
     with patch.dict(
         os.environ,
@@ -57834,6 +58251,38 @@ def test_get_scrape_delay_seconds_falls_back_for_invalid_values(raw_value):
         assert get_scrape_delay_seconds() == DEFAULT_SCRAPE_PAGE_DELAY_SECONDS
 
 
+@pytest.mark.parametrize("raw_value", ["", "abc", "0", "-1"])
+def test_get_bbs_responses_per_page_falls_back_for_invalid_values(raw_value):
+    with patch.dict(
+        os.environ,
+        {"BBS_RESPONSES_PER_PAGE": raw_value},
+        clear=True,
+    ):
+        assert get_bbs_responses_per_page() == DEFAULT_BBS_RESPONSES_PER_PAGE
+
+
+def test_get_containing_page_start_rounds_to_bbs_boundary():
+    assert get_containing_page_start(22384, 30) == 22381
+    assert get_containing_page_start(38805, 30) == 38791
+
+
+def test_get_next_page_start_advances_by_page_size():
+    assert get_next_page_start(22381, 30) == 22411
+    assert get_next_page_start(38791, 30) == 38821
+
+
+def test_build_bbs_page_url_uses_boundary_start():
+    assert (
+        build_bbs_page_url("https://dic.nicovideo.jp/b/a/12345/", 61)
+        == "https://dic.nicovideo.jp/b/a/12345/61-"
+    )
+
+
+def test_is_terminal_bbs_page_detects_partial_page():
+    assert is_terminal_bbs_page([{"res_no": 1}], 30) is True
+    assert is_terminal_bbs_page([{"res_no": n} for n in range(30)], 30) is False
+
+
 @patch("orchestrator.time.sleep")
 @patch("orchestrator.parse_responses")
 @patch("orchestrator.fetch_page")
@@ -57842,18 +58291,18 @@ def test_collect_all_responses_stops_on_empty_page(
 ):
     mock_fetch.return_value = MagicMock()
     mock_parse.side_effect = [
-        [{"res_no": 1}, {"res_no": 2}],
+        [{"res_no": n} for n in range(1, 31)],
         [],
     ]
     result, interrupted, cap_reached = collect_all_responses(
         "https://dic.nicovideo.jp/b/a/12345/"
     )
-    assert result == [{"res_no": 1}, {"res_no": 2}]
+    assert result == [{"res_no": n} for n in range(1, 31)]
     assert interrupted is False
     assert cap_reached is False
     assert mock_fetch.call_count == 2
     mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/1-")
-    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/3-")
+    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/31-")
     mock_sleep.assert_called_once_with(5.0)
 
 
@@ -57865,24 +58314,25 @@ def test_collect_all_responses_resumes_from_anchor_and_filters_existing_first_pa
 ):
     mock_fetch.return_value = MagicMock()
     mock_parse.side_effect = [
-        [{"res_no": 4}, {"res_no": 5}],
-        [{"res_no": 6}],
-        [],
+        [{"res_no": n} for n in range(31, 61)],
+        [{"res_no": 61}],
     ]
 
     result, interrupted, cap_reached = collect_all_responses(
         "https://dic.nicovideo.jp/b/a/12345/",
-        start=4,
-        max_saved_res_no=4,
+        start=34,
+        max_saved_res_no=34,
     )
 
-    assert result == [{"res_no": 5}, {"res_no": 6}]
+    assert result == [
+        {"res_no": n} for n in range(35, 61)
+    ] + [{"res_no": 61}]
     assert interrupted is False
     assert cap_reached is False
-    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/4-")
-    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/6-")
-    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/7-")
-    assert mock_sleep.call_count == 2
+    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/31-")
+    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/61-")
+    assert mock_fetch.call_count == 2
+    mock_sleep.assert_called_once_with(5.0)
 
 
 @patch("orchestrator.time.sleep")
@@ -57893,21 +58343,74 @@ def test_collect_all_responses_resume_can_return_zero_new_without_failure(
 ):
     mock_fetch.return_value = MagicMock()
     mock_parse.side_effect = [
-        [{"res_no": 4}],
-        [],
+        [{"res_no": n} for n in range(31, 35)],
     ]
 
     result, interrupted, cap_reached = collect_all_responses(
         "https://dic.nicovideo.jp/b/a/12345/",
-        start=4,
-        max_saved_res_no=4,
+        start=34,
+        max_saved_res_no=34,
     )
 
     assert result == []
     assert interrupted is False
     assert cap_reached is False
-    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/4-")
-    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/5-")
+    mock_fetch.assert_called_once_with("https://dic.nicovideo.jp/b/a/12345/31-")
+    mock_sleep.assert_not_called()
+
+
+@patch("orchestrator.time.sleep")
+@patch("orchestrator.parse_responses")
+@patch("orchestrator.fetch_page")
+def test_collect_all_responses_stops_after_partial_terminal_page(
+    mock_fetch, mock_parse, mock_sleep
+):
+    mock_fetch.return_value = MagicMock()
+    mock_parse.return_value = [
+        {"res_no": n} for n in range(22381, 22386)
+    ]
+
+    result, interrupted, cap_reached = collect_all_responses(
+        "https://dic.nicovideo.jp/b/a/12345/",
+        start=22384,
+        max_saved_res_no=22384,
+    )
+
+    assert result == [{"res_no": 22385}]
+    assert interrupted is False
+    assert cap_reached is False
+    mock_fetch.assert_called_once_with(
+        "https://dic.nicovideo.jp/b/a/12345/22381-"
+    )
+    mock_sleep.assert_not_called()
+
+
+@patch("orchestrator.time.sleep")
+@patch("orchestrator.parse_responses")
+@patch("orchestrator.fetch_page")
+def test_collect_all_responses_resume_uses_next_page_boundary(
+    mock_fetch, mock_parse, mock_sleep
+):
+    mock_fetch.return_value = MagicMock()
+    mock_parse.side_effect = [
+        [{"res_no": n} for n in range(38791, 38821)],
+        [{"res_no": 38821}],
+    ]
+
+    result, interrupted, cap_reached = collect_all_responses(
+        "https://dic.nicovideo.jp/b/a/12345/",
+        start=38805,
+        max_saved_res_no=38805,
+    )
+
+    assert result == [
+        {"res_no": n} for n in range(38806, 38821)
+    ] + [{"res_no": 38821}]
+    assert interrupted is False
+    assert cap_reached is False
+    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/38791-")
+    mock_fetch.assert_any_call("https://dic.nicovideo.jp/b/a/12345/38821-")
+    assert mock_fetch.call_count == 2
     mock_sleep.assert_called_once_with(5.0)
 
 
@@ -57975,13 +58478,13 @@ def test_collect_all_responses_sets_interrupted_on_later_page_error(
         MagicMock(),
         RuntimeError("temporary network issue"),
     ]
-    mock_parse.return_value = [{"res_no": 1}]
+    mock_parse.return_value = [{"res_no": n} for n in range(1, 31)]
 
     result, interrupted, cap_reached = collect_all_responses(
         "https://dic.nicovideo.jp/b/a/12345/"
     )
 
-    assert result == [{"res_no": 1}]
+    assert result == [{"res_no": n} for n in range(1, 31)]
     assert interrupted is True
     assert cap_reached is False
     assert mock_fetch.call_count == 2
@@ -57996,9 +58499,10 @@ def test_collect_all_responses_stops_at_cap_and_sets_cap_reached(
     mock_fetch, mock_parse, mock_sleep
 ):
     mock_fetch.return_value = MagicMock()
+
     mock_parse.side_effect = [
-        [{"res_no": 1}, {"res_no": 2}],
-        [{"res_no": 3}, {"res_no": 4}],
+        [{"res_no": n} for n in range(1, 31)],
+        [{"res_no": 31}, {"res_no": 32}],
     ]
     result, interrupted, cap_reached = collect_all_responses(
         "https://dic.nicovideo.jp/b/a/12345/"
@@ -58007,8 +58511,8 @@ def test_collect_all_responses_stops_at_cap_and_sets_cap_reached(
     assert result == [{"res_no": 1}, {"res_no": 2}, {"res_no": 3}]
     assert interrupted is False
     assert cap_reached is True
-    assert mock_fetch.call_count == 2
-    mock_sleep.assert_called_once_with(5.0)
+    assert mock_fetch.call_count == 1
+    mock_sleep.assert_not_called()
 
 
 @patch("orchestrator.time.sleep")
@@ -58020,18 +58524,24 @@ def test_collect_all_responses_uses_configured_sleep_delay(
     mock_sleep,
 ):
     mock_fetch.return_value = MagicMock()
-    mock_parse.side_effect = [[{"res_no": 1}], []]
+    mock_parse.side_effect = [
+        [{"res_no": n} for n in range(1, 31)],
+        [],
+    ]
 
     with patch.dict(
         os.environ,
-        {"SCRAPE_PAGE_DELAY_SECONDS": "2.5"},
+        {
+            "SCRAPE_PAGE_DELAY_SECONDS": "2.5",
+            "BBS_RESPONSES_PER_PAGE": "30",
+        },
         clear=True,
     ):
         result, interrupted, cap_reached = collect_all_responses(
             "https://dic.nicovideo.jp/b/a/12345/"
         )
 
-    assert result == [{"res_no": 1}]
+    assert result == [{"res_no": n} for n in range(1, 31)]
     assert interrupted is False
     assert cap_reached is False
     mock_sleep.assert_called_once_with(2.5)
