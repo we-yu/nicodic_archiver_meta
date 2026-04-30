@@ -2522,6 +2522,37 @@ Follow-up:
 - runtime local `.dockerignore` exclusion was also mainlined to prevent local
   state from being baked into Docker images
 
+## TASK041 completed: Registered Articles usability and export
+
+TASK041 was completed with the Cursor implementation adopted.
+
+Summary:
+- Added recent-first Registered Articles ordering.
+- Added bounded sort, pagination, and search.
+- Added clickable canonical URL links.
+- Added current-page CSV export.
+- Added internal all-record CSV export.
+- Improved the top-page Registered Articles link into a button-like affordance.
+- Normalized human-facing download/export identity display so raw
+  percent-encoded slugs are not shown directly in the TXT ID line.
+- Cursor validation passed during review.
+- Runtime-copy Web/CSV smoke checks passed.
+
+DHM result:
+- Cursor was adopted.
+- Copilot was reviewed as a comparison implementation but not adopted.
+
+Known follow-up:
+- Numeric NicoNicoPedia article ID display is not fully solved in TASK041.
+  For example, article pages may have numeric /id/ values such as 5560706,
+  while the current archive identity is the canonical article key / slug.
+  Numeric ID capture likely requires parser/storage/backfill work and should
+  be handled as TASK041B or a separate SubTask.
+
+Runtime note:
+- TASK041 has not been reflected to the runtime checkout while the long shot is
+  running. Runtime deployment is deferred to a safe maintenance point.
+
 Current application structure:
 
 main.py
@@ -9687,6 +9718,74 @@ Authoritative restore still depends on:
 
 
 
+===== REVIEW LOG: META/review_log/TASK041_registered_articles_usability_export.md =====
+# TASK041 Review Log: Registered Articles usability and export
+
+## Result
+
+Adopted implementation: Cursor.
+
+Copilot was reviewed as a comparison implementation, but was not adopted.
+The Copilot branch remained failing validation with syntax/lint issues.
+Cursor passed repo-local validation and runtime-copy smoke checks.
+
+## Implemented scope
+
+TASK041 added or improved:
+
+- recent-first Registered Articles ordering
+- bounded server-side sorting
+- bounded pagination with 100 / 200 / 500 / 1000 page sizes
+- bounded search by title and stored article identity
+- clickable canonical URL links
+- current-page CSV export
+- internal all-record CSV export
+- top-page Registered Articles button-like link
+- human-facing download/export identity normalization
+
+## Validation summary
+
+Cursor validation passed during review.
+
+Observed result:
+- 309 tests passed.
+
+Runtime-copy smoke confirmed:
+- Registered Articles page rendered against /tmp/task041_cursor_smoke.db
+- search worked for known titles
+- current-page CSV matched the visible filtered page
+- canonical URL links opened externally
+- TXT download no longer exposed raw percent-encoded slug as the ID line
+
+## Known limitations
+
+The current Article ID column does not yet represent the numeric NicoNicoPedia
+/id/ value such as 5560706.
+
+The current DB appears to preserve the canonical article identity / slug as
+the archive identity. Numeric IDs may appear inside response HTML link
+parameters, but TASK041 does not introduce parser/storage/backfill logic for
+numeric article ID capture.
+
+Follow-up candidate:
+
+TASK041B: Capture and display numeric NicoNicoPedia article ID
+
+Potential follow-up items:
+- numeric article ID capture and display
+- Clear button on Registered Articles search
+- table layout polish for long canonical URLs
+- refined filename contract for slug-based articles
+- pending-row visual confirmation with fixture data
+
+## Runtime deployment note
+
+Do not reflect TASK041 into the runtime checkout while the current long shot is
+running. Runtime deployment should wait for a safe maintenance point or a later
+soft-terminate mechanism.
+
+
+
 ===== REVIEW LOG: META/review_log/subtask_bbs_page_boundary_resume_20260429.md =====
 # SubTask adoption log
 
@@ -10086,7 +10185,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Wed Apr 29 16:26:54 UTC 2026
+generated: Thu Apr 30 20:04:00 UTC 2026
 mode: full
 
 
@@ -13556,10 +13655,44 @@ FILE: copilot/archive_read.py
 import csv
 from datetime import datetime, timezone
 from io import StringIO
+import re
 import sqlite3
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 
 from storage import DEFAULT_DB_PATH
+
+
+REGISTERED_ARTICLE_DEFAULT_PER_PAGE = 100
+REGISTERED_ARTICLE_ALLOWED_PER_PAGE = (100, 200, 500, 1000)
+REGISTERED_ARTICLE_DEFAULT_SORT_BY = "created_at"
+REGISTERED_ARTICLE_DEFAULT_SORT_DIR = "desc"
+REGISTERED_ARTICLE_TABLE_COLUMNS = (
+    {"key": "title", "label": "Title"},
+    {"key": "article_id_display", "label": "Article ID"},
+    {"key": "article_type", "label": "Type"},
+    {"key": "canonical_url", "label": "Canonical URL"},
+    {"key": "saved_response_count", "label": "Saved Responses"},
+    {"key": "latest_scraped_max_res_no", "label": "Max Res No"},
+    {"key": "last_scraped_at", "label": "Last Scraped"},
+    {"key": "created_at", "label": "Registered At"},
+)
+REGISTERED_ARTICLE_SORT_ALLOWLIST = {
+    "title": lambda row: row["title"].casefold(),
+    "article_id": lambda row: row["article_id"].casefold(),
+    "created_at": lambda row: row["created_at"] or "",
+    "saved_response_count": lambda row: row["saved_response_count"],
+    "latest_scraped_max_res_no": lambda row: (
+        row["latest_scraped_max_res_no"]
+        if row["latest_scraped_max_res_no"] is not None
+        else -1
+    ),
+    "last_scraped_at": lambda row: row["last_scraped_at"] or "",
+}
+REGISTERED_ARTICLE_SEARCH_FIELDS = (
+    lambda row: row["title"],
+    lambda row: row["article_id"],
+)
 
 
 def _open_archive_read_conn() -> sqlite3.Connection | None:
@@ -13902,13 +14035,90 @@ def _article_date_line(archive) -> str | None:
     return None
 
 
+def _decode_human_text(value: str | None) -> str:
+    text = (value or "").strip()
+    if not text:
+        return ""
+    decoded = unquote(text).strip()
+    return decoded or text
+
+
+def _storage_article_key(article_id: str) -> str:
+    return _decode_human_text(article_id) or "unknown"
+
+
+def _human_article_id(article_id: str) -> str:
+    text = (article_id or "").strip()
+    return text if text.isdigit() else ""
+
+
+def _humanize_canonical_target_title(canonical_url: str | None) -> str:
+    parsed = urlparse(canonical_url or "")
+    path_parts = [part for part in parsed.path.split("/") if part]
+    if not path_parts:
+        return "unknown"
+    return _decode_human_text(path_parts[-1]) or "unknown"
+
+
+def _human_registered_title(title: str | None, canonical_url: str | None) -> str:
+    text = (title or "").strip()
+    if text:
+        return text
+    return _humanize_canonical_target_title(canonical_url)
+
+
+def _export_meta_lines(archive, *, markdown: bool) -> list[str]:
+    article_id_text = _human_article_id(archive["article_id"]) or "unavailable"
+    lines = [
+        ("Article ID", article_id_text),
+        ("Article Type", archive["article_type"]),
+        ("Canonical URL", archive["url"]),
+        ("Storage Key", _storage_article_key(archive["article_id"])),
+        ("Title", archive["title"]),
+    ]
+
+    if markdown:
+        return [f"- {label}: {value}" for label, value in lines]
+
+    return [f"{label}: {value}" for label, value in lines]
+
+
+def _sanitize_export_filename_part(value: str) -> str:
+    text = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", value)
+    text = re.sub(r"\s+", " ", text).strip(" .")
+    return text or "article"
+
+
+def build_human_export_filename(
+    article_id: str,
+    article_type: str,
+    title: str | None,
+    canonical_url: str | None,
+    requested_format: str,
+) -> str:
+    display_article_id = _human_article_id(article_id)
+    title_part = _sanitize_export_filename_part(
+        _human_registered_title(title, canonical_url)
+    )
+
+    if display_article_id:
+        base_identifier = f"{display_article_id}{article_type}"
+    else:
+        base_identifier = _sanitize_export_filename_part(
+            f"{article_type}_{_humanize_canonical_target_title(canonical_url)}"
+        )
+
+    if title_part.casefold() == base_identifier.casefold():
+        stem = base_identifier
+    else:
+        stem = f"{base_identifier}_{title_part}"
+    return f"{stem}.{requested_format}"
+
+
 def _render_txt_archive(archive):
     lines = [
         "=== ARTICLE META ===",
-        f"ID: {archive['article_id']}",
-        f"Type: {archive['article_type']}",
-        f"Title: {archive['title']}",
-        f"URL: {archive['url']}",
+        *_export_meta_lines(archive, markdown=False),
         "",
         "=== RESPONSES ===",
     ]
@@ -13948,9 +14158,7 @@ def _render_md_archive(archive):
     lines = [
         f"# {archive['title']}",
         "",
-        f"- ID: {archive['article_id']}",
-        f"- Type: {archive['article_type']}",
-        f"- URL: {archive['url']}",
+        *_export_meta_lines(archive, markdown=True),
     ]
 
     date_line = _article_date_line(archive)
@@ -13980,8 +14188,9 @@ def _csv_field_names():
     return [
         "article_id",
         "article_type",
+        "storage_article_key",
         "article_title",
-        "article_url",
+        "canonical_url",
         "res_no",
         "poster_name",
         "poster_id",
@@ -14032,10 +14241,13 @@ def _render_csv_archive(archive):
         res_no, poster_name, posted_at, id_hash, content_text, content_html = row
         writer.writerow(
             {
-                "article_id": archive["article_id"],
+                "article_id": _human_article_id(archive["article_id"]),
                 "article_type": archive["article_type"],
+                "storage_article_key": _storage_article_key(
+                    archive["article_id"]
+                ),
                 "article_title": archive["title"],
-                "article_url": archive["url"],
+                "canonical_url": archive["url"],
                 "res_no": res_no,
                 "poster_name": poster_name or "",
                 "poster_id": id_hash or "",
@@ -14081,6 +14293,14 @@ def get_saved_article_export(article_id, article_type, requested_format="txt"):
         "article_id": article_id,
         "article_type": article_type,
         "title": archive["title"],
+        "canonical_url": archive["url"],
+        "filename": build_human_export_filename(
+            article_id,
+            article_type,
+            archive["title"],
+            archive["url"],
+            requested_format,
+        ),
         "format": requested_format,
     }
 
@@ -14212,6 +14432,10 @@ def get_saved_article_summary_by_id(article_id):
 def list_registered_articles():
     """Return per-article summary list for registered article table view."""
 
+    return get_registered_article_listing()["rows"]
+
+
+def _fetch_registered_article_rows() -> list[dict]:
     conn = _open_archive_read_conn()
     if conn is None:
         return []
@@ -14219,40 +14443,42 @@ def list_registered_articles():
 
     try:
         cur.execute("PRAGMA table_info(articles)")
-        column_names = {row[1] for row in cur.fetchall()}
-        has_scraped_at = "latest_scraped_at" in column_names
+        article_column_names = {row[1] for row in cur.fetchall()}
+        has_scraped_at = "latest_scraped_at" in article_column_names
 
-        if has_scraped_at:
-            scraped_at_sel = (
-                ", a.latest_scraped_at AS last_scraped_at"
-            )
-            scraped_at_grp = ", a.latest_scraped_at"
-        else:
-            scraped_at_sel = ", NULL AS last_scraped_at"
-            scraped_at_grp = ""
+        scraped_at_sel = (
+            "a.latest_scraped_at AS last_scraped_at"
+            if has_scraped_at
+            else "NULL AS last_scraped_at"
+        )
 
         cur.execute(
             f"""
             SELECT
-                a.article_id,
-                a.article_type,
+                t.article_id,
+                t.article_type,
                 a.title,
-                a.canonical_url,
-                COUNT(r.id) AS saved_response_count,
-                MAX(r.res_no) AS latest_scraped_max_res_no
+                t.canonical_url,
+                t.created_at,
+                COALESCE(r.saved_response_count, 0) AS saved_response_count,
+                r.latest_scraped_max_res_no,
                 {scraped_at_sel}
-            FROM articles AS a
-            LEFT JOIN responses AS r
-                ON a.article_id = r.article_id
-                AND a.article_type = r.article_type
-            GROUP BY
-                a.article_id,
-                a.article_type,
-                a.title,
-                a.canonical_url
-                {scraped_at_grp}
-            ORDER BY
-                a.created_at ASC, a.article_id ASC, a.article_type ASC
+            FROM target AS t
+            LEFT JOIN articles AS a
+                ON t.article_id = a.article_id
+                AND t.article_type = a.article_type
+            LEFT JOIN (
+                SELECT
+                    article_id,
+                    article_type,
+                    COUNT(*) AS saved_response_count,
+                    MAX(res_no) AS latest_scraped_max_res_no
+                FROM responses
+                GROUP BY article_id, article_type
+            ) AS r
+                ON t.article_id = r.article_id
+                AND t.article_type = r.article_type
+            ORDER BY t.created_at DESC, t.article_id ASC, t.article_type ASC
             """
         )
         rows = cur.fetchall()
@@ -14261,25 +14487,186 @@ def list_registered_articles():
     finally:
         conn.close()
 
-    return [
-        {
-            "article_type": article_type,
-            "title": title or "",
-            "canonical_url": canonical_url or "",
-            "saved_response_count": saved_response_count,
-            "latest_scraped_max_res_no": latest_scraped_max_res_no,
-            "last_scraped_at": last_scraped_at,
-        }
-        for (
-            article_id,
-            article_type,
-            title,
-            canonical_url,
-            saved_response_count,
-            latest_scraped_max_res_no,
-            last_scraped_at,
-        ) in rows
+    registered_rows = []
+    for (
+        article_id,
+        article_type,
+        title,
+        canonical_url,
+        created_at,
+        saved_response_count,
+        latest_scraped_max_res_no,
+        last_scraped_at,
+    ) in rows:
+        registered_rows.append(
+            {
+                "article_id": article_id,
+                "article_id_display": _human_article_id(article_id),
+                "article_type": article_type,
+                "title": _human_registered_title(title, canonical_url),
+                "canonical_url": canonical_url or "",
+                "saved_response_count": saved_response_count or 0,
+                "latest_scraped_max_res_no": latest_scraped_max_res_no,
+                "last_scraped_at": last_scraped_at,
+                "created_at": created_at or "",
+                "is_pending_initial_scrape": (
+                    (saved_response_count or 0) == 0 and not last_scraped_at
+                ),
+            }
+        )
+    return registered_rows
+
+
+def _normalize_registered_sort_by(sort_by: str | None) -> str:
+    if sort_by in REGISTERED_ARTICLE_SORT_ALLOWLIST:
+        return sort_by
+    return REGISTERED_ARTICLE_DEFAULT_SORT_BY
+
+
+def _normalize_registered_sort_dir(sort_dir: str | None) -> str:
+    if sort_dir in {"asc", "desc"}:
+        return sort_dir
+    return REGISTERED_ARTICLE_DEFAULT_SORT_DIR
+
+
+def _normalize_registered_per_page(per_page: int | str | None) -> int:
+    try:
+        parsed = int(per_page)
+    except (TypeError, ValueError):
+        return REGISTERED_ARTICLE_DEFAULT_PER_PAGE
+
+    if parsed in REGISTERED_ARTICLE_ALLOWED_PER_PAGE:
+        return parsed
+    return REGISTERED_ARTICLE_DEFAULT_PER_PAGE
+
+
+def _normalize_registered_page(page: int | str | None) -> int:
+    try:
+        parsed = int(page)
+    except (TypeError, ValueError):
+        return 1
+    return max(parsed, 1)
+
+
+def _matches_registered_article_query(row: dict, query: str) -> bool:
+    normalized = query.casefold()
+    if not normalized:
+        return True
+    return any(
+        normalized in str(field(row) or "").casefold()
+        for field in REGISTERED_ARTICLE_SEARCH_FIELDS
+    )
+
+
+def _sort_registered_article_rows(
+    rows: list[dict],
+    sort_by: str,
+    sort_dir: str,
+) -> list[dict]:
+    sort_key = REGISTERED_ARTICLE_SORT_ALLOWLIST[sort_by]
+    secondary_key = lambda row: (
+        row["created_at"] or "",
+        row["article_id"],
+        row["article_type"],
+    )
+    prepared = sorted(rows, key=secondary_key, reverse=True)
+    return sorted(
+        prepared,
+        key=sort_key,
+        reverse=(sort_dir == "desc"),
+    )
+
+
+def get_registered_article_listing(
+    *,
+    query: str | None = None,
+    sort_by: str | None = None,
+    sort_dir: str | None = None,
+    page: int | str | None = None,
+    per_page: int | str | None = None,
+) -> dict:
+    normalized_query = (query or "").strip()
+    normalized_sort_by = _normalize_registered_sort_by(sort_by)
+    normalized_sort_dir = _normalize_registered_sort_dir(sort_dir)
+    normalized_per_page = _normalize_registered_per_page(per_page)
+    requested_page = _normalize_registered_page(page)
+
+    filtered_rows = [
+        row
+        for row in _fetch_registered_article_rows()
+        if _matches_registered_article_query(row, normalized_query)
     ]
+    sorted_rows = _sort_registered_article_rows(
+        filtered_rows,
+        normalized_sort_by,
+        normalized_sort_dir,
+    )
+
+    total_count = len(sorted_rows)
+    total_pages = max(1, (total_count + normalized_per_page - 1) // normalized_per_page)
+    normalized_page = min(requested_page, total_pages)
+    offset = (normalized_page - 1) * normalized_per_page
+    paged_rows = sorted_rows[offset : offset + normalized_per_page]
+
+    return {
+        "rows": paged_rows,
+        "total_count": total_count,
+        "page": normalized_page,
+        "per_page": normalized_per_page,
+        "total_pages": total_pages,
+        "sort_by": normalized_sort_by,
+        "sort_dir": normalized_sort_dir,
+        "query": normalized_query,
+        "columns": REGISTERED_ARTICLE_TABLE_COLUMNS,
+        "allowed_per_page": REGISTERED_ARTICLE_ALLOWED_PER_PAGE,
+        "sort_allowlist": tuple(REGISTERED_ARTICLE_SORT_ALLOWLIST.keys()),
+    }
+
+
+def render_registered_articles_csv(rows: list[dict]) -> str:
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow([column["label"] for column in REGISTERED_ARTICLE_TABLE_COLUMNS])
+    for row in rows:
+        writer.writerow(
+            [row.get(column["key"], "") for column in REGISTERED_ARTICLE_TABLE_COLUMNS]
+        )
+    return output.getvalue()
+
+
+def get_registered_articles_csv(
+    *,
+    query: str | None = None,
+    sort_by: str | None = None,
+    sort_dir: str | None = None,
+    page: int | str | None = None,
+    per_page: int | str | None = None,
+) -> dict:
+    listing = get_registered_article_listing(
+        query=query,
+        sort_by=sort_by,
+        sort_dir=sort_dir,
+        page=page,
+        per_page=per_page,
+    )
+    return {
+        "content": render_registered_articles_csv(listing["rows"]),
+        "listing": listing,
+        "filename": "registered_articles_current_page.csv",
+    }
+
+
+def get_all_registered_articles_csv() -> dict:
+    rows = _sort_registered_article_rows(
+        _fetch_registered_article_rows(),
+        REGISTERED_ARTICLE_DEFAULT_SORT_BY,
+        REGISTERED_ARTICLE_DEFAULT_SORT_DIR,
+    )
+    return {
+        "content": render_registered_articles_csv(rows),
+        "row_count": len(rows),
+        "filename": "registered_articles_all.csv",
+    }
 
 
 def write_scrape_targets_txt(data_dir="data"):
@@ -14515,7 +14902,7 @@ FILE: copilot/cli.py
 =============================
 from datetime import datetime, timezone
 
-from archive_read import get_saved_article_txt, read_article_archive
+from archive_read import get_saved_article_export, read_article_archive
 from archive_read import read_article_summaries
 
 
@@ -14560,24 +14947,8 @@ def _render_md_archive(archive):
 def build_archive_export(article_id, article_type, output_format):
     """Return one saved archive in the requested export format."""
 
-    if output_format == "txt":
-        txt_result = get_saved_article_txt(article_id, article_type)
-        if not txt_result["found"]:
-            return {
-                "found": False,
-                "content": None,
-                "article_id": article_id,
-                "article_type": article_type,
-                "format": output_format,
-            }
-
-        return {
-            "found": True,
-            "content": txt_result["content"],
-            "article_id": article_id,
-            "article_type": article_type,
-            "format": output_format,
-        }
+    if output_format in {"txt", "md", "csv"}:
+        return get_saved_article_export(article_id, article_type, output_format)
 
     archive = read_article_archive(article_id, article_type)
     if not archive:
@@ -14588,16 +14959,6 @@ def build_archive_export(article_id, article_type, output_format):
             "article_type": article_type,
             "format": output_format,
         }
-
-    if output_format == "md":
-        return {
-            "found": True,
-            "content": _render_md_archive(archive),
-            "article_id": article_id,
-            "article_type": article_type,
-            "format": output_format,
-        }
-
     return {
         "found": True,
         "content": None,
@@ -17554,6 +17915,7 @@ from identity_merge import (
 from operator_cli import add_target_for_operator
 from operator_cli import deactivate_target_for_operator
 from operator_cli import export_archive_for_operator
+from operator_cli import export_registered_articles_csv_for_operator
 from operator_cli import inspect_archive_for_operator
 from operator_cli import inspect_target_for_operator
 from operator_cli import list_archives_for_operator, list_targets_for_operator
@@ -18298,6 +18660,10 @@ def _print_operator_usage():
         "<article_type> --format txt|md [--output PATH]"
     )
     print(
+        "  python main.py operator archive export-registered-csv "
+        "[--output PATH]"
+    )
+    print(
         "  python main.py operator merge canonical-url "
         "--db PATH [--apply]"
     )
@@ -18495,6 +18861,22 @@ def _handle_operator_archive(args):
             args[1],
             args[2],
             output_format,
+            output_path=output_path,
+        ):
+            sys.exit(1)
+        return
+
+    if action == "export-registered-csv":
+        try:
+            output_path = _read_optional_flag(args, "--output", None)
+        except ValueError:
+            print(
+                "Usage: operator archive export-registered-csv "
+                "[--output PATH]"
+            )
+            sys.exit(1)
+
+        if not export_registered_articles_csv_for_operator(
             output_path=output_path,
         ):
             sys.exit(1)
@@ -19031,6 +19413,7 @@ import sys
 from pathlib import Path
 
 from archive_read import (
+    get_all_registered_articles_csv,
     get_saved_article_export,
     get_saved_article_summary_by_exact_title,
     get_saved_article_summary_by_id,
@@ -19250,11 +19633,21 @@ def export_archive_for_operator(
     return True
 
 
-def _admin_export_filename(article_id, article_type, title, fmt):
-    safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", (title or "").strip())
-    safe = re.sub(r"\s+", " ", safe).strip(" .")
-    safe = safe or "article"
-    return f"{article_id}{article_type}_{safe}.{fmt}"
+def export_registered_articles_csv_for_operator(output_path=None):
+    export_result = get_all_registered_articles_csv()
+
+    if output_path is None:
+        print(export_result["content"], end="")
+        return True
+
+    output_file = Path(output_path)
+    output_file.parent.mkdir(parents=True, exist_ok=True)
+    output_file.write_text(export_result["content"], encoding="utf-8")
+
+    print("Registered articles CSV written")
+    print(f"Rows: {export_result['row_count']}")
+    print(f"Output: {output_path}")
+    return True
 
 
 def show_scraped_res_for_operator(
@@ -19290,10 +19683,7 @@ def show_scraped_res_for_operator(
         )
         return False
 
-    title = export.get("title") or summary.get("title") or ""
-    filename = _admin_export_filename(
-        article_id, article_type, title, requested_format
-    )
+    filename = export.get("filename") or "article.txt"
     print(f"ok: {filename}", file=sys.stderr)
     sys.stdout.write(export["content"])
     return True
@@ -22253,6 +22643,8 @@ import sqlite3
 from unittest.mock import patch
 
 from archive_read import (
+    get_registered_article_listing,
+    get_registered_articles_csv,
     get_saved_article_export,
     get_saved_article_summary,
     get_saved_article_summary_by_exact_title,
@@ -22262,13 +22654,19 @@ from archive_read import (
     list_registered_articles,
     write_scrape_targets_txt,
 )
-from storage import init_db, save_to_db
+from storage import init_db, register_target, save_to_db
 
 
 def _seed_archive(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     conn = init_db()
     try:
+        register_target(
+            conn,
+            "12345",
+            "a",
+            "https://dic.nicovideo.jp/a/12345",
+        )
         save_to_db(
             conn,
             "12345",
@@ -22319,6 +22717,8 @@ def test_get_saved_article_txt_returns_content_for_existing_article(
     assert result["article_type"] == "a"
     assert "=== ARTICLE META ===" in result["content"]
     assert "Title: First Title" in result["content"]
+    assert "Article ID: 12345" in result["content"]
+    assert "Canonical URL: https://dic.nicovideo.jp/a/12345" in result["content"]
     assert "1 Alice 2025-01-01 00:00 ID: abc123" in result["content"]
     assert "Created:" not in result["content"]
 
@@ -22369,6 +22769,7 @@ def test_get_saved_article_export_returns_markdown_for_existing_article(
     assert result["found"] is True
     assert result["format"] == "md"
     assert "# First Title" in result["content"]
+    assert "- Article ID: 12345" in result["content"]
     assert "## Responses" in result["content"]
     assert "### 1" in result["content"]
 
@@ -22388,8 +22789,9 @@ def test_get_saved_article_export_returns_csv_rows_with_stable_header(
         {
             "article_id": "12345",
             "article_type": "a",
+            "storage_article_key": "12345",
             "article_title": "First Title",
-            "article_url": "https://dic.nicovideo.jp/a/12345",
+            "canonical_url": "https://dic.nicovideo.jp/a/12345",
             "res_no": "1",
             "poster_name": "Alice",
             "poster_id": "abc123",
@@ -22680,12 +23082,173 @@ def test_list_registered_articles_returns_expected_columns(
 
     assert len(articles) == 1
     row = articles[0]
+    assert row["article_id"] == "12345"
+    assert row["article_id_display"] == "12345"
     assert row["article_type"] == "a"
     assert row["title"] == "First Title"
     assert row["canonical_url"] == "https://dic.nicovideo.jp/a/12345"
     assert row["saved_response_count"] == 1
     assert row["latest_scraped_max_res_no"] == 1
     assert "last_scraped_at" in row
+    assert row["created_at"]
+    assert row["is_pending_initial_scrape"] is False
+
+
+def test_get_registered_article_listing_defaults_to_recently_registered_first(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        register_target(
+            conn,
+            "12345",
+            "a",
+            "https://dic.nicovideo.jp/a/12345",
+        )
+        register_target(
+            conn,
+            "99999",
+            "a",
+            "https://dic.nicovideo.jp/a/99999",
+        )
+        conn.execute(
+            "UPDATE target SET created_at=? WHERE article_id=? AND article_type='a'",
+            ("2026-01-01 00:00:00", "12345"),
+        )
+        conn.execute(
+            "UPDATE target SET created_at=? WHERE article_id=? AND article_type='a'",
+            ("2026-01-02 00:00:00", "99999"),
+        )
+        save_to_db(
+            conn,
+            "12345",
+            "a",
+            "First Title",
+            "https://dic.nicovideo.jp/a/12345",
+            [],
+        )
+        save_to_db(
+            conn,
+            "99999",
+            "a",
+            "Second Title",
+            "https://dic.nicovideo.jp/a/99999",
+            [],
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    listing = get_registered_article_listing()
+
+    assert [row["article_id"] for row in listing["rows"]] == ["99999", "12345"]
+    assert listing["sort_by"] == "created_at"
+    assert listing["sort_dir"] == "desc"
+
+
+def test_get_registered_article_listing_filters_sorts_and_pages(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        for article_id, title in (("200", "Beta"), ("100", "Alpha")):
+            register_target(
+                conn,
+                article_id,
+                "a",
+                f"https://dic.nicovideo.jp/a/{article_id}",
+            )
+            save_to_db(
+                conn,
+                article_id,
+                "a",
+                title,
+                f"https://dic.nicovideo.jp/a/{article_id}",
+                [{"res_no": 1, "content": title, "content_html": f"<p>{title}</p>"}],
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    listing = get_registered_article_listing(
+        query="a",
+        sort_by="title",
+        sort_dir="asc",
+        page=1,
+        per_page=100,
+    )
+
+    assert [row["title"] for row in listing["rows"]] == ["Alpha", "Beta"]
+    csv_result = get_registered_articles_csv(
+        query="a",
+        sort_by="title",
+        sort_dir="asc",
+        page=1,
+        per_page=100,
+    )
+    assert "Title,Article ID,Type,Canonical URL" in csv_result["content"]
+
+
+def test_list_registered_articles_marks_pending_first_scrape_rows(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        register_target(
+            conn,
+            "pending-title",
+            "a",
+            "https://dic.nicovideo.jp/a/pending-title",
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    row = list_registered_articles()[0]
+    assert row["article_id_display"] == ""
+    assert row["is_pending_initial_scrape"] is True
+
+
+def test_get_saved_article_export_uses_human_facing_identity_contract_for_slug(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        register_target(
+            conn,
+            "%E3%81%9F%E3%81%A4%E3%81%8D%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF",
+            "a",
+            "https://dic.nicovideo.jp/a/%E3%81%9F%E3%81%A4%E3%81%8D%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF",
+        )
+        save_to_db(
+            conn,
+            "%E3%81%9F%E3%81%A4%E3%81%8D%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF",
+            "a",
+            "たつきショック",
+            "https://dic.nicovideo.jp/a/%E3%81%9F%E3%81%A4%E3%81%8D%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF",
+            [],
+        )
+    finally:
+        conn.close()
+
+    result = get_saved_article_export(
+        "%E3%81%9F%E3%81%A4%E3%81%8D%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF",
+        "a",
+        "txt",
+    )
+
+    assert "Article ID: unavailable" in result["content"]
+    assert "Storage Key: たつきショック" in result["content"]
+    assert result["filename"].endswith(".txt")
+    assert "%E3%81%9F" not in result["filename"]
 
 
 def test_list_registered_articles_returns_empty_list_when_no_db(
@@ -23014,8 +23577,8 @@ def test_export_article_outputs_txt_for_saved_article(tmp_path, monkeypatch, cap
 
     out = capsys.readouterr().out
     assert "=== ARTICLE META ===" in out
-    assert "ID: 12345" in out
-    assert "Type: a" in out
+    assert "Article ID: 12345" in out
+    assert "Article Type: a" in out
     assert "Title: First Title" in out
     assert "=== RESPONSES ===" in out
     assert "1 Alice 2025-01-01 00:00 ID: abc123" in out
@@ -23052,14 +23615,14 @@ def test_list_articles_uses_summary_read_seam(mock_read_summaries, capsys):
     assert "12345 a | title=First Title" in out
 
 
-@patch("cli.get_saved_article_txt")
-def test_export_article_uses_archive_read_seam(mock_get_saved_article_txt, capsys):
-    mock_get_saved_article_txt.return_value = {
+@patch("cli.get_saved_article_export")
+def test_export_article_uses_archive_read_seam(mock_get_saved_article_export, capsys):
+    mock_get_saved_article_export.return_value = {
         "found": True,
         "content": (
             "=== ARTICLE META ===\n"
-            "ID: 12345\n"
-            "Type: a\n"
+            "Article ID: 12345\n"
+            "Article Type: a\n"
             "Title: First Title\n"
             "=== RESPONSES ===\n"
             "1 Alice 2025-01-01 00:00 ID: abc123\n"
@@ -23068,11 +23631,12 @@ def test_export_article_uses_archive_read_seam(mock_get_saved_article_txt, capsy
         ),
         "article_id": "12345",
         "article_type": "a",
+        "format": "txt",
     }
 
     assert export_article("12345", "a", "txt") is True
 
-    mock_get_saved_article_txt.assert_called_once_with("12345", "a")
+    mock_get_saved_article_export.assert_called_once_with("12345", "a", "txt")
     out = capsys.readouterr().out
     assert "Title: First Title" in out
     assert "Hello" in out
@@ -24547,6 +25111,30 @@ def test_main_operator_archive_export_calls_operator_helper(mock_export_archive)
     )
 
 
+@patch("main.export_registered_articles_csv_for_operator")
+def test_main_operator_archive_export_registered_csv_calls_helper(
+    mock_export_registered_csv,
+):
+    mock_export_registered_csv.return_value = True
+
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "operator",
+            "archive",
+            "export-registered-csv",
+            "--output",
+            "registered.csv",
+        ],
+    ):
+        main_module.main()
+
+    mock_export_registered_csv.assert_called_once_with(
+        output_path="registered.csv",
+    )
+
+
 def test_main_operator_without_required_args_exits_with_usage(capsys):
     with patch("sys.argv", ["main.py", "operator"]):
         with pytest.raises(SystemExit) as exc_info:
@@ -24557,6 +25145,7 @@ def test_main_operator_without_required_args_exits_with_usage(capsys):
     assert "Operator usage:" in out
     assert "operator target list" in out
     assert "operator archive export" in out
+    assert "export-registered-csv" in out
 
 
 @patch("main.verify_one_shot_fetch")
@@ -25374,6 +25963,7 @@ def test_main_periodic_without_required_args_exits_with_usage(capsys):
 FILE: copilot/tests/test_operator_cli.py
 =============================
 from operator_cli import (
+    export_registered_articles_csv_for_operator,
     export_archive_for_operator,
     inspect_target_for_operator,
     list_archives_for_operator,
@@ -25612,6 +26202,54 @@ def test_show_scraped_res_for_operator_returns_false_for_missing_title(
     assert result is False
     _, err = capsys.readouterr()
     assert "not found" in err
+
+
+def test_export_registered_articles_csv_for_operator_writes_all_rows(
+    tmp_path,
+    capsys,
+):
+    output_path = tmp_path / "exports" / "registered.csv"
+
+    with patch(
+        "operator_cli.get_all_registered_articles_csv",
+        return_value={
+            "content": "Title,Article ID\nFoo,12345\n",
+            "row_count": 1,
+            "filename": "registered_articles_all.csv",
+        },
+    ) as mock_export:
+        assert export_registered_articles_csv_for_operator(str(output_path)) is True
+
+    mock_export.assert_called_once_with()
+    out = capsys.readouterr().out
+    assert "Registered articles CSV written" in out
+    assert output_path.read_text(encoding="utf-8") == "Title,Article ID\nFoo,12345\n"
+
+
+def test_show_scraped_res_for_operator_uses_export_filename_from_archive_read(
+    capsys,
+):
+    with patch(
+        "operator_cli.get_saved_article_summary_by_exact_title",
+        return_value={
+            "found": True,
+            "article_id": "12345",
+            "article_type": "a",
+            "title": "管理者向けテスト記事",
+        },
+    ):
+        with patch(
+            "operator_cli.get_saved_article_export",
+            return_value={
+                "found": True,
+                "content": "body",
+                "filename": "12345a_管理者向けテスト記事.txt",
+            },
+        ):
+            assert show_scraped_res_for_operator("管理者向けテスト記事") is True
+
+    _, err = capsys.readouterr()
+    assert "12345a_管理者向けテスト記事.txt" in err
 
 
 def test_show_scraped_res_for_operator_returns_false_for_missing_id(
@@ -29049,6 +29687,7 @@ def test_download_endpoint_returns_txt_and_logs_download(tmp_path):
             "article_id": "12345",
             "article_type": "a",
             "title": "たつきショック",
+            "filename": "12345a_たつきショック.txt",
             "format": "txt",
         },
     ):
@@ -29069,7 +29708,7 @@ def test_download_endpoint_returns_txt_and_logs_download(tmp_path):
     assert response["status"] == "200 OK"
     headers = _header_map(response)
     assert headers["Content-Type"] == "text/plain; charset=utf-8"
-    assert "filename=\"12345a_article.txt\"" in headers[
+    assert "filename=\"archive_a.txt\"" in headers[
         "Content-Disposition"
     ]
     assert "filename*=UTF-8''12345a_%E3%81%9F%E3%81%A4" in headers[
@@ -29094,6 +29733,7 @@ def test_download_endpoint_returns_csv_content_type(tmp_path):
             "article_id": "12345",
             "article_type": "a",
             "title": "たつきショック",
+            "filename": "12345a_たつきショック.csv",
             "format": "csv",
         },
     ):
@@ -29110,7 +29750,7 @@ def test_download_endpoint_returns_csv_content_type(tmp_path):
     assert response["status"] == "200 OK"
     headers = _header_map(response)
     assert headers["Content-Type"] == "text/csv; charset=utf-8"
-    assert "filename=\"12345a_article.csv\"" in headers[
+    assert "filename=\"archive_a.csv\"" in headers[
         "Content-Disposition"
     ]
 
@@ -29163,36 +29803,102 @@ def test_top_page_includes_registered_list_link():
     assert response["status"] == "200 OK"
     assert 'href="/registered"' in response["body"]
     assert 'target="_blank"' in response["body"]
+    assert 'class="list-link"' in response["body"]
     assert "登録済み記事一覧" in response["body"]
 
 
 def test_registered_page_renders_html_table_with_expected_columns():
     with patch(
-        "web_app.list_registered_articles",
-        return_value=[
-            {
-                "article_type": "a",
-                "title": "テスト記事",
-                "canonical_url": "https://dic.nicovideo.jp/a/12345",
-                "saved_response_count": 42,
-                "latest_scraped_max_res_no": 50,
-                "last_scraped_at": "2026-01-01T00:00:00+00:00",
-            }
-        ],
+        "web_app.get_registered_article_listing",
+        return_value={
+            "rows": [
+                {
+                    "article_id": "12345",
+                    "article_id_display": "12345",
+                    "article_type": "a",
+                    "title": "テスト記事",
+                    "canonical_url": "https://dic.nicovideo.jp/a/12345",
+                    "saved_response_count": 42,
+                    "latest_scraped_max_res_no": 50,
+                    "last_scraped_at": "2026-01-01T00:00:00+00:00",
+                    "created_at": "2025-01-01 00:00:00",
+                    "is_pending_initial_scrape": False,
+                }
+            ],
+            "total_count": 1,
+            "page": 1,
+            "per_page": 100,
+            "total_pages": 1,
+            "sort_by": "created_at",
+            "sort_dir": "desc",
+            "query": "",
+            "columns": (
+                {"key": "title", "label": "Title"},
+                {"key": "article_id_display", "label": "Article ID"},
+                {"key": "article_type", "label": "Type"},
+                {"key": "canonical_url", "label": "Canonical URL"},
+                {"key": "saved_response_count", "label": "Saved Responses"},
+                {"key": "latest_scraped_max_res_no", "label": "Max Res No"},
+                {"key": "last_scraped_at", "label": "Last Scraped"},
+                {"key": "created_at", "label": "Registered At"},
+            ),
+            "allowed_per_page": (100, 200, 500, 1000),
+            "sort_allowlist": (
+                "title",
+                "article_id",
+                "created_at",
+                "saved_response_count",
+                "latest_scraped_max_res_no",
+                "last_scraped_at",
+            ),
+        },
     ):
         response = _run_wsgi_request("GET", path="/registered")
 
     assert response["status"] == "200 OK"
     assert "<table" in response["body"]
     assert "テスト記事" in response["body"]
+    assert ">12345<" in response["body"]
     assert "https://dic.nicovideo.jp/a/12345" in response["body"]
     assert ">42<" in response["body"]
     assert ">50<" in response["body"]
     assert "2026-01-01T00:00:00+00:00" in response["body"]
+    assert "Download CSV" in response["body"]
 
 
 def test_registered_page_renders_empty_table_when_no_articles():
-    with patch("web_app.list_registered_articles", return_value=[]):
+    with patch(
+        "web_app.get_registered_article_listing",
+        return_value={
+            "rows": [],
+            "total_count": 0,
+            "page": 1,
+            "per_page": 100,
+            "total_pages": 1,
+            "sort_by": "created_at",
+            "sort_dir": "desc",
+            "query": "",
+            "columns": (
+                {"key": "title", "label": "Title"},
+                {"key": "article_id_display", "label": "Article ID"},
+                {"key": "article_type", "label": "Type"},
+                {"key": "canonical_url", "label": "Canonical URL"},
+                {"key": "saved_response_count", "label": "Saved Responses"},
+                {"key": "latest_scraped_max_res_no", "label": "Max Res No"},
+                {"key": "last_scraped_at", "label": "Last Scraped"},
+                {"key": "created_at", "label": "Registered At"},
+            ),
+            "allowed_per_page": (100, 200, 500, 1000),
+            "sort_allowlist": (
+                "title",
+                "article_id",
+                "created_at",
+                "saved_response_count",
+                "latest_scraped_max_res_no",
+                "last_scraped_at",
+            ),
+        },
+    ):
         response = _run_wsgi_request("GET", path="/registered")
 
     assert response["status"] == "200 OK"
@@ -29201,31 +29907,99 @@ def test_registered_page_renders_empty_table_when_no_articles():
 
 
 def test_registered_page_lists_multiple_articles():
-    articles = [
-        {
-            "article_type": "a",
-            "title": "記事A",
-            "canonical_url": "https://dic.nicovideo.jp/a/1",
-            "saved_response_count": 10,
-            "latest_scraped_max_res_no": 10,
-            "last_scraped_at": None,
+    with patch(
+        "web_app.get_registered_article_listing",
+        return_value={
+            "rows": [
+                {
+                    "article_id": "1",
+                    "article_id_display": "1",
+                    "article_type": "a",
+                    "title": "記事A",
+                    "canonical_url": "https://dic.nicovideo.jp/a/1",
+                    "saved_response_count": 10,
+                    "latest_scraped_max_res_no": 10,
+                    "last_scraped_at": None,
+                    "created_at": "2025-01-01 00:00:00",
+                    "is_pending_initial_scrape": False,
+                },
+                {
+                    "article_id": "slug-b",
+                    "article_id_display": "",
+                    "article_type": "a",
+                    "title": "記事B",
+                    "canonical_url": "https://dic.nicovideo.jp/a/2",
+                    "saved_response_count": 0,
+                    "latest_scraped_max_res_no": None,
+                    "last_scraped_at": None,
+                    "created_at": "2025-01-02 00:00:00",
+                    "is_pending_initial_scrape": True,
+                },
+            ],
+            "total_count": 2,
+            "page": 1,
+            "per_page": 100,
+            "total_pages": 2,
+            "sort_by": "created_at",
+            "sort_dir": "desc",
+            "query": "",
+            "columns": (
+                {"key": "title", "label": "Title"},
+                {"key": "article_id_display", "label": "Article ID"},
+                {"key": "article_type", "label": "Type"},
+                {"key": "canonical_url", "label": "Canonical URL"},
+                {"key": "saved_response_count", "label": "Saved Responses"},
+                {"key": "latest_scraped_max_res_no", "label": "Max Res No"},
+                {"key": "last_scraped_at", "label": "Last Scraped"},
+                {"key": "created_at", "label": "Registered At"},
+            ),
+            "allowed_per_page": (100, 200, 500, 1000),
+            "sort_allowlist": (
+                "title",
+                "article_id",
+                "created_at",
+                "saved_response_count",
+                "latest_scraped_max_res_no",
+                "last_scraped_at",
+            ),
         },
-        {
-            "article_type": "id",
-            "title": "記事B",
-            "canonical_url": "https://dic.nicovideo.jp/id/2",
-            "saved_response_count": 5,
-            "latest_scraped_max_res_no": None,
-            "last_scraped_at": None,
-        },
-    ]
-    with patch("web_app.list_registered_articles", return_value=articles):
+    ):
         response = _run_wsgi_request("GET", path="/registered")
 
     assert response["status"] == "200 OK"
     assert "記事A" in response["body"]
     assert "記事B" in response["body"]
     assert "Count: 2" in response["body"]
+    assert "registered-row pending" in response["body"]
+    assert "Page 1 / 2" in response["body"]
+
+
+def test_registered_csv_route_uses_current_listing_query_params():
+    with patch(
+        "web_app.get_registered_articles_csv",
+        return_value={
+            "content": "Title,Article ID\n記事A,1\n",
+            "listing": {},
+            "filename": "registered_articles_current_page.csv",
+        },
+    ) as mock_csv:
+        response = _run_wsgi_request(
+            "GET",
+            path="/registered.csv",
+            query_string="q=%E8%A8%98&sort_by=title&sort_dir=asc&page=2&per_page=200",
+        )
+
+    mock_csv.assert_called_once_with(
+        query="記事",
+        sort_by="title",
+        sort_dir="asc",
+        page="2",
+        per_page="200",
+    )
+    assert response["status"] == "200 OK"
+    headers = _header_map(response)
+    assert headers["Content-Type"] == "text/csv; charset=utf-8"
+    assert "registered_articles_current_page.csv" in headers["Content-Disposition"]
 
 
 =============================
@@ -30221,7 +30995,10 @@ from uuid import uuid4
 from wsgiref.simple_server import make_server
 
 from archive_read import (
+    REGISTERED_ARTICLE_DEFAULT_PER_PAGE,
     get_saved_article_export,
+    get_registered_article_listing,
+    get_registered_articles_csv,
     get_saved_article_summary,
     get_saved_article_summary_by_exact_title,
     list_registered_articles,
@@ -30318,6 +31095,11 @@ def _normalize_download_format(requested_format: str | None) -> str:
     return DEFAULT_DOWNLOAD_FORMAT
 
 
+def _human_article_id(value: str | None) -> str:
+    text = (value or "").strip()
+    return text if text.isdigit() else "unavailable"
+
+
 def _humanize_title(value: str | None) -> str:
     text = (value or "").strip()
     if not text:
@@ -30346,31 +31128,15 @@ def _ascii_download_fallback(article_id: str, article_type: str) -> str:
     return f"{article_id}{article_type}_article"
 
 
-def _build_download_filename(
-    article_id: str,
-    article_type: str,
-    title: str | None,
-    requested_format: str,
-) -> str:
-    safe_title = _sanitize_download_filename_title(title or "")
-    return f"{article_id}{article_type}_{safe_title}.{requested_format}"
-
-
 def _build_content_disposition(
-    article_id: str,
+    filename: str,
     article_type: str,
-    title: str | None,
-    requested_format: str,
 ) -> str:
-    utf8_filename = _build_download_filename(
-        article_id,
-        article_type,
-        title,
-        requested_format,
-    )
-    ascii_filename = (
-        f"{_ascii_download_fallback(article_id, article_type)}.{requested_format}"
-    )
+    utf8_filename = filename
+    ascii_filename = f"archive_{article_type}.txt"
+    if "." in filename:
+        extension = filename.rsplit(".", maxsplit=1)[1]
+        ascii_filename = f"archive_{article_type}.{extension}"
     encoded = quote(utf8_filename, safe="")
     return (
         f'attachment; filename="{ascii_filename}"; '
@@ -30833,7 +31599,7 @@ def _render_message_area(
                 ),
                 _render_result_detail(
                     UI_TEXTS["field_labels"]["article_id"],
-                    result["article_id"],
+                    _human_article_id(result["article_id"]),
                 ),
                 _render_result_detail(
                     UI_TEXTS["field_labels"]["url"],
@@ -30877,7 +31643,7 @@ def _render_message_area(
                 ),
                 _render_result_detail(
                     UI_TEXTS["field_labels"]["article_id"],
-                    result["article_id"],
+                    _human_article_id(result["article_id"]),
                 ),
                 _render_result_detail(
                     UI_TEXTS["field_labels"]["url"],
@@ -31026,8 +31792,20 @@ def _render_page(
     .message-area.error .status-line {{ color: var(--error); }}
     .followup-note {{ color: var(--muted); }}
     .download-frame {{ display: none; width: 0; height: 0; border: 0; }}
-    .list-link-line {{ margin: 0 0 16px; font-size: 0.9rem; }}
-    .list-link {{ color: var(--accent); }}
+        .list-link-line {{ margin: 0 0 16px; font-size: 0.9rem; }}
+        .list-link {{
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 42px;
+            padding: 0 16px;
+            border-radius: 999px;
+            border: 1px solid var(--border);
+            background: rgba(15, 118, 110, 0.08);
+            color: var(--accent);
+            font-weight: 700;
+            text-decoration: none;
+        }}
     @media (max-width: 640px) {{
       main {{ padding: 24px 14px 36px; }}
       .panel {{ padding: 18px; }}
@@ -31117,25 +31895,138 @@ def _render_page(
     return html.encode("utf-8")
 
 
-def _render_registered_list_page() -> bytes:
-    articles = list_registered_articles()
+def _registered_query_string(params: dict) -> str:
+    cleaned = {
+        key: value
+        for key, value in params.items()
+        if value not in {None, ""}
+    }
+    return urlencode(cleaned)
+
+
+def _registered_link(listing: dict, **overrides) -> str:
+    params = {
+        "q": listing["query"],
+        "sort_by": listing["sort_by"],
+        "sort_dir": listing["sort_dir"],
+        "page": listing["page"],
+        "per_page": listing["per_page"],
+    }
+    params.update(overrides)
+    return _registered_query_string(params)
+
+
+def _toggle_sort_dir(listing: dict, sort_by: str) -> str:
+    if listing["sort_by"] != sort_by:
+        return "asc"
+    return "asc" if listing["sort_dir"] == "desc" else "desc"
+
+
+def _render_registered_cell(column_key: str, row: dict) -> str:
+    value = row.get(column_key)
+    if column_key == "canonical_url":
+        return (
+            f'<a href="{escape(value or "")}" target="_blank" '
+            f'rel="noopener noreferrer">{escape(value or "")}</a>'
+        )
+    if column_key == "article_id_display":
+        return escape(value or "—")
+    if value is None or value == "":
+        return ""
+    return escape(str(value))
+
+
+def _render_pagination(listing: dict) -> str:
+    if listing["total_pages"] <= 1:
+        return ""
+
+    page = listing["page"]
+    total_pages = listing["total_pages"]
+    links = []
+    controls = [
+        ("First", 1, page > 1),
+        ("Prev", max(1, page - 1), page > 1),
+        ("Next", min(total_pages, page + 1), page < total_pages),
+        ("Last", total_pages, page < total_pages),
+    ]
+    for label, target_page, enabled in controls:
+        if enabled:
+            links.append(
+                (
+                    '<a class="pager-link" '
+                    f'href="/registered?{_registered_link(listing, page=target_page)}">'
+                    f"{escape(label)}</a>"
+                )
+            )
+        else:
+            links.append(f'<span class="pager-link disabled">{escape(label)}</span>')
+
+    return (
+        '<nav class="pager" aria-label="Registered Articles pagination">'
+        + "".join(links)
+        + f'<span class="pager-status">Page {page} / {total_pages}</span>'
+        + "</nav>"
+    )
+
+
+def _render_sort_headers(listing: dict) -> str:
+    header_parts = []
+    for column in listing["columns"]:
+        sort_key = column["key"].replace("_display", "")
+        if sort_key not in listing["sort_allowlist"]:
+            header_parts.append(f"<th>{escape(column['label'])}</th>")
+            continue
+        header_parts.append(
+            (
+                '<th><a class="sort-link" '
+                f'href="/registered?{_registered_link(listing, sort_by=sort_key, sort_dir=_toggle_sort_dir(listing, sort_key), page=1)}">'
+                f'{escape(column["label"])}'
+                '</a></th>'
+            )
+        )
+    return "".join(header_parts)
+
+
+def _render_per_page_options(listing: dict) -> str:
+    option_parts = []
+    for size in listing["allowed_per_page"]:
+        selected = " selected" if size == listing["per_page"] else ""
+        option_parts.append(
+            f'<option value="{size}"{selected}>{size}</option>'
+        )
+    return "".join(option_parts)
+
+
+def _render_registered_list_page(query_params: dict) -> bytes:
+    listing = get_registered_article_listing(
+        query=query_params.get("q"),
+        sort_by=query_params.get("sort_by"),
+        sort_dir=query_params.get("sort_dir"),
+        page=query_params.get("page"),
+        per_page=query_params.get("per_page"),
+    )
     rows_html_parts = []
-    for row in articles:
-        max_res = row["latest_scraped_max_res_no"]
-        max_res_text = str(max_res) if max_res is not None else ""
-        last_scraped = row.get("last_scraped_at") or ""
+    for row in listing["rows"]:
+        row_class = " pending" if row["is_pending_initial_scrape"] else ""
         rows_html_parts.append(
-            "<tr>"
-            f"<td>{escape(row['article_type'])}</td>"
-            f"<td>{escape(row['title'])}</td>"
-            f"<td>{escape(row['canonical_url'])}</td>"
-            f"<td>{escape(str(row['saved_response_count']))}</td>"
-            f"<td>{escape(max_res_text)}</td>"
-            f"<td>{escape(last_scraped)}</td>"
+            f'<tr class="registered-row{row_class}">'
+            + "".join(
+                f"<td>{_render_registered_cell(column['key'], row)}</td>"
+                for column in listing["columns"]
+            )
             "</tr>"
         )
+    if not rows_html_parts:
+        rows_html_parts.append(
+            '<tr><td colspan="8">No registered articles found.</td></tr>'
+        )
     rows_html = "".join(rows_html_parts)
-    total = len(articles)
+    total = listing["total_count"]
+    search_value = escape(listing["query"])
+    export_query = _registered_link(listing)
+    pagination = _render_pagination(listing)
+    sort_headers = _render_sort_headers(listing)
+    per_page_options = _render_per_page_options(listing)
     html = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -31165,33 +32056,82 @@ def _render_registered_list_page() -> bytes:
       padding: 8px 12px;
       border-bottom: 1px solid #e8dfc8;
       word-break: break-word;
+            vertical-align: top;
     }}
     th {{ background: #f0e9d8; font-weight: 700; }}
     tr:last-child td {{ border-bottom: none; }}
+        .registered-row.pending td {{ background: rgba(146, 64, 14, 0.08); }}
+        .toolbar {{
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: end;
+            margin: 0 0 16px;
+        }}
+        .toolbar label {{ display: grid; gap: 6px; font-size: 0.9rem; }}
+        .toolbar input, .toolbar select {{
+            min-height: 40px;
+            padding: 8px 10px;
+            border: 1px solid #d9ccb4;
+            border-radius: 10px;
+            background: #fff;
+            font: inherit;
+        }}
+        .toolbar button, .toolbar .export-link, .pager-link, .top-link {{
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 40px;
+            padding: 0 14px;
+            border-radius: 999px;
+            border: 1px solid #d9ccb4;
+            background: rgba(15, 118, 110, 0.08);
+            color: #0f766e;
+            text-decoration: none;
+            font-weight: 700;
+        }}
+        .toolbar button {{ cursor: pointer; }}
+        .pager {{ display: flex; flex-wrap: wrap; gap: 8px; margin: 16px 0 0; }}
+        .pager-link.disabled {{ color: #9ca3af; background: #f5f5f5; }}
+        .pager-status {{ align-self: center; color: #6b7280; margin-left: 4px; }}
+        .sort-link {{ color: inherit; text-decoration: none; }}
+        .legend {{ color: #6b7280; font-size: 0.9rem; margin: 12px 0 0; }}
     a {{ color: #0f766e; }}
   </style>
 </head>
 <body>
   <h1>Registered Articles</h1>
   <p class="meta">
-    Count: {total} &mdash;
-    <a href="/" target="_self">&larr; Top</a>
+        Count: {total} &mdash;
+        <a href="/" target="_self" class="top-link">&larr; Top</a>
   </p>
+    <form method="get" action="/registered" class="toolbar">
+        <label>
+            Search title / article_id
+            <input type="text" name="q" value="{search_value}">
+        </label>
+        <label>
+            Per page
+            <select name="per_page">{per_page_options}</select>
+        </label>
+        <input type="hidden" name="sort_by" value="{escape(listing['sort_by'])}">
+        <input type="hidden" name="sort_dir" value="{escape(listing['sort_dir'])}">
+        <input type="hidden" name="page" value="1">
+        <button type="submit">Apply</button>
+        <a class="export-link" href="/registered.csv?{export_query}">Download CSV</a>
+    </form>
   <table>
     <thead>
       <tr>
-        <th>Type</th>
-        <th>Title</th>
-        <th>Canonical URL</th>
-        <th>Saved Responses</th>
-        <th>Max Res No</th>
-        <th>Last Scraped</th>
+                {sort_headers}
       </tr>
     </thead>
     <tbody>
 {rows_html}
     </tbody>
   </table>
+    {pagination}
+    <p class="legend">Highlighted rows are registered but have not completed the first scrape yet.</p>
 </body>
 </html>
 """
@@ -31324,11 +32264,8 @@ def create_app(
                     (
                         "Content-Disposition",
                         _build_content_disposition(
-                            article_id,
+                            export_result.get("filename") or "archive.txt",
                             article_type,
-                            export_result.get("title")
-                            or query.get("resolved_title"),
-                            requested_format,
                         ),
                     ),
                     ("Content-Length", str(len(body))),
@@ -31337,7 +32274,7 @@ def create_app(
             return [body]
 
         if method == "GET" and path == "/registered":
-            body = _render_registered_list_page()
+            body = _render_registered_list_page(_read_query_params(environ))
             start_response(
                 "200 OK",
                 [
@@ -31347,7 +32284,33 @@ def create_app(
             )
             return [body]
 
-        if path not in {"/", "/download", "/registered"}:
+        if method == "GET" and path == "/registered.csv":
+            query = _read_query_params(environ)
+            csv_result = get_registered_articles_csv(
+                query=query.get("q"),
+                sort_by=query.get("sort_by"),
+                sort_dir=query.get("sort_dir"),
+                page=query.get("page"),
+                per_page=query.get("per_page"),
+            )
+            body = csv_result["content"].encode("utf-8")
+            start_response(
+                "200 OK",
+                [
+                    ("Content-Type", "text/csv; charset=utf-8"),
+                    (
+                        "Content-Disposition",
+                        _build_content_disposition(
+                            csv_result["filename"],
+                            "registered",
+                        ),
+                    ),
+                    ("Content-Length", str(len(body))),
+                ],
+            )
+            return [body]
+
+        if path not in {"/", "/download", "/registered", "/registered.csv"}:
             body = b"Not Found"
             start_response(
                 "404 Not Found",
@@ -31767,8 +32730,51 @@ from datetime import datetime, timezone
 from io import StringIO
 import sqlite3
 from pathlib import Path
+from urllib.parse import unquote
 
 from storage import DEFAULT_DB_PATH
+
+# --- Registered Articles query configuration ---
+
+# Allowed sort columns; validated on every request (server-side sort).
+REGISTERED_SORT_ALLOWLIST = frozenset({
+    "title",
+    "article_id",
+    "created_at",
+    "saved_response_count",
+    "latest_scraped_max_res_no",
+    "last_scraped_at",
+})
+
+# Search target columns. Add entries here to extend user-facing search
+# without scattering conditions across query/render code.
+REGISTERED_SEARCH_COLUMNS = ("title", "article_id")
+
+DEFAULT_REGISTERED_SORT_BY = "created_at"
+DEFAULT_REGISTERED_SORT_ORDER = "desc"
+DEFAULT_REGISTERED_PER_PAGE = 100
+ALLOWED_REGISTERED_PER_PAGE = (100, 200, 500, 1000)
+
+# Single-source column definition — web table headers and CSV headers
+# both derive from this list. Update here to change both at once.
+REGISTERED_ARTICLE_COLUMNS = [
+    {"key": "article_id", "label": "Article ID",
+     "csv_header": "article_id"},
+    {"key": "article_type", "label": "Type",
+     "csv_header": "article_type"},
+    {"key": "title", "label": "Title",
+     "csv_header": "title"},
+    {"key": "canonical_url", "label": "Canonical URL",
+     "csv_header": "canonical_url"},
+    {"key": "created_at", "label": "Created At",
+     "csv_header": "created_at"},
+    {"key": "saved_response_count", "label": "Saved Responses",
+     "csv_header": "saved_response_count"},
+    {"key": "latest_scraped_max_res_no", "label": "Max Res No",
+     "csv_header": "latest_scraped_max_res_no"},
+    {"key": "last_scraped_at", "label": "Last Scraped",
+     "csv_header": "last_scraped_at"},
+]
 
 
 def _open_archive_read_conn() -> sqlite3.Connection | None:
@@ -32112,9 +33118,10 @@ def _article_date_line(archive) -> str | None:
 
 
 def _render_txt_archive(archive):
+    display_id = unquote(archive['article_id'])
     lines = [
         "=== ARTICLE META ===",
-        f"ID: {archive['article_id']}",
+        f"ID: {display_id}",
         f"Type: {archive['article_type']}",
         f"Title: {archive['title']}",
         f"URL: {archive['url']}",
@@ -32154,10 +33161,11 @@ def _escape_md_response_text(content_text):
 
 
 def _render_md_archive(archive):
+    display_id = unquote(archive['article_id'])
     lines = [
         f"# {archive['title']}",
         "",
-        f"- ID: {archive['article_id']}",
+        f"- ID: {display_id}",
         f"- Type: {archive['article_type']}",
         f"- URL: {archive['url']}",
     ]
@@ -32447,6 +33455,7 @@ def list_registered_articles():
                 a.article_type,
                 a.title,
                 a.canonical_url,
+                a.created_at,
                 COUNT(r.id) AS saved_response_count,
                 MAX(r.res_no) AS latest_scraped_max_res_no
                 {scraped_at_sel}
@@ -32458,7 +33467,8 @@ def list_registered_articles():
                 a.article_id,
                 a.article_type,
                 a.title,
-                a.canonical_url
+                a.canonical_url,
+                a.created_at
                 {scraped_at_grp}
             ORDER BY
                 a.created_at ASC, a.article_id ASC, a.article_type ASC
@@ -32472,9 +33482,11 @@ def list_registered_articles():
 
     return [
         {
+            "article_id": unquote(article_id or ""),
             "article_type": article_type,
             "title": title or "",
             "canonical_url": canonical_url or "",
+            "created_at": created_at or "",
             "saved_response_count": saved_response_count,
             "latest_scraped_max_res_no": latest_scraped_max_res_no,
             "last_scraped_at": last_scraped_at,
@@ -32484,11 +33496,182 @@ def list_registered_articles():
             article_type,
             title,
             canonical_url,
+            created_at,
             saved_response_count,
             latest_scraped_max_res_no,
             last_scraped_at,
         ) in rows
     ]
+
+
+def _registered_sql_schema(conn):
+    """Return (has_scraped_at, scraped_sel, scraped_grp) for articles."""
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(articles)")
+    cols = {row[1] for row in cur.fetchall()}
+    has = "latest_scraped_at" in cols
+    sel = (
+        ", a.latest_scraped_at AS last_scraped_at"
+        if has
+        else ", NULL AS last_scraped_at"
+    )
+    grp = ", a.latest_scraped_at" if has else ""
+    return has, sel, grp
+
+
+def _registered_sort_sql_expr(sort_by):
+    """Return SQL ORDER BY expression for a validated sort_by key."""
+    _map = {
+        "title": "a.title",
+        "article_id": "a.article_id",
+        "created_at": "a.created_at",
+        "saved_response_count": "saved_response_count",
+        "latest_scraped_max_res_no": "latest_scraped_max_res_no",
+        "last_scraped_at": "last_scraped_at",
+    }
+    return _map.get(sort_by, "a.created_at")
+
+
+def _registered_row_to_dict(row):
+    (
+        article_id,
+        article_type,
+        title,
+        canonical_url,
+        created_at,
+        saved_response_count,
+        latest_scraped_max_res_no,
+        last_scraped_at,
+    ) = row
+    return {
+        "article_id": unquote(article_id or ""),
+        "article_type": article_type or "",
+        "title": title or "",
+        "canonical_url": canonical_url or "",
+        "created_at": created_at or "",
+        "saved_response_count": saved_response_count,
+        "latest_scraped_max_res_no": latest_scraped_max_res_no,
+        "last_scraped_at": last_scraped_at,
+    }
+
+
+def query_registered_articles(
+    *,
+    sort_by=DEFAULT_REGISTERED_SORT_BY,
+    sort_order=DEFAULT_REGISTERED_SORT_ORDER,
+    search=None,
+    page=1,
+    per_page=DEFAULT_REGISTERED_PER_PAGE,
+    paginate=True,
+):
+    """Query registered articles with sort, search, and pagination.
+
+    Returns:
+        {"rows": [...], "total": int, "page": int, "per_page": int}
+
+    Set paginate=False to return all matching rows without LIMIT/OFFSET;
+    that is the internal all-records export route.
+    """
+    if sort_by not in REGISTERED_SORT_ALLOWLIST:
+        sort_by = DEFAULT_REGISTERED_SORT_BY
+    order_dir = "ASC" if sort_order == "asc" else "DESC"
+    conn = _open_archive_read_conn()
+    if conn is None:
+        return {"rows": [], "total": 0, "page": page, "per_page": per_page}
+
+    try:
+        _has_scraped, scraped_sel, scraped_grp = _registered_sql_schema(conn)
+        sort_expr = _registered_sort_sql_expr(sort_by)
+
+        where_sql = ""
+        where_params: list = []
+        if search:
+            conds = [
+                f"a.{col} LIKE ?" for col in REGISTERED_SEARCH_COLUMNS
+            ]
+            where_sql = "WHERE (" + " OR ".join(conds) + ")"
+            where_params = [
+                f"%{search}%" for _ in REGISTERED_SEARCH_COLUMNS
+            ]
+
+        count_sql = f"SELECT COUNT(*) FROM articles AS a {where_sql}"
+        data_sql = f"""
+            SELECT
+                a.article_id,
+                a.article_type,
+                a.title,
+                a.canonical_url,
+                a.created_at,
+                COUNT(r.id) AS saved_response_count,
+                MAX(r.res_no) AS latest_scraped_max_res_no
+                {scraped_sel}
+            FROM articles AS a
+            LEFT JOIN responses AS r
+                ON a.article_id = r.article_id
+                AND a.article_type = r.article_type
+            {where_sql}
+            GROUP BY
+                a.article_id, a.article_type, a.title,
+                a.canonical_url, a.created_at{scraped_grp}
+            ORDER BY
+                {sort_expr} {order_dir},
+                a.article_id ASC, a.article_type ASC
+        """
+
+        cur = conn.cursor()
+        cur.execute(count_sql, where_params)
+        total = cur.fetchone()[0]
+
+        if paginate:
+            offset = (page - 1) * per_page
+            cur.execute(
+                data_sql + " LIMIT ? OFFSET ?",
+                where_params + [per_page, offset],
+            )
+        else:
+            cur.execute(data_sql, where_params)
+
+        rows = [_registered_row_to_dict(r) for r in cur.fetchall()]
+    except sqlite3.OperationalError:
+        return {"rows": [], "total": 0, "page": page, "per_page": per_page}
+    finally:
+        conn.close()
+
+    return {"rows": rows, "total": total, "page": page, "per_page": per_page}
+
+
+def _render_registered_list_csv(rows):
+    """Render registered article rows as CSV using shared column def."""
+    output = StringIO()
+    headers = [col["csv_header"] for col in REGISTERED_ARTICLE_COLUMNS]
+    writer = csv.DictWriter(output, fieldnames=headers)
+    writer.writeheader()
+    for row in rows:
+        writer.writerow({
+            col["csv_header"]: str(row.get(col["key"]) or "")
+            for col in REGISTERED_ARTICLE_COLUMNS
+        })
+    return output.getvalue()
+
+
+def export_registered_articles_csv(
+    sort_by=DEFAULT_REGISTERED_SORT_BY,
+    sort_order=DEFAULT_REGISTERED_SORT_ORDER,
+    search=None,
+):
+    """Export all registered articles as CSV for internal CLI use.
+
+    All-records route (no pagination). For the user-facing web CSV
+    (current-page only), use query_registered_articles() +
+    _render_registered_list_csv() via web_app.py.
+    """
+    result = query_registered_articles(
+        sort_by=sort_by,
+        sort_order=sort_order,
+        search=search,
+        paginate=False,
+    )
+    return _render_registered_list_csv(result["rows"])
 
 
 def write_scrape_targets_txt(data_dir="data"):
@@ -35763,6 +36946,7 @@ from identity_merge import (
 from operator_cli import add_target_for_operator
 from operator_cli import deactivate_target_for_operator
 from operator_cli import export_archive_for_operator
+from operator_cli import export_registered_articles_csv_for_operator
 from operator_cli import inspect_archive_for_operator
 from operator_cli import inspect_target_for_operator
 from operator_cli import list_archives_for_operator, list_targets_for_operator
@@ -36510,6 +37694,10 @@ def _print_operator_usage():
         "  python main.py operator merge canonical-url "
         "--db PATH [--apply]"
     )
+    print(
+        "  python main.py operator registered-articles export-csv "
+        "[--output PATH]"
+    )
 
 
 def _handle_show_scraped_res(args):
@@ -36771,7 +37959,26 @@ def _handle_operator_cli(args):
     if area == "merge":
         _handle_operator_merge(args[1:])
         return
+    if area == "registered-articles":
+        _handle_operator_registered_articles(args[1:])
+        return
 
+    _print_operator_usage()
+    sys.exit(1)
+
+
+def _handle_operator_registered_articles(args):
+    if not args:
+        _print_operator_usage()
+        sys.exit(1)
+    action = args[0]
+    if action == "export-csv":
+        output_path = _read_optional_flag(args, "--output", None)
+        if not export_registered_articles_csv_for_operator(
+            output_path=output_path
+        ):
+            sys.exit(1)
+        return
     _print_operator_usage()
     sys.exit(1)
 
@@ -37238,8 +38445,10 @@ FILE: cursor/operator_cli.py
 import re
 import sys
 from pathlib import Path
+from urllib.parse import unquote
 
 from archive_read import (
+    export_registered_articles_csv,
     get_saved_article_export,
     get_saved_article_summary_by_exact_title,
     get_saved_article_summary_by_id,
@@ -37460,10 +38669,14 @@ def export_archive_for_operator(
 
 
 def _admin_export_filename(article_id, article_type, title, fmt):
-    safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", (title or "").strip())
-    safe = re.sub(r"\s+", " ", safe).strip(" .")
-    safe = safe or "article"
-    return f"{article_id}{article_type}_{safe}.{fmt}"
+    decoded_id = unquote(article_id)
+    safe_id = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", decoded_id.strip())
+    safe_id = re.sub(r"\s+", " ", safe_id).strip(" .") or "article"
+    safe_t = re.sub(
+        r'[<>:"/\\|?*\x00-\x1f]', "_", (title or "").strip()
+    )
+    safe_t = re.sub(r"\s+", " ", safe_t).strip(" .") or "article"
+    return f"{safe_id}{article_type}_{safe_t}.{fmt}"
 
 
 def show_scraped_res_for_operator(
@@ -37505,6 +38718,25 @@ def show_scraped_res_for_operator(
     )
     print(f"ok: {filename}", file=sys.stderr)
     sys.stdout.write(export["content"])
+    return True
+
+
+def export_registered_articles_csv_for_operator(output_path=None):
+    """Export all registered articles to CSV for internal operator use.
+
+    Writes CSV to stdout when output_path is None, or to the given
+    file path otherwise.  This is the all-records internal CLI route
+    and is separate from the user-facing web CSV (current-page only).
+    """
+    csv_text = export_registered_articles_csv()
+    if output_path is None:
+        sys.stdout.write(csv_text)
+        return True
+    out = Path(output_path)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(csv_text, encoding="utf-8")
+    print("Registered articles CSV written.", file=sys.stderr)
+    print(f"Output: {output_path}", file=sys.stderr)
     return True
 
 
@@ -54408,6 +55640,8 @@ import sqlite3
 from unittest.mock import patch
 
 from archive_read import (
+    REGISTERED_ARTICLE_COLUMNS,
+    export_registered_articles_csv,
     get_saved_article_export,
     get_saved_article_summary,
     get_saved_article_summary_by_exact_title,
@@ -54415,6 +55649,7 @@ from archive_read import (
     get_saved_article_txt,
     has_saved_article,
     list_registered_articles,
+    query_registered_articles,
     write_scrape_targets_txt,
 )
 from storage import init_db, save_to_db
@@ -54841,6 +56076,8 @@ def test_list_registered_articles_returns_expected_columns(
     assert row["saved_response_count"] == 1
     assert row["latest_scraped_max_res_no"] == 1
     assert "last_scraped_at" in row
+    assert row["article_id"] == "12345"
+    assert "created_at" in row
 
 
 def test_list_registered_articles_returns_empty_list_when_no_db(
@@ -54883,6 +56120,269 @@ def test_write_scrape_targets_txt_empty_when_no_db(
     assert artifact.is_file()
     content = artifact.read_text(encoding="utf-8")
     assert "count: 0" in content
+
+
+def test_query_registered_articles_returns_paginated_result(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = query_registered_articles(per_page=100, page=1)
+
+    assert result["total"] == 1
+    assert result["page"] == 1
+    assert result["per_page"] == 100
+    assert len(result["rows"]) == 1
+    row = result["rows"][0]
+    assert row["article_id"] == "12345"
+    assert row["article_type"] == "a"
+    assert row["title"] == "First Title"
+    assert row["saved_response_count"] == 1
+
+
+def test_query_registered_articles_default_sort_is_created_at_desc(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = query_registered_articles()
+
+    assert result["total"] >= 1
+    assert result["rows"][0]["article_id"] == "12345"
+
+
+def test_query_registered_articles_filters_by_search_title(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = query_registered_articles(search="First")
+
+    assert result["total"] == 1
+    assert result["rows"][0]["title"] == "First Title"
+
+
+def test_query_registered_articles_filters_by_search_article_id(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = query_registered_articles(search="12345")
+
+    assert result["total"] == 1
+    assert result["rows"][0]["article_id"] == "12345"
+
+
+def test_query_registered_articles_no_match_returns_empty(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = query_registered_articles(search="zzz_no_match_xyz")
+
+    assert result["total"] == 0
+    assert result["rows"] == []
+
+
+def test_query_registered_articles_paginate_false_returns_all(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = query_registered_articles(paginate=False)
+
+    assert result["total"] == 1
+    assert len(result["rows"]) == 1
+
+
+def test_query_registered_articles_invalid_sort_falls_back(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = query_registered_articles(sort_by="__invalid__")
+
+    assert result["total"] == 1
+
+
+def test_query_registered_articles_no_db_returns_empty(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+
+    result = query_registered_articles()
+
+    assert result["rows"] == []
+    assert result["total"] == 0
+
+
+def test_registered_article_columns_keys_are_consistent():
+    keys = [col["key"] for col in REGISTERED_ARTICLE_COLUMNS]
+    assert "article_id" in keys
+    assert "article_type" in keys
+    assert "title" in keys
+    assert "canonical_url" in keys
+    assert "created_at" in keys
+    assert "saved_response_count" in keys
+    assert "last_scraped_at" in keys
+    headers = [col["csv_header"] for col in REGISTERED_ARTICLE_COLUMNS]
+    assert len(headers) == len(set(headers)), "csv_header values must be unique"
+
+
+def test_export_registered_articles_csv_returns_csv_with_header(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    csv_text = export_registered_articles_csv()
+
+    reader = list(csv.DictReader(StringIO(csv_text)))
+    assert len(reader) == 1
+    assert reader[0]["article_id"] == "12345"
+    assert reader[0]["title"] == "First Title"
+    assert reader[0]["article_type"] == "a"
+
+
+def test_export_registered_articles_csv_no_db_returns_header_only(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+
+    csv_text = export_registered_articles_csv()
+
+    lines = csv_text.strip().splitlines()
+    assert len(lines) == 1
+    assert "article_id" in lines[0]
+
+
+def test_txt_archive_decodes_url_encoded_article_id(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    encoded_id = "%E3%81%9F%E3%81%A4%E3%81%8D%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF"
+    try:
+        save_to_db(
+            conn,
+            encoded_id,
+            "a",
+            "たつきショック",
+            "https://dic.nicovideo.jp/a/%E3%81%9F%E3%81%A4"
+            "%E3%81%8D%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF",
+            [{"res_no": 1, "poster": "X", "posted_at": "2025-01-01",
+              "text": "test"}],
+        )
+    finally:
+        conn.close()
+
+    from archive_read import get_saved_article_export
+    result = get_saved_article_export(encoded_id, "a", "txt")
+
+    assert result["found"]
+    assert "ID: たつきショック" in result["content"]
+    assert f"ID: {encoded_id}" not in result["content"]
+
+
+# --- Registered Articles: URL-encoded article_id display decoding ---
+
+_ENCODED_JP = (
+    "%E3%81%82%E3%81%8B%E3%82%8A%E5%85%88%E7%94%9F"
+)
+_DECODED_JP = "あかり先生"
+
+
+def _seed_encoded_article(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            _ENCODED_JP,
+            "a",
+            _DECODED_JP,
+            f"https://dic.nicovideo.jp/a/{_ENCODED_JP}",
+            [
+                {
+                    "res_no": 1,
+                    "id_hash": "x1",
+                    "poster_name": "Bob",
+                    "posted_at": "2025-06-01 00:00",
+                    "content": "hello",
+                    "content_html": "<p>hello</p>",
+                }
+            ],
+        )
+    finally:
+        conn.close()
+
+
+def test_list_registered_articles_decodes_url_encoded_article_id(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_encoded_article(tmp_path, monkeypatch)
+
+    articles = list_registered_articles()
+
+    assert len(articles) == 1
+    assert articles[0]["article_id"] == _DECODED_JP
+    assert articles[0]["canonical_url"] == (
+        f"https://dic.nicovideo.jp/a/{_ENCODED_JP}"
+    )
+
+
+def test_query_registered_articles_decodes_url_encoded_article_id(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_encoded_article(tmp_path, monkeypatch)
+
+    result = query_registered_articles()
+
+    assert result["total"] == 1
+    assert result["rows"][0]["article_id"] == _DECODED_JP
+    assert result["rows"][0]["canonical_url"] == (
+        f"https://dic.nicovideo.jp/a/{_ENCODED_JP}"
+    )
+
+
+def test_query_registered_articles_search_by_raw_encoded_id_still_works(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_encoded_article(tmp_path, monkeypatch)
+
+    result = query_registered_articles(search=_ENCODED_JP)
+
+    assert result["total"] == 1
+    assert result["rows"][0]["article_id"] == _DECODED_JP
+
+
+def test_export_registered_articles_csv_decodes_url_encoded_article_id(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_encoded_article(tmp_path, monkeypatch)
+
+    csv_text = export_registered_articles_csv()
+
+    reader = list(csv.DictReader(StringIO(csv_text)))
+    assert len(reader) == 1
+    assert reader[0]["article_id"] == _DECODED_JP
+    assert reader[0]["canonical_url"] == (
+        f"https://dic.nicovideo.jp/a/{_ENCODED_JP}"
+    )
 
 
 =============================
@@ -56712,6 +58212,44 @@ def test_main_operator_without_required_args_exits_with_usage(capsys):
     assert "Operator usage:" in out
     assert "operator target list" in out
     assert "operator archive export" in out
+    assert "registered-articles" in out
+
+
+@patch("main.export_registered_articles_csv_for_operator")
+def test_main_operator_registered_articles_export_csv(mock_export):
+    mock_export.return_value = True
+
+    with patch(
+        "sys.argv",
+        ["main.py", "operator", "registered-articles", "export-csv"],
+    ):
+        main_module.main()
+
+    mock_export.assert_called_once_with(output_path=None)
+
+
+@patch("main.export_registered_articles_csv_for_operator")
+def test_main_operator_registered_articles_export_csv_with_output(
+    mock_export,
+    tmp_path,
+):
+    mock_export.return_value = True
+    out_file = str(tmp_path / "out.csv")
+
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "operator",
+            "registered-articles",
+            "export-csv",
+            "--output",
+            out_file,
+        ],
+    ):
+        main_module.main()
+
+    mock_export.assert_called_once_with(output_path=out_file)
 
 
 @patch("main.verify_one_shot_fetch")
@@ -57528,8 +59066,12 @@ def test_main_periodic_without_required_args_exits_with_usage(capsys):
 =============================
 FILE: cursor/tests/test_operator_cli.py
 =============================
+import csv
+from io import StringIO
+
 from operator_cli import (
     export_archive_for_operator,
+    export_registered_articles_csv_for_operator,
     inspect_target_for_operator,
     list_archives_for_operator,
     list_targets_for_operator,
@@ -57780,6 +59322,83 @@ def test_show_scraped_res_for_operator_returns_false_for_missing_id(
     assert result is False
     _, err = capsys.readouterr()
     assert "not found" in err
+
+
+def _seed_articles(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "12345",
+            "a",
+            "管理者テスト記事",
+            "https://dic.nicovideo.jp/a/12345",
+            [
+                {
+                    "res_no": 1,
+                    "poster": "Alice",
+                    "posted_at": "2025-01-01 00:00:00",
+                    "text": "テスト",
+                }
+            ],
+        )
+    finally:
+        conn.close()
+
+
+def test_export_registered_articles_csv_for_operator_writes_to_stdout(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    _seed_articles(tmp_path, monkeypatch)
+
+    result = export_registered_articles_csv_for_operator(output_path=None)
+
+    assert result is True
+    out, _ = capsys.readouterr()
+    rows = list(csv.DictReader(StringIO(out)))
+    assert len(rows) == 1
+    assert rows[0]["article_id"] == "12345"
+    assert rows[0]["title"] == "管理者テスト記事"
+
+
+def test_export_registered_articles_csv_for_operator_writes_to_file(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    _seed_articles(tmp_path, monkeypatch)
+    out_file = tmp_path / "export.csv"
+
+    result = export_registered_articles_csv_for_operator(
+        output_path=str(out_file)
+    )
+
+    assert result is True
+    assert out_file.is_file()
+    content = out_file.read_text(encoding="utf-8")
+    rows = list(csv.DictReader(StringIO(content)))
+    assert rows[0]["article_id"] == "12345"
+    _, err = capsys.readouterr()
+    assert "written" in err.lower()
+
+
+def test_export_registered_articles_csv_for_operator_no_db_returns_true(
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    monkeypatch.chdir(tmp_path)
+
+    result = export_registered_articles_csv_for_operator(output_path=None)
+
+    assert result is True
+    out, _ = capsys.readouterr()
+    lines = out.strip().splitlines()
+    assert len(lines) == 1
+    assert "article_id" in lines[0]
 
 
 =============================
@@ -61321,19 +62940,42 @@ def test_top_page_includes_registered_list_link():
     assert "登録済み記事一覧" in response["body"]
 
 
+def _mock_query_result(rows):
+    """Build a query_registered_articles return value for mocking."""
+    return {
+        "rows": rows,
+        "total": len(rows),
+        "page": 1,
+        "per_page": 100,
+    }
+
+
+def _make_reg_row(
+    article_id="12345",
+    article_type="a",
+    title="テスト記事",
+    canonical_url="https://dic.nicovideo.jp/a/12345",
+    saved_response_count=42,
+    latest_scraped_max_res_no=50,
+    last_scraped_at="2026-01-01T00:00:00+00:00",
+    created_at="2026-01-01T00:00:00+00:00",
+):
+    return {
+        "article_id": article_id,
+        "article_type": article_type,
+        "title": title,
+        "canonical_url": canonical_url,
+        "saved_response_count": saved_response_count,
+        "latest_scraped_max_res_no": latest_scraped_max_res_no,
+        "last_scraped_at": last_scraped_at,
+        "created_at": created_at,
+    }
+
+
 def test_registered_page_renders_html_table_with_expected_columns():
     with patch(
-        "web_app.list_registered_articles",
-        return_value=[
-            {
-                "article_type": "a",
-                "title": "テスト記事",
-                "canonical_url": "https://dic.nicovideo.jp/a/12345",
-                "saved_response_count": 42,
-                "latest_scraped_max_res_no": 50,
-                "last_scraped_at": "2026-01-01T00:00:00+00:00",
-            }
-        ],
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
     ):
         response = _run_wsgi_request("GET", path="/registered")
 
@@ -61344,10 +62986,75 @@ def test_registered_page_renders_html_table_with_expected_columns():
     assert ">42<" in response["body"]
     assert ">50<" in response["body"]
     assert "2026-01-01T00:00:00+00:00" in response["body"]
+    assert "12345" in response["body"]
+
+
+def test_registered_page_shows_article_id_column():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row(article_id="99887")]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert ">99887<" in response["body"]
+    assert "Article ID" in response["body"]
+
+
+def test_registered_page_canonical_url_is_clickable_link():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert 'href="https://dic.nicovideo.jp/a/12345"' in response["body"]
+    assert 'target="_blank"' in response["body"]
+
+
+def test_registered_page_highlights_not_scraped_rows():
+    unscrapped = _make_reg_row(
+        title="未スクレイプ",
+        saved_response_count=0,
+        latest_scraped_max_res_no=None,
+        last_scraped_at=None,
+    )
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([unscrapped]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert "not-scraped" in response["body"]
+
+
+def test_registered_page_scraped_rows_have_no_special_class():
+    scraped = _make_reg_row(saved_response_count=5)
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([scraped]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert 'class="not-scraped"' not in response["body"]
+
+
+def test_registered_page_shows_sort_links_in_headers():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert "sort_by=title" in response["body"]
+    assert "sort_by=created_at" in response["body"]
+    assert "sort_by=article_id" in response["body"]
 
 
 def test_registered_page_renders_empty_table_when_no_articles():
-    with patch("web_app.list_registered_articles", return_value=[]):
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([]),
+    ):
         response = _run_wsgi_request("GET", path="/registered")
 
     assert response["status"] == "200 OK"
@@ -61357,30 +63064,73 @@ def test_registered_page_renders_empty_table_when_no_articles():
 
 def test_registered_page_lists_multiple_articles():
     articles = [
-        {
-            "article_type": "a",
-            "title": "記事A",
-            "canonical_url": "https://dic.nicovideo.jp/a/1",
-            "saved_response_count": 10,
-            "latest_scraped_max_res_no": 10,
-            "last_scraped_at": None,
-        },
-        {
-            "article_type": "id",
-            "title": "記事B",
-            "canonical_url": "https://dic.nicovideo.jp/id/2",
-            "saved_response_count": 5,
-            "latest_scraped_max_res_no": None,
-            "last_scraped_at": None,
-        },
+        _make_reg_row(
+            article_id="1",
+            article_type="a",
+            title="記事A",
+            canonical_url="https://dic.nicovideo.jp/a/1",
+            saved_response_count=10,
+            latest_scraped_max_res_no=10,
+            last_scraped_at=None,
+        ),
+        _make_reg_row(
+            article_id="2",
+            article_type="id",
+            title="記事B",
+            canonical_url="https://dic.nicovideo.jp/id/2",
+            saved_response_count=5,
+            latest_scraped_max_res_no=None,
+            last_scraped_at=None,
+        ),
     ]
-    with patch("web_app.list_registered_articles", return_value=articles):
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result(articles),
+    ):
         response = _run_wsgi_request("GET", path="/registered")
 
     assert response["status"] == "200 OK"
     assert "記事A" in response["body"]
     assert "記事B" in response["body"]
     assert "Count: 2" in response["body"]
+
+
+def test_registered_page_csv_download_returns_csv_content_type():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered/csv")
+
+    assert response["status"] == "200 OK"
+    headers = _header_map(response)
+    assert "text/csv" in headers["Content-Type"]
+    assert "article_id" in response["body"]
+    assert "テスト記事" in response["body"]
+
+
+def test_registered_page_csv_contains_all_column_headers():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered/csv")
+
+    first_line = response["body"].splitlines()[0]
+    assert "article_id" in first_line
+    assert "article_type" in first_line
+    assert "title" in first_line
+    assert "canonical_url" in first_line
+
+
+def test_registered_csv_includes_csv_download_link_on_page():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert "/registered/csv" in response["body"]
 
 
 =============================
@@ -62376,10 +64126,17 @@ from uuid import uuid4
 from wsgiref.simple_server import make_server
 
 from archive_read import (
+    ALLOWED_REGISTERED_PER_PAGE,
+    DEFAULT_REGISTERED_PER_PAGE,
+    DEFAULT_REGISTERED_SORT_BY,
+    DEFAULT_REGISTERED_SORT_ORDER,
+    REGISTERED_ARTICLE_COLUMNS,
+    REGISTERED_SORT_ALLOWLIST,
+    _render_registered_list_csv,
     get_saved_article_export,
     get_saved_article_summary,
     get_saved_article_summary_by_exact_title,
-    list_registered_articles,
+    query_registered_articles,
 )
 from article_resolver import resolve_article_input
 from target_list import register_target_url
@@ -62497,8 +64254,24 @@ def _sanitize_download_filename_title(value: str) -> str:
     return text or "article"
 
 
+def _sanitize_article_id_for_filename(article_id: str) -> str:
+    """Decode URL-encoded article_id and sanitize for filename prefix."""
+    decoded = unquote(article_id)
+    safe = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", decoded)
+    safe = re.sub(r"\s+", " ", safe).strip(" .")
+    return safe or "article"
+
+
 def _ascii_download_fallback(article_id: str, article_type: str) -> str:
-    return f"{article_id}{article_type}_article"
+    """Return ASCII-safe fallback filename (RFC 5987 non-supporting browsers)."""
+    decoded = unquote(article_id)
+    try:
+        decoded.encode("ascii")
+        ascii_id = re.sub(r'[<>:"/\\|?*\x00-\x1f\s]', "_", decoded)
+        ascii_id = ascii_id.strip("_") or "article"
+    except UnicodeEncodeError:
+        ascii_id = "article"
+    return f"{ascii_id}{article_type}_article"
 
 
 def _build_download_filename(
@@ -62507,8 +64280,9 @@ def _build_download_filename(
     title: str | None,
     requested_format: str,
 ) -> str:
+    safe_id = _sanitize_article_id_for_filename(article_id)
     safe_title = _sanitize_download_filename_title(title or "")
-    return f"{article_id}{article_type}_{safe_title}.{requested_format}"
+    return f"{safe_id}{article_type}_{safe_title}.{requested_format}"
 
 
 def _build_content_disposition(
@@ -63181,8 +64955,18 @@ def _render_page(
     .message-area.error .status-line {{ color: var(--error); }}
     .followup-note {{ color: var(--muted); }}
     .download-frame {{ display: none; width: 0; height: 0; border: 0; }}
-    .list-link-line {{ margin: 0 0 16px; font-size: 0.9rem; }}
-    .list-link {{ color: var(--accent); }}
+    .list-link-line {{ margin: 0 0 16px; }}
+    .list-btn {{
+      display: inline-block;
+      padding: 7px 18px;
+      border: 1px solid var(--accent);
+      border-radius: 8px;
+      color: var(--accent);
+      text-decoration: none;
+      font-size: 0.9rem;
+      background: transparent;
+    }}
+    .list-btn:hover {{ background: rgba(15, 118, 110, 0.08); }}
     @media (max-width: 640px) {{
       main {{ padding: 24px 14px 36px; }}
       .panel {{ padding: 18px; }}
@@ -63196,7 +64980,7 @@ def _render_page(
       <h1>{escape(UI_TEXTS['heading'])}</h1>
       <p class=\"lede\">{escape(UI_TEXTS['lede'])}</p>
       <p class=\"list-link-line\">
-        <a href=\"/registered\" target=\"_blank\" class=\"list-link\">
+        <a href=\"/registered\" target=\"_blank\" class=\"list-btn\">
           登録済み記事一覧
         </a>
       </p>
@@ -63272,25 +65056,211 @@ def _render_page(
     return html.encode("utf-8")
 
 
-def _render_registered_list_page() -> bytes:
-    articles = list_registered_articles()
-    rows_html_parts = []
-    for row in articles:
-        max_res = row["latest_scraped_max_res_no"]
-        max_res_text = str(max_res) if max_res is not None else ""
-        last_scraped = row.get("last_scraped_at") or ""
-        rows_html_parts.append(
-            "<tr>"
-            f"<td>{escape(row['article_type'])}</td>"
-            f"<td>{escape(row['title'])}</td>"
-            f"<td>{escape(row['canonical_url'])}</td>"
-            f"<td>{escape(str(row['saved_response_count']))}</td>"
-            f"<td>{escape(max_res_text)}</td>"
-            f"<td>{escape(last_scraped)}</td>"
-            "</tr>"
+def _normalize_registered_sort_by(value: str) -> str:
+    if value in REGISTERED_SORT_ALLOWLIST:
+        return value
+    return DEFAULT_REGISTERED_SORT_BY
+
+
+def _normalize_registered_sort_order(value: str) -> str:
+    return "asc" if value == "asc" else DEFAULT_REGISTERED_SORT_ORDER
+
+
+def _normalize_registered_per_page(value: str) -> int:
+    try:
+        n = int(value)
+    except (ValueError, TypeError):
+        return DEFAULT_REGISTERED_PER_PAGE
+    if n in ALLOWED_REGISTERED_PER_PAGE:
+        return n
+    return DEFAULT_REGISTERED_PER_PAGE
+
+
+def _build_registered_url(
+    sort_by: str,
+    sort_order: str,
+    q: str,
+    page: int,
+    per_page: int,
+) -> str:
+    params: dict = {
+        "sort_by": sort_by,
+        "sort_order": sort_order,
+        "page": str(page),
+        "per_page": str(per_page),
+    }
+    if q:
+        params["q"] = q
+    return "/registered?" + urlencode(params)
+
+
+def _registered_sort_header_cell(
+    col: dict,
+    sort_by: str,
+    sort_order: str,
+    q: str,
+    page: int,
+    per_page: int,
+) -> str:
+    key = col["key"]
+    label = escape(col["label"])
+    if key not in REGISTERED_SORT_ALLOWLIST:
+        return f"<th>{label}</th>"
+    if sort_by == key:
+        next_order = "asc" if sort_order == "desc" else "desc"
+        ind = " &#9660;" if sort_order == "desc" else " &#9650;"
+    else:
+        next_order = "desc"
+        ind = ""
+    url = escape(_build_registered_url(key, next_order, q, page, per_page))
+    return (
+        f'<th><a href="{url}" class="sort-link">'
+        f"{label}{ind}</a></th>"
+    )
+
+
+def _registered_row_html(row: dict) -> str:
+    unscrapped = (row.get("saved_response_count") or 0) == 0
+    cls = ' class="not-scraped"' if unscrapped else ""
+    cells = []
+    for col in REGISTERED_ARTICLE_COLUMNS:
+        key = col["key"]
+        val = row.get(key)
+        if key == "canonical_url" and val:
+            safe_url = escape(str(val))
+            cell = (
+                f'<td><a href="{safe_url}" target="_blank"'
+                f' rel="noopener noreferrer"'
+                f' class="ext-link">{safe_url}</a></td>'
+            )
+        elif val is None:
+            cell = "<td></td>"
+        else:
+            cell = f"<td>{escape(str(val))}</td>"
+        cells.append(cell)
+    return f"<tr{cls}>{''.join(cells)}</tr>"
+
+
+def _registered_pagination_html(
+    page: int,
+    total_pages: int,
+    sort_by: str,
+    sort_order: str,
+    q: str,
+    per_page: int,
+) -> str:
+    def _purl(p: int) -> str:
+        return escape(
+            _build_registered_url(sort_by, sort_order, q, p, per_page)
         )
-    rows_html = "".join(rows_html_parts)
-    total = len(articles)
+
+    parts = []
+    if page <= 1:
+        parts.append('<span class="page-btn disabled">First</span>')
+        parts.append('<span class="page-btn disabled">Prev</span>')
+    else:
+        parts.append(
+            f'<a class="page-btn" href="{_purl(1)}">First</a>'
+        )
+        parts.append(
+            f'<a class="page-btn" href="{_purl(page - 1)}">Prev</a>'
+        )
+    parts.append(
+        f'<span class="page-info">Page {page} / {total_pages}</span>'
+    )
+    if page >= total_pages:
+        parts.append('<span class="page-btn disabled">Next</span>')
+        parts.append('<span class="page-btn disabled">Last</span>')
+    else:
+        parts.append(
+            f'<a class="page-btn" href="{_purl(page + 1)}">Next</a>'
+        )
+        parts.append(
+            f'<a class="page-btn" href="{_purl(total_pages)}">Last</a>'
+        )
+    return (
+        '<nav class="pagination">' + "".join(parts) + "</nav>"
+    )
+
+
+def _render_registered_list_page(query_params: dict) -> bytes:
+    sort_by = _normalize_registered_sort_by(
+        query_params.get("sort_by", "")
+    )
+    sort_order = _normalize_registered_sort_order(
+        query_params.get("sort_order", "")
+    )
+    search = query_params.get("q", "").strip()
+    per_page = _normalize_registered_per_page(
+        query_params.get("per_page", "")
+    )
+    try:
+        page = max(1, int(query_params.get("page", "1") or "1"))
+    except (ValueError, TypeError):
+        page = 1
+
+    result = query_registered_articles(
+        sort_by=sort_by,
+        sort_order=sort_order,
+        search=search,
+        page=page,
+        per_page=per_page,
+    )
+    rows = result["rows"]
+    total = result["total"]
+    total_pages = max(1, (total + per_page - 1) // per_page)
+    page = min(page, total_pages)
+
+    # Build header cells
+    header_cells = "".join(
+        _registered_sort_header_cell(
+            col, sort_by, sort_order, search, page, per_page
+        )
+        for col in REGISTERED_ARTICLE_COLUMNS
+    )
+    rows_html = "".join(_registered_row_html(r) for r in rows)
+    pagination = _registered_pagination_html(
+        page, total_pages, sort_by, sort_order, search, per_page
+    )
+
+    # Showing meta line
+    if total == 0:
+        showing = "Count: 0"
+    else:
+        start = (page - 1) * per_page + 1
+        end = min(page * per_page, total)
+        showing = (
+            f"Count: {total} &mdash; Showing {start}&ndash;{end}"
+        )
+
+    search_esc = escape(search)
+    sort_by_esc = escape(sort_by)
+    sort_ord_esc = escape(sort_order)
+    per_page_str = str(per_page)
+
+    csv_params = urlencode({
+        "sort_by": sort_by,
+        "sort_order": sort_order,
+        "q": search,
+        "page": str(page),
+        "per_page": per_page_str,
+    })
+    csv_url = escape(f"/registered/csv?{csv_params}")
+
+    clear_link = ""
+    if search:
+        cl_url = escape(
+            _build_registered_url(sort_by, sort_order, "", 1, per_page)
+        )
+        clear_link = f' <a href="{cl_url}" class="clear-link">Clear</a>'
+
+    per_page_opts = "".join(
+        f'<option value="{n}"'
+        + (" selected" if n == per_page else "")
+        + f">{n}</option>"
+        for n in ALLOWED_REGISTERED_PER_PAGE
+    )
+
     html = f"""<!doctype html>
 <html lang="en">
 <head>
@@ -63306,7 +65276,59 @@ def _render_registered_list_page() -> bytes:
       color: #1f2430;
     }}
     h1 {{ margin: 0 0 8px; font-size: 1.8rem; }}
-    .meta {{ color: #6b7280; margin: 0 0 20px; font-size: 0.9rem; }}
+    .meta {{ color: #6b7280; margin: 0 0 12px; font-size: 0.9rem; }}
+    .controls {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      margin-bottom: 12px;
+    }}
+    .search-form {{
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }}
+    .search-form input[type="text"] {{
+      padding: 5px 10px;
+      border: 1px solid #d9ccb4;
+      border-radius: 6px;
+      font: inherit;
+      min-width: 180px;
+    }}
+    button, .btn {{
+      padding: 5px 14px;
+      border: 0;
+      border-radius: 6px;
+      background: #0f766e;
+      color: #fff;
+      font: inherit;
+      cursor: pointer;
+      text-decoration: none;
+    }}
+    button:hover, .btn:hover {{ background: #0d6560; }}
+    .clear-link {{
+      color: #6b7280;
+      font-size: 0.88rem;
+      text-decoration: none;
+    }}
+    .clear-link:hover {{ text-decoration: underline; }}
+    select.per-page {{
+      padding: 4px 8px;
+      border: 1px solid #d9ccb4;
+      border-radius: 6px;
+      font: inherit;
+    }}
+    .csv-link {{
+      padding: 5px 12px;
+      border: 1px solid #0f766e;
+      border-radius: 6px;
+      color: #0f766e;
+      text-decoration: none;
+      font-size: 0.9rem;
+      background: transparent;
+    }}
+    .csv-link:hover {{ background: rgba(15, 118, 110, 0.08); }}
     table {{
       border-collapse: collapse;
       width: 100%;
@@ -63322,31 +65344,73 @@ def _render_registered_list_page() -> bytes:
       word-break: break-word;
     }}
     th {{ background: #f0e9d8; font-weight: 700; }}
+    th a.sort-link {{
+      color: #1f2430;
+      text-decoration: none;
+      white-space: nowrap;
+    }}
+    th a.sort-link:hover {{ text-decoration: underline; }}
     tr:last-child td {{ border-bottom: none; }}
+    tr.not-scraped td {{ background: #fff8e6; }}
     a {{ color: #0f766e; }}
+    .ext-link {{ word-break: break-all; }}
+    .pagination {{
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      margin-top: 16px;
+    }}
+    .page-btn {{
+      padding: 4px 10px;
+      border: 1px solid #d9ccb4;
+      border-radius: 6px;
+      color: #0f766e;
+      text-decoration: none;
+      font-size: 0.9rem;
+    }}
+    .page-btn.disabled {{
+      color: #aaa;
+      border-color: #e0d8c8;
+      pointer-events: none;
+    }}
+    .page-info {{ font-size: 0.9rem; color: #6b7280; }}
   </style>
 </head>
 <body>
   <h1>Registered Articles</h1>
   <p class="meta">
-    Count: {total} &mdash;
+    {showing} &mdash;
     <a href="/" target="_self">&larr; Top</a>
   </p>
+  <div class="controls">
+    <form method="get" action="/registered" class="search-form">
+      <input type="hidden" name="sort_by" value="{sort_by_esc}">
+      <input type="hidden" name="sort_order" value="{sort_ord_esc}">
+      <input type="hidden" name="per_page" value="{per_page_str}">
+      <input type="text" name="q" value="{search_esc}"
+             placeholder="Search title or article ID&hellip;">
+      <button type="submit">Search</button>{clear_link}
+    </form>
+    <form method="get" action="/registered">
+      <input type="hidden" name="q" value="{search_esc}">
+      <input type="hidden" name="sort_by" value="{sort_by_esc}">
+      <input type="hidden" name="sort_order" value="{sort_ord_esc}">
+      <input type="hidden" name="page" value="1">
+      <select name="per_page" class="per-page"
+              onchange="this.form.submit()">{per_page_opts}</select>
+    </form>
+    <a href="{csv_url}" class="csv-link">&#8595; CSV (this page)</a>
+  </div>
   <table>
     <thead>
-      <tr>
-        <th>Type</th>
-        <th>Title</th>
-        <th>Canonical URL</th>
-        <th>Saved Responses</th>
-        <th>Max Res No</th>
-        <th>Last Scraped</th>
-      </tr>
+      <tr>{header_cells}</tr>
     </thead>
     <tbody>
 {rows_html}
     </tbody>
   </table>
+  {pagination}
 </body>
 </html>
 """
@@ -63492,7 +65556,8 @@ def create_app(
             return [body]
 
         if method == "GET" and path == "/registered":
-            body = _render_registered_list_page()
+            query = _read_query_params(environ)
+            body = _render_registered_list_page(query)
             start_response(
                 "200 OK",
                 [
@@ -63502,7 +65567,52 @@ def create_app(
             )
             return [body]
 
-        if path not in {"/", "/download", "/registered"}:
+        if method == "GET" and path == "/registered/csv":
+            query = _read_query_params(environ)
+            sort_by = _normalize_registered_sort_by(
+                query.get("sort_by", "")
+            )
+            sort_order = _normalize_registered_sort_order(
+                query.get("sort_order", "")
+            )
+            search = query.get("q", "").strip()
+            per_page = _normalize_registered_per_page(
+                query.get("per_page", "")
+            )
+            try:
+                csv_page = max(
+                    1, int(query.get("page", "1") or "1")
+                )
+            except (ValueError, TypeError):
+                csv_page = 1
+            csv_result = query_registered_articles(
+                sort_by=sort_by,
+                sort_order=sort_order,
+                search=search,
+                page=csv_page,
+                per_page=per_page,
+            )
+            csv_text = _render_registered_list_csv(
+                csv_result["rows"]
+            )
+            csv_body = csv_text.encode("utf-8")
+            fname = f"registered_articles_p{csv_page}.csv"
+            start_response(
+                "200 OK",
+                [
+                    ("Content-Type", "text/csv; charset=utf-8"),
+                    (
+                        "Content-Disposition",
+                        f'attachment; filename="{fname}"',
+                    ),
+                    ("Content-Length", str(len(csv_body))),
+                ],
+            )
+            return [csv_body]
+
+        if path not in {
+            "/", "/download", "/registered", "/registered/csv"
+        }:
             body = b"Not Found"
             start_response(
                 "404 Not Found",

@@ -1522,6 +1522,37 @@ Follow-up:
 - runtime local `.dockerignore` exclusion was also mainlined to prevent local
   state from being baked into Docker images
 
+## TASK041 completed: Registered Articles usability and export
+
+TASK041 was completed with the Cursor implementation adopted.
+
+Summary:
+- Added recent-first Registered Articles ordering.
+- Added bounded sort, pagination, and search.
+- Added clickable canonical URL links.
+- Added current-page CSV export.
+- Added internal all-record CSV export.
+- Improved the top-page Registered Articles link into a button-like affordance.
+- Normalized human-facing download/export identity display so raw
+  percent-encoded slugs are not shown directly in the TXT ID line.
+- Cursor validation passed during review.
+- Runtime-copy Web/CSV smoke checks passed.
+
+DHM result:
+- Cursor was adopted.
+- Copilot was reviewed as a comparison implementation but not adopted.
+
+Known follow-up:
+- Numeric NicoNicoPedia article ID display is not fully solved in TASK041.
+  For example, article pages may have numeric /id/ values such as 5560706,
+  while the current archive identity is the canonical article key / slug.
+  Numeric ID capture likely requires parser/storage/backfill work and should
+  be handled as TASK041B or a separate SubTask.
+
+Runtime note:
+- TASK041 has not been reflected to the runtime checkout while the long shot is
+  running. Runtime deployment is deferred to a safe maintenance point.
+
 Current application structure:
 
 main.py
