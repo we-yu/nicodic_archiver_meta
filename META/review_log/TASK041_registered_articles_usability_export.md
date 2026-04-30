@@ -63,3 +63,29 @@ Do not reflect TASK041 into the runtime checkout while the current long shot is
 running. Runtime deployment should wait for a safe maintenance point or a later
 soft-terminate mechanism.
 
+
+## Post-closeout workflow correction
+
+After the initial TASK041 closeout, the evidence branch naming was corrected to
+match the Double Helix branch naming convention.
+
+Evidence branches:
+- adopted Cursor evidence:
+  `task041-registered-articles-usability-export-cursor`
+- non-adopted Copilot evidence:
+  `task041-registered-articles-usability-export-copilot`
+
+The earlier unsuffixed branch name was treated as a workflow artifact and not
+as the preferred canonical evidence branch name.
+
+The non-adopted Copilot implementation was preserved as comparison evidence
+even though it failed validation. The failure remained useful review context
+rather than an adoption blocker for Cursor.
+
+Product main integration was completed through the repository-compliant GitHub
+path. Both child repositories were then expected to be realigned by checking out
+main and pulling adopted main.
+
+Runtime reflection remained deferred because the provisional runtime checkout
+was in the middle of a long shot.
+
