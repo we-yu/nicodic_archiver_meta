@@ -299,3 +299,20 @@ Verification pattern:
 - compare representative response count/range
 - compare `targets.txt`
 - compare latest batch log names
+
+--------------------------------------------------
+
+DB schema notes:
+
+A lightweight AI-readable DB schema and identity semantics note exists at:
+
+- `META/DB_SCHEMA.md`
+
+This file records the current meaning of key SQLite tables and identity fields,
+especially the overloaded `article_id` terminology.
+
+It is not a migration file and not executable source code.
+Use it as workflow memory when planning DB-affecting tasks, archive identity
+work, migration scripts, Registered Articles changes, or numeric Nico article
+ID follow-up work.
+
