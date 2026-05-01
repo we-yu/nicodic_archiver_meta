@@ -2553,6 +2553,44 @@ Runtime note:
 - TASK041 has not been reflected to the runtime checkout while the long shot is
   running. Runtime deployment is deferred to a safe maintenance point.
 
+## TASK042 completed: Restore numeric article_id storage identity
+
+TASK042 was completed with the Cursor implementation adopted.
+
+Summary:
+- Restored saved archive identity so canonical NicoNicoPedia articles use the
+  numeric NicoNicoPedia article ID as `article_id`.
+- Kept `article_type='a'` for normal canonical article saves.
+- Kept `canonical_url` as canonical `/a/<slug>` for display and BBS fetching.
+- Added save-boundary validation so slug values are rejected for new
+  `article_type='a'` saves.
+- Preserved legacy slug-row read compatibility in tests by seeding legacy rows
+  directly through SQL.
+- Existing runtime DB migration was not performed.
+
+DHM result:
+- Cursor was adopted.
+- Copilot was reviewed as a comparison implementation but not adopted.
+- Copilot's non-adopted implementation remained useful comparison evidence,
+  but failed validation because legacy slug-row tests still used `save_to_db()`.
+
+Validation:
+- Cursor passed repo-local validation during review.
+- After adoption and main realignment, both child repos should pass validation.
+
+Known follow-up:
+- Existing runtime DB may still contain `article_type='a'` rows whose
+  `article_id` is a URL-encoded slug.
+- Repairing those rows is intentionally not part of TASK042.
+- A later migration-focused task should detect, dry-run, and safely normalize
+  those rows using explicit DB paths and copy DB validation.
+
+Runtime note:
+- TASK042 has not been reflected to the runtime checkout while the long shot is
+  running.
+- Runtime deployment is deferred to a safe maintenance point.
+
+
 Current application structure:
 
 main.py
@@ -9829,6 +9867,115 @@ was in the middle of a long shot.
 
 
 
+===== REVIEW LOG: META/review_log/TASK042_restore_numeric_article_id.md =====
+# TASK042 Review Log: Restore numeric article_id storage identity
+
+Copilot: GPT 5.4
+Cursor: GPT 5.2
+
+## Result
+
+Adopted implementation: Cursor.
+
+Copilot was reviewed as a comparison implementation, but was not adopted.
+
+## Why Cursor was adopted
+
+Cursor kept the TASK042 boundary cleaner.
+
+It restored the intended saved archive identity model:
+
+- `article_id` stores the numeric NicoNicoPedia article ID as digits-only text.
+- `article_type` remains `a` for normal canonical article saves.
+- `canonical_url` remains the canonical `/a/<slug>` URL.
+- BBS fetching continues to use the canonical `/a/<slug>` URL.
+
+Cursor also preserved legacy read compatibility correctly.
+
+Existing runtime DB rows may still contain URL-encoded slug values in
+`article_id`. New saves now reject those values at the save boundary, so
+legacy rows in tests must be seeded directly through SQL instead of through
+`save_to_db()`. Cursor handled this in `tests/test_archive_read.py`.
+
+## Copilot comparison notes
+
+Copilot had a broadly similar design direction:
+
+- separated numeric article ID from canonical URL
+- added save-boundary validation
+- preserved canonical `/a/<slug>` URL for BBS flow
+
+However, Copilot did not update archive-read legacy slug-row fixtures to avoid
+`save_to_db()`. As a result, validation failed because the new save-boundary
+validation correctly rejects slug article IDs for `article_type='a'`.
+
+This was treated as useful comparison evidence, not as the primary adoption
+criterion by itself.
+
+## Implemented scope
+
+TASK042 changed product code for new save behavior only.
+
+Implemented:
+
+- numeric article ID extraction from article metadata
+- refusal to silently fall back to `/a/<slug>` as saved `article_id`
+- explicit save-boundary validation for `article_type='a'`
+- preservation of canonical `/a/<slug>` URL for display and BBS fetching
+- focused tests for numeric ID persistence and legacy slug-row read behavior
+
+## What did not change
+
+TASK042 did not:
+
+- repair existing runtime DB rows
+- add an apply migration
+- modify runtime DB
+- modify cron
+- modify scheduler
+- modify nginx
+- modify delete feeder
+- redesign Web UI
+- reintroduce normal `article_type='id'` saved rows
+
+## Validation summary
+
+Cursor validation passed after adoption review.
+
+Observed result:
+
+- Cursor: PASS
+- Copilot: FAIL as non-adopted comparison evidence
+- After adopting Cursor and realigning both child repos to main, both child
+  repositories should pass validation.
+
+## Runtime deployment note
+
+Do not reflect TASK042 into the runtime checkout while the current long shot is
+running.
+
+Runtime deployment should wait for a safe maintenance point, or for a later
+soft-terminate mechanism.
+
+## Follow-up
+
+A later maintenance task should handle existing slug-identity rows in runtime
+DB.
+
+Recommended follow-up:
+
+- TASK043 or equivalent:
+  - detect existing `article_type='a'` rows where `article_id` is a URL-encoded
+    slug
+  - map them to numeric NicoNicoPedia IDs
+  - preserve all responses
+  - avoid duplicate `res_no` insertion
+  - require explicit DB path
+  - default to dry-run
+  - test on copy DB before runtime apply
+
+
+
 ===== REVIEW LOG: META/review_log/subtask_bbs_page_boundary_resume_20260429.md =====
 # SubTask adoption log
 
@@ -10228,7 +10375,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Thu Apr 30 20:16:44 UTC 2026
+generated: Fri May  1 13:47:10 UTC 2026
 mode: full
 
 
@@ -10904,6 +11051,35 @@ for `article_type='a'` rows.
 When this file changes, regenerate the authoritative snapshot with:
 
 `./export_snapshot.sh`
+
+
+--------------------------------------------------
+
+## TASK042 identity clarification
+
+TASK042 restored the intended saved archive identity model.
+
+For normal canonical NicoNicoPedia article saves:
+
+- `articles.article_type` should be `a`
+- `articles.article_id` should be the numeric NicoNicoPedia article ID stored
+  as a non-empty digits-only string
+- `articles.canonical_url` should be the canonical `/a/<slug>` URL
+- `responses.article_id` should match `articles.article_id`
+- `responses.article_type` should match `articles.article_type`
+
+The canonical `/a/<slug>` URL is still used for:
+
+- display
+- BBS URL generation
+- canonical URL tracking
+
+The URL-encoded `/a/<slug>` value should not be stored as new
+`article_id` for `article_type='a'`.
+
+Existing runtime rows may still contain the older slug identity. Those rows are
+a known legacy / regression state and require a later explicit migration or
+maintenance task. TASK042 did not perform that migration.
 
 
 
@@ -19928,6 +20104,7 @@ from storage import (
     init_db,
     list_queue_requests,
     save_to_db,
+    validate_saved_article_identity,
 )
 from target_list import parse_target_identity
 
@@ -20095,6 +20272,8 @@ _LOCATION_REPLACE_RE = re.compile(
     re.IGNORECASE,
 )
 
+_OG_URL_ID_RE = re.compile(r"/id/([0-9]+)(?:/|$)")
+
 
 def _extract_page_title(soup) -> str:
     meta_title = soup.find("meta", property="og:title")
@@ -20125,6 +20304,38 @@ def _extract_itemprop_datetime(soup, itemprop: str) -> str | None:
 
     text = tag.get_text(" ", strip=True)
     return text or None
+
+
+def _extract_numeric_article_id(soup, canonical_article_url: str) -> str:
+    """
+    Extract a numeric NicoNicoPedia article ID for storage identity.
+
+    Prefers og:url '/id/<digits>' when present. As a bounded fallback,
+    accepts canonical '/a/<digits>' (numeric-only) but refuses slug values.
+    """
+    og_url = soup.find("meta", property="og:url")
+    og_content = og_url.get("content", "").strip() if og_url else ""
+    if og_content:
+        match = _OG_URL_ID_RE.search(og_content)
+        if match is not None:
+            numeric_id = match.group(1)
+            if numeric_id and numeric_id.isdigit():
+                return numeric_id
+
+    canonical_identity = parse_target_identity(canonical_article_url)
+    if canonical_identity is None:
+        raise ArticleNotFoundError(
+            f"Article not found: {canonical_article_url}"
+        )
+
+    candidate = canonical_identity["article_id"]
+    if candidate and candidate.isdigit():
+        return candidate
+
+    raise ValueError(
+        "Unable to extract numeric article ID from page metadata; "
+        "refusing to fall back to slug identity."
+    )
 
 
 def _extract_canonical_article_url(article_url: str, soup) -> str | None:
@@ -20201,9 +20412,15 @@ def fetch_article_metadata_record(article_url: str) -> dict:
     if target_identity is None:
         raise ArticleNotFoundError(f"Article not found: {article_url}")
 
+    if target_identity["article_type"] != "a":
+        raise ArticleNotFoundError(f"Article not found: {article_url}")
+
+    numeric_article_id = _extract_numeric_article_id(soup, canonical_article_url)
+    validate_saved_article_identity(numeric_article_id, "a")
+
     return {
-        "article_id": target_identity["article_id"],
-        "article_type": target_identity["article_type"],
+        "article_id": numeric_article_id,
+        "article_type": "a",
         "article_url": target_identity["canonical_url"],
         "title": title,
         "published_at": _extract_itemprop_datetime(soup, "datePublished"),
@@ -20520,9 +20737,8 @@ def run_scrape(
             article_url,
             metadata_article_url,
         )
-        article_id = canonical_identity["article_id"] or article_id
-        article_type = canonical_identity["article_type"] or article_type
         canonical_article_url = canonical_identity["canonical_url"]
+        validate_saved_article_identity(article_id, article_type)
 
     except RedirectArticleError as exc:
         if progress_reporter is None:
@@ -21767,6 +21983,26 @@ from pathlib import Path
 DEFAULT_DB_PATH = "data/nicodic.db"
 
 
+def validate_saved_article_identity(article_id: str, article_type: str) -> None:
+    """
+    Validate saved archive identity at the persistence boundary.
+
+    For canonical NicoNicoPedia article rows (article_type='a'), the saved
+    article_id must be a non-empty digits-only string (numeric article ID),
+    never a URL-encoded '/a/<slug>' value.
+    """
+    if article_type != "a":
+        return
+    if not isinstance(article_id, str):
+        raise ValueError("saved article_id must be a string for article_type='a'")
+    if not article_id:
+        raise ValueError("saved article_id must be non-empty for article_type='a'")
+    if not article_id.isdigit():
+        raise ValueError(
+            "saved article_id must be digits-only for article_type='a'"
+        )
+
+
 def _target_row_to_entry(row):
     return {
         "id": row[0],
@@ -21949,6 +22185,7 @@ def save_to_db(
     INSERT OR IGNORE で重複回避。
     """
 
+    validate_saved_article_identity(article_id, article_type)
     cur = conn.cursor()
 
     # 記事メタ保存
@@ -23498,16 +23735,31 @@ def test_txt_archive_decodes_url_encoded_article_id(
     conn = init_db()
     encoded_id = "%E3%81%9F%E3%81%A4%E3%81%8D%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF"
     try:
-        save_to_db(
-            conn,
-            encoded_id,
-            "a",
-            "たつきショック",
+        # Legacy / regression simulation: older DBs may have url-encoded
+        # slug values stored as articles.article_id for article_type='a'.
+        # New saves must reject that at the save boundary, so we seed rows
+        # directly here to keep read behavior covered.
+        canonical_url = (
             "https://dic.nicovideo.jp/a/%E3%81%9F%E3%81%A4"
-            "%E3%81%8D%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF",
-            [{"res_no": 1, "poster": "X", "posted_at": "2025-01-01",
-              "text": "test"}],
+            "%E3%81%8D%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF"
         )
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO articles (article_id, article_type, title, canonical_url)
+            VALUES (?, ?, ?, ?)
+            """,
+            (encoded_id, "a", "たつきショック", canonical_url),
+        )
+        cur.execute(
+            """
+            INSERT INTO responses
+            (article_id, article_type, res_no, content_text)
+            VALUES (?, ?, ?, ?)
+            """,
+            (encoded_id, "a", 1, "test"),
+        )
+        conn.commit()
     finally:
         conn.close()
 
@@ -23531,23 +23783,35 @@ def _seed_encoded_article(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     conn = init_db()
     try:
-        save_to_db(
-            conn,
-            _ENCODED_JP,
-            "a",
-            _DECODED_JP,
-            f"https://dic.nicovideo.jp/a/{_ENCODED_JP}",
-            [
-                {
-                    "res_no": 1,
-                    "id_hash": "x1",
-                    "poster_name": "Bob",
-                    "posted_at": "2025-06-01 00:00",
-                    "content": "hello",
-                    "content_html": "<p>hello</p>",
-                }
-            ],
+        # Seed a legacy slug-identity row directly (save_to_db rejects now).
+        canonical_url = f"https://dic.nicovideo.jp/a/{_ENCODED_JP}"
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO articles (article_id, article_type, title, canonical_url)
+            VALUES (?, ?, ?, ?)
+            """,
+            (_ENCODED_JP, "a", _DECODED_JP, canonical_url),
         )
+        cur.execute(
+            """
+            INSERT INTO responses
+            (article_id, article_type, res_no, id_hash, poster_name, posted_at,
+             content_text, content_html)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                _ENCODED_JP,
+                "a",
+                1,
+                "x1",
+                "Bob",
+                "2025-06-01 00:00",
+                "hello",
+                "<p>hello</p>",
+            ),
+        )
+        conn.commit()
     finally:
         conn.close()
 
@@ -26740,7 +27004,7 @@ def test_fetch_article_metadata_record_prefers_canonical_a_over_og_id():
         )
 
     assert record == {
-        "article_id": "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93",
+        "article_id": "5364158",
         "article_type": "a",
         "article_url": (
             "https://dic.nicovideo.jp/a/"
@@ -26761,7 +27025,7 @@ def test_fetch_article_metadata_preserves_canonical_article_url():
     with patch(
         "orchestrator.fetch_article_metadata_record",
         return_value={
-            "article_id": "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93",
+            "article_id": "5364158",
             "article_type": "a",
             "article_url": canonical_url,
             "title": "おそ松さん",
@@ -26889,7 +27153,7 @@ def test_run_scrape_uses_canonical_article_url_for_bbs_collection():
         "orchestrator.fetch_article_metadata",
         return_value=ArticleMetadataResult(
             "5364158",
-            "id",
+            "a",
             "おそ松さん",
             article_url=canonical_url,
         ),
@@ -26926,7 +27190,7 @@ def test_run_scrape_persists_final_canonical_a_identity_at_save_boundary():
         "orchestrator.fetch_article_metadata",
         return_value=ArticleMetadataResult(
             "5364158",
-            "id",
+            "a",
             "おそ松さん",
             article_url=canonical_url,
         ),
@@ -26943,10 +27207,35 @@ def test_run_scrape_persists_final_canonical_a_identity_at_save_boundary():
                             run_scrape(article_url)
 
     save_args = mock_save_db.call_args.args
-    assert save_args[1] == "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93"
+    assert save_args[1] == "5364158"
     assert save_args[2] == "a"
     assert save_args[4] == canonical_url
     assert save_args[5] == responses
+
+
+def test_run_scrape_rejects_non_numeric_article_id_for_canonical_save():
+    article_url = "https://dic.nicovideo.jp/a/some-slug"
+    canonical_url = "https://dic.nicovideo.jp/a/some-slug"
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=ArticleMetadataResult(
+            "some-slug",
+            "a",
+            "Title",
+            article_url=canonical_url,
+        ),
+    ):
+        with patch("orchestrator.init_db") as mock_init:
+            with patch("orchestrator.save_to_db") as mock_save:
+                with pytest.raises(
+                    ValueError,
+                    match=r"digits-only",
+                ):
+                    run_scrape(article_url)
+
+    mock_init.assert_not_called()
+    mock_save.assert_not_called()
 
 
 def test_run_scrape_does_not_write_json_artifact(tmp_path, monkeypatch):
@@ -39284,6 +39573,7 @@ from storage import (
     init_db,
     list_queue_requests,
     save_to_db,
+    validate_saved_article_identity,
 )
 from target_list import parse_target_identity
 
@@ -39451,6 +39741,8 @@ _LOCATION_REPLACE_RE = re.compile(
     re.IGNORECASE,
 )
 
+_OG_URL_ID_RE = re.compile(r"/id/([0-9]+)(?:/|$)")
+
 
 def _extract_page_title(soup) -> str:
     meta_title = soup.find("meta", property="og:title")
@@ -39481,6 +39773,38 @@ def _extract_itemprop_datetime(soup, itemprop: str) -> str | None:
 
     text = tag.get_text(" ", strip=True)
     return text or None
+
+
+def _extract_numeric_article_id(soup, canonical_article_url: str) -> str:
+    """
+    Extract a numeric NicoNicoPedia article ID for storage identity.
+
+    Prefers og:url '/id/<digits>' when present. As a bounded fallback,
+    accepts canonical '/a/<digits>' (numeric-only) but refuses slug values.
+    """
+    og_url = soup.find("meta", property="og:url")
+    og_content = og_url.get("content", "").strip() if og_url else ""
+    if og_content:
+        match = _OG_URL_ID_RE.search(og_content)
+        if match is not None:
+            numeric_id = match.group(1)
+            if numeric_id and numeric_id.isdigit():
+                return numeric_id
+
+    canonical_identity = parse_target_identity(canonical_article_url)
+    if canonical_identity is None:
+        raise ArticleNotFoundError(
+            f"Article not found: {canonical_article_url}"
+        )
+
+    candidate = canonical_identity["article_id"]
+    if candidate and candidate.isdigit():
+        return candidate
+
+    raise ValueError(
+        "Unable to extract numeric article ID from page metadata; "
+        "refusing to fall back to slug identity."
+    )
 
 
 def _extract_canonical_article_url(article_url: str, soup) -> str | None:
@@ -39557,9 +39881,15 @@ def fetch_article_metadata_record(article_url: str) -> dict:
     if target_identity is None:
         raise ArticleNotFoundError(f"Article not found: {article_url}")
 
+    if target_identity["article_type"] != "a":
+        raise ArticleNotFoundError(f"Article not found: {article_url}")
+
+    numeric_article_id = _extract_numeric_article_id(soup, canonical_article_url)
+    validate_saved_article_identity(numeric_article_id, "a")
+
     return {
-        "article_id": target_identity["article_id"],
-        "article_type": target_identity["article_type"],
+        "article_id": numeric_article_id,
+        "article_type": "a",
         "article_url": target_identity["canonical_url"],
         "title": title,
         "published_at": _extract_itemprop_datetime(soup, "datePublished"),
@@ -39876,9 +40206,8 @@ def run_scrape(
             article_url,
             metadata_article_url,
         )
-        article_id = canonical_identity["article_id"] or article_id
-        article_type = canonical_identity["article_type"] or article_type
         canonical_article_url = canonical_identity["canonical_url"]
+        validate_saved_article_identity(article_id, article_type)
 
     except RedirectArticleError as exc:
         if progress_reporter is None:
@@ -55069,6 +55398,26 @@ from pathlib import Path
 DEFAULT_DB_PATH = "data/nicodic.db"
 
 
+def validate_saved_article_identity(article_id: str, article_type: str) -> None:
+    """
+    Validate saved archive identity at the persistence boundary.
+
+    For canonical NicoNicoPedia article rows (article_type='a'), the saved
+    article_id must be a non-empty digits-only string (numeric article ID),
+    never a URL-encoded '/a/<slug>' value.
+    """
+    if article_type != "a":
+        return
+    if not isinstance(article_id, str):
+        raise ValueError("saved article_id must be a string for article_type='a'")
+    if not article_id:
+        raise ValueError("saved article_id must be non-empty for article_type='a'")
+    if not article_id.isdigit():
+        raise ValueError(
+            "saved article_id must be digits-only for article_type='a'"
+        )
+
+
 def _target_row_to_entry(row):
     return {
         "id": row[0],
@@ -55251,6 +55600,7 @@ def save_to_db(
     INSERT OR IGNORE で重複回避。
     """
 
+    validate_saved_article_identity(article_id, article_type)
     cur = conn.cursor()
 
     # 記事メタ保存
@@ -56800,16 +57150,31 @@ def test_txt_archive_decodes_url_encoded_article_id(
     conn = init_db()
     encoded_id = "%E3%81%9F%E3%81%A4%E3%81%8D%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF"
     try:
-        save_to_db(
-            conn,
-            encoded_id,
-            "a",
-            "たつきショック",
+        # Legacy / regression simulation: older DBs may have url-encoded
+        # slug values stored as articles.article_id for article_type='a'.
+        # New saves must reject that at the save boundary, so we seed rows
+        # directly here to keep read behavior covered.
+        canonical_url = (
             "https://dic.nicovideo.jp/a/%E3%81%9F%E3%81%A4"
-            "%E3%81%8D%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF",
-            [{"res_no": 1, "poster": "X", "posted_at": "2025-01-01",
-              "text": "test"}],
+            "%E3%81%8D%E3%82%B7%E3%83%A7%E3%83%83%E3%82%AF"
         )
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO articles (article_id, article_type, title, canonical_url)
+            VALUES (?, ?, ?, ?)
+            """,
+            (encoded_id, "a", "たつきショック", canonical_url),
+        )
+        cur.execute(
+            """
+            INSERT INTO responses
+            (article_id, article_type, res_no, content_text)
+            VALUES (?, ?, ?, ?)
+            """,
+            (encoded_id, "a", 1, "test"),
+        )
+        conn.commit()
     finally:
         conn.close()
 
@@ -56833,23 +57198,35 @@ def _seed_encoded_article(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     conn = init_db()
     try:
-        save_to_db(
-            conn,
-            _ENCODED_JP,
-            "a",
-            _DECODED_JP,
-            f"https://dic.nicovideo.jp/a/{_ENCODED_JP}",
-            [
-                {
-                    "res_no": 1,
-                    "id_hash": "x1",
-                    "poster_name": "Bob",
-                    "posted_at": "2025-06-01 00:00",
-                    "content": "hello",
-                    "content_html": "<p>hello</p>",
-                }
-            ],
+        # Seed a legacy slug-identity row directly (save_to_db rejects now).
+        canonical_url = f"https://dic.nicovideo.jp/a/{_ENCODED_JP}"
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO articles (article_id, article_type, title, canonical_url)
+            VALUES (?, ?, ?, ?)
+            """,
+            (_ENCODED_JP, "a", _DECODED_JP, canonical_url),
         )
+        cur.execute(
+            """
+            INSERT INTO responses
+            (article_id, article_type, res_no, id_hash, poster_name, posted_at,
+             content_text, content_html)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                _ENCODED_JP,
+                "a",
+                1,
+                "x1",
+                "Bob",
+                "2025-06-01 00:00",
+                "hello",
+                "<p>hello</p>",
+            ),
+        )
+        conn.commit()
     finally:
         conn.close()
 
@@ -60042,7 +60419,7 @@ def test_fetch_article_metadata_record_prefers_canonical_a_over_og_id():
         )
 
     assert record == {
-        "article_id": "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93",
+        "article_id": "5364158",
         "article_type": "a",
         "article_url": (
             "https://dic.nicovideo.jp/a/"
@@ -60063,7 +60440,7 @@ def test_fetch_article_metadata_preserves_canonical_article_url():
     with patch(
         "orchestrator.fetch_article_metadata_record",
         return_value={
-            "article_id": "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93",
+            "article_id": "5364158",
             "article_type": "a",
             "article_url": canonical_url,
             "title": "おそ松さん",
@@ -60191,7 +60568,7 @@ def test_run_scrape_uses_canonical_article_url_for_bbs_collection():
         "orchestrator.fetch_article_metadata",
         return_value=ArticleMetadataResult(
             "5364158",
-            "id",
+            "a",
             "おそ松さん",
             article_url=canonical_url,
         ),
@@ -60228,7 +60605,7 @@ def test_run_scrape_persists_final_canonical_a_identity_at_save_boundary():
         "orchestrator.fetch_article_metadata",
         return_value=ArticleMetadataResult(
             "5364158",
-            "id",
+            "a",
             "おそ松さん",
             article_url=canonical_url,
         ),
@@ -60245,10 +60622,35 @@ def test_run_scrape_persists_final_canonical_a_identity_at_save_boundary():
                             run_scrape(article_url)
 
     save_args = mock_save_db.call_args.args
-    assert save_args[1] == "%E3%81%8A%E3%81%9D%E6%9D%BE%E3%81%95%E3%82%93"
+    assert save_args[1] == "5364158"
     assert save_args[2] == "a"
     assert save_args[4] == canonical_url
     assert save_args[5] == responses
+
+
+def test_run_scrape_rejects_non_numeric_article_id_for_canonical_save():
+    article_url = "https://dic.nicovideo.jp/a/some-slug"
+    canonical_url = "https://dic.nicovideo.jp/a/some-slug"
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=ArticleMetadataResult(
+            "some-slug",
+            "a",
+            "Title",
+            article_url=canonical_url,
+        ),
+    ):
+        with patch("orchestrator.init_db") as mock_init:
+            with patch("orchestrator.save_to_db") as mock_save:
+                with pytest.raises(
+                    ValueError,
+                    match=r"digits-only",
+                ):
+                    run_scrape(article_url)
+
+    mock_init.assert_not_called()
+    mock_save.assert_not_called()
 
 
 def test_run_scrape_does_not_write_json_artifact(tmp_path, monkeypatch):

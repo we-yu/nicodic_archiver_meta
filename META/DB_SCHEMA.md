@@ -194,3 +194,32 @@ When this file changes, regenerate the authoritative snapshot with:
 
 `./export_snapshot.sh`
 
+
+--------------------------------------------------
+
+## TASK042 identity clarification
+
+TASK042 restored the intended saved archive identity model.
+
+For normal canonical NicoNicoPedia article saves:
+
+- `articles.article_type` should be `a`
+- `articles.article_id` should be the numeric NicoNicoPedia article ID stored
+  as a non-empty digits-only string
+- `articles.canonical_url` should be the canonical `/a/<slug>` URL
+- `responses.article_id` should match `articles.article_id`
+- `responses.article_type` should match `articles.article_type`
+
+The canonical `/a/<slug>` URL is still used for:
+
+- display
+- BBS URL generation
+- canonical URL tracking
+
+The URL-encoded `/a/<slug>` value should not be stored as new
+`article_id` for `article_type='a'`.
+
+Existing runtime rows may still contain the older slug identity. Those rows are
+a known legacy / regression state and require a later explicit migration or
+maintenance task. TASK042 did not perform that migration.
+

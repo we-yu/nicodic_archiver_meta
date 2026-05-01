@@ -1553,6 +1553,44 @@ Runtime note:
 - TASK041 has not been reflected to the runtime checkout while the long shot is
   running. Runtime deployment is deferred to a safe maintenance point.
 
+## TASK042 completed: Restore numeric article_id storage identity
+
+TASK042 was completed with the Cursor implementation adopted.
+
+Summary:
+- Restored saved archive identity so canonical NicoNicoPedia articles use the
+  numeric NicoNicoPedia article ID as `article_id`.
+- Kept `article_type='a'` for normal canonical article saves.
+- Kept `canonical_url` as canonical `/a/<slug>` for display and BBS fetching.
+- Added save-boundary validation so slug values are rejected for new
+  `article_type='a'` saves.
+- Preserved legacy slug-row read compatibility in tests by seeding legacy rows
+  directly through SQL.
+- Existing runtime DB migration was not performed.
+
+DHM result:
+- Cursor was adopted.
+- Copilot was reviewed as a comparison implementation but not adopted.
+- Copilot's non-adopted implementation remained useful comparison evidence,
+  but failed validation because legacy slug-row tests still used `save_to_db()`.
+
+Validation:
+- Cursor passed repo-local validation during review.
+- After adoption and main realignment, both child repos should pass validation.
+
+Known follow-up:
+- Existing runtime DB may still contain `article_type='a'` rows whose
+  `article_id` is a URL-encoded slug.
+- Repairing those rows is intentionally not part of TASK042.
+- A later migration-focused task should detect, dry-run, and safely normalize
+  those rows using explicit DB paths and copy DB validation.
+
+Runtime note:
+- TASK042 has not been reflected to the runtime checkout while the long shot is
+  running.
+- Runtime deployment is deferred to a safe maintenance point.
+
+
 Current application structure:
 
 main.py
