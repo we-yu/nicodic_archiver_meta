@@ -316,3 +316,22 @@ Use it as workflow memory when planning DB-affecting tasks, archive identity
 work, migration scripts, Registered Articles changes, or numeric Nico article
 ID follow-up work.
 
+--------------------------------------------------
+
+Development environment and execution-boundary notes:
+
+A practical AI-readable environment guide exists at:
+
+- `META/DEVELOPMENT_ENVIRONMENT.md`
+
+This file records:
+- host / container / local Mac responsibility boundaries
+- runtime-facing Python execution rules
+- `./runtime_exec.sh` usage expectations
+- development Web smoke checking through SSH port forwarding
+- editor-AI validation boundaries
+- editor task-report model/version recording rules
+
+Use it when planning runtime smoke checks, development Web checks, DB-facing
+verification, or editor-AI prompt guardrails.
+

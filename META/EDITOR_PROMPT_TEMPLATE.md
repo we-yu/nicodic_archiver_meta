@@ -548,3 +548,21 @@ validation handling:
 - `<WARNING-2>`
 - bounded production hardening に留めてください
 
+--------------------------------------------------
+
+## Report model/version field
+
+When a task asks for `TASKNNN_report.txt`, include the editor AI tool/model
+information when available.
+
+Required report field:
+
+`Editor AI model: <tool and model/version>`
+
+If the model/version is not visible, use:
+
+`Editor AI model: unknown; editor did not expose model/version`
+
+This is metadata for later workflow analysis.
+It is not an adoption criterion by itself.
+

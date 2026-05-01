@@ -97,6 +97,33 @@ For a reusable editor-prompt structure, also see:
 Use that file as workflow guidance for editor-facing implementation prompts.
 It complements this checklist, but does not replace task-specific definition work.
 
+### Editor model/version report rule
+
+When asking editor AIs to create a child-repo-local task report such as
+`TASKNNN_report.txt`, the report should include the editor tool/model
+information when available.
+
+Expected field:
+
+- `Editor AI model: <tool and model/version>`
+
+Examples:
+
+- `Editor AI model: GitHub Copilot Chat / GPT-5.4`
+- `Editor AI model: Cursor / GPT-5.2`
+- `Editor AI model: unknown; editor did not expose model/version`
+
+During review-log creation, preserve this information when available.
+
+Recommended review-log fields:
+
+- `Copilot editor model: ...`
+- `Cursor editor model: ...`
+
+This metadata is useful for later workflow analysis, but it must not replace
+technical review, validation results, or human judgment.
+
+
 ### Optional editor-report artifact note
 
 When editor-AI copy/paste overhead becomes annoying,
