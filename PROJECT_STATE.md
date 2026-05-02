@@ -1591,6 +1591,44 @@ Runtime note:
 - Runtime deployment is deferred to a safe maintenance point.
 
 
+## TASK043 completed: Legacy slug article_id repair tooling
+
+TASK043 was completed with the Cursor implementation adopted.
+
+Summary:
+- Added a standalone maintenance tool for repairing legacy
+  `article_type='a'` rows whose `article_id` is a URL-encoded `/a/<title>`
+  slug.
+- The tool requires an explicit DB path.
+- Dry-run is the default.
+- Writes require explicit `--apply`.
+- Network metadata resolution requires explicit `--allow-network`.
+- Staged operational validation is supported through `--limit`.
+- Compact output is supported through `--summary-only`.
+- The tool preserves `article_type='a'` and canonical `/a/<slug>` URLs.
+- The tool does not create normal `article_type='id'` rows.
+- Target rows are normalized by activating numeric targets and deactivating
+  legacy slug targets, not by delete-first behavior.
+
+Validation:
+- Cursor was adopted.
+- Copilot was retained as non-adopted comparison evidence.
+- Cursor passed repo-local validation.
+- Runtime DB copy validation succeeded for `--limit 10` and `--limit 100`.
+- `--limit 100` copy apply preserved total response count and produced
+  `missing_after=0`.
+- Runtime DB itself was not modified.
+
+Runtime note:
+- Runtime remains in long-shot operation.
+- Actual runtime DB apply is deferred until a safe maintenance point.
+
+Known follow-up:
+- Add soft terminate for periodic/long-shot operation.
+- Prepare runtime apply procedure after runtime is safely stopped.
+- Optionally perform a full-copy dry-run/apply rehearsal before runtime apply.
+
+
 Current application structure:
 
 main.py

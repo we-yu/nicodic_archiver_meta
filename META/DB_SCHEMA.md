@@ -223,3 +223,40 @@ Existing runtime rows may still contain the older slug identity. Those rows are
 a known legacy / regression state and require a later explicit migration or
 maintenance task. TASK042 did not perform that migration.
 
+
+--------------------------------------------------
+
+## TASK043 repair tooling clarification
+
+TASK043 added a standalone maintenance tool for legacy slug identity repair.
+
+The tool is intended for explicit operator use only.
+
+It is not part of normal scrape flow.
+It is not part of Web UI flow.
+It is not automatically executed at runtime startup.
+
+Repair target:
+
+- legacy `article_type='a'` rows whose `article_id` is a URL-encoded
+  `/a/<title>` slug
+- replacement identity uses numeric NicoNicoPedia article ID as digits-only text
+- `article_type` remains `a`
+- `canonical_url` remains the canonical `/a/<slug>` URL
+
+Safety model:
+
+- explicit DB path required
+- dry-run default
+- explicit apply required for writes
+- optional network metadata resolution must be explicit
+- response rows are preserved
+- duplicate `res_no` rows are skipped
+- target rows are not handled delete-first
+- runtime DB should be tested through a copy DB before apply
+
+TASK043 did not modify the runtime DB.
+
+Runtime apply should wait for a safe maintenance point, preferably after
+soft-terminate support or after the current long shot is stopped.
+
