@@ -2629,6 +2629,39 @@ Known follow-up:
 - Optionally perform a full-copy dry-run/apply rehearsal before runtime apply.
 
 
+## SubTask completed: soft terminate periodic shot
+
+The soft terminate periodic shot SubTask was completed with the Copilot
+implementation adopted.
+
+Summary:
+- Added file-based controlled stop support via `SOFT_TERMINATE_FILE`.
+- Added elapsed one-shot duration bounding via
+  `ONESHOT_LIMIT_DURATION_SECONDS`.
+- Stop checks occur only at safe article boundaries.
+- The current article is allowed to finish before the run stops.
+- Controlled stops are success-class when no scrape failure occurred.
+- Runtime docs and `.env.runtime.local.example` were updated.
+- `runtime/control/.gitkeep` was added so the control directory exists.
+- `docker-compose.runtime.yml` now mounts `runtime/control` into the runtime
+  container.
+
+Validation:
+- Copilot passed repo-local validation.
+- Cursor main also passed validation after main convergence.
+- `runtime/periodic_once.sh` passed shell syntax validation.
+- docker compose config showed the expected soft terminate variables and
+  control mount.
+
+Runtime note:
+- Runtime DB was not modified.
+- TASK043 DB apply was not performed.
+- The feature does not affect already-running processes that have not loaded
+  this code.
+- The current long shot still requires separate manual stop handling if it is
+  stopped before natural completion.
+
+
 Current application structure:
 
 main.py
@@ -5147,6 +5180,85 @@ This task did not:
 - restore JSON archive output
 - introduce a new scheduler
 
+
+
+
+===== REVIEW LOG: META/review_log/SubTask_soft_terminate_periodic_shot.md =====
+# SubTask Review Log: soft terminate periodic shot
+
+## Result
+
+Adopted implementation: Copilot.
+
+## Editor model
+
+Copilot editor model: GitHub Copilot GPT-5.4
+
+## Summary
+
+This SubTask added bounded operator controls for long-running batch /
+periodic-one-shot runs.
+
+Implemented controls:
+
+- `SOFT_TERMINATE_FILE`
+- `ONESHOT_LIMIT_DURATION_SECONDS`
+
+The stop behavior is article-boundary based.
+
+A stop request does not interrupt:
+
+- an in-flight article scrape
+- an in-flight BBS page fetch
+- a DB write
+
+The current article is allowed to finish. The run then stops before starting
+the next target.
+
+## Runtime behavior
+
+Default soft terminate flag path:
+
+- `runtime/control/stop_after_current`
+
+A positive `ONESHOT_LIMIT_DURATION_SECONDS` value bounds one batch /
+periodic-one-shot run by elapsed time. The duration limit is checked only at
+safe article boundaries.
+
+Controlled stops are treated as success-class when no scrape failure occurred.
+
+## Validation
+
+The implementation passed repo-local validation.
+
+Observed validation:
+
+- Copilot: PASS
+- Cursor: PASS
+
+Additional static checks:
+
+- `runtime/periodic_once.sh` passed `bash -n`
+- docker compose config included the soft terminate variables and control mount
+
+## Runtime note
+
+Runtime DB was not modified.
+
+TASK043 DB apply was not performed.
+
+This feature does not retroactively affect an already-running process that has
+not loaded this code. The currently running long shot will not gain this
+feature until runtime code is reflected and the runtime process is restarted or
+recreated.
+
+## Follow-up
+
+After reflecting this change to runtime, operators can use the soft terminate
+flag or one-shot duration limit for future runs.
+
+The current long shot still requires separate manual stop handling if it must
+be stopped before natural completion.
 
 
 
@@ -10556,7 +10668,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Sat May  2 15:41:47 UTC 2026
+generated: Wed May  6 16:21:22 UTC 2026
 mode: full
 
 
@@ -14233,6 +14345,8 @@ LOCAL_UID=1000
 LOCAL_GID=1000
 SCRAPE_PAGE_DELAY_SECONDS=5.0
 BBS_RESPONSES_PER_PAGE=30
+SOFT_TERMINATE_FILE=runtime/control/stop_after_current
+ONESHOT_LIMIT_DURATION_SECONDS=3600
 
 
 =============================
@@ -14546,6 +14660,100 @@ See docs/VERIFICATION_TOOLING.md for bounded verification / smoke tooling and
 the read-first verification flow.
 
 See docs/PERSONAL_RUNTIME.md for runtime-container-specific notes.
+
+
+=============================
+FILE: copilot/SubTask-soft-terminate-periodic-shot_report.txt
+=============================
+Editor AI model: GitHub Copilot GPT-5.4
+
+Summary of changes
+
+- Added article-boundary controlled stop handling to batch and
+  periodic-one-shot execution in main.py.
+- Added file-based soft terminate control via SOFT_TERMINATE_FILE.
+- Added one-shot elapsed duration limit via ONESHOT_LIMIT_DURATION_SECONDS.
+- Added bounded controlled-stop logging to stdout, host-cron reporter output,
+  and batch log files.
+- Added runtime wiring for the control file path and one-shot limit in
+  docker-compose.runtime.yml and runtime/periodic_once.sh.
+- Updated runtime documentation and local env example.
+- Added focused tests for soft terminate and duration limit behavior.
+
+Files changed
+
+- main.py
+- tests/test_main.py
+- docker-compose.runtime.yml
+- runtime/periodic_once.sh
+- docs/PERSONAL_RUNTIME.md
+- .env.runtime.local.example
+- runtime/control/.gitkeep
+
+Soft terminate flag path behavior
+
+- Environment variable: SOFT_TERMINATE_FILE
+- Default path: runtime/control/stop_after_current
+- docker-compose.runtime.yml mounts runtime/control into the runtime container
+  at /app/runtime/control. The default relative path is visible from both the
+  repo and the container process.
+- If the flag exists before the first target, the run stops cleanly before
+  starting any target.
+- If the flag appears during an article scrape, the current article is allowed
+  to finish and the run stops before the next target.
+- Stop checks run only before the first target and between completed targets.
+
+One-shot duration limit behavior
+
+- Environment variable: ONESHOT_LIMIT_DURATION_SECONDS
+- Unset, empty, invalid, negative, NaN, infinite, and zero values are treated
+  as disabled.
+- A positive value enables elapsed-time bounding for one batch or
+  periodic-one-shot run.
+- The timer starts when run_batch_scrape begins.
+- The elapsed limit is checked only before the first target and between
+  completed targets.
+- If the limit is reached, the current article is still allowed to finish and
+  the run stops before the next target.
+
+Logging / exit behavior
+
+- Controlled stops are logged as human-readable CONTROLLED_STOP entries in
+  batch logs.
+- Stdout and host-cron output indicate whether the stop came from the soft
+  terminate flag or the duration limit.
+- Controlled-stop messages include processed target count and remaining target
+  count when available.
+- Controlled stops do not increment failed_targets by themselves.
+- Exit behavior remains success-class for controlled stops unless actual target
+  failures already occurred.
+- Batch CLI exit remains code 0 when a controlled stop occurs without scrape
+  failures.
+
+Tests / validation performed
+
+- Static error check: no errors reported for main.py and tests/test_main.py.
+- Focused tests were added for:
+  - soft terminate before the first target
+  - soft terminate after one completed target
+  - current target allowed to finish before stop
+  - duration limit disabled values remaining compatible
+  - duration limit stopping after the current article completes
+  - controlled stop not counted as a target failure
+
+Validation that could not be run
+
+- Targeted pytest execution for tests/test_main.py could not be run in the
+  editor environment because Python terminal execution was skipped by the tool
+  layer during validation attempts.
+- Human-side validate_helix.sh was run after implementation and passed.
+
+Explicit statements
+
+- Runtime DB was not modified.
+- TASK043 DB apply was not performed.
+- This change does not retroactively affect an already-running process that has
+  not loaded this code.
 
 
 =============================
@@ -16515,7 +16723,10 @@ services:
       BATCH_LOG_DIR: /runtime/logs/batch_runs
       TARGET_DB_PATH: /app/data/nicodic.db
       SCRAPE_PAGE_DELAY_SECONDS: ${SCRAPE_PAGE_DELAY_SECONDS:-5.0}
+      SOFT_TERMINATE_FILE: ${SOFT_TERMINATE_FILE:-runtime/control/stop_after_current}
+      ONESHOT_LIMIT_DURATION_SECONDS: ${ONESHOT_LIMIT_DURATION_SECONDS:-}
     volumes:
+      - ./runtime/control:/app/runtime/control
       - ./runtime/targets:/runtime/targets
       - ./runtime/data:/app/data
       - ./runtime/logs:/runtime/logs
@@ -16535,7 +16746,6 @@ services:
         "--target-db-path",
         "/app/data/nicodic.db",
       ]
-
 
 
 =============================
@@ -17110,6 +17320,8 @@ Expected keys:
 - `LOCAL_GID`
 - `SCRAPE_PAGE_DELAY_SECONDS`
 - `BBS_RESPONSES_PER_PAGE`
+- `SOFT_TERMINATE_FILE`
+- `ONESHOT_LIMIT_DURATION_SECONDS`
 
 The file is intentionally local-only and should not be committed. Use the
 tracked template as a starting point:
@@ -17127,6 +17339,15 @@ scrape pagination. If it is unset or invalid, the application falls back to
 `BBS_RESPONSES_PER_PAGE` controls the BBS page boundary size used for resume
 and later-page progression. If it is unset or invalid, the application falls
 back to `30` responses per page.
+
+`SOFT_TERMINATE_FILE` controls the file-based stop-after-current flag path.
+If it is unset or empty, the runtime uses
+`runtime/control/stop_after_current`.
+
+`ONESHOT_LIMIT_DURATION_SECONDS` bounds one batch / periodic-one-shot run by
+elapsed wall-clock time. If it is unset, empty, invalid, non-finite,
+negative, or `0`, the limit is disabled. A positive value such as `3600`
+stops only at an article boundary after the current article finishes.
 
 ## Host UID/GID Handling
 
@@ -17331,10 +17552,41 @@ Useful environment overrides for external schedulers:
 - `COMPOSE_SERVICE_NAME` defaults to `personal_runtime`
 - `LOCK_DIR_PATH` defaults to `runtime/logs/periodic_once.lock`
 - `RUNTIME_LOCAL_ENV_FILE` defaults to `.env.runtime.local`
+- `SOFT_TERMINATE_FILE` defaults to `runtime/control/stop_after_current`
+- `ONESHOT_LIMIT_DURATION_SECONDS` is disabled unless set to a positive value
 
 Example scheduler-facing invocation shape:
 
 `TARGET_DB_PATH=/app/data/nicodic.db ./runtime/periodic_once.sh`
+
+## Controlled Stop For One Shots
+
+Request a soft stop after the current article finishes:
+
+`mkdir -p runtime/control && : > runtime/control/stop_after_current`
+
+Remove the flag after the run has stopped or before the next run starts:
+
+`rm -f runtime/control/stop_after_current`
+
+When the flag is present before the first target, the run exits cleanly before
+starting any target. When the flag appears during an article scrape, the
+current article is allowed to finish and the run stops before the next target.
+This does not interrupt an in-flight page fetch or DB write.
+
+To bound one periodic-once or batch shot by elapsed duration, set a positive
+number of seconds, for example:
+
+`ONESHOT_LIMIT_DURATION_SECONDS=3600 ./runtime/periodic_once.sh`
+
+The duration timer starts when the one-shot / batch run begins. The limit is
+checked only before the first target and after each target completes, so the
+current article is still allowed to finish.
+
+The periodic wrapper reloads `.env.runtime.local` on each invocation and passes
+these bounded-run controls into the container process. A container or process
+that was already running older code will not retroactively gain this feature;
+the stop file affects only processes that have loaded this code.
 
 List saved articles:
 
@@ -18745,6 +18997,7 @@ fi
 =============================
 FILE: copilot/main.py
 =============================
+import math
 import os
 import sys
 import uuid
@@ -18802,6 +19055,7 @@ from web_app import serve_web_app
 
 
 DEFAULT_TARGET_DB_PATH = os.environ.get("TARGET_DB_PATH", "data/nicodic.db")
+DEFAULT_SOFT_TERMINATE_FILE = "runtime/control/stop_after_current"
 
 # Telemetry only: set True around run_batch_scrape from run_periodic_scrape.
 _inside_periodic_batch: bool = False
@@ -18968,6 +19222,8 @@ def _append_batch_run_end(
     ended_at: str,
     duration_seconds: int,
     total_targets: int,
+    processed_targets: int,
+    remaining_targets: int,
     success_targets: int,
     failed_targets: int,
     final_status: str,
@@ -18981,11 +19237,152 @@ def _append_batch_run_end(
             f"  ended_at={ended_at}",
             f"  duration_seconds={duration_seconds}",
             f"  total_targets={total_targets}",
+            f"  processed_targets={processed_targets}",
+            f"  remaining_targets={remaining_targets}",
             f"  success_targets={success_targets}",
             f"  failed_targets={failed_targets}",
             f"  final_status={final_status}",
         ],
     )
+
+
+def _soft_terminate_flag_path() -> Path:
+    configured = os.environ.get("SOFT_TERMINATE_FILE", "").strip()
+    if configured:
+        return Path(configured)
+    return Path(DEFAULT_SOFT_TERMINATE_FILE)
+
+
+def _oneshot_limit_duration_seconds() -> float | None:
+    raw_value = os.environ.get("ONESHOT_LIMIT_DURATION_SECONDS")
+    if raw_value is None:
+        return None
+
+    text = raw_value.strip()
+    if not text:
+        return None
+
+    try:
+        limit_seconds = float(text)
+    except ValueError:
+        return None
+
+    if not math.isfinite(limit_seconds) or limit_seconds <= 0:
+        return None
+
+    return limit_seconds
+
+
+def _format_seconds_value(value: float) -> str:
+    text = f"{value:.3f}".rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def _check_controlled_stop(
+    total_targets: int,
+    processed_targets: int,
+    shot_started_monotonic: float,
+) -> dict | None:
+    remaining_targets = total_targets - processed_targets
+    if remaining_targets <= 0:
+        return None
+
+    flag_path = _soft_terminate_flag_path()
+    if flag_path.exists():
+        return {
+            "kind": "soft_terminate",
+            "processed_targets": processed_targets,
+            "remaining_targets": remaining_targets,
+            "flag_path": str(flag_path),
+        }
+
+    limit_seconds = _oneshot_limit_duration_seconds()
+    if limit_seconds is None:
+        return None
+
+    elapsed_seconds = max(time.monotonic() - shot_started_monotonic, 0.0)
+    if elapsed_seconds < limit_seconds:
+        return None
+
+    return {
+        "kind": "duration_limit",
+        "processed_targets": processed_targets,
+        "remaining_targets": remaining_targets,
+        "limit_seconds": limit_seconds,
+        "elapsed_seconds": elapsed_seconds,
+    }
+
+
+def _append_batch_controlled_stop(log_path: Path, stop_reason: dict) -> None:
+    lines = [
+        "CONTROLLED_STOP",
+        f"  reason={stop_reason['kind']}",
+        f"  processed_targets={stop_reason['processed_targets']}",
+        f"  remaining_targets={stop_reason['remaining_targets']}",
+    ]
+
+    if stop_reason["kind"] == "soft_terminate":
+        lines.append(f"  flag_path={stop_reason['flag_path']}")
+    else:
+        lines.append(
+            "  limit_seconds="
+            f"{_format_seconds_value(stop_reason['limit_seconds'])}"
+        )
+        lines.append(
+            "  elapsed_seconds="
+            f"{_format_seconds_value(stop_reason['elapsed_seconds'])}"
+        )
+
+    if stop_reason["processed_targets"] > 0:
+        lines.append("  current_article_finished=yes")
+    else:
+        lines.append("  current_article_finished=no_current_article")
+    _append_batch_log_lines(log_path, lines)
+
+
+def _emit_controlled_stop(progress_reporter, stop_reason: dict) -> None:
+    processed_targets = stop_reason["processed_targets"]
+    remaining_targets = stop_reason["remaining_targets"]
+    if stop_reason["kind"] == "soft_terminate":
+        if processed_targets == 0:
+            message = (
+                "controlled stop requested before the first target "
+                f"via {stop_reason['flag_path']} "
+                f"(processed={processed_targets} "
+                f"remaining={remaining_targets})"
+            )
+        else:
+            message = (
+                "controlled stop requested via "
+                f"{stop_reason['flag_path']}; current article was "
+                "allowed to finish "
+                f"(processed={processed_targets} "
+                f"remaining={remaining_targets})"
+            )
+    else:
+        if processed_targets == 0:
+            message = (
+                "duration limit reached before the first target "
+                f"(limit={_format_seconds_value(stop_reason['limit_seconds'])}s "
+                f"elapsed={_format_seconds_value(stop_reason['elapsed_seconds'])}s "
+                f"remaining={remaining_targets})"
+            )
+        else:
+            message = (
+                "duration limit reached; current article was allowed "
+                "to finish "
+                f"(limit={_format_seconds_value(stop_reason['limit_seconds'])}s "
+                f"elapsed={_format_seconds_value(stop_reason['elapsed_seconds'])}s "
+                f"processed={processed_targets} "
+                f"remaining={remaining_targets})"
+            )
+
+    if progress_reporter is None:
+        print(f"[CONTROLLED STOP] {message}")
+        return
+
+    if hasattr(progress_reporter, "emit"):
+        progress_reporter.emit("INFO", message, indent_level=1)
 
 
 def _append_delete_request_feed_summary(log_path: Path, summary: dict) -> None:
@@ -19019,6 +19416,7 @@ def run_batch_scrape(
 
     run_id = uuid.uuid4().hex[:12]
     started_at = datetime.now(timezone.utc).isoformat()
+    shot_started_monotonic = time.monotonic()
     archive_db_path = _telemetry_archive_db_path()
     log_dir = Path(os.environ.get("BATCH_LOG_DIR", "data/batch_runs"))
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -19060,7 +19458,18 @@ def run_batch_scrape(
     _append_delete_request_feed_summary(log_path, delete_request_feed_summary)
 
     failed_targets = 0
+    controlled_stop: dict | None = None
     for idx, target in enumerate(targets, start=1):
+        controlled_stop = _check_controlled_stop(
+            len(targets),
+            idx - 1,
+            shot_started_monotonic,
+        )
+        if controlled_stop is not None:
+            _append_batch_controlled_stop(log_path, controlled_stop)
+            _emit_controlled_stop(progress_reporter, controlled_stop)
+            break
+
         if progress_reporter is None:
             print(f"[{idx}/{len(targets)}] Scraping: {target}")
         identity = parse_target_identity(target)
@@ -19326,9 +19735,15 @@ def run_batch_scrape(
 
     ended_at = datetime.now(timezone.utc).isoformat()
     total_targets = len(targets)
+    processed_targets = total_targets
+    remaining_targets = 0
+    if controlled_stop is not None:
+        processed_targets = controlled_stop["processed_targets"]
+        remaining_targets = controlled_stop["remaining_targets"]
+
     if failed_targets == 0:
         final_status = "success"
-    elif failed_targets == total_targets:
+    elif failed_targets == processed_targets:
         final_status = "failure"
     else:
         final_status = "partial_failure"
@@ -19349,7 +19764,9 @@ def run_batch_scrape(
         ended_at,
         duration_seconds,
         total_targets,
-        total_targets - failed_targets,
+        processed_targets,
+        remaining_targets,
+        max(processed_targets - failed_targets, 0),
         failed_targets,
         final_status,
     )
@@ -22402,6 +22819,11 @@ echo "=== TEST COMPLETE ==="
 
 
 =============================
+FILE: copilot/runtime/control/.gitkeep
+=============================
+
+
+=============================
 FILE: copilot/runtime/periodic_once.sh
 =============================
 #!/bin/bash
@@ -22440,10 +22862,11 @@ echo "[periodic-once] bash tools/runtime_up.sh"
 
 docker compose -f "$COMPOSE_FILE_PATH" exec -T "$COMPOSE_SERVICE_NAME" \
   env HOST_CRON_LOG_PATH="$HOST_CRON_LOG_PATH" \
+  SOFT_TERMINATE_FILE="${SOFT_TERMINATE_FILE:-runtime/control/stop_after_current}" \
+  ONESHOT_LIMIT_DURATION_SECONDS="${ONESHOT_LIMIT_DURATION_SECONDS:-}" \
   python main.py periodic-once "$TARGET_DB_PATH"
 
 echo "[periodic-once] Finished one periodic cycle"
-
 
 
 =============================
@@ -26887,6 +27310,247 @@ def test_main_batch_without_path_exits_with_usage(capsys):
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
     assert "Usage: batch <target_db_path>" in out
+
+
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
+@patch("main.list_active_target_urls", return_value=[
+    "https://dic.nicovideo.jp/a/1",
+    "https://dic.nicovideo.jp/a/2",
+])
+@patch("main.run_scrape")
+def test_run_batch_scrape_soft_terminate_before_first_target(
+    mock_run_scrape,
+    mock_load_targets,
+    mock_run_delete_request_feeder,
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    stop_file = tmp_path / "stop_after_current"
+    stop_file.write_text("", encoding="utf-8")
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
+    monkeypatch.setenv("SOFT_TERMINATE_FILE", str(stop_file))
+
+    final_status, failed_targets = main_module.run_batch_scrape("targets.db")
+
+    assert final_status == "success"
+    assert failed_targets == 0
+    mock_run_scrape.assert_not_called()
+
+    out = capsys.readouterr().out
+    assert "[CONTROLLED STOP]" in out
+    assert "before the first target" in out
+    assert "remaining=2" in out
+
+    logs = list(Path(tmp_path).glob("batch_*.log"))
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    assert "CONTROLLED_STOP" in text
+    assert "  reason=soft_terminate" in text
+    assert f"  flag_path={stop_file}" in text
+    assert "  processed_targets=0" in text
+    assert "  remaining_targets=2" in text
+    assert "  failed_targets=0" in text
+    assert "  final_status=success" in text
+
+
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
+@patch("main.list_active_target_urls", return_value=[
+    "https://dic.nicovideo.jp/a/1",
+    "https://dic.nicovideo.jp/a/2",
+])
+def test_run_batch_scrape_soft_terminate_after_current_target(
+    mock_load_targets,
+    mock_run_delete_request_feeder,
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    stop_file = tmp_path / "stop_after_current"
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
+    monkeypatch.setenv("SOFT_TERMINATE_FILE", str(stop_file))
+
+    def run_scrape_with_stop(target):
+        stop_file.write_text("", encoding="utf-8")
+        return ScrapeResult(
+            True,
+            "ok",
+            article_title="First Title",
+            collected_response_count=12,
+            observed_max_res_no=12,
+        )
+
+    with patch("main.run_scrape", side_effect=run_scrape_with_stop) as mock_run:
+        final_status, failed_targets = main_module.run_batch_scrape("targets.db")
+
+    assert final_status == "success"
+    assert failed_targets == 0
+    assert mock_run.call_count == 1
+
+    out = capsys.readouterr().out
+    assert "[OK] https://dic.nicovideo.jp/a/1" in out
+    assert "current article was allowed to finish" in out
+    assert "processed=1 remaining=1" in out
+
+    logs = list(Path(tmp_path).glob("batch_*.log"))
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    assert "  reason=soft_terminate" in text
+    assert "  processed_targets=1" in text
+    assert "  remaining_targets=1" in text
+    assert "  current_article_finished=yes" in text
+    assert "  success_targets=1" in text
+    assert "  failed_targets=0" in text
+    assert "  final_status=success" in text
+
+
+@pytest.mark.parametrize(
+    "raw_value",
+    [None, "", "abc", "0", "-5", "nan", "inf"],
+)
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
+@patch("main.list_active_target_urls", return_value=[
+    "https://dic.nicovideo.jp/a/1",
+    "https://dic.nicovideo.jp/a/2",
+])
+@patch(
+    "main.run_scrape",
+    side_effect=[
+        ScrapeResult(True, "ok", article_title="First Title"),
+        ScrapeResult(True, "ok", article_title="Second Title"),
+    ],
+)
+def test_run_batch_scrape_duration_limit_disabled_values_keep_compatibility(
+    mock_run_scrape,
+    mock_load_targets,
+    mock_run_delete_request_feeder,
+    raw_value,
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
+    if raw_value is None:
+        monkeypatch.delenv("ONESHOT_LIMIT_DURATION_SECONDS", raising=False)
+    else:
+        monkeypatch.setenv("ONESHOT_LIMIT_DURATION_SECONDS", raw_value)
+
+    final_status, failed_targets = main_module.run_batch_scrape("targets.db")
+
+    assert final_status == "success"
+    assert failed_targets == 0
+    assert mock_run_scrape.call_count == 2
+
+
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
+@patch("main.list_active_target_urls", return_value=[
+    "https://dic.nicovideo.jp/a/1",
+    "https://dic.nicovideo.jp/a/2",
+])
+@patch("main.time.monotonic", side_effect=[0.0, 0.0, 5.0])
+@patch(
+    "main.run_scrape",
+    return_value=ScrapeResult(
+        True,
+        "ok",
+        article_title="First Title",
+        collected_response_count=12,
+        observed_max_res_no=12,
+    ),
+)
+def test_run_batch_scrape_duration_limit_stops_after_current_target(
+    mock_run_scrape,
+    mock_monotonic,
+    mock_load_targets,
+    mock_run_delete_request_feeder,
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
+    monkeypatch.setenv("ONESHOT_LIMIT_DURATION_SECONDS", "5")
+
+    final_status, failed_targets = main_module.run_batch_scrape("targets.db")
+
+    assert final_status == "success"
+    assert failed_targets == 0
+    mock_run_scrape.assert_called_once_with("https://dic.nicovideo.jp/a/1")
+    assert mock_monotonic.call_count == 3
+
+    out = capsys.readouterr().out
+    assert "[CONTROLLED STOP] duration limit reached" in out
+    assert "current article was allowed to finish" in out
+    assert "limit=5s elapsed=5s processed=1 remaining=1" in out
+
+    logs = list(Path(tmp_path).glob("batch_*.log"))
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    assert "  reason=duration_limit" in text
+    assert "  limit_seconds=5" in text
+    assert "  elapsed_seconds=5" in text
+    assert "  processed_targets=1" in text
+    assert "  remaining_targets=1" in text
+    assert "  failed_targets=0" in text
+    assert "  final_status=success" in text
 
 
 @patch("main.run_periodic_once")
@@ -34841,6 +35505,8 @@ LOCAL_UID=1000
 LOCAL_GID=1000
 SCRAPE_PAGE_DELAY_SECONDS=5.0
 BBS_RESPONSES_PER_PAGE=30
+SOFT_TERMINATE_FILE=runtime/control/stop_after_current
+ONESHOT_LIMIT_DURATION_SECONDS=3600
 
 
 =============================
@@ -37093,7 +37759,10 @@ services:
       BATCH_LOG_DIR: /runtime/logs/batch_runs
       TARGET_DB_PATH: /app/data/nicodic.db
       SCRAPE_PAGE_DELAY_SECONDS: ${SCRAPE_PAGE_DELAY_SECONDS:-5.0}
+      SOFT_TERMINATE_FILE: ${SOFT_TERMINATE_FILE:-runtime/control/stop_after_current}
+      ONESHOT_LIMIT_DURATION_SECONDS: ${ONESHOT_LIMIT_DURATION_SECONDS:-}
     volumes:
+      - ./runtime/control:/app/runtime/control
       - ./runtime/targets:/runtime/targets
       - ./runtime/data:/app/data
       - ./runtime/logs:/runtime/logs
@@ -37113,7 +37782,6 @@ services:
         "--target-db-path",
         "/app/data/nicodic.db",
       ]
-
 
 
 =============================
@@ -37688,6 +38356,8 @@ Expected keys:
 - `LOCAL_GID`
 - `SCRAPE_PAGE_DELAY_SECONDS`
 - `BBS_RESPONSES_PER_PAGE`
+- `SOFT_TERMINATE_FILE`
+- `ONESHOT_LIMIT_DURATION_SECONDS`
 
 The file is intentionally local-only and should not be committed. Use the
 tracked template as a starting point:
@@ -37705,6 +38375,15 @@ scrape pagination. If it is unset or invalid, the application falls back to
 `BBS_RESPONSES_PER_PAGE` controls the BBS page boundary size used for resume
 and later-page progression. If it is unset or invalid, the application falls
 back to `30` responses per page.
+
+`SOFT_TERMINATE_FILE` controls the file-based stop-after-current flag path.
+If it is unset or empty, the runtime uses
+`runtime/control/stop_after_current`.
+
+`ONESHOT_LIMIT_DURATION_SECONDS` bounds one batch / periodic-one-shot run by
+elapsed wall-clock time. If it is unset, empty, invalid, non-finite,
+negative, or `0`, the limit is disabled. A positive value such as `3600`
+stops only at an article boundary after the current article finishes.
 
 ## Host UID/GID Handling
 
@@ -37909,10 +38588,41 @@ Useful environment overrides for external schedulers:
 - `COMPOSE_SERVICE_NAME` defaults to `personal_runtime`
 - `LOCK_DIR_PATH` defaults to `runtime/logs/periodic_once.lock`
 - `RUNTIME_LOCAL_ENV_FILE` defaults to `.env.runtime.local`
+- `SOFT_TERMINATE_FILE` defaults to `runtime/control/stop_after_current`
+- `ONESHOT_LIMIT_DURATION_SECONDS` is disabled unless set to a positive value
 
 Example scheduler-facing invocation shape:
 
 `TARGET_DB_PATH=/app/data/nicodic.db ./runtime/periodic_once.sh`
+
+## Controlled Stop For One Shots
+
+Request a soft stop after the current article finishes:
+
+`mkdir -p runtime/control && : > runtime/control/stop_after_current`
+
+Remove the flag after the run has stopped or before the next run starts:
+
+`rm -f runtime/control/stop_after_current`
+
+When the flag is present before the first target, the run exits cleanly before
+starting any target. When the flag appears during an article scrape, the
+current article is allowed to finish and the run stops before the next target.
+This does not interrupt an in-flight page fetch or DB write.
+
+To bound one periodic-once or batch shot by elapsed duration, set a positive
+number of seconds, for example:
+
+`ONESHOT_LIMIT_DURATION_SECONDS=3600 ./runtime/periodic_once.sh`
+
+The duration timer starts when the one-shot / batch run begins. The limit is
+checked only before the first target and after each target completes, so the
+current article is still allowed to finish.
+
+The periodic wrapper reloads `.env.runtime.local` on each invocation and passes
+these bounded-run controls into the container process. A container or process
+that was already running older code will not retroactively gain this feature;
+the stop file affects only processes that have loaded this code.
 
 List saved articles:
 
@@ -39323,6 +40033,7 @@ fi
 =============================
 FILE: cursor/main.py
 =============================
+import math
 import os
 import sys
 import uuid
@@ -39380,6 +40091,7 @@ from web_app import serve_web_app
 
 
 DEFAULT_TARGET_DB_PATH = os.environ.get("TARGET_DB_PATH", "data/nicodic.db")
+DEFAULT_SOFT_TERMINATE_FILE = "runtime/control/stop_after_current"
 
 # Telemetry only: set True around run_batch_scrape from run_periodic_scrape.
 _inside_periodic_batch: bool = False
@@ -39546,6 +40258,8 @@ def _append_batch_run_end(
     ended_at: str,
     duration_seconds: int,
     total_targets: int,
+    processed_targets: int,
+    remaining_targets: int,
     success_targets: int,
     failed_targets: int,
     final_status: str,
@@ -39559,11 +40273,152 @@ def _append_batch_run_end(
             f"  ended_at={ended_at}",
             f"  duration_seconds={duration_seconds}",
             f"  total_targets={total_targets}",
+            f"  processed_targets={processed_targets}",
+            f"  remaining_targets={remaining_targets}",
             f"  success_targets={success_targets}",
             f"  failed_targets={failed_targets}",
             f"  final_status={final_status}",
         ],
     )
+
+
+def _soft_terminate_flag_path() -> Path:
+    configured = os.environ.get("SOFT_TERMINATE_FILE", "").strip()
+    if configured:
+        return Path(configured)
+    return Path(DEFAULT_SOFT_TERMINATE_FILE)
+
+
+def _oneshot_limit_duration_seconds() -> float | None:
+    raw_value = os.environ.get("ONESHOT_LIMIT_DURATION_SECONDS")
+    if raw_value is None:
+        return None
+
+    text = raw_value.strip()
+    if not text:
+        return None
+
+    try:
+        limit_seconds = float(text)
+    except ValueError:
+        return None
+
+    if not math.isfinite(limit_seconds) or limit_seconds <= 0:
+        return None
+
+    return limit_seconds
+
+
+def _format_seconds_value(value: float) -> str:
+    text = f"{value:.3f}".rstrip("0").rstrip(".")
+    return text or "0"
+
+
+def _check_controlled_stop(
+    total_targets: int,
+    processed_targets: int,
+    shot_started_monotonic: float,
+) -> dict | None:
+    remaining_targets = total_targets - processed_targets
+    if remaining_targets <= 0:
+        return None
+
+    flag_path = _soft_terminate_flag_path()
+    if flag_path.exists():
+        return {
+            "kind": "soft_terminate",
+            "processed_targets": processed_targets,
+            "remaining_targets": remaining_targets,
+            "flag_path": str(flag_path),
+        }
+
+    limit_seconds = _oneshot_limit_duration_seconds()
+    if limit_seconds is None:
+        return None
+
+    elapsed_seconds = max(time.monotonic() - shot_started_monotonic, 0.0)
+    if elapsed_seconds < limit_seconds:
+        return None
+
+    return {
+        "kind": "duration_limit",
+        "processed_targets": processed_targets,
+        "remaining_targets": remaining_targets,
+        "limit_seconds": limit_seconds,
+        "elapsed_seconds": elapsed_seconds,
+    }
+
+
+def _append_batch_controlled_stop(log_path: Path, stop_reason: dict) -> None:
+    lines = [
+        "CONTROLLED_STOP",
+        f"  reason={stop_reason['kind']}",
+        f"  processed_targets={stop_reason['processed_targets']}",
+        f"  remaining_targets={stop_reason['remaining_targets']}",
+    ]
+
+    if stop_reason["kind"] == "soft_terminate":
+        lines.append(f"  flag_path={stop_reason['flag_path']}")
+    else:
+        lines.append(
+            "  limit_seconds="
+            f"{_format_seconds_value(stop_reason['limit_seconds'])}"
+        )
+        lines.append(
+            "  elapsed_seconds="
+            f"{_format_seconds_value(stop_reason['elapsed_seconds'])}"
+        )
+
+    if stop_reason["processed_targets"] > 0:
+        lines.append("  current_article_finished=yes")
+    else:
+        lines.append("  current_article_finished=no_current_article")
+    _append_batch_log_lines(log_path, lines)
+
+
+def _emit_controlled_stop(progress_reporter, stop_reason: dict) -> None:
+    processed_targets = stop_reason["processed_targets"]
+    remaining_targets = stop_reason["remaining_targets"]
+    if stop_reason["kind"] == "soft_terminate":
+        if processed_targets == 0:
+            message = (
+                "controlled stop requested before the first target "
+                f"via {stop_reason['flag_path']} "
+                f"(processed={processed_targets} "
+                f"remaining={remaining_targets})"
+            )
+        else:
+            message = (
+                "controlled stop requested via "
+                f"{stop_reason['flag_path']}; current article was "
+                "allowed to finish "
+                f"(processed={processed_targets} "
+                f"remaining={remaining_targets})"
+            )
+    else:
+        if processed_targets == 0:
+            message = (
+                "duration limit reached before the first target "
+                f"(limit={_format_seconds_value(stop_reason['limit_seconds'])}s "
+                f"elapsed={_format_seconds_value(stop_reason['elapsed_seconds'])}s "
+                f"remaining={remaining_targets})"
+            )
+        else:
+            message = (
+                "duration limit reached; current article was allowed "
+                "to finish "
+                f"(limit={_format_seconds_value(stop_reason['limit_seconds'])}s "
+                f"elapsed={_format_seconds_value(stop_reason['elapsed_seconds'])}s "
+                f"processed={processed_targets} "
+                f"remaining={remaining_targets})"
+            )
+
+    if progress_reporter is None:
+        print(f"[CONTROLLED STOP] {message}")
+        return
+
+    if hasattr(progress_reporter, "emit"):
+        progress_reporter.emit("INFO", message, indent_level=1)
 
 
 def _append_delete_request_feed_summary(log_path: Path, summary: dict) -> None:
@@ -39597,6 +40452,7 @@ def run_batch_scrape(
 
     run_id = uuid.uuid4().hex[:12]
     started_at = datetime.now(timezone.utc).isoformat()
+    shot_started_monotonic = time.monotonic()
     archive_db_path = _telemetry_archive_db_path()
     log_dir = Path(os.environ.get("BATCH_LOG_DIR", "data/batch_runs"))
     log_dir.mkdir(parents=True, exist_ok=True)
@@ -39638,7 +40494,18 @@ def run_batch_scrape(
     _append_delete_request_feed_summary(log_path, delete_request_feed_summary)
 
     failed_targets = 0
+    controlled_stop: dict | None = None
     for idx, target in enumerate(targets, start=1):
+        controlled_stop = _check_controlled_stop(
+            len(targets),
+            idx - 1,
+            shot_started_monotonic,
+        )
+        if controlled_stop is not None:
+            _append_batch_controlled_stop(log_path, controlled_stop)
+            _emit_controlled_stop(progress_reporter, controlled_stop)
+            break
+
         if progress_reporter is None:
             print(f"[{idx}/{len(targets)}] Scraping: {target}")
         identity = parse_target_identity(target)
@@ -39904,9 +40771,15 @@ def run_batch_scrape(
 
     ended_at = datetime.now(timezone.utc).isoformat()
     total_targets = len(targets)
+    processed_targets = total_targets
+    remaining_targets = 0
+    if controlled_stop is not None:
+        processed_targets = controlled_stop["processed_targets"]
+        remaining_targets = controlled_stop["remaining_targets"]
+
     if failed_targets == 0:
         final_status = "success"
-    elif failed_targets == total_targets:
+    elif failed_targets == processed_targets:
         final_status = "failure"
     else:
         final_status = "partial_failure"
@@ -39927,7 +40800,9 @@ def run_batch_scrape(
         ended_at,
         duration_seconds,
         total_targets,
-        total_targets - failed_targets,
+        processed_targets,
+        remaining_targets,
+        max(processed_targets - failed_targets, 0),
         failed_targets,
         final_status,
     )
@@ -56926,6 +57801,11 @@ echo "=== TEST COMPLETE ==="
 
 
 =============================
+FILE: cursor/runtime/control/.gitkeep
+=============================
+
+
+=============================
 FILE: cursor/runtime/periodic_once.sh
 =============================
 #!/bin/bash
@@ -56964,10 +57844,11 @@ echo "[periodic-once] bash tools/runtime_up.sh"
 
 docker compose -f "$COMPOSE_FILE_PATH" exec -T "$COMPOSE_SERVICE_NAME" \
   env HOST_CRON_LOG_PATH="$HOST_CRON_LOG_PATH" \
+  SOFT_TERMINATE_FILE="${SOFT_TERMINATE_FILE:-runtime/control/stop_after_current}" \
+  ONESHOT_LIMIT_DURATION_SECONDS="${ONESHOT_LIMIT_DURATION_SECONDS:-}" \
   python main.py periodic-once "$TARGET_DB_PATH"
 
 echo "[periodic-once] Finished one periodic cycle"
-
 
 
 =============================
@@ -61411,6 +62292,247 @@ def test_main_batch_without_path_exits_with_usage(capsys):
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
     assert "Usage: batch <target_db_path>" in out
+
+
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
+@patch("main.list_active_target_urls", return_value=[
+    "https://dic.nicovideo.jp/a/1",
+    "https://dic.nicovideo.jp/a/2",
+])
+@patch("main.run_scrape")
+def test_run_batch_scrape_soft_terminate_before_first_target(
+    mock_run_scrape,
+    mock_load_targets,
+    mock_run_delete_request_feeder,
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    stop_file = tmp_path / "stop_after_current"
+    stop_file.write_text("", encoding="utf-8")
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
+    monkeypatch.setenv("SOFT_TERMINATE_FILE", str(stop_file))
+
+    final_status, failed_targets = main_module.run_batch_scrape("targets.db")
+
+    assert final_status == "success"
+    assert failed_targets == 0
+    mock_run_scrape.assert_not_called()
+
+    out = capsys.readouterr().out
+    assert "[CONTROLLED STOP]" in out
+    assert "before the first target" in out
+    assert "remaining=2" in out
+
+    logs = list(Path(tmp_path).glob("batch_*.log"))
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    assert "CONTROLLED_STOP" in text
+    assert "  reason=soft_terminate" in text
+    assert f"  flag_path={stop_file}" in text
+    assert "  processed_targets=0" in text
+    assert "  remaining_targets=2" in text
+    assert "  failed_targets=0" in text
+    assert "  final_status=success" in text
+
+
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
+@patch("main.list_active_target_urls", return_value=[
+    "https://dic.nicovideo.jp/a/1",
+    "https://dic.nicovideo.jp/a/2",
+])
+def test_run_batch_scrape_soft_terminate_after_current_target(
+    mock_load_targets,
+    mock_run_delete_request_feeder,
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    stop_file = tmp_path / "stop_after_current"
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
+    monkeypatch.setenv("SOFT_TERMINATE_FILE", str(stop_file))
+
+    def run_scrape_with_stop(target):
+        stop_file.write_text("", encoding="utf-8")
+        return ScrapeResult(
+            True,
+            "ok",
+            article_title="First Title",
+            collected_response_count=12,
+            observed_max_res_no=12,
+        )
+
+    with patch("main.run_scrape", side_effect=run_scrape_with_stop) as mock_run:
+        final_status, failed_targets = main_module.run_batch_scrape("targets.db")
+
+    assert final_status == "success"
+    assert failed_targets == 0
+    assert mock_run.call_count == 1
+
+    out = capsys.readouterr().out
+    assert "[OK] https://dic.nicovideo.jp/a/1" in out
+    assert "current article was allowed to finish" in out
+    assert "processed=1 remaining=1" in out
+
+    logs = list(Path(tmp_path).glob("batch_*.log"))
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    assert "  reason=soft_terminate" in text
+    assert "  processed_targets=1" in text
+    assert "  remaining_targets=1" in text
+    assert "  current_article_finished=yes" in text
+    assert "  success_targets=1" in text
+    assert "  failed_targets=0" in text
+    assert "  final_status=success" in text
+
+
+@pytest.mark.parametrize(
+    "raw_value",
+    [None, "", "abc", "0", "-5", "nan", "inf"],
+)
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
+@patch("main.list_active_target_urls", return_value=[
+    "https://dic.nicovideo.jp/a/1",
+    "https://dic.nicovideo.jp/a/2",
+])
+@patch(
+    "main.run_scrape",
+    side_effect=[
+        ScrapeResult(True, "ok", article_title="First Title"),
+        ScrapeResult(True, "ok", article_title="Second Title"),
+    ],
+)
+def test_run_batch_scrape_duration_limit_disabled_values_keep_compatibility(
+    mock_run_scrape,
+    mock_load_targets,
+    mock_run_delete_request_feeder,
+    raw_value,
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
+    if raw_value is None:
+        monkeypatch.delenv("ONESHOT_LIMIT_DURATION_SECONDS", raising=False)
+    else:
+        monkeypatch.setenv("ONESHOT_LIMIT_DURATION_SECONDS", raw_value)
+
+    final_status, failed_targets = main_module.run_batch_scrape("targets.db")
+
+    assert final_status == "success"
+    assert failed_targets == 0
+    assert mock_run_scrape.call_count == 2
+
+
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
+@patch("main.list_active_target_urls", return_value=[
+    "https://dic.nicovideo.jp/a/1",
+    "https://dic.nicovideo.jp/a/2",
+])
+@patch("main.time.monotonic", side_effect=[0.0, 0.0, 5.0])
+@patch(
+    "main.run_scrape",
+    return_value=ScrapeResult(
+        True,
+        "ok",
+        article_title="First Title",
+        collected_response_count=12,
+        observed_max_res_no=12,
+    ),
+)
+def test_run_batch_scrape_duration_limit_stops_after_current_target(
+    mock_run_scrape,
+    mock_monotonic,
+    mock_load_targets,
+    mock_run_delete_request_feeder,
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
+    monkeypatch.setenv("ONESHOT_LIMIT_DURATION_SECONDS", "5")
+
+    final_status, failed_targets = main_module.run_batch_scrape("targets.db")
+
+    assert final_status == "success"
+    assert failed_targets == 0
+    mock_run_scrape.assert_called_once_with("https://dic.nicovideo.jp/a/1")
+    assert mock_monotonic.call_count == 3
+
+    out = capsys.readouterr().out
+    assert "[CONTROLLED STOP] duration limit reached" in out
+    assert "current article was allowed to finish" in out
+    assert "limit=5s elapsed=5s processed=1 remaining=1" in out
+
+    logs = list(Path(tmp_path).glob("batch_*.log"))
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    assert "  reason=duration_limit" in text
+    assert "  limit_seconds=5" in text
+    assert "  elapsed_seconds=5" in text
+    assert "  processed_targets=1" in text
+    assert "  remaining_targets=1" in text
+    assert "  failed_targets=0" in text
+    assert "  final_status=success" in text
 
 
 @patch("main.run_periodic_once")

@@ -1629,6 +1629,39 @@ Known follow-up:
 - Optionally perform a full-copy dry-run/apply rehearsal before runtime apply.
 
 
+## SubTask completed: soft terminate periodic shot
+
+The soft terminate periodic shot SubTask was completed with the Copilot
+implementation adopted.
+
+Summary:
+- Added file-based controlled stop support via `SOFT_TERMINATE_FILE`.
+- Added elapsed one-shot duration bounding via
+  `ONESHOT_LIMIT_DURATION_SECONDS`.
+- Stop checks occur only at safe article boundaries.
+- The current article is allowed to finish before the run stops.
+- Controlled stops are success-class when no scrape failure occurred.
+- Runtime docs and `.env.runtime.local.example` were updated.
+- `runtime/control/.gitkeep` was added so the control directory exists.
+- `docker-compose.runtime.yml` now mounts `runtime/control` into the runtime
+  container.
+
+Validation:
+- Copilot passed repo-local validation.
+- Cursor main also passed validation after main convergence.
+- `runtime/periodic_once.sh` passed shell syntax validation.
+- docker compose config showed the expected soft terminate variables and
+  control mount.
+
+Runtime note:
+- Runtime DB was not modified.
+- TASK043 DB apply was not performed.
+- The feature does not affect already-running processes that have not loaded
+  this code.
+- The current long shot still requires separate manual stop handling if it is
+  stopped before natural completion.
+
+
 Current application structure:
 
 main.py
