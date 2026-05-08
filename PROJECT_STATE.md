@@ -1824,3 +1824,19 @@ Likely next task:
 - A likely near-term follow-up is bounded scrape-progress visibility polish if
   runtime operation shows that further log readability work is still needed.
 
+
+## 2026-05-08 Runtime DB reset
+
+Runtime DB repair for TASK043-era legacy identity data was abandoned after
+copy-DB rehearsal because the remaining historical repair cost outweighed the
+value of preserving disposable personal scrape data.
+
+A compressed backup of the old runtime DB was kept, active targets were
+exported as canonical URLs, one max-BBS-response-count challenge article was
+excluded, and a fresh runtime DB was created with 12149 imported targets.
+
+A 30-minute bounded smoke shot completed successfully:
+`articles=40`, `responses=20153`, no `article_type='id'` rows, no legacy slug
+article rows, no duplicate response keys, and the excluded article remained
+absent.
+

@@ -10668,7 +10668,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Wed May  6 16:21:22 UTC 2026
+generated: Fri May  8 12:41:34 UTC 2026
 mode: full
 
 
@@ -14663,97 +14663,164 @@ See docs/PERSONAL_RUNTIME.md for runtime-container-specific notes.
 
 
 =============================
-FILE: copilot/SubTask-soft-terminate-periodic-shot_report.txt
+FILE: copilot/SubTask-BugFix-task043-target-only-numeric-slug_report.txt
 =============================
-Editor AI model: GitHub Copilot GPT-5.4
+Editor AI model: GitHub Copilot / GPT-5.4
 
-Summary of changes
+Summary of changes:
+- Extended slug repair group detection to include target rows keyed by
+  canonical_url, including target-only numeric slug cases.
+- Added strict metadata proof handling for target-only numeric slug groups:
+  /id/<digits> metadata identity is required to resolve them.
+- Kept archive-backed repair behavior intact for existing article/response
+  groups.
+- Added focused tests for target-only numeric slug detection, apply, skip,
+  unresolved proof failures, and the /a/4294967295 -> /id/237789 model.
 
-- Added article-boundary controlled stop handling to batch and
-  periodic-one-shot execution in main.py.
-- Added file-based soft terminate control via SOFT_TERMINATE_FILE.
-- Added one-shot elapsed duration limit via ONESHOT_LIMIT_DURATION_SECONDS.
-- Added bounded controlled-stop logging to stdout, host-cron reporter output,
-  and batch log files.
-- Added runtime wiring for the control file path and one-shot limit in
-  docker-compose.runtime.yml and runtime/periodic_once.sh.
-- Updated runtime documentation and local env example.
-- Added focused tests for soft terminate and duration limit behavior.
+Files changed:
+- tools/repair_slug_article_identity.py
+- tests/test_repair_slug_article_identity.py
+- SubTask-BugFix-task043-target-only-numeric-slug_report.txt
 
-Files changed
+Detection behavior:
+- The repair tool now groups by canonical_url using both articles and target
+  rows for article_type='a'.
+- It detects target rows whose canonical_url is /a/<digits>, whose stored
+  article_id equals that decoded digits-only slug, even when no article row
+  exists.
+- Legacy counts remain unchanged for articles/responses and continue to count
+  target legacy rows separately.
 
-- main.py
-- tests/test_main.py
-- docker-compose.runtime.yml
-- runtime/periodic_once.sh
-- docs/PERSONAL_RUNTIME.md
-- .env.runtime.local.example
-- runtime/control/.gitkeep
+Apply behavior:
+- When a target-only numeric slug group resolves, the tool keeps article_type
+  as 'a' and preserves the canonical /a/<digits-slug> URL.
+- The legacy target row is set inactive.
+- The resolved numeric target row is inserted or updated active if any legacy
+  source target row was active.
+- The tool does not create article_type='id' rows.
+- The tool does not rewrite canonical_url to /a/<numeric-id>.
+- The tool does not create articles rows or responses rows for target-only
+  groups.
+- If archive rows exist, existing article/response repair behavior still runs.
 
-Soft terminate flag path behavior
+Skip unresolved behavior:
+- Without --skip-unresolved, unresolved target-only numeric slug groups follow
+  the existing unresolved network abort behavior.
+- With --skip-unresolved, unresolved target-only numeric slug groups are
+  reported and skipped without modification.
+- Target-only numeric slug groups that only return the legacy digits-only slug
+  without /id/<digits> proof are treated as unresolved.
 
-- Environment variable: SOFT_TERMINATE_FILE
-- Default path: runtime/control/stop_after_current
-- docker-compose.runtime.yml mounts runtime/control into the runtime container
-  at /app/runtime/control. The default relative path is visible from both the
-  repo and the container process.
-- If the flag exists before the first target, the run stops cleanly before
-  starting any target.
-- If the flag appears during an article scrape, the current article is allowed
-  to finish and the run stops before the next target.
-- Stop checks run only before the first target and between completed targets.
+Tests / validation performed:
+- VS Code diagnostics check on tools/repair_slug_article_identity.py: no
+  errors.
+- VS Code diagnostics check on tests/test_repair_slug_article_identity.py: no
+  errors.
+- Long-line check on touched files for lines over 88 characters: no matches.
 
-One-shot duration limit behavior
+Validation that could not be run:
+- Focused Docker-based flake8 and pytest validation was attempted but the tool
+  execution was skipped, so executable validation results are not available.
 
-- Environment variable: ONESHOT_LIMIT_DURATION_SECONDS
-- Unset, empty, invalid, negative, NaN, infinite, and zero values are treated
-  as disabled.
-- A positive value enables elapsed-time bounding for one batch or
-  periodic-one-shot run.
-- The timer starts when run_batch_scrape begins.
-- The elapsed limit is checked only before the first target and between
-  completed targets.
-- If the limit is reached, the current article is still allowed to finish and
-  the run stops before the next target.
+Runtime DB statement:
+- Runtime DB was not modified by this task.
 
-Logging / exit behavior
+Production apply statement:
+- Production apply was not performed by this task.
 
-- Controlled stops are logged as human-readable CONTROLLED_STOP entries in
-  batch logs.
-- Stdout and host-cron output indicate whether the stop came from the soft
-  terminate flag or the duration limit.
-- Controlled-stop messages include processed target count and remaining target
-  count when available.
-- Controlled stops do not increment failed_targets by themselves.
-- Exit behavior remains success-class for controlled stops unless actual target
-  failures already occurred.
-- Batch CLI exit remains code 0 when a controlled stop occurs without scrape
-  failures.
+13GB rehearsal DB statement:
+- 13GB rehearsal DBs were not deleted by this task.
 
-Tests / validation performed
 
-- Static error check: no errors reported for main.py and tests/test_main.py.
-- Focused tests were added for:
-  - soft terminate before the first target
-  - soft terminate after one completed target
-  - current target allowed to finish before stop
-  - duration limit disabled values remaining compatible
-  - duration limit stopping after the current article completes
-  - controlled stop not counted as a target failure
+=============================
+FILE: copilot/SubTask-BugFix-task043-unresolved-network-skip_report.txt
+=============================
+Editor AI model: GitHub Copilot / GPT-5.4
 
-Validation that could not be run
+Summary of changes:
+- Added bounded network retry support to tools/repair_slug_article_identity.py.
+- Added explicit unresolved network abort-or-skip handling.
+- Added human-readable unresolved report output support.
+- Extended legacy detection to numeric-only /a/<slug> article_id cases.
+- Aligned legacy summary counts with numeric-only slug detection.
+- Normalized article title to the decoded numeric slug when applying repair.
+- Added focused tests for retry, skip, report, and numeric slug flows.
+- Made numeric-only slug target assertions order-independent where SQL uses
+  ORDER BY article_id string ordering.
 
-- Targeted pytest execution for tests/test_main.py could not be run in the
-  editor environment because Python terminal execution was skipped by the tool
-  layer during validation attempts.
-- Human-side validate_helix.sh was run after implementation and passed.
+Files changed:
+- tools/repair_slug_article_identity.py
+- tests/test_repair_slug_article_identity.py
+- SubTask-BugFix-task043-unresolved-network-skip_report.txt
 
-Explicit statements
+CLI options added:
+- --network-retries N
+- --network-retry-delay-seconds SECONDS
+- --skip-unresolved
+- --unresolved-report PATH
 
-- Runtime DB was not modified.
-- TASK043 DB apply was not performed.
-- This change does not retroactively affect an already-running process that has
-  not loaded this code.
+Retry behavior:
+- Retries apply only to metadata fetches performed by this repair tool.
+- Default retries are bounded: 2 additional retries with 1.0 second delay.
+- Negative retry counts and negative retry delays are rejected.
+- No infinite retry behavior was added.
+
+Skip unresolved behavior:
+- Without --skip-unresolved, unresolved network metadata failures raise an
+  error after retries and abort the run.
+- With --skip-unresolved, unresolved groups are recorded and skipped while
+  other resolvable groups continue.
+- In apply mode, skipped unresolved groups are not modified.
+- Summary output now includes unresolved and skipped group counts.
+
+Unresolved report behavior:
+- When unresolved groups exist and --unresolved-report PATH is provided, the
+  tool writes a stable human-readable text report.
+- The report includes canonical_url, legacy article_id, article_type, reason,
+  error summary, attempts made, and existing numeric IDs.
+- If no unresolved groups exist, no report file is written.
+
+Numeric-only slug handling:
+- The tool now detects article_type='a' rows whose canonical_url is
+  /a/<digits> and whose stored article_id matches that numeric slug.
+- Legacy counts for articles, responses, and target rows now use the same
+  numeric-slug detection rules.
+- Such groups resolve through the same metadata path used for legacy slug
+  repairs.
+- Repairs preserve article_type='a' and the canonical /a/<slug> URL.
+- The tool does not rewrite canonical_url into /a/<numeric_id> and does not
+  create article_type='id' rows.
+- Numeric slug groups are only modified when the resolved numeric article ID
+  differs from the stored legacy article_id.
+- When metadata returns an /id/<digits> article URL, that resolved numeric ID
+  takes precedence over a legacy digits-only /a/<slug> article_id value.
+- When applying a numeric slug repair, the normalized article row title is
+  updated to the decoded canonical slug.
+- If the resolved numeric ID matches the stored value, apply mode leaves the
+  group untouched.
+
+Tests / validation performed:
+- VS Code diagnostics check on tools/repair_slug_article_identity.py: no
+  errors.
+- VS Code diagnostics check on tests/test_repair_slug_article_identity.py: no
+  errors.
+- Long-line check on touched files for lines over 88 characters: no matches.
+- Numeric-only slug target assertions now validate exact row content without
+  depending on lexicographic article_id ordering.
+
+Validation that could not be run:
+- Focused pytest execution for tests/test_repair_slug_article_identity.py was
+  attempted twice, but the terminal tool execution was skipped, so executable
+  test results are not available from this task.
+
+Runtime DB statement:
+- Runtime DB was not modified by this task.
+
+Production apply statement:
+- TASK043 production apply was not performed.
+
+Large rehearsal DB statement:
+- Large rehearsal DB files were not deleted by this task.
 
 
 =============================
@@ -29651,9 +29718,11 @@ import pytest
 
 from storage import init_db, register_target
 from tools.repair_slug_article_identity import (
+    UnresolvedNetworkError,
     format_repair_summary_lines,
     plan_slug_article_identity_repair,
     repair_slug_article_identity,
+    write_unresolved_report,
 )
 
 
@@ -29693,6 +29762,41 @@ def _build_slug_group_db(tmp_path):
 
     conn.commit()
     return conn, str(db_path), canonical_url, slug_id, numeric_id
+
+
+def _build_numeric_slug_group_db(tmp_path):
+    db_path = tmp_path / "numeric-repair.db"
+    conn = init_db(str(db_path))
+    canonical_url = "https://dic.nicovideo.jp/a/999"
+    legacy_numeric_slug_id = "999"
+    resolved_numeric_id = "4734363"
+
+    _seed_articles_row(conn, legacy_numeric_slug_id, "999", canonical_url)
+    _seed_response_row(conn, legacy_numeric_slug_id, 1, "N1")
+    register_target(conn, legacy_numeric_slug_id, "a", canonical_url)
+
+    conn.commit()
+    return (
+        conn,
+        str(db_path),
+        canonical_url,
+        legacy_numeric_slug_id,
+        resolved_numeric_id,
+    )
+
+
+def _build_target_only_numeric_slug_db(
+    tmp_path,
+    *,
+    slug_id="999",
+):
+    db_path = tmp_path / f"target-only-{slug_id}.db"
+    conn = init_db(str(db_path))
+    canonical_url = f"https://dic.nicovideo.jp/a/{slug_id}"
+
+    register_target(conn, slug_id, "a", canonical_url)
+    conn.commit()
+    return conn, str(db_path), canonical_url, slug_id
 
 
 def test_requires_explicit_db_path():
@@ -29866,7 +29970,13 @@ def test_group_skipped_when_network_resolution_fails(tmp_path, monkeypatch):
         },
     )
 
-    summary = repair_slug_article_identity(db_path, apply=False, allow_network=True)
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=False,
+        allow_network=True,
+        skip_unresolved=True,
+        network_retry_delay_seconds=0,
+    )
     assert summary["groups"][0]["resolved_numeric_article_id"] is None
     assert summary["groups"][0]["resolved_by"] == "network_failed"
 
@@ -30022,6 +30132,701 @@ def test_dry_run_with_limit_performs_no_writes(tmp_path, monkeypatch):
         assert cur.fetchone()[0] == 1
         cur.execute("SELECT COUNT(*) FROM responses")
         assert cur.fetchone()[0] == 2
+    finally:
+        conn.close()
+
+
+def test_network_fetch_failure_retries(tmp_path, monkeypatch):
+    conn, db_path, canonical_url, _, numeric_id = _build_slug_group_db(tmp_path)
+    conn.close()
+
+    calls: list[str] = []
+
+    def _mock_fetch(url: str) -> dict:
+        calls.append(url)
+        if len(calls) < 3:
+            raise RuntimeError(f"temporary upstream failure status=500 {len(calls)}")
+        return {
+            "article_id": numeric_id,
+            "article_type": "a",
+            "title": "Foo",
+        }
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        _mock_fetch,
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=False,
+        allow_network=True,
+        network_retries=2,
+        network_retry_delay_seconds=0,
+    )
+
+    assert len(calls) == 3
+    assert summary["groups"][0]["resolved_numeric_article_id"] == numeric_id
+    assert summary["groups"][0]["attempts_made"] == 3
+
+
+def test_network_failure_aborts_without_skip_unresolved(tmp_path, monkeypatch):
+    conn, db_path, _, _, _ = _build_slug_group_db(tmp_path)
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: (_ for _ in ()).throw(RuntimeError("status=500")),
+    )
+
+    with pytest.raises(UnresolvedNetworkError):
+        repair_slug_article_identity(
+            db_path,
+            apply=False,
+            allow_network=True,
+            network_retries=1,
+            network_retry_delay_seconds=0,
+        )
+
+
+def test_network_failure_is_skipped_with_skip_unresolved(tmp_path, monkeypatch):
+    conn, db_path, canonical_url, slug_id, _ = _build_slug_group_db(tmp_path)
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: (_ for _ in ()).throw(RuntimeError("status=500")),
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=False,
+        allow_network=True,
+        network_retries=1,
+        network_retry_delay_seconds=0,
+        skip_unresolved=True,
+    )
+
+    group = summary["groups"][0]
+    assert group["canonical_url"] == canonical_url
+    assert group["source_article_ids"] == [slug_id]
+    assert group["resolved_numeric_article_id"] is None
+    assert group["resolved_by"] == "network_failed"
+    assert group["attempts_made"] == 2
+
+
+def test_unresolved_report_is_written_with_expected_contents(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, slug_id, _ = _build_slug_group_db(tmp_path)
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: (_ for _ in ()).throw(RuntimeError("status=500")),
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=False,
+        allow_network=True,
+        network_retries=1,
+        network_retry_delay_seconds=0,
+        skip_unresolved=True,
+    )
+    report_path = tmp_path / "unresolved.txt"
+    write_unresolved_report(str(report_path), summary)
+
+    text = report_path.read_text(encoding="utf-8")
+    assert canonical_url in text
+    assert f"legacy_article_id: {slug_id}" in text
+    assert "article_type: a" in text
+    assert "reason: network_failed" in text
+    assert "error: status=500" in text
+    assert "attempts_made: 2" in text
+
+
+def test_skipped_unresolved_groups_are_not_modified_in_apply_mode(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, _, slug_id, _ = _build_slug_group_db(tmp_path)
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: (_ for _ in ()).throw(RuntimeError("status=500")),
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retries=1,
+        network_retry_delay_seconds=0,
+        skip_unresolved=True,
+    )
+
+    assert summary["groups"][0]["apply"]["status"] == "skipped"
+    assert summary["groups"][0]["apply"]["reason"] == "network_failed"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT article_id, title, canonical_url FROM articles ORDER BY article_id"
+        )
+        assert cur.fetchall() == [
+            (slug_id, "Foo", "https://dic.nicovideo.jp/a/foo-slug")
+        ]
+        cur.execute(
+            "SELECT article_id, article_type, res_no FROM responses ORDER BY res_no"
+        )
+        assert cur.fetchall() == [(slug_id, "a", 1), (slug_id, "a", 2)]
+    finally:
+        conn.close()
+
+
+def test_numeric_only_slug_article_id_is_detected_and_planned(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id, resolved_numeric_id = (
+        _build_numeric_slug_group_db(tmp_path)
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": resolved_numeric_id,
+            "article_type": "a",
+            "title": "999",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=False,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    group = summary["groups"][0]
+    assert summary["legacy_counts"]["articles"] == 1
+    assert summary["legacy_counts"]["responses"] == 1
+    assert summary["legacy_counts"]["target"] == 1
+    assert group["canonical_url"] == canonical_url
+    assert group["source_article_ids"] == [legacy_id]
+    assert group["existing_numeric_article_ids"] == []
+    assert group["resolved_numeric_article_id"] == resolved_numeric_id
+    assert group["resolved_by"] == "network"
+
+
+def test_numeric_only_slug_article_id_is_applied_when_metadata_resolves(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id, resolved_numeric_id = (
+        _build_numeric_slug_group_db(tmp_path)
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": resolved_numeric_id,
+            "article_type": "a",
+            "title": "999",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    assert summary["groups"][0]["apply"]["status"] == "applied"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT article_id, article_type, title, canonical_url "
+            "FROM articles ORDER BY article_id"
+        )
+        assert cur.fetchall() == [
+            (
+                resolved_numeric_id,
+                "a",
+                "999",
+                canonical_url,
+            )
+        ]
+        cur.execute(
+            "SELECT article_id, article_type, res_no, content_text "
+            "FROM responses ORDER BY res_no"
+        )
+        assert cur.fetchall() == [
+            (resolved_numeric_id, "a", 1, "N1")
+        ]
+        cur.execute(
+            "SELECT article_id, article_type, canonical_url, is_active "
+            "FROM target ORDER BY article_id"
+        )
+        assert set(cur.fetchall()) == {
+            (legacy_id, "a", canonical_url, 0),
+            (resolved_numeric_id, "a", canonical_url, 1),
+        }
+    finally:
+        conn.close()
+
+
+def test_numeric_only_slug_unresolved_case_is_skipped_safely(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id, _ = _build_numeric_slug_group_db(
+        tmp_path
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: (_ for _ in ()).throw(RuntimeError("status=500")),
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retries=1,
+        network_retry_delay_seconds=0,
+        skip_unresolved=True,
+    )
+
+    group = summary["groups"][0]
+    assert group["canonical_url"] == canonical_url
+    assert group["resolved_numeric_article_id"] is None
+    assert group["apply"]["status"] == "skipped"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT article_id, title, canonical_url FROM articles ORDER BY article_id"
+        )
+        assert cur.fetchall() == [(legacy_id, "999", canonical_url)]
+    finally:
+        conn.close()
+
+
+def test_numeric_only_slug_same_resolved_id_is_noop_in_apply(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id, _ = _build_numeric_slug_group_db(
+        tmp_path
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": legacy_id,
+            "article_type": "a",
+            "title": "999",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    group = summary["groups"][0]
+    assert group["needs_repair"] is False
+    assert group["apply"]["status"] == "skipped"
+    assert group["apply"]["reason"] == "no_identity_change"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT article_id, title, canonical_url FROM articles ORDER BY article_id"
+        )
+        assert cur.fetchall() == [(legacy_id, "999", canonical_url)]
+    finally:
+        conn.close()
+
+
+def test_numeric_only_slug_apply_overwrites_preexisting_numeric_title(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id, resolved_numeric_id = (
+        _build_numeric_slug_group_db(tmp_path)
+    )
+    try:
+        _seed_articles_row(conn, resolved_numeric_id, "Wrong title", canonical_url)
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": resolved_numeric_id,
+            "article_type": "a",
+            "title": "999",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    assert summary["groups"][0]["apply"]["status"] == "applied"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT article_id, title, canonical_url FROM articles ORDER BY article_id"
+        )
+        assert cur.fetchall() == [
+            (resolved_numeric_id, "999", canonical_url)
+        ]
+        cur.execute(
+            "SELECT article_id, article_type, canonical_url, is_active "
+            "FROM target ORDER BY article_id"
+        )
+        assert set(cur.fetchall()) == {
+            (legacy_id, "a", canonical_url, 0),
+            (resolved_numeric_id, "a", canonical_url, 1),
+        }
+    finally:
+        conn.close()
+
+
+def test_numeric_only_slug_prefers_metadata_id_url_identity(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id, resolved_numeric_id = (
+        _build_numeric_slug_group_db(tmp_path)
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": legacy_id,
+            "article_type": "a",
+            "article_url": f"https://dic.nicovideo.jp/id/{resolved_numeric_id}",
+            "title": "999",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    assert summary["groups"][0]["apply"]["status"] == "applied"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT article_id, article_type, title, canonical_url "
+            "FROM articles ORDER BY article_id"
+        )
+        assert cur.fetchall() == [
+            (resolved_numeric_id, "a", "999", canonical_url)
+        ]
+        cur.execute(
+            "SELECT article_id, article_type, canonical_url, is_active "
+            "FROM target ORDER BY article_id"
+        )
+        assert set(cur.fetchall()) == {
+            (legacy_id, "a", canonical_url, 0),
+            (resolved_numeric_id, "a", canonical_url, 1),
+        }
+    finally:
+        conn.close()
+
+
+def test_metadata_record_with_article_id_but_missing_canonical_url_still_works(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, _, numeric_id = _build_slug_group_db(tmp_path)
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": numeric_id,
+            "article_type": "a",
+            "title": "Foo",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=False,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    group = summary["groups"][0]
+    assert group["canonical_url"] == canonical_url
+    assert group["resolved_numeric_article_id"] == numeric_id
+
+
+def test_existing_legacy_non_digit_slug_behavior_still_passes(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, slug_id, numeric_id = _build_slug_group_db(tmp_path)
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": numeric_id,
+            "article_type": "a",
+            "title": "Foo",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    assert summary["groups"][0]["source_article_ids"] == [slug_id]
+    assert summary["groups"][0]["resolved_numeric_article_id"] == numeric_id
+    assert summary["groups"][0]["apply"]["status"] == "applied"
+    lines = format_repair_summary_lines(db_path, summary)
+    assert any("Unresolved groups: 0" in line for line in lines)
+
+
+def test_target_only_numeric_slug_is_detected_and_planned(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id = _build_target_only_numeric_slug_db(
+        tmp_path
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": legacy_id,
+            "article_type": "a",
+            "article_url": "https://dic.nicovideo.jp/id/4734363",
+            "title": "999",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=False,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    group = summary["groups"][0]
+    assert summary["legacy_counts"]["articles"] == 0
+    assert summary["legacy_counts"]["responses"] == 0
+    assert summary["legacy_counts"]["target"] == 1
+    assert group["canonical_url"] == canonical_url
+    assert group["source_article_ids"] == [legacy_id]
+    assert group["existing_numeric_article_ids"] == []
+    assert group["resolved_numeric_article_id"] == "4734363"
+    assert group["resolved_by"] == "network"
+    assert group["title"] == "999"
+
+
+def test_target_only_numeric_slug_apply_normalizes_target_only(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id = _build_target_only_numeric_slug_db(
+        tmp_path
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": legacy_id,
+            "article_type": "a",
+            "article_url": "https://dic.nicovideo.jp/id/4734363",
+            "title": "999",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    assert summary["groups"][0]["apply"]["status"] == "applied"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM articles")
+        assert cur.fetchone()[0] == 0
+        cur.execute("SELECT COUNT(*) FROM responses")
+        assert cur.fetchone()[0] == 0
+        cur.execute(
+            "SELECT article_id, article_type, canonical_url, is_active "
+            "FROM target ORDER BY article_id"
+        )
+        assert set(cur.fetchall()) == {
+            (legacy_id, "a", canonical_url, 0),
+            ("4734363", "a", canonical_url, 1),
+        }
+    finally:
+        conn.close()
+
+
+def test_target_only_numeric_slug_network_failure_skips_safely(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id = _build_target_only_numeric_slug_db(
+        tmp_path
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: (_ for _ in ()).throw(RuntimeError("status=500")),
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retries=1,
+        network_retry_delay_seconds=0,
+        skip_unresolved=True,
+    )
+
+    group = summary["groups"][0]
+    assert group["canonical_url"] == canonical_url
+    assert group["resolved_numeric_article_id"] is None
+    assert group["apply"]["status"] == "skipped"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM articles")
+        assert cur.fetchone()[0] == 0
+        cur.execute("SELECT COUNT(*) FROM responses")
+        assert cur.fetchone()[0] == 0
+        cur.execute(
+            "SELECT article_id, article_type, canonical_url, is_active "
+            "FROM target"
+        )
+        assert cur.fetchall() == [(legacy_id, "a", canonical_url, 1)]
+    finally:
+        conn.close()
+
+
+def test_target_only_numeric_slug_without_id_url_is_unresolved(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id = _build_target_only_numeric_slug_db(
+        tmp_path
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": legacy_id,
+            "article_type": "a",
+            "title": "999",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=False,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+        skip_unresolved=True,
+    )
+
+    group = summary["groups"][0]
+    assert group["canonical_url"] == canonical_url
+    assert group["resolved_numeric_article_id"] is None
+    assert group["resolved_by"] == "network_failed"
+
+
+def test_target_only_numeric_slug_4294967295_model_is_protected(
+    tmp_path,
+    monkeypatch,
+):
+    slug_id = "4294967295"
+    conn, db_path, canonical_url, legacy_id = _build_target_only_numeric_slug_db(
+        tmp_path,
+        slug_id=slug_id,
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": legacy_id,
+            "article_type": "a",
+            "article_url": "https://dic.nicovideo.jp/id/237789",
+            "title": slug_id,
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    assert summary["groups"][0]["resolved_numeric_article_id"] == "237789"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT article_id, article_type, canonical_url, is_active "
+            "FROM target ORDER BY article_id"
+        )
+        assert set(cur.fetchall()) == {
+            (legacy_id, "a", canonical_url, 0),
+            ("237789", "a", canonical_url, 1),
+        }
     finally:
         conn.close()
 
@@ -32694,8 +33499,9 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
+import time
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -32703,10 +33509,36 @@ if str(REPO_ROOT) not in sys.path:
 
 from orchestrator import fetch_article_metadata_record  # noqa: E402
 from storage import validate_saved_article_identity  # noqa: E402
+from target_list import parse_target_identity  # noqa: E402
+
+
+DEFAULT_NETWORK_RETRIES = 2
+DEFAULT_NETWORK_RETRY_DELAY_SECONDS = 1.0
+
+
+class UnresolvedNetworkError(RuntimeError):
+    """Raised when metadata resolution still fails after bounded retries."""
 
 
 def _is_digits_only(value: str) -> bool:
     return bool(value) and value.isdigit()
+
+
+def _normalize_network_retries(value: int) -> int:
+    if value < 0:
+        raise ValueError(
+            f"network_retries must be non-negative, got {value}"
+        )
+    return value
+
+
+def _normalize_network_retry_delay_seconds(value: float) -> float:
+    if value < 0:
+        raise ValueError(
+            "network_retry_delay_seconds must be non-negative, "
+            f"got {value}"
+        )
+    return value
 
 
 def _canonical_url_key(canonical_url: str | None) -> str | None:
@@ -32726,31 +33558,108 @@ def _is_canonical_a_url(url: str) -> bool:
     return len(parts) == 2 and parts[0] == "a" and bool(parts[1])
 
 
-def _resolve_numeric_article_id_from_db_rows(rows: list[dict]) -> str | None:
+def _decoded_canonical_a_slug(canonical_url: str | None) -> str | None:
+    if canonical_url is None or not _is_canonical_a_url(canonical_url):
+        return None
+    parsed = urlparse(canonical_url)
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) != 2:
+        return None
+    slug = unquote(parts[1]).strip()
+    return slug or None
+
+
+def _is_legacy_slug_identity(
+    article_id: str | None,
+    canonical_url: str | None,
+) -> bool:
+    normalized_id = (article_id or "").strip()
+    if not normalized_id:
+        return True
+    if not _is_digits_only(normalized_id):
+        return True
+    slug = _decoded_canonical_a_slug(canonical_url)
+    if slug is None or not _is_digits_only(slug):
+        return False
+    return normalized_id == slug
+
+
+def _resolve_numeric_article_id_from_db_rows(
+    rows: list[dict],
+    *,
+    canonical_url: str,
+) -> str | None:
     for row in rows:
         article_id = row.get("article_id") or ""
-        if _is_digits_only(article_id):
+        if (
+            _is_digits_only(article_id)
+            and not _is_legacy_slug_identity(article_id, canonical_url)
+        ):
             return article_id
     return None
 
 
-def _resolve_numeric_article_id_from_network(canonical_url: str) -> str | None:
-    record = fetch_article_metadata_record(canonical_url)
-    article_id = record.get("article_id") or ""
-    if not _is_digits_only(article_id):
-        return None
-    return article_id
+def _resolve_numeric_article_id_from_network(
+    canonical_url: str,
+    *,
+    network_retries: int,
+    network_retry_delay_seconds: float,
+    require_id_url_proof: bool = False,
+) -> dict:
+    attempts = 0
+    max_attempts = network_retries + 1
+    last_error = "metadata record did not contain a usable numeric article_id"
+
+    for attempt in range(max_attempts):
+        attempts = attempt + 1
+        try:
+            record = fetch_article_metadata_record(canonical_url)
+        except Exception as exc:
+            last_error = str(exc) or exc.__class__.__name__
+        else:
+            metadata_article_url = (record.get("article_url") or "").strip()
+            metadata_identity = parse_target_identity(metadata_article_url)
+            article_id = ""
+            has_id_url_proof = False
+            if metadata_identity is not None:
+                metadata_id = (metadata_identity.get("article_id") or "").strip()
+                if (
+                    metadata_identity.get("article_type") == "id"
+                    and _is_digits_only(metadata_id)
+                ):
+                    has_id_url_proof = True
+                    article_id = metadata_id
+
+            if not article_id and not require_id_url_proof:
+                article_id = (record.get("article_id") or "").strip()
+
+            if _is_digits_only(article_id) and (
+                has_id_url_proof or not require_id_url_proof
+            ):
+                return {
+                    "numeric_id": article_id,
+                    "attempts": attempts,
+                    "error": None,
+                    "reason": None,
+                }
+            value = article_id or "<missing>"
+            last_error = (
+                "metadata record did not contain a usable numeric "
+                f"article_id: {value}"
+            )
+
+        if attempt + 1 < max_attempts and network_retry_delay_seconds > 0:
+            time.sleep(network_retry_delay_seconds)
+
+    return {
+        "numeric_id": None,
+        "attempts": attempts,
+        "error": last_error,
+        "reason": "network_failed",
+    }
 
 
-def _list_slug_article_groups(conn: sqlite3.Connection) -> list[dict]:
-    """
-    Return groups keyed by canonical_url for legacy slug identities.
-
-    Group definition:
-    - articles.article_type='a'
-    - canonical_url is present
-    - at least one articles.article_id is non-digits (legacy slug identity)
-    """
+def _load_group_rows_from_articles(conn: sqlite3.Connection) -> dict[str, list[dict]]:
     cur = conn.cursor()
     cur.execute(
         """
@@ -32774,12 +33683,80 @@ def _list_slug_article_groups(conn: sqlite3.Connection) -> list[dict]:
                 "article_type": article_type,
                 "title": title,
                 "canonical_url": canonical_url,
+                "row_origin": "article",
             }
         )
 
+    return by_url
+
+
+def _append_target_only_group_rows(
+    conn: sqlite3.Connection,
+    by_url: dict[str, list[dict]],
+) -> None:
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT article_id, article_type, canonical_url, is_active
+        FROM target
+        WHERE article_type='a'
+              AND canonical_url IS NOT NULL
+              AND canonical_url <> ''
+        ORDER BY canonical_url ASC, article_id ASC
+        """
+    )
+
+    for article_id, article_type, canonical_url, is_active in cur.fetchall():
+        key = _canonical_url_key(canonical_url)
+        if key is None:
+            continue
+        by_url.setdefault(key, []).append(
+            {
+                "article_id": article_id,
+                "article_type": article_type,
+                "title": None,
+                "canonical_url": canonical_url,
+                "row_origin": "target",
+                "is_active": int(is_active),
+            }
+        )
+
+
+def _has_archive_rows(rows: list[dict]) -> bool:
+    return any(row.get("row_origin") == "article" for row in rows)
+
+
+def _requires_id_url_proof(rows: list[dict]) -> bool:
+    if _has_archive_rows(rows):
+        return False
+    return any(
+        _is_digits_only((row.get("article_id") or "").strip())
+        and _is_legacy_slug_identity(
+            row.get("article_id"),
+            row.get("canonical_url"),
+        )
+        for row in rows
+    )
+
+
+def _list_slug_article_groups(conn: sqlite3.Connection) -> list[dict]:
+    """
+    Return groups keyed by canonical_url for legacy slug identities.
+
+    Group definition:
+    - article_type='a'
+    - canonical_url is present
+    - at least one row has a legacy slug identity
+    """
+    by_url = _load_group_rows_from_articles(conn)
+    _append_target_only_group_rows(conn, by_url)
+
     groups: list[dict] = []
     for canonical_url, rows in by_url.items():
-        if not any(not _is_digits_only(r["article_id"] or "") for r in rows):
+        if not any(
+            _is_legacy_slug_identity(r.get("article_id"), canonical_url)
+            for r in rows
+        ):
             continue
         groups.append({"canonical_url": canonical_url, "rows": rows})
     return groups
@@ -32789,33 +33766,45 @@ def _count_legacy_slug_rows(conn: sqlite3.Connection) -> dict:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT COUNT(*)
+        SELECT article_id, canonical_url
         FROM articles
         WHERE article_type='a'
-              AND (article_id IS NULL OR article_id='' OR article_id GLOB '*[^0-9]*')
         """
     )
-    article_count = int(cur.fetchone()[0])
+    article_count = sum(
+        1
+        for article_id, canonical_url in cur.fetchall()
+        if _is_legacy_slug_identity(article_id, canonical_url)
+    )
 
     cur.execute(
         """
-        SELECT COUNT(*)
+        SELECT responses.article_id, articles.canonical_url
         FROM responses
-        WHERE article_type='a'
-              AND (article_id IS NULL OR article_id='' OR article_id GLOB '*[^0-9]*')
+        LEFT JOIN articles
+          ON articles.article_id = responses.article_id
+         AND articles.article_type = responses.article_type
+        WHERE responses.article_type='a'
         """
     )
-    response_count = int(cur.fetchone()[0])
+    response_count = sum(
+        1
+        for article_id, canonical_url in cur.fetchall()
+        if _is_legacy_slug_identity(article_id, canonical_url)
+    )
 
     cur.execute(
         """
-        SELECT COUNT(*)
+        SELECT article_id, canonical_url
         FROM target
         WHERE article_type='a'
-              AND (article_id IS NULL OR article_id='' OR article_id GLOB '*[^0-9]*')
         """
     )
-    target_count = int(cur.fetchone()[0])
+    target_count = sum(
+        1
+        for article_id, canonical_url in cur.fetchall()
+        if _is_legacy_slug_identity(article_id, canonical_url)
+    )
 
     return {
         "articles": article_count,
@@ -32826,9 +33815,20 @@ def _count_legacy_slug_rows(conn: sqlite3.Connection) -> dict:
 
 def _best_title(rows: list[dict]) -> str:
     for row in rows:
+        slug = _decoded_canonical_a_slug(row.get("canonical_url"))
+        if slug and _is_legacy_slug_identity(
+            row.get("article_id"),
+            row.get("canonical_url"),
+        ):
+            return slug
+    for row in rows:
         title = (row.get("title") or "").strip()
         if title:
             return title
+    for row in rows:
+        slug = _decoded_canonical_a_slug(row.get("canonical_url"))
+        if slug:
+            return slug
     return "unknown"
 
 
@@ -32838,7 +33838,7 @@ def _list_group_sources(rows: list[dict]) -> list[str]:
         article_id = (row.get("article_id") or "").strip()
         if not article_id:
             continue
-        if not _is_digits_only(article_id):
+        if _is_legacy_slug_identity(article_id, row.get("canonical_url")):
             sources.append(article_id)
     return sorted(set(sources))
 
@@ -32847,9 +33847,111 @@ def _list_existing_numeric_ids(rows: list[dict]) -> list[str]:
     ids: list[str] = []
     for row in rows:
         article_id = (row.get("article_id") or "").strip()
-        if _is_digits_only(article_id):
+        if (
+            _is_digits_only(article_id)
+            and not _is_legacy_slug_identity(article_id, row.get("canonical_url"))
+        ):
             ids.append(article_id)
     return sorted(set(ids))
+
+
+def _build_unresolved_group(
+    *,
+    canonical_url: str,
+    sources: list[str],
+    existing_numeric: list[str],
+    title: str,
+    resolved_by: str,
+    reason: str,
+    error: str,
+    attempts: int,
+    has_archive_rows: bool,
+) -> dict:
+    return {
+        "canonical_url": canonical_url,
+        "source_article_ids": sources,
+        "existing_numeric_article_ids": existing_numeric,
+        "resolved_numeric_article_id": None,
+        "resolved_by": resolved_by,
+        "title": title,
+        "unresolved_reason": reason,
+        "unresolved_error": error,
+        "attempts_made": attempts,
+        "article_type": "a",
+        "has_archive_rows": has_archive_rows,
+    }
+
+
+def _raise_for_unresolved_network_groups(groups: list[dict]) -> None:
+    first = groups[0]
+    sources = ", ".join(first.get("source_article_ids") or []) or "-"
+    message = (
+        "unresolved network metadata resolution for canonical_url="
+        f"{first['canonical_url']} sources={sources} attempts="
+        f"{first.get('attempts_made', 0)} error="
+        f"{first.get('unresolved_error') or first.get('resolved_by')}"
+    )
+    raise UnresolvedNetworkError(message)
+
+
+def _format_unresolved_report_lines(summary: dict) -> list[str]:
+    groups = [
+        group
+        for group in summary.get("groups") or []
+        if group.get("resolved_numeric_article_id") is None
+    ]
+    lines = [
+        "=== UNRESOLVED SLUG ARTICLE IDENTITY GROUPS ===",
+        f"Count: {len(groups)}",
+    ]
+    for group in groups:
+        lines.append(f"- canonical_url: {group['canonical_url']}")
+        lines.append(
+            "  legacy_article_id: "
+            f"{', '.join(group.get('source_article_ids') or []) or '-'}"
+        )
+        lines.append(
+            f"  article_type: {group.get('article_type') or 'a'}"
+        )
+        lines.append(
+            f"  reason: {group.get('unresolved_reason') or group['resolved_by']}"
+        )
+        lines.append(
+            "  error: "
+            f"{group.get('unresolved_error') or group['resolved_by']}"
+        )
+        lines.append(
+            f"  attempts_made: {group.get('attempts_made', 0)}"
+        )
+        existing = group.get("existing_numeric_article_ids") or []
+        lines.append(
+            f"  existing_numeric_ids: {', '.join(existing) or '-'}"
+        )
+    return lines
+
+
+def _group_needs_repair(group: dict) -> bool:
+    numeric_id = group.get("resolved_numeric_article_id")
+    if numeric_id is None:
+        return False
+    sources = group.get("source_article_ids") or []
+    return any(source_id != numeric_id for source_id in sources)
+
+
+def write_unresolved_report(report_path: str, summary: dict) -> None:
+    unresolved_groups = [
+        group
+        for group in summary.get("groups") or []
+        if group.get("resolved_numeric_article_id") is None
+    ]
+    if not unresolved_groups:
+        return
+    report = Path(report_path)
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text(
+        "\n".join(_format_unresolved_report_lines(summary)) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _ensure_numeric_article_row(
@@ -32871,7 +33973,7 @@ def _ensure_numeric_article_row(
     cur.execute(
         """
         UPDATE articles
-        SET title = COALESCE(NULLIF(title, ''), ?),
+        SET title = ?,
             canonical_url = ?
         WHERE article_id = ? AND article_type = 'a'
         """,
@@ -33034,8 +34136,17 @@ def plan_slug_article_identity_repair(
     conn: sqlite3.Connection,
     *,
     allow_network: bool,
+    network_retries: int = DEFAULT_NETWORK_RETRIES,
+    network_retry_delay_seconds: float = (
+        DEFAULT_NETWORK_RETRY_DELAY_SECONDS
+    ),
+    skip_unresolved: bool = False,
     limit: int | None = None,
 ) -> dict:
+    network_retries = _normalize_network_retries(network_retries)
+    network_retry_delay_seconds = _normalize_network_retry_delay_seconds(
+        network_retry_delay_seconds
+    )
     all_groups = _list_slug_article_groups(conn)
     legacy_counts = _count_legacy_slug_rows(conn)
     total_detected = len(all_groups)
@@ -33043,55 +34154,107 @@ def plan_slug_article_identity_repair(
     plan: dict = {
         "dry_run": True,
         "allow_network": allow_network,
+        "network_retries": network_retries,
+        "network_retry_delay_seconds": network_retry_delay_seconds,
+        "skip_unresolved": skip_unresolved,
         "legacy_counts": legacy_counts,
         "total_detected_groups": total_detected,
         "processed_groups": len(groups),
         "groups": [],
     }
 
+    unresolved_network_groups: list[dict] = []
+
     for group in groups:
         canonical_url = group["canonical_url"]
         rows = group["rows"]
         sources = _list_group_sources(rows)
         existing_numeric = _list_existing_numeric_ids(rows)
-        numeric_id = _resolve_numeric_article_id_from_db_rows(rows)
+        numeric_id = _resolve_numeric_article_id_from_db_rows(
+            rows,
+            canonical_url=canonical_url,
+        )
         resolved_by = "db"
+        attempts_made = 0
+        unresolved_reason = None
+        unresolved_error = None
+        title = _best_title(rows)
+        require_id_url_proof = _requires_id_url_proof(rows)
 
         if numeric_id is None:
             resolved_by = "network"
             if not allow_network:
-                numeric_id = None
                 resolved_by = "skipped_network_disallowed"
-            elif not _is_canonical_a_url(canonical_url):
-                numeric_id = None
-                resolved_by = "skipped_invalid_canonical_url"
-            else:
-                numeric_id = _resolve_numeric_article_id_from_network(
-                    canonical_url
+                unresolved_reason = resolved_by
+                unresolved_error = (
+                    "network metadata resolution disabled; use "
+                    "--allow-network to resolve this group"
                 )
+            elif not _is_canonical_a_url(canonical_url):
+                resolved_by = "skipped_invalid_canonical_url"
+                unresolved_reason = resolved_by
+                unresolved_error = "canonical_url is not a valid /a/<slug> URL"
+            else:
+                network_result = _resolve_numeric_article_id_from_network(
+                    canonical_url,
+                    network_retries=network_retries,
+                    network_retry_delay_seconds=(
+                        network_retry_delay_seconds
+                    ),
+                    require_id_url_proof=require_id_url_proof,
+                )
+                numeric_id = network_result["numeric_id"]
+                attempts_made = network_result["attempts"]
                 if numeric_id is None:
-                    resolved_by = "network_failed"
+                    resolved_by = network_result["reason"]
+                    unresolved_reason = network_result["reason"]
+                    unresolved_error = network_result["error"]
 
         if numeric_id is not None:
             validate_saved_article_identity(numeric_id, "a")
+            plan["groups"].append(
+                {
+                    "canonical_url": canonical_url,
+                    "source_article_ids": sources,
+                    "existing_numeric_article_ids": existing_numeric,
+                    "resolved_numeric_article_id": numeric_id,
+                    "resolved_by": resolved_by,
+                    "title": title,
+                    "attempts_made": attempts_made,
+                    "article_type": "a",
+                    "has_archive_rows": _has_archive_rows(rows),
+                    "needs_repair": any(
+                        source_id != numeric_id for source_id in sources
+                    ),
+                }
+            )
+            continue
 
-        plan["groups"].append(
-            {
-                "canonical_url": canonical_url,
-                "source_article_ids": sources,
-                "existing_numeric_article_ids": existing_numeric,
-                "resolved_numeric_article_id": numeric_id,
-                "resolved_by": resolved_by,
-                "title": _best_title(rows),
-            }
+        unresolved_group = _build_unresolved_group(
+            canonical_url=canonical_url,
+            sources=sources,
+            existing_numeric=existing_numeric,
+            title=title,
+            resolved_by=resolved_by,
+            reason=unresolved_reason or resolved_by,
+            error=unresolved_error or resolved_by,
+            attempts=attempts_made,
+            has_archive_rows=_has_archive_rows(rows),
         )
+        plan["groups"].append(unresolved_group)
+        if resolved_by == "network_failed":
+            unresolved_network_groups.append(unresolved_group)
 
     resolved = sum(
         1 for g in plan["groups"]
         if g["resolved_numeric_article_id"] is not None
     )
     plan["resolved_groups"] = resolved
+    plan["unresolved_groups"] = len(plan["groups"]) - resolved
     plan["skipped_groups"] = len(plan["groups"]) - resolved
+    plan["unresolved_network_groups"] = len(unresolved_network_groups)
+    if unresolved_network_groups and not skip_unresolved:
+        _raise_for_unresolved_network_groups(unresolved_network_groups)
     return plan
 
 
@@ -33099,10 +34262,20 @@ def apply_slug_article_identity_repair(
     conn: sqlite3.Connection,
     *,
     allow_network: bool,
+    network_retries: int = DEFAULT_NETWORK_RETRIES,
+    network_retry_delay_seconds: float = (
+        DEFAULT_NETWORK_RETRY_DELAY_SECONDS
+    ),
+    skip_unresolved: bool = False,
     limit: int | None = None,
 ) -> dict:
     summary = plan_slug_article_identity_repair(
-        conn, allow_network=allow_network, limit=limit
+        conn,
+        allow_network=allow_network,
+        network_retries=network_retries,
+        network_retry_delay_seconds=network_retry_delay_seconds,
+        skip_unresolved=skip_unresolved,
+        limit=limit,
     )
     summary["dry_run"] = False
 
@@ -33128,7 +34301,22 @@ def apply_slug_article_identity_repair(
                 group["apply"]["reason"] = group["resolved_by"]
                 continue
 
+            if not _group_needs_repair(group):
+                group["apply"]["reason"] = "no_identity_change"
+                continue
+
             validate_saved_article_identity(numeric_id, "a")
+
+            if not group.get("has_archive_rows", True):
+                group["apply"]["target"] = _normalize_target_rows(
+                    conn,
+                    canonical_url=canonical_url,
+                    source_ids=sources,
+                    dest_id=numeric_id,
+                )
+                group["apply"]["status"] = "applied"
+                continue
+
             _ensure_numeric_article_row(
                 conn,
                 numeric_id=numeric_id,
@@ -33212,6 +34400,11 @@ def repair_slug_article_identity(
     *,
     apply: bool = False,
     allow_network: bool = False,
+    network_retries: int = DEFAULT_NETWORK_RETRIES,
+    network_retry_delay_seconds: float = (
+        DEFAULT_NETWORK_RETRY_DELAY_SECONDS
+    ),
+    skip_unresolved: bool = False,
     limit: int | None = None,
 ) -> dict:
     if not db_path:
@@ -33222,15 +34415,29 @@ def repair_slug_article_identity(
         raise FileNotFoundError(f"db_path does not exist: {db_path}")
     if limit is not None and limit < 0:
         raise ValueError(f"limit must be non-negative, got {limit}")
+    network_retries = _normalize_network_retries(network_retries)
+    network_retry_delay_seconds = _normalize_network_retry_delay_seconds(
+        network_retry_delay_seconds
+    )
 
     conn = sqlite3.connect(db_path)
     try:
         if apply:
             return apply_slug_article_identity_repair(
-                conn, allow_network=allow_network, limit=limit
+                conn,
+                allow_network=allow_network,
+                network_retries=network_retries,
+                network_retry_delay_seconds=network_retry_delay_seconds,
+                skip_unresolved=skip_unresolved,
+                limit=limit,
             )
         return plan_slug_article_identity_repair(
-            conn, allow_network=allow_network, limit=limit
+            conn,
+            allow_network=allow_network,
+            network_retries=network_retries,
+            network_retry_delay_seconds=network_retry_delay_seconds,
+            skip_unresolved=skip_unresolved,
+            limit=limit,
         )
     finally:
         conn.close()
@@ -33248,12 +34455,19 @@ def format_repair_summary_lines(
     total_detected = summary.get("total_detected_groups", len(groups))
     processed = summary.get("processed_groups", len(groups))
     resolved = summary.get("resolved_groups", 0)
+    unresolved = summary.get("unresolved_groups", 0)
     skipped = summary.get("skipped_groups", 0)
     lines = [
         "=== REPAIR SLUG ARTICLE IDENTITY ===",
         f"DB: {db_path}",
         f"Mode: {mode}",
         f"Allow network: {bool(summary.get('allow_network'))}",
+        f"Network retries: {summary.get('network_retries', 0)}",
+        (
+            "Network retry delay seconds: "
+            f"{summary.get('network_retry_delay_seconds', 0)}"
+        ),
+        f"Skip unresolved: {bool(summary.get('skip_unresolved'))}",
         (
             "Legacy counts: "
             f"articles={counts.get('articles', 0)} "
@@ -33263,6 +34477,7 @@ def format_repair_summary_lines(
         f"Total detected groups: {total_detected}",
         f"Processed groups: {processed}",
         f"Resolved groups: {resolved}",
+        f"Unresolved groups: {unresolved}",
         f"Skipped groups: {skipped}",
     ]
     if not summary.get("dry_run"):
@@ -33285,6 +34500,8 @@ def format_repair_summary_lines(
             f"{group['resolved_numeric_article_id']}"
         )
         lines.append(f"  resolved_by: {group['resolved_by']}")
+        if group.get("attempts_made"):
+            lines.append(f"  attempts_made: {group['attempts_made']}")
         lines.append(
             f"  sources: {', '.join(group['source_article_ids']) or '-'}"
         )
@@ -33292,6 +34509,16 @@ def format_repair_summary_lines(
         lines.append(
             f"  existing_numeric_ids: {', '.join(existing) or '-'}"
         )
+        if "needs_repair" in group:
+            lines.append(f"  needs_repair: {bool(group['needs_repair'])}")
+        if group.get("unresolved_reason"):
+            lines.append(
+                f"  unresolved_reason: {group['unresolved_reason']}"
+            )
+        if group.get("unresolved_error"):
+            lines.append(
+                f"  unresolved_error: {group['unresolved_error']}"
+            )
         if not summary.get("dry_run"):
             apply_info = group.get("apply") or {}
             lines.append(f"  apply_status: {apply_info.get('status')}")
@@ -33345,6 +34572,41 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--network-retries",
+        type=int,
+        default=DEFAULT_NETWORK_RETRIES,
+        metavar="N",
+        help=(
+            "Retry metadata fetch failures up to N additional times "
+            f"(default: {DEFAULT_NETWORK_RETRIES})."
+        ),
+    )
+    parser.add_argument(
+        "--network-retry-delay-seconds",
+        type=float,
+        default=DEFAULT_NETWORK_RETRY_DELAY_SECONDS,
+        metavar="SECONDS",
+        help=(
+            "Delay between metadata fetch retries in seconds "
+            f"(default: {DEFAULT_NETWORK_RETRY_DELAY_SECONDS})."
+        ),
+    )
+    parser.add_argument(
+        "--skip-unresolved",
+        action="store_true",
+        help=(
+            "Skip unresolved network metadata failures after retries and "
+            "continue with other groups."
+        ),
+    )
+    parser.add_argument(
+        "--unresolved-report",
+        help=(
+            "Write a human-readable report for unresolved groups when any "
+            "remain."
+        ),
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         default=None,
@@ -33361,17 +34623,34 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if args.limit is not None and args.limit < 0:
         parser.error("--limit must be non-negative")
+    if args.network_retries < 0:
+        parser.error("--network-retries must be non-negative")
+    if args.network_retry_delay_seconds < 0:
+        parser.error(
+            "--network-retry-delay-seconds must be non-negative"
+        )
     return args
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
-    summary = repair_slug_article_identity(
-        args.db,
-        apply=bool(args.apply),
-        allow_network=bool(args.allow_network),
-        limit=args.limit,
-    )
+    try:
+        summary = repair_slug_article_identity(
+            args.db,
+            apply=bool(args.apply),
+            allow_network=bool(args.allow_network),
+            network_retries=args.network_retries,
+            network_retry_delay_seconds=args.network_retry_delay_seconds,
+            skip_unresolved=bool(args.skip_unresolved),
+            limit=args.limit,
+        )
+    except UnresolvedNetworkError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+
+    if args.unresolved_report:
+        write_unresolved_report(args.unresolved_report, summary)
+
     for line in format_repair_summary_lines(
         args.db,
         summary,
@@ -35790,6 +37069,167 @@ See docs/VERIFICATION_TOOLING.md for bounded verification / smoke tooling and
 the read-first verification flow.
 
 See docs/PERSONAL_RUNTIME.md for runtime-container-specific notes.
+
+
+=============================
+FILE: cursor/SubTask-BugFix-task043-target-only-numeric-slug_report.txt
+=============================
+Editor AI model: GitHub Copilot / GPT-5.4
+
+Summary of changes:
+- Extended slug repair group detection to include target rows keyed by
+  canonical_url, including target-only numeric slug cases.
+- Added strict metadata proof handling for target-only numeric slug groups:
+  /id/<digits> metadata identity is required to resolve them.
+- Kept archive-backed repair behavior intact for existing article/response
+  groups.
+- Added focused tests for target-only numeric slug detection, apply, skip,
+  unresolved proof failures, and the /a/4294967295 -> /id/237789 model.
+
+Files changed:
+- tools/repair_slug_article_identity.py
+- tests/test_repair_slug_article_identity.py
+- SubTask-BugFix-task043-target-only-numeric-slug_report.txt
+
+Detection behavior:
+- The repair tool now groups by canonical_url using both articles and target
+  rows for article_type='a'.
+- It detects target rows whose canonical_url is /a/<digits>, whose stored
+  article_id equals that decoded digits-only slug, even when no article row
+  exists.
+- Legacy counts remain unchanged for articles/responses and continue to count
+  target legacy rows separately.
+
+Apply behavior:
+- When a target-only numeric slug group resolves, the tool keeps article_type
+  as 'a' and preserves the canonical /a/<digits-slug> URL.
+- The legacy target row is set inactive.
+- The resolved numeric target row is inserted or updated active if any legacy
+  source target row was active.
+- The tool does not create article_type='id' rows.
+- The tool does not rewrite canonical_url to /a/<numeric-id>.
+- The tool does not create articles rows or responses rows for target-only
+  groups.
+- If archive rows exist, existing article/response repair behavior still runs.
+
+Skip unresolved behavior:
+- Without --skip-unresolved, unresolved target-only numeric slug groups follow
+  the existing unresolved network abort behavior.
+- With --skip-unresolved, unresolved target-only numeric slug groups are
+  reported and skipped without modification.
+- Target-only numeric slug groups that only return the legacy digits-only slug
+  without /id/<digits> proof are treated as unresolved.
+
+Tests / validation performed:
+- VS Code diagnostics check on tools/repair_slug_article_identity.py: no
+  errors.
+- VS Code diagnostics check on tests/test_repair_slug_article_identity.py: no
+  errors.
+- Long-line check on touched files for lines over 88 characters: no matches.
+
+Validation that could not be run:
+- Focused Docker-based flake8 and pytest validation was attempted but the tool
+  execution was skipped, so executable validation results are not available.
+
+Runtime DB statement:
+- Runtime DB was not modified by this task.
+
+Production apply statement:
+- Production apply was not performed by this task.
+
+13GB rehearsal DB statement:
+- 13GB rehearsal DBs were not deleted by this task.
+
+
+=============================
+FILE: cursor/SubTask-BugFix-task043-unresolved-network-skip_report.txt
+=============================
+Editor AI model: GitHub Copilot / GPT-5.4
+
+Summary of changes:
+- Added bounded network retry support to tools/repair_slug_article_identity.py.
+- Added explicit unresolved network abort-or-skip handling.
+- Added human-readable unresolved report output support.
+- Extended legacy detection to numeric-only /a/<slug> article_id cases.
+- Aligned legacy summary counts with numeric-only slug detection.
+- Normalized article title to the decoded numeric slug when applying repair.
+- Added focused tests for retry, skip, report, and numeric slug flows.
+- Made numeric-only slug target assertions order-independent where SQL uses
+  ORDER BY article_id string ordering.
+
+Files changed:
+- tools/repair_slug_article_identity.py
+- tests/test_repair_slug_article_identity.py
+- SubTask-BugFix-task043-unresolved-network-skip_report.txt
+
+CLI options added:
+- --network-retries N
+- --network-retry-delay-seconds SECONDS
+- --skip-unresolved
+- --unresolved-report PATH
+
+Retry behavior:
+- Retries apply only to metadata fetches performed by this repair tool.
+- Default retries are bounded: 2 additional retries with 1.0 second delay.
+- Negative retry counts and negative retry delays are rejected.
+- No infinite retry behavior was added.
+
+Skip unresolved behavior:
+- Without --skip-unresolved, unresolved network metadata failures raise an
+  error after retries and abort the run.
+- With --skip-unresolved, unresolved groups are recorded and skipped while
+  other resolvable groups continue.
+- In apply mode, skipped unresolved groups are not modified.
+- Summary output now includes unresolved and skipped group counts.
+
+Unresolved report behavior:
+- When unresolved groups exist and --unresolved-report PATH is provided, the
+  tool writes a stable human-readable text report.
+- The report includes canonical_url, legacy article_id, article_type, reason,
+  error summary, attempts made, and existing numeric IDs.
+- If no unresolved groups exist, no report file is written.
+
+Numeric-only slug handling:
+- The tool now detects article_type='a' rows whose canonical_url is
+  /a/<digits> and whose stored article_id matches that numeric slug.
+- Legacy counts for articles, responses, and target rows now use the same
+  numeric-slug detection rules.
+- Such groups resolve through the same metadata path used for legacy slug
+  repairs.
+- Repairs preserve article_type='a' and the canonical /a/<slug> URL.
+- The tool does not rewrite canonical_url into /a/<numeric_id> and does not
+  create article_type='id' rows.
+- Numeric slug groups are only modified when the resolved numeric article ID
+  differs from the stored legacy article_id.
+- When metadata returns an /id/<digits> article URL, that resolved numeric ID
+  takes precedence over a legacy digits-only /a/<slug> article_id value.
+- When applying a numeric slug repair, the normalized article row title is
+  updated to the decoded canonical slug.
+- If the resolved numeric ID matches the stored value, apply mode leaves the
+  group untouched.
+
+Tests / validation performed:
+- VS Code diagnostics check on tools/repair_slug_article_identity.py: no
+  errors.
+- VS Code diagnostics check on tests/test_repair_slug_article_identity.py: no
+  errors.
+- Long-line check on touched files for lines over 88 characters: no matches.
+- Numeric-only slug target assertions now validate exact row content without
+  depending on lexicographic article_id ordering.
+
+Validation that could not be run:
+- Focused pytest execution for tests/test_repair_slug_article_identity.py was
+  attempted twice, but the terminal tool execution was skipped, so executable
+  test results are not available from this task.
+
+Runtime DB statement:
+- Runtime DB was not modified by this task.
+
+Production apply statement:
+- TASK043 production apply was not performed.
+
+Large rehearsal DB statement:
+- Large rehearsal DB files were not deleted by this task.
 
 
 =============================
@@ -64633,9 +66073,11 @@ import pytest
 
 from storage import init_db, register_target
 from tools.repair_slug_article_identity import (
+    UnresolvedNetworkError,
     format_repair_summary_lines,
     plan_slug_article_identity_repair,
     repair_slug_article_identity,
+    write_unresolved_report,
 )
 
 
@@ -64675,6 +66117,41 @@ def _build_slug_group_db(tmp_path):
 
     conn.commit()
     return conn, str(db_path), canonical_url, slug_id, numeric_id
+
+
+def _build_numeric_slug_group_db(tmp_path):
+    db_path = tmp_path / "numeric-repair.db"
+    conn = init_db(str(db_path))
+    canonical_url = "https://dic.nicovideo.jp/a/999"
+    legacy_numeric_slug_id = "999"
+    resolved_numeric_id = "4734363"
+
+    _seed_articles_row(conn, legacy_numeric_slug_id, "999", canonical_url)
+    _seed_response_row(conn, legacy_numeric_slug_id, 1, "N1")
+    register_target(conn, legacy_numeric_slug_id, "a", canonical_url)
+
+    conn.commit()
+    return (
+        conn,
+        str(db_path),
+        canonical_url,
+        legacy_numeric_slug_id,
+        resolved_numeric_id,
+    )
+
+
+def _build_target_only_numeric_slug_db(
+    tmp_path,
+    *,
+    slug_id="999",
+):
+    db_path = tmp_path / f"target-only-{slug_id}.db"
+    conn = init_db(str(db_path))
+    canonical_url = f"https://dic.nicovideo.jp/a/{slug_id}"
+
+    register_target(conn, slug_id, "a", canonical_url)
+    conn.commit()
+    return conn, str(db_path), canonical_url, slug_id
 
 
 def test_requires_explicit_db_path():
@@ -64848,7 +66325,13 @@ def test_group_skipped_when_network_resolution_fails(tmp_path, monkeypatch):
         },
     )
 
-    summary = repair_slug_article_identity(db_path, apply=False, allow_network=True)
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=False,
+        allow_network=True,
+        skip_unresolved=True,
+        network_retry_delay_seconds=0,
+    )
     assert summary["groups"][0]["resolved_numeric_article_id"] is None
     assert summary["groups"][0]["resolved_by"] == "network_failed"
 
@@ -65004,6 +66487,701 @@ def test_dry_run_with_limit_performs_no_writes(tmp_path, monkeypatch):
         assert cur.fetchone()[0] == 1
         cur.execute("SELECT COUNT(*) FROM responses")
         assert cur.fetchone()[0] == 2
+    finally:
+        conn.close()
+
+
+def test_network_fetch_failure_retries(tmp_path, monkeypatch):
+    conn, db_path, canonical_url, _, numeric_id = _build_slug_group_db(tmp_path)
+    conn.close()
+
+    calls: list[str] = []
+
+    def _mock_fetch(url: str) -> dict:
+        calls.append(url)
+        if len(calls) < 3:
+            raise RuntimeError(f"temporary upstream failure status=500 {len(calls)}")
+        return {
+            "article_id": numeric_id,
+            "article_type": "a",
+            "title": "Foo",
+        }
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        _mock_fetch,
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=False,
+        allow_network=True,
+        network_retries=2,
+        network_retry_delay_seconds=0,
+    )
+
+    assert len(calls) == 3
+    assert summary["groups"][0]["resolved_numeric_article_id"] == numeric_id
+    assert summary["groups"][0]["attempts_made"] == 3
+
+
+def test_network_failure_aborts_without_skip_unresolved(tmp_path, monkeypatch):
+    conn, db_path, _, _, _ = _build_slug_group_db(tmp_path)
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: (_ for _ in ()).throw(RuntimeError("status=500")),
+    )
+
+    with pytest.raises(UnresolvedNetworkError):
+        repair_slug_article_identity(
+            db_path,
+            apply=False,
+            allow_network=True,
+            network_retries=1,
+            network_retry_delay_seconds=0,
+        )
+
+
+def test_network_failure_is_skipped_with_skip_unresolved(tmp_path, monkeypatch):
+    conn, db_path, canonical_url, slug_id, _ = _build_slug_group_db(tmp_path)
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: (_ for _ in ()).throw(RuntimeError("status=500")),
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=False,
+        allow_network=True,
+        network_retries=1,
+        network_retry_delay_seconds=0,
+        skip_unresolved=True,
+    )
+
+    group = summary["groups"][0]
+    assert group["canonical_url"] == canonical_url
+    assert group["source_article_ids"] == [slug_id]
+    assert group["resolved_numeric_article_id"] is None
+    assert group["resolved_by"] == "network_failed"
+    assert group["attempts_made"] == 2
+
+
+def test_unresolved_report_is_written_with_expected_contents(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, slug_id, _ = _build_slug_group_db(tmp_path)
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: (_ for _ in ()).throw(RuntimeError("status=500")),
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=False,
+        allow_network=True,
+        network_retries=1,
+        network_retry_delay_seconds=0,
+        skip_unresolved=True,
+    )
+    report_path = tmp_path / "unresolved.txt"
+    write_unresolved_report(str(report_path), summary)
+
+    text = report_path.read_text(encoding="utf-8")
+    assert canonical_url in text
+    assert f"legacy_article_id: {slug_id}" in text
+    assert "article_type: a" in text
+    assert "reason: network_failed" in text
+    assert "error: status=500" in text
+    assert "attempts_made: 2" in text
+
+
+def test_skipped_unresolved_groups_are_not_modified_in_apply_mode(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, _, slug_id, _ = _build_slug_group_db(tmp_path)
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: (_ for _ in ()).throw(RuntimeError("status=500")),
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retries=1,
+        network_retry_delay_seconds=0,
+        skip_unresolved=True,
+    )
+
+    assert summary["groups"][0]["apply"]["status"] == "skipped"
+    assert summary["groups"][0]["apply"]["reason"] == "network_failed"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT article_id, title, canonical_url FROM articles ORDER BY article_id"
+        )
+        assert cur.fetchall() == [
+            (slug_id, "Foo", "https://dic.nicovideo.jp/a/foo-slug")
+        ]
+        cur.execute(
+            "SELECT article_id, article_type, res_no FROM responses ORDER BY res_no"
+        )
+        assert cur.fetchall() == [(slug_id, "a", 1), (slug_id, "a", 2)]
+    finally:
+        conn.close()
+
+
+def test_numeric_only_slug_article_id_is_detected_and_planned(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id, resolved_numeric_id = (
+        _build_numeric_slug_group_db(tmp_path)
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": resolved_numeric_id,
+            "article_type": "a",
+            "title": "999",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=False,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    group = summary["groups"][0]
+    assert summary["legacy_counts"]["articles"] == 1
+    assert summary["legacy_counts"]["responses"] == 1
+    assert summary["legacy_counts"]["target"] == 1
+    assert group["canonical_url"] == canonical_url
+    assert group["source_article_ids"] == [legacy_id]
+    assert group["existing_numeric_article_ids"] == []
+    assert group["resolved_numeric_article_id"] == resolved_numeric_id
+    assert group["resolved_by"] == "network"
+
+
+def test_numeric_only_slug_article_id_is_applied_when_metadata_resolves(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id, resolved_numeric_id = (
+        _build_numeric_slug_group_db(tmp_path)
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": resolved_numeric_id,
+            "article_type": "a",
+            "title": "999",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    assert summary["groups"][0]["apply"]["status"] == "applied"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT article_id, article_type, title, canonical_url "
+            "FROM articles ORDER BY article_id"
+        )
+        assert cur.fetchall() == [
+            (
+                resolved_numeric_id,
+                "a",
+                "999",
+                canonical_url,
+            )
+        ]
+        cur.execute(
+            "SELECT article_id, article_type, res_no, content_text "
+            "FROM responses ORDER BY res_no"
+        )
+        assert cur.fetchall() == [
+            (resolved_numeric_id, "a", 1, "N1")
+        ]
+        cur.execute(
+            "SELECT article_id, article_type, canonical_url, is_active "
+            "FROM target ORDER BY article_id"
+        )
+        assert set(cur.fetchall()) == {
+            (legacy_id, "a", canonical_url, 0),
+            (resolved_numeric_id, "a", canonical_url, 1),
+        }
+    finally:
+        conn.close()
+
+
+def test_numeric_only_slug_unresolved_case_is_skipped_safely(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id, _ = _build_numeric_slug_group_db(
+        tmp_path
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: (_ for _ in ()).throw(RuntimeError("status=500")),
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retries=1,
+        network_retry_delay_seconds=0,
+        skip_unresolved=True,
+    )
+
+    group = summary["groups"][0]
+    assert group["canonical_url"] == canonical_url
+    assert group["resolved_numeric_article_id"] is None
+    assert group["apply"]["status"] == "skipped"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT article_id, title, canonical_url FROM articles ORDER BY article_id"
+        )
+        assert cur.fetchall() == [(legacy_id, "999", canonical_url)]
+    finally:
+        conn.close()
+
+
+def test_numeric_only_slug_same_resolved_id_is_noop_in_apply(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id, _ = _build_numeric_slug_group_db(
+        tmp_path
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": legacy_id,
+            "article_type": "a",
+            "title": "999",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    group = summary["groups"][0]
+    assert group["needs_repair"] is False
+    assert group["apply"]["status"] == "skipped"
+    assert group["apply"]["reason"] == "no_identity_change"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT article_id, title, canonical_url FROM articles ORDER BY article_id"
+        )
+        assert cur.fetchall() == [(legacy_id, "999", canonical_url)]
+    finally:
+        conn.close()
+
+
+def test_numeric_only_slug_apply_overwrites_preexisting_numeric_title(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id, resolved_numeric_id = (
+        _build_numeric_slug_group_db(tmp_path)
+    )
+    try:
+        _seed_articles_row(conn, resolved_numeric_id, "Wrong title", canonical_url)
+        conn.commit()
+    finally:
+        conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": resolved_numeric_id,
+            "article_type": "a",
+            "title": "999",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    assert summary["groups"][0]["apply"]["status"] == "applied"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT article_id, title, canonical_url FROM articles ORDER BY article_id"
+        )
+        assert cur.fetchall() == [
+            (resolved_numeric_id, "999", canonical_url)
+        ]
+        cur.execute(
+            "SELECT article_id, article_type, canonical_url, is_active "
+            "FROM target ORDER BY article_id"
+        )
+        assert set(cur.fetchall()) == {
+            (legacy_id, "a", canonical_url, 0),
+            (resolved_numeric_id, "a", canonical_url, 1),
+        }
+    finally:
+        conn.close()
+
+
+def test_numeric_only_slug_prefers_metadata_id_url_identity(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id, resolved_numeric_id = (
+        _build_numeric_slug_group_db(tmp_path)
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": legacy_id,
+            "article_type": "a",
+            "article_url": f"https://dic.nicovideo.jp/id/{resolved_numeric_id}",
+            "title": "999",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    assert summary["groups"][0]["apply"]["status"] == "applied"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT article_id, article_type, title, canonical_url "
+            "FROM articles ORDER BY article_id"
+        )
+        assert cur.fetchall() == [
+            (resolved_numeric_id, "a", "999", canonical_url)
+        ]
+        cur.execute(
+            "SELECT article_id, article_type, canonical_url, is_active "
+            "FROM target ORDER BY article_id"
+        )
+        assert set(cur.fetchall()) == {
+            (legacy_id, "a", canonical_url, 0),
+            (resolved_numeric_id, "a", canonical_url, 1),
+        }
+    finally:
+        conn.close()
+
+
+def test_metadata_record_with_article_id_but_missing_canonical_url_still_works(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, _, numeric_id = _build_slug_group_db(tmp_path)
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": numeric_id,
+            "article_type": "a",
+            "title": "Foo",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=False,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    group = summary["groups"][0]
+    assert group["canonical_url"] == canonical_url
+    assert group["resolved_numeric_article_id"] == numeric_id
+
+
+def test_existing_legacy_non_digit_slug_behavior_still_passes(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, slug_id, numeric_id = _build_slug_group_db(tmp_path)
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": numeric_id,
+            "article_type": "a",
+            "title": "Foo",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    assert summary["groups"][0]["source_article_ids"] == [slug_id]
+    assert summary["groups"][0]["resolved_numeric_article_id"] == numeric_id
+    assert summary["groups"][0]["apply"]["status"] == "applied"
+    lines = format_repair_summary_lines(db_path, summary)
+    assert any("Unresolved groups: 0" in line for line in lines)
+
+
+def test_target_only_numeric_slug_is_detected_and_planned(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id = _build_target_only_numeric_slug_db(
+        tmp_path
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": legacy_id,
+            "article_type": "a",
+            "article_url": "https://dic.nicovideo.jp/id/4734363",
+            "title": "999",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=False,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    group = summary["groups"][0]
+    assert summary["legacy_counts"]["articles"] == 0
+    assert summary["legacy_counts"]["responses"] == 0
+    assert summary["legacy_counts"]["target"] == 1
+    assert group["canonical_url"] == canonical_url
+    assert group["source_article_ids"] == [legacy_id]
+    assert group["existing_numeric_article_ids"] == []
+    assert group["resolved_numeric_article_id"] == "4734363"
+    assert group["resolved_by"] == "network"
+    assert group["title"] == "999"
+
+
+def test_target_only_numeric_slug_apply_normalizes_target_only(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id = _build_target_only_numeric_slug_db(
+        tmp_path
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": legacy_id,
+            "article_type": "a",
+            "article_url": "https://dic.nicovideo.jp/id/4734363",
+            "title": "999",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    assert summary["groups"][0]["apply"]["status"] == "applied"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM articles")
+        assert cur.fetchone()[0] == 0
+        cur.execute("SELECT COUNT(*) FROM responses")
+        assert cur.fetchone()[0] == 0
+        cur.execute(
+            "SELECT article_id, article_type, canonical_url, is_active "
+            "FROM target ORDER BY article_id"
+        )
+        assert set(cur.fetchall()) == {
+            (legacy_id, "a", canonical_url, 0),
+            ("4734363", "a", canonical_url, 1),
+        }
+    finally:
+        conn.close()
+
+
+def test_target_only_numeric_slug_network_failure_skips_safely(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id = _build_target_only_numeric_slug_db(
+        tmp_path
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: (_ for _ in ()).throw(RuntimeError("status=500")),
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retries=1,
+        network_retry_delay_seconds=0,
+        skip_unresolved=True,
+    )
+
+    group = summary["groups"][0]
+    assert group["canonical_url"] == canonical_url
+    assert group["resolved_numeric_article_id"] is None
+    assert group["apply"]["status"] == "skipped"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM articles")
+        assert cur.fetchone()[0] == 0
+        cur.execute("SELECT COUNT(*) FROM responses")
+        assert cur.fetchone()[0] == 0
+        cur.execute(
+            "SELECT article_id, article_type, canonical_url, is_active "
+            "FROM target"
+        )
+        assert cur.fetchall() == [(legacy_id, "a", canonical_url, 1)]
+    finally:
+        conn.close()
+
+
+def test_target_only_numeric_slug_without_id_url_is_unresolved(
+    tmp_path,
+    monkeypatch,
+):
+    conn, db_path, canonical_url, legacy_id = _build_target_only_numeric_slug_db(
+        tmp_path
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": legacy_id,
+            "article_type": "a",
+            "title": "999",
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=False,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+        skip_unresolved=True,
+    )
+
+    group = summary["groups"][0]
+    assert group["canonical_url"] == canonical_url
+    assert group["resolved_numeric_article_id"] is None
+    assert group["resolved_by"] == "network_failed"
+
+
+def test_target_only_numeric_slug_4294967295_model_is_protected(
+    tmp_path,
+    monkeypatch,
+):
+    slug_id = "4294967295"
+    conn, db_path, canonical_url, legacy_id = _build_target_only_numeric_slug_db(
+        tmp_path,
+        slug_id=slug_id,
+    )
+    conn.close()
+
+    monkeypatch.setattr(
+        "tools.repair_slug_article_identity.fetch_article_metadata_record",
+        lambda _url: {
+            "article_id": legacy_id,
+            "article_type": "a",
+            "article_url": "https://dic.nicovideo.jp/id/237789",
+            "title": slug_id,
+        },
+    )
+
+    summary = repair_slug_article_identity(
+        db_path,
+        apply=True,
+        allow_network=True,
+        network_retry_delay_seconds=0,
+    )
+
+    assert summary["groups"][0]["resolved_numeric_article_id"] == "237789"
+
+    conn = sqlite3.connect(db_path)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "SELECT article_id, article_type, canonical_url, is_active "
+            "FROM target ORDER BY article_id"
+        )
+        assert set(cur.fetchall()) == {
+            (legacy_id, "a", canonical_url, 0),
+            ("237789", "a", canonical_url, 1),
+        }
     finally:
         conn.close()
 
@@ -67676,8 +69854,9 @@ from __future__ import annotations
 import argparse
 import sqlite3
 import sys
+import time
 from pathlib import Path
-from urllib.parse import urlparse
+from urllib.parse import unquote, urlparse
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
@@ -67685,10 +69864,36 @@ if str(REPO_ROOT) not in sys.path:
 
 from orchestrator import fetch_article_metadata_record  # noqa: E402
 from storage import validate_saved_article_identity  # noqa: E402
+from target_list import parse_target_identity  # noqa: E402
+
+
+DEFAULT_NETWORK_RETRIES = 2
+DEFAULT_NETWORK_RETRY_DELAY_SECONDS = 1.0
+
+
+class UnresolvedNetworkError(RuntimeError):
+    """Raised when metadata resolution still fails after bounded retries."""
 
 
 def _is_digits_only(value: str) -> bool:
     return bool(value) and value.isdigit()
+
+
+def _normalize_network_retries(value: int) -> int:
+    if value < 0:
+        raise ValueError(
+            f"network_retries must be non-negative, got {value}"
+        )
+    return value
+
+
+def _normalize_network_retry_delay_seconds(value: float) -> float:
+    if value < 0:
+        raise ValueError(
+            "network_retry_delay_seconds must be non-negative, "
+            f"got {value}"
+        )
+    return value
 
 
 def _canonical_url_key(canonical_url: str | None) -> str | None:
@@ -67708,31 +69913,108 @@ def _is_canonical_a_url(url: str) -> bool:
     return len(parts) == 2 and parts[0] == "a" and bool(parts[1])
 
 
-def _resolve_numeric_article_id_from_db_rows(rows: list[dict]) -> str | None:
+def _decoded_canonical_a_slug(canonical_url: str | None) -> str | None:
+    if canonical_url is None or not _is_canonical_a_url(canonical_url):
+        return None
+    parsed = urlparse(canonical_url)
+    parts = [part for part in parsed.path.split("/") if part]
+    if len(parts) != 2:
+        return None
+    slug = unquote(parts[1]).strip()
+    return slug or None
+
+
+def _is_legacy_slug_identity(
+    article_id: str | None,
+    canonical_url: str | None,
+) -> bool:
+    normalized_id = (article_id or "").strip()
+    if not normalized_id:
+        return True
+    if not _is_digits_only(normalized_id):
+        return True
+    slug = _decoded_canonical_a_slug(canonical_url)
+    if slug is None or not _is_digits_only(slug):
+        return False
+    return normalized_id == slug
+
+
+def _resolve_numeric_article_id_from_db_rows(
+    rows: list[dict],
+    *,
+    canonical_url: str,
+) -> str | None:
     for row in rows:
         article_id = row.get("article_id") or ""
-        if _is_digits_only(article_id):
+        if (
+            _is_digits_only(article_id)
+            and not _is_legacy_slug_identity(article_id, canonical_url)
+        ):
             return article_id
     return None
 
 
-def _resolve_numeric_article_id_from_network(canonical_url: str) -> str | None:
-    record = fetch_article_metadata_record(canonical_url)
-    article_id = record.get("article_id") or ""
-    if not _is_digits_only(article_id):
-        return None
-    return article_id
+def _resolve_numeric_article_id_from_network(
+    canonical_url: str,
+    *,
+    network_retries: int,
+    network_retry_delay_seconds: float,
+    require_id_url_proof: bool = False,
+) -> dict:
+    attempts = 0
+    max_attempts = network_retries + 1
+    last_error = "metadata record did not contain a usable numeric article_id"
+
+    for attempt in range(max_attempts):
+        attempts = attempt + 1
+        try:
+            record = fetch_article_metadata_record(canonical_url)
+        except Exception as exc:
+            last_error = str(exc) or exc.__class__.__name__
+        else:
+            metadata_article_url = (record.get("article_url") or "").strip()
+            metadata_identity = parse_target_identity(metadata_article_url)
+            article_id = ""
+            has_id_url_proof = False
+            if metadata_identity is not None:
+                metadata_id = (metadata_identity.get("article_id") or "").strip()
+                if (
+                    metadata_identity.get("article_type") == "id"
+                    and _is_digits_only(metadata_id)
+                ):
+                    has_id_url_proof = True
+                    article_id = metadata_id
+
+            if not article_id and not require_id_url_proof:
+                article_id = (record.get("article_id") or "").strip()
+
+            if _is_digits_only(article_id) and (
+                has_id_url_proof or not require_id_url_proof
+            ):
+                return {
+                    "numeric_id": article_id,
+                    "attempts": attempts,
+                    "error": None,
+                    "reason": None,
+                }
+            value = article_id or "<missing>"
+            last_error = (
+                "metadata record did not contain a usable numeric "
+                f"article_id: {value}"
+            )
+
+        if attempt + 1 < max_attempts and network_retry_delay_seconds > 0:
+            time.sleep(network_retry_delay_seconds)
+
+    return {
+        "numeric_id": None,
+        "attempts": attempts,
+        "error": last_error,
+        "reason": "network_failed",
+    }
 
 
-def _list_slug_article_groups(conn: sqlite3.Connection) -> list[dict]:
-    """
-    Return groups keyed by canonical_url for legacy slug identities.
-
-    Group definition:
-    - articles.article_type='a'
-    - canonical_url is present
-    - at least one articles.article_id is non-digits (legacy slug identity)
-    """
+def _load_group_rows_from_articles(conn: sqlite3.Connection) -> dict[str, list[dict]]:
     cur = conn.cursor()
     cur.execute(
         """
@@ -67756,12 +70038,80 @@ def _list_slug_article_groups(conn: sqlite3.Connection) -> list[dict]:
                 "article_type": article_type,
                 "title": title,
                 "canonical_url": canonical_url,
+                "row_origin": "article",
             }
         )
 
+    return by_url
+
+
+def _append_target_only_group_rows(
+    conn: sqlite3.Connection,
+    by_url: dict[str, list[dict]],
+) -> None:
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT article_id, article_type, canonical_url, is_active
+        FROM target
+        WHERE article_type='a'
+              AND canonical_url IS NOT NULL
+              AND canonical_url <> ''
+        ORDER BY canonical_url ASC, article_id ASC
+        """
+    )
+
+    for article_id, article_type, canonical_url, is_active in cur.fetchall():
+        key = _canonical_url_key(canonical_url)
+        if key is None:
+            continue
+        by_url.setdefault(key, []).append(
+            {
+                "article_id": article_id,
+                "article_type": article_type,
+                "title": None,
+                "canonical_url": canonical_url,
+                "row_origin": "target",
+                "is_active": int(is_active),
+            }
+        )
+
+
+def _has_archive_rows(rows: list[dict]) -> bool:
+    return any(row.get("row_origin") == "article" for row in rows)
+
+
+def _requires_id_url_proof(rows: list[dict]) -> bool:
+    if _has_archive_rows(rows):
+        return False
+    return any(
+        _is_digits_only((row.get("article_id") or "").strip())
+        and _is_legacy_slug_identity(
+            row.get("article_id"),
+            row.get("canonical_url"),
+        )
+        for row in rows
+    )
+
+
+def _list_slug_article_groups(conn: sqlite3.Connection) -> list[dict]:
+    """
+    Return groups keyed by canonical_url for legacy slug identities.
+
+    Group definition:
+    - article_type='a'
+    - canonical_url is present
+    - at least one row has a legacy slug identity
+    """
+    by_url = _load_group_rows_from_articles(conn)
+    _append_target_only_group_rows(conn, by_url)
+
     groups: list[dict] = []
     for canonical_url, rows in by_url.items():
-        if not any(not _is_digits_only(r["article_id"] or "") for r in rows):
+        if not any(
+            _is_legacy_slug_identity(r.get("article_id"), canonical_url)
+            for r in rows
+        ):
             continue
         groups.append({"canonical_url": canonical_url, "rows": rows})
     return groups
@@ -67771,33 +70121,45 @@ def _count_legacy_slug_rows(conn: sqlite3.Connection) -> dict:
     cur = conn.cursor()
     cur.execute(
         """
-        SELECT COUNT(*)
+        SELECT article_id, canonical_url
         FROM articles
         WHERE article_type='a'
-              AND (article_id IS NULL OR article_id='' OR article_id GLOB '*[^0-9]*')
         """
     )
-    article_count = int(cur.fetchone()[0])
+    article_count = sum(
+        1
+        for article_id, canonical_url in cur.fetchall()
+        if _is_legacy_slug_identity(article_id, canonical_url)
+    )
 
     cur.execute(
         """
-        SELECT COUNT(*)
+        SELECT responses.article_id, articles.canonical_url
         FROM responses
-        WHERE article_type='a'
-              AND (article_id IS NULL OR article_id='' OR article_id GLOB '*[^0-9]*')
+        LEFT JOIN articles
+          ON articles.article_id = responses.article_id
+         AND articles.article_type = responses.article_type
+        WHERE responses.article_type='a'
         """
     )
-    response_count = int(cur.fetchone()[0])
+    response_count = sum(
+        1
+        for article_id, canonical_url in cur.fetchall()
+        if _is_legacy_slug_identity(article_id, canonical_url)
+    )
 
     cur.execute(
         """
-        SELECT COUNT(*)
+        SELECT article_id, canonical_url
         FROM target
         WHERE article_type='a'
-              AND (article_id IS NULL OR article_id='' OR article_id GLOB '*[^0-9]*')
         """
     )
-    target_count = int(cur.fetchone()[0])
+    target_count = sum(
+        1
+        for article_id, canonical_url in cur.fetchall()
+        if _is_legacy_slug_identity(article_id, canonical_url)
+    )
 
     return {
         "articles": article_count,
@@ -67808,9 +70170,20 @@ def _count_legacy_slug_rows(conn: sqlite3.Connection) -> dict:
 
 def _best_title(rows: list[dict]) -> str:
     for row in rows:
+        slug = _decoded_canonical_a_slug(row.get("canonical_url"))
+        if slug and _is_legacy_slug_identity(
+            row.get("article_id"),
+            row.get("canonical_url"),
+        ):
+            return slug
+    for row in rows:
         title = (row.get("title") or "").strip()
         if title:
             return title
+    for row in rows:
+        slug = _decoded_canonical_a_slug(row.get("canonical_url"))
+        if slug:
+            return slug
     return "unknown"
 
 
@@ -67820,7 +70193,7 @@ def _list_group_sources(rows: list[dict]) -> list[str]:
         article_id = (row.get("article_id") or "").strip()
         if not article_id:
             continue
-        if not _is_digits_only(article_id):
+        if _is_legacy_slug_identity(article_id, row.get("canonical_url")):
             sources.append(article_id)
     return sorted(set(sources))
 
@@ -67829,9 +70202,111 @@ def _list_existing_numeric_ids(rows: list[dict]) -> list[str]:
     ids: list[str] = []
     for row in rows:
         article_id = (row.get("article_id") or "").strip()
-        if _is_digits_only(article_id):
+        if (
+            _is_digits_only(article_id)
+            and not _is_legacy_slug_identity(article_id, row.get("canonical_url"))
+        ):
             ids.append(article_id)
     return sorted(set(ids))
+
+
+def _build_unresolved_group(
+    *,
+    canonical_url: str,
+    sources: list[str],
+    existing_numeric: list[str],
+    title: str,
+    resolved_by: str,
+    reason: str,
+    error: str,
+    attempts: int,
+    has_archive_rows: bool,
+) -> dict:
+    return {
+        "canonical_url": canonical_url,
+        "source_article_ids": sources,
+        "existing_numeric_article_ids": existing_numeric,
+        "resolved_numeric_article_id": None,
+        "resolved_by": resolved_by,
+        "title": title,
+        "unresolved_reason": reason,
+        "unresolved_error": error,
+        "attempts_made": attempts,
+        "article_type": "a",
+        "has_archive_rows": has_archive_rows,
+    }
+
+
+def _raise_for_unresolved_network_groups(groups: list[dict]) -> None:
+    first = groups[0]
+    sources = ", ".join(first.get("source_article_ids") or []) or "-"
+    message = (
+        "unresolved network metadata resolution for canonical_url="
+        f"{first['canonical_url']} sources={sources} attempts="
+        f"{first.get('attempts_made', 0)} error="
+        f"{first.get('unresolved_error') or first.get('resolved_by')}"
+    )
+    raise UnresolvedNetworkError(message)
+
+
+def _format_unresolved_report_lines(summary: dict) -> list[str]:
+    groups = [
+        group
+        for group in summary.get("groups") or []
+        if group.get("resolved_numeric_article_id") is None
+    ]
+    lines = [
+        "=== UNRESOLVED SLUG ARTICLE IDENTITY GROUPS ===",
+        f"Count: {len(groups)}",
+    ]
+    for group in groups:
+        lines.append(f"- canonical_url: {group['canonical_url']}")
+        lines.append(
+            "  legacy_article_id: "
+            f"{', '.join(group.get('source_article_ids') or []) or '-'}"
+        )
+        lines.append(
+            f"  article_type: {group.get('article_type') or 'a'}"
+        )
+        lines.append(
+            f"  reason: {group.get('unresolved_reason') or group['resolved_by']}"
+        )
+        lines.append(
+            "  error: "
+            f"{group.get('unresolved_error') or group['resolved_by']}"
+        )
+        lines.append(
+            f"  attempts_made: {group.get('attempts_made', 0)}"
+        )
+        existing = group.get("existing_numeric_article_ids") or []
+        lines.append(
+            f"  existing_numeric_ids: {', '.join(existing) or '-'}"
+        )
+    return lines
+
+
+def _group_needs_repair(group: dict) -> bool:
+    numeric_id = group.get("resolved_numeric_article_id")
+    if numeric_id is None:
+        return False
+    sources = group.get("source_article_ids") or []
+    return any(source_id != numeric_id for source_id in sources)
+
+
+def write_unresolved_report(report_path: str, summary: dict) -> None:
+    unresolved_groups = [
+        group
+        for group in summary.get("groups") or []
+        if group.get("resolved_numeric_article_id") is None
+    ]
+    if not unresolved_groups:
+        return
+    report = Path(report_path)
+    report.parent.mkdir(parents=True, exist_ok=True)
+    report.write_text(
+        "\n".join(_format_unresolved_report_lines(summary)) + "\n",
+        encoding="utf-8",
+    )
 
 
 def _ensure_numeric_article_row(
@@ -67853,7 +70328,7 @@ def _ensure_numeric_article_row(
     cur.execute(
         """
         UPDATE articles
-        SET title = COALESCE(NULLIF(title, ''), ?),
+        SET title = ?,
             canonical_url = ?
         WHERE article_id = ? AND article_type = 'a'
         """,
@@ -68016,8 +70491,17 @@ def plan_slug_article_identity_repair(
     conn: sqlite3.Connection,
     *,
     allow_network: bool,
+    network_retries: int = DEFAULT_NETWORK_RETRIES,
+    network_retry_delay_seconds: float = (
+        DEFAULT_NETWORK_RETRY_DELAY_SECONDS
+    ),
+    skip_unresolved: bool = False,
     limit: int | None = None,
 ) -> dict:
+    network_retries = _normalize_network_retries(network_retries)
+    network_retry_delay_seconds = _normalize_network_retry_delay_seconds(
+        network_retry_delay_seconds
+    )
     all_groups = _list_slug_article_groups(conn)
     legacy_counts = _count_legacy_slug_rows(conn)
     total_detected = len(all_groups)
@@ -68025,55 +70509,107 @@ def plan_slug_article_identity_repair(
     plan: dict = {
         "dry_run": True,
         "allow_network": allow_network,
+        "network_retries": network_retries,
+        "network_retry_delay_seconds": network_retry_delay_seconds,
+        "skip_unresolved": skip_unresolved,
         "legacy_counts": legacy_counts,
         "total_detected_groups": total_detected,
         "processed_groups": len(groups),
         "groups": [],
     }
 
+    unresolved_network_groups: list[dict] = []
+
     for group in groups:
         canonical_url = group["canonical_url"]
         rows = group["rows"]
         sources = _list_group_sources(rows)
         existing_numeric = _list_existing_numeric_ids(rows)
-        numeric_id = _resolve_numeric_article_id_from_db_rows(rows)
+        numeric_id = _resolve_numeric_article_id_from_db_rows(
+            rows,
+            canonical_url=canonical_url,
+        )
         resolved_by = "db"
+        attempts_made = 0
+        unresolved_reason = None
+        unresolved_error = None
+        title = _best_title(rows)
+        require_id_url_proof = _requires_id_url_proof(rows)
 
         if numeric_id is None:
             resolved_by = "network"
             if not allow_network:
-                numeric_id = None
                 resolved_by = "skipped_network_disallowed"
-            elif not _is_canonical_a_url(canonical_url):
-                numeric_id = None
-                resolved_by = "skipped_invalid_canonical_url"
-            else:
-                numeric_id = _resolve_numeric_article_id_from_network(
-                    canonical_url
+                unresolved_reason = resolved_by
+                unresolved_error = (
+                    "network metadata resolution disabled; use "
+                    "--allow-network to resolve this group"
                 )
+            elif not _is_canonical_a_url(canonical_url):
+                resolved_by = "skipped_invalid_canonical_url"
+                unresolved_reason = resolved_by
+                unresolved_error = "canonical_url is not a valid /a/<slug> URL"
+            else:
+                network_result = _resolve_numeric_article_id_from_network(
+                    canonical_url,
+                    network_retries=network_retries,
+                    network_retry_delay_seconds=(
+                        network_retry_delay_seconds
+                    ),
+                    require_id_url_proof=require_id_url_proof,
+                )
+                numeric_id = network_result["numeric_id"]
+                attempts_made = network_result["attempts"]
                 if numeric_id is None:
-                    resolved_by = "network_failed"
+                    resolved_by = network_result["reason"]
+                    unresolved_reason = network_result["reason"]
+                    unresolved_error = network_result["error"]
 
         if numeric_id is not None:
             validate_saved_article_identity(numeric_id, "a")
+            plan["groups"].append(
+                {
+                    "canonical_url": canonical_url,
+                    "source_article_ids": sources,
+                    "existing_numeric_article_ids": existing_numeric,
+                    "resolved_numeric_article_id": numeric_id,
+                    "resolved_by": resolved_by,
+                    "title": title,
+                    "attempts_made": attempts_made,
+                    "article_type": "a",
+                    "has_archive_rows": _has_archive_rows(rows),
+                    "needs_repair": any(
+                        source_id != numeric_id for source_id in sources
+                    ),
+                }
+            )
+            continue
 
-        plan["groups"].append(
-            {
-                "canonical_url": canonical_url,
-                "source_article_ids": sources,
-                "existing_numeric_article_ids": existing_numeric,
-                "resolved_numeric_article_id": numeric_id,
-                "resolved_by": resolved_by,
-                "title": _best_title(rows),
-            }
+        unresolved_group = _build_unresolved_group(
+            canonical_url=canonical_url,
+            sources=sources,
+            existing_numeric=existing_numeric,
+            title=title,
+            resolved_by=resolved_by,
+            reason=unresolved_reason or resolved_by,
+            error=unresolved_error or resolved_by,
+            attempts=attempts_made,
+            has_archive_rows=_has_archive_rows(rows),
         )
+        plan["groups"].append(unresolved_group)
+        if resolved_by == "network_failed":
+            unresolved_network_groups.append(unresolved_group)
 
     resolved = sum(
         1 for g in plan["groups"]
         if g["resolved_numeric_article_id"] is not None
     )
     plan["resolved_groups"] = resolved
+    plan["unresolved_groups"] = len(plan["groups"]) - resolved
     plan["skipped_groups"] = len(plan["groups"]) - resolved
+    plan["unresolved_network_groups"] = len(unresolved_network_groups)
+    if unresolved_network_groups and not skip_unresolved:
+        _raise_for_unresolved_network_groups(unresolved_network_groups)
     return plan
 
 
@@ -68081,10 +70617,20 @@ def apply_slug_article_identity_repair(
     conn: sqlite3.Connection,
     *,
     allow_network: bool,
+    network_retries: int = DEFAULT_NETWORK_RETRIES,
+    network_retry_delay_seconds: float = (
+        DEFAULT_NETWORK_RETRY_DELAY_SECONDS
+    ),
+    skip_unresolved: bool = False,
     limit: int | None = None,
 ) -> dict:
     summary = plan_slug_article_identity_repair(
-        conn, allow_network=allow_network, limit=limit
+        conn,
+        allow_network=allow_network,
+        network_retries=network_retries,
+        network_retry_delay_seconds=network_retry_delay_seconds,
+        skip_unresolved=skip_unresolved,
+        limit=limit,
     )
     summary["dry_run"] = False
 
@@ -68110,7 +70656,22 @@ def apply_slug_article_identity_repair(
                 group["apply"]["reason"] = group["resolved_by"]
                 continue
 
+            if not _group_needs_repair(group):
+                group["apply"]["reason"] = "no_identity_change"
+                continue
+
             validate_saved_article_identity(numeric_id, "a")
+
+            if not group.get("has_archive_rows", True):
+                group["apply"]["target"] = _normalize_target_rows(
+                    conn,
+                    canonical_url=canonical_url,
+                    source_ids=sources,
+                    dest_id=numeric_id,
+                )
+                group["apply"]["status"] = "applied"
+                continue
+
             _ensure_numeric_article_row(
                 conn,
                 numeric_id=numeric_id,
@@ -68194,6 +70755,11 @@ def repair_slug_article_identity(
     *,
     apply: bool = False,
     allow_network: bool = False,
+    network_retries: int = DEFAULT_NETWORK_RETRIES,
+    network_retry_delay_seconds: float = (
+        DEFAULT_NETWORK_RETRY_DELAY_SECONDS
+    ),
+    skip_unresolved: bool = False,
     limit: int | None = None,
 ) -> dict:
     if not db_path:
@@ -68204,15 +70770,29 @@ def repair_slug_article_identity(
         raise FileNotFoundError(f"db_path does not exist: {db_path}")
     if limit is not None and limit < 0:
         raise ValueError(f"limit must be non-negative, got {limit}")
+    network_retries = _normalize_network_retries(network_retries)
+    network_retry_delay_seconds = _normalize_network_retry_delay_seconds(
+        network_retry_delay_seconds
+    )
 
     conn = sqlite3.connect(db_path)
     try:
         if apply:
             return apply_slug_article_identity_repair(
-                conn, allow_network=allow_network, limit=limit
+                conn,
+                allow_network=allow_network,
+                network_retries=network_retries,
+                network_retry_delay_seconds=network_retry_delay_seconds,
+                skip_unresolved=skip_unresolved,
+                limit=limit,
             )
         return plan_slug_article_identity_repair(
-            conn, allow_network=allow_network, limit=limit
+            conn,
+            allow_network=allow_network,
+            network_retries=network_retries,
+            network_retry_delay_seconds=network_retry_delay_seconds,
+            skip_unresolved=skip_unresolved,
+            limit=limit,
         )
     finally:
         conn.close()
@@ -68230,12 +70810,19 @@ def format_repair_summary_lines(
     total_detected = summary.get("total_detected_groups", len(groups))
     processed = summary.get("processed_groups", len(groups))
     resolved = summary.get("resolved_groups", 0)
+    unresolved = summary.get("unresolved_groups", 0)
     skipped = summary.get("skipped_groups", 0)
     lines = [
         "=== REPAIR SLUG ARTICLE IDENTITY ===",
         f"DB: {db_path}",
         f"Mode: {mode}",
         f"Allow network: {bool(summary.get('allow_network'))}",
+        f"Network retries: {summary.get('network_retries', 0)}",
+        (
+            "Network retry delay seconds: "
+            f"{summary.get('network_retry_delay_seconds', 0)}"
+        ),
+        f"Skip unresolved: {bool(summary.get('skip_unresolved'))}",
         (
             "Legacy counts: "
             f"articles={counts.get('articles', 0)} "
@@ -68245,6 +70832,7 @@ def format_repair_summary_lines(
         f"Total detected groups: {total_detected}",
         f"Processed groups: {processed}",
         f"Resolved groups: {resolved}",
+        f"Unresolved groups: {unresolved}",
         f"Skipped groups: {skipped}",
     ]
     if not summary.get("dry_run"):
@@ -68267,6 +70855,8 @@ def format_repair_summary_lines(
             f"{group['resolved_numeric_article_id']}"
         )
         lines.append(f"  resolved_by: {group['resolved_by']}")
+        if group.get("attempts_made"):
+            lines.append(f"  attempts_made: {group['attempts_made']}")
         lines.append(
             f"  sources: {', '.join(group['source_article_ids']) or '-'}"
         )
@@ -68274,6 +70864,16 @@ def format_repair_summary_lines(
         lines.append(
             f"  existing_numeric_ids: {', '.join(existing) or '-'}"
         )
+        if "needs_repair" in group:
+            lines.append(f"  needs_repair: {bool(group['needs_repair'])}")
+        if group.get("unresolved_reason"):
+            lines.append(
+                f"  unresolved_reason: {group['unresolved_reason']}"
+            )
+        if group.get("unresolved_error"):
+            lines.append(
+                f"  unresolved_error: {group['unresolved_error']}"
+            )
         if not summary.get("dry_run"):
             apply_info = group.get("apply") or {}
             lines.append(f"  apply_status: {apply_info.get('status')}")
@@ -68327,6 +70927,41 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
         ),
     )
     parser.add_argument(
+        "--network-retries",
+        type=int,
+        default=DEFAULT_NETWORK_RETRIES,
+        metavar="N",
+        help=(
+            "Retry metadata fetch failures up to N additional times "
+            f"(default: {DEFAULT_NETWORK_RETRIES})."
+        ),
+    )
+    parser.add_argument(
+        "--network-retry-delay-seconds",
+        type=float,
+        default=DEFAULT_NETWORK_RETRY_DELAY_SECONDS,
+        metavar="SECONDS",
+        help=(
+            "Delay between metadata fetch retries in seconds "
+            f"(default: {DEFAULT_NETWORK_RETRY_DELAY_SECONDS})."
+        ),
+    )
+    parser.add_argument(
+        "--skip-unresolved",
+        action="store_true",
+        help=(
+            "Skip unresolved network metadata failures after retries and "
+            "continue with other groups."
+        ),
+    )
+    parser.add_argument(
+        "--unresolved-report",
+        help=(
+            "Write a human-readable report for unresolved groups when any "
+            "remain."
+        ),
+    )
+    parser.add_argument(
         "--limit",
         type=int,
         default=None,
@@ -68343,17 +70978,34 @@ def _parse_args(argv: list[str] | None = None) -> argparse.Namespace:
     args = parser.parse_args(argv)
     if args.limit is not None and args.limit < 0:
         parser.error("--limit must be non-negative")
+    if args.network_retries < 0:
+        parser.error("--network-retries must be non-negative")
+    if args.network_retry_delay_seconds < 0:
+        parser.error(
+            "--network-retry-delay-seconds must be non-negative"
+        )
     return args
 
 
 def main(argv: list[str] | None = None) -> int:
     args = _parse_args(argv)
-    summary = repair_slug_article_identity(
-        args.db,
-        apply=bool(args.apply),
-        allow_network=bool(args.allow_network),
-        limit=args.limit,
-    )
+    try:
+        summary = repair_slug_article_identity(
+            args.db,
+            apply=bool(args.apply),
+            allow_network=bool(args.allow_network),
+            network_retries=args.network_retries,
+            network_retry_delay_seconds=args.network_retry_delay_seconds,
+            skip_unresolved=bool(args.skip_unresolved),
+            limit=args.limit,
+        )
+    except UnresolvedNetworkError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 2
+
+    if args.unresolved_report:
+        write_unresolved_report(args.unresolved_report, summary)
+
     for line in format_repair_summary_lines(
         args.db,
         summary,
