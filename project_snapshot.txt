@@ -2825,6 +2825,40 @@ Likely next task:
   runtime operation shows that further log readability work is still needed.
 
 
+## 2026-05-08 Runtime DB reset
+
+Runtime DB repair for TASK043-era legacy identity data was abandoned after
+copy-DB rehearsal because the remaining historical repair cost outweighed the
+value of preserving disposable personal scrape data.
+
+A compressed backup of the old runtime DB was kept, active targets were
+exported as canonical URLs, one max-BBS-response-count challenge article was
+excluded, and a fresh runtime DB was created with 12149 imported targets.
+
+A 30-minute bounded smoke shot completed successfully:
+`articles=40`, `responses=20153`, no `article_type='id'` rows, no legacy slug
+article rows, no duplicate response keys, and the excluded article remained
+absent.
+
+## 2026-05-08: Registered Articles pending target visibility and encoded search fixes
+
+Completed:
+- SubTask: show pending registered targets (#61)
+  - Registered Articles now lists active target rows, including unsaved/pending targets.
+  - Saved article metadata and response counts are resolved through saved article identity, including canonical_url fallback for target slug vs saved numeric article id cases.
+- SubTask-BugFix: search encoded registered targets (#62)
+  - Registered Articles search now expands decoded user search terms with URL-encoded variants.
+  - Runtime verification confirmed `神谷` search returns 5 rows including `神谷浩史`.
+
+Validation:
+- `./validate_helix.sh` passed before merge.
+- Runtime checkout updated to main and restarted with `tools/runtime_up.sh`.
+- Runtime DB verification confirmed decoded Japanese search works against URL-encoded pending targets.
+
+Operational note:
+- Runtime cron remains disabled intentionally. Do not restart periodic collection until the next denylist/ignore-list decision is made.
+
+
 
 ===== WORKSPACE =====
 # Workspace
@@ -3955,6 +3989,32 @@ Important current interpretation:
 - unset or invalid scrape delay configuration falls back to 5.0 seconds
 - `.env.runtime.local` changes may require runtime container recreation before
   they affect the running runtime container
+
+
+===== REVIEW LOG: META/review_log/2026-05-08_registered_pending_targets.md =====
+# 2026-05-08 Registered Articles pending target fixes
+
+## Closed work
+
+- Merged `SubTask: show pending registered targets` (#61).
+- Merged `SubTask-BugFix: search encoded registered targets` (#62).
+
+## Runtime verification
+
+- Runtime checkout was fast-forwarded to main and restarted.
+- `query_registered_articles(search='神')` returned 122 rows.
+- `query_registered_articles(search='神谷')` returned 5 rows, including `神谷浩史`.
+- Web Registered Articles search also displayed `神谷浩史`.
+
+## Notes
+
+- The Registered Articles list now reflects active target rows, so the count can show all imported targets even before scraping.
+- Rows with identical `created_at` may not place a newly registered item first; this is not treated as a blocker.
+- Cron remains disabled until the denylist/ignore-list policy is reviewed.
+
+## Next candidate work
+
+- Review target/import/scrape denylist behavior, especially high-volume pages such as `>>3が理解できることが不幸`.
 
 
 ===== REVIEW LOG: META/review_log/SUBTASK001_kgs_builtin_trim_fix.md =====
@@ -10668,7 +10728,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Fri May  8 12:41:34 UTC 2026
+generated: Fri May  8 19:26:47 UTC 2026
 mode: full
 
 
@@ -12891,6 +12951,50 @@ If this roadmap becomes outdated, revise it rather than silently relying on old 
 
 
 =============================
+FILE: META/runtime_maintenance_log.md
+=============================
+
+## 2026-05-08 Runtime DB reset after TASK043 repair rehearsal
+
+Context:
+- TASK042 restored numeric article_id storage semantics.
+- TASK043 added legacy slug article_id repair tooling.
+- Subsequent SubTask-BugFix work added unresolved network skip handling and
+  target-only numeric slug repair.
+- Copy DB repair rehearsal mostly worked, but unresolved/skipped cases and
+  repeated validation friction made further historical DB repair too costly.
+
+Decision:
+- Abandoned further runtime DB patching as an operational cost decision.
+- Existing runtime scrape data was treated as disposable personal-use state.
+- Preserved one compressed backup:
+  `runtime/data/nicodic.before_reset_20260508_131736.db.gz`
+- Exported active canonical URLs from target before reset.
+- Excluded the known max-BBS-response-count challenge article:
+  `https://dic.nicovideo.jp/a/%3E%3E3%E3%81%8C%E7%90%86%E8%A7%A3%E3%81%A7%E3%81%8D%E3%82%8B%E3%81%93%E3%81%A8%E3%81%8C%E4%B8%8D%E5%B9%B8`
+- Re-imported 12149 targets into a fresh runtime DB.
+- Ran a bounded manual smoke shot with:
+  `ONESHOT_LIMIT_DURATION_SECONDS=1800`
+
+Smoke result:
+- `periodic-once` completed successfully.
+- `articles=40`
+- `responses=20153`
+- `duplicate_response_keys=0`
+- `articles_id_type=0`
+- `responses_id_type=0`
+- `target_id_type=0`
+- `legacy_slug_articles=0`
+- excluded article remained absent.
+
+Follow-up:
+- Re-enable runtime cron with bounded one-shot duration.
+- Add a later task to review ignore-list behavior for max-BBS-response-count
+  challenge pages.
+
+
+
+=============================
 FILE: META/scripts/collect_task_review.sh
 =============================
 #!/usr/bin/env bash
@@ -14663,6 +14767,39 @@ See docs/PERSONAL_RUNTIME.md for runtime-container-specific notes.
 
 
 =============================
+FILE: copilot/SubTask-BugFix-registered-search-encoded-target_report.txt
+=============================
+SubTask-BugFix: registered-search-encoded-target
+
+Summary
+- Registered Articles search now expands each user search term into distinct variants using the original text and urllib.parse.quote(term, safe="") when different.
+- This lets decoded Japanese searches match pending target rows whose target.article_id and target.canonical_url are stored URL-encoded.
+- Existing saved-title, raw article_id, canonical URL, and already-encoded searches remain supported.
+
+Files Touched
+- archive_read.py
+- tests/test_archive_read.py
+
+Tests Added Or Updated
+- Added regression coverage for a URL-encoded pending target found by a decoded Japanese search term.
+- Added regression coverage for the same pending target found by an already-encoded search term.
+- Added focused coverage confirming saved article title search still works after search variant expansion.
+
+Validation
+- Executable validation was not attempted here because the task explicitly disallowed running raw pytest/python commands without a human request.
+- Static editor diagnostics were checked for archive_read.py and tests/test_archive_read.py and reported no errors.
+
+Known Limitations
+- Search still relies on SQL LIKE against stored strings; this fix broadens term matching but does not introduce full Unicode normalization or kana/width normalization.
+- Multiple encoded spellings beyond urllib.parse.quote(term, safe="") are not generated.
+Reviewer Validation
+- ./validate_helix.sh: PASS on copilot and cursor.
+- Copilot: 362 passed.
+- Cursor: 359 passed.
+- Review snapshot exported with ./export_review_snapshot.sh.
+
+
+=============================
 FILE: copilot/SubTask-BugFix-task043-target-only-numeric-slug_report.txt
 =============================
 Editor AI model: GitHub Copilot / GPT-5.4
@@ -14824,6 +14961,40 @@ Large rehearsal DB statement:
 
 
 =============================
+FILE: copilot/SubTask-registered-target-pending-list_report.txt
+=============================
+SubTask: registered-target-pending-list
+
+Summary
+- Registered Articles read-side was changed to list active target rows, not only saved articles.
+- Scraped targets still show saved article title, response count, max res number, and last scraped time.
+- Saved article matching now prefers exact article_id/article_type and falls back to canonical_url/article_type so slug targets can still resolve numeric saved articles.
+- Active pending targets now appear before scraping with a bounded fallback title derived from canonical URL or article_id.
+
+Files Changed
+- archive_read.py
+- web_app.py
+- tests/test_archive_read.py
+- tests/test_operator_cli.py
+- tests/test_web_app.py
+
+Behavior Notes
+- Default ordering now follows target.created_at DESC.
+- Search now covers saved title, target article_id, and canonical_url.
+- Response counts and max res values are now resolved from the matched saved article identity, not assumed from target.article_id.
+- Pending target rows preserve the existing row shape used by the Registered Articles page and CSV export.
+- Article ID display still uses URL-decoding for legacy encoded values where available.
+- CSV rendering now preserves numeric zero values as 0 instead of blank.
+
+Validation
+- Focused executable validation was attempted but skipped in this environment.
+- Static editor diagnostics were checked for archive_read.py, tests/test_archive_read.py, and tests/test_operator_cli.py and reported no errors.
+Reviewer Validation
+- ./validate_helix.sh: PASS on copilot and cursor after the identity-mismatch follow-up fix.
+- Review snapshot exported with ./export_review_snapshot.sh.
+
+
+=============================
 FILE: copilot/archive_read.py
 =============================
 import csv
@@ -14831,7 +15002,7 @@ from datetime import datetime, timezone
 from io import StringIO
 import sqlite3
 from pathlib import Path
-from urllib.parse import unquote
+from urllib.parse import quote, unquote, urlparse
 
 from storage import DEFAULT_DB_PATH
 
@@ -14849,7 +15020,7 @@ REGISTERED_SORT_ALLOWLIST = frozenset({
 
 # Search target columns. Add entries here to extend user-facing search
 # without scattering conditions across query/render code.
-REGISTERED_SEARCH_COLUMNS = ("title", "article_id")
+REGISTERED_SEARCH_COLUMNS = ("title", "article_id", "canonical_url")
 
 DEFAULT_REGISTERED_SORT_BY = "created_at"
 DEFAULT_REGISTERED_SORT_ORDER = "desc"
@@ -15529,108 +15700,63 @@ def get_saved_article_summary_by_id(article_id):
 
 def list_registered_articles():
     """Return per-article summary list for registered article table view."""
-
-    conn = _open_archive_read_conn()
-    if conn is None:
-        return []
-    cur = conn.cursor()
-
-    try:
-        cur.execute("PRAGMA table_info(articles)")
-        column_names = {row[1] for row in cur.fetchall()}
-        has_scraped_at = "latest_scraped_at" in column_names
-
-        if has_scraped_at:
-            scraped_at_sel = (
-                ", a.latest_scraped_at AS last_scraped_at"
-            )
-            scraped_at_grp = ", a.latest_scraped_at"
-        else:
-            scraped_at_sel = ", NULL AS last_scraped_at"
-            scraped_at_grp = ""
-
-        cur.execute(
-            f"""
-            SELECT
-                a.article_id,
-                a.article_type,
-                a.title,
-                a.canonical_url,
-                a.created_at,
-                COUNT(r.id) AS saved_response_count,
-                MAX(r.res_no) AS latest_scraped_max_res_no
-                {scraped_at_sel}
-            FROM articles AS a
-            LEFT JOIN responses AS r
-                ON a.article_id = r.article_id
-                AND a.article_type = r.article_type
-            GROUP BY
-                a.article_id,
-                a.article_type,
-                a.title,
-                a.canonical_url,
-                a.created_at
-                {scraped_at_grp}
-            ORDER BY
-                a.created_at ASC, a.article_id ASC, a.article_type ASC
-            """
-        )
-        rows = cur.fetchall()
-    except sqlite3.OperationalError:
-        return []
-    finally:
-        conn.close()
-
-    return [
-        {
-            "article_id": unquote(article_id or ""),
-            "article_type": article_type,
-            "title": title or "",
-            "canonical_url": canonical_url or "",
-            "created_at": created_at or "",
-            "saved_response_count": saved_response_count,
-            "latest_scraped_max_res_no": latest_scraped_max_res_no,
-            "last_scraped_at": last_scraped_at,
-        }
-        for (
-            article_id,
-            article_type,
-            title,
-            canonical_url,
-            created_at,
-            saved_response_count,
-            latest_scraped_max_res_no,
-            last_scraped_at,
-        ) in rows
-    ]
+    result = query_registered_articles(paginate=False)
+    return result["rows"]
 
 
-def _registered_sql_schema(conn):
-    """Return (has_scraped_at, scraped_sel, scraped_grp) for articles."""
+def _registered_has_last_scraped_column(conn):
+    """Return whether the optional articles.latest_scraped_at column exists."""
     cur = conn.cursor()
     cur.execute("PRAGMA table_info(articles)")
     cols = {row[1] for row in cur.fetchall()}
-    has = "latest_scraped_at" in cols
-    sel = (
-        ", a.latest_scraped_at AS last_scraped_at"
-        if has
-        else ", NULL AS last_scraped_at"
-    )
-    grp = ", a.latest_scraped_at" if has else ""
-    return has, sel, grp
+    return "latest_scraped_at" in cols
+
+
+def _registered_fallback_title(article_id, canonical_url):
+    parsed = urlparse(canonical_url or "")
+    path_parts = [part for part in parsed.path.split("/") if part]
+    if path_parts:
+        fallback = unquote(path_parts[-1]).strip()
+        if fallback:
+            return fallback
+
+    fallback = unquote(article_id or "").strip()
+    if fallback:
+        return fallback
+
+    return ""
 
 
 def _registered_sort_sql_expr(sort_by):
     """Return SQL ORDER BY expression for a validated sort_by key."""
     _map = {
-        "title": "a.title",
-        "article_id": "a.article_id",
-        "created_at": "a.created_at",
+        "title": "COALESCE(NULLIF(rt.matched_title, ''), rt.target_article_id)",
+        "article_id": "rt.target_article_id",
+        "created_at": "rt.target_created_at",
         "saved_response_count": "saved_response_count",
         "latest_scraped_max_res_no": "latest_scraped_max_res_no",
         "last_scraped_at": "last_scraped_at",
     }
-    return _map.get(sort_by, "a.created_at")
+    return _map.get(sort_by, "rt.target_created_at")
+
+
+def _registered_search_sql_expr(column):
+    mapping = {
+        "title": "rt.matched_title",
+        "article_id": "rt.target_article_id",
+        "canonical_url": "rt.target_canonical_url",
+    }
+    return mapping[column]
+
+
+def _registered_search_variants(term):
+    """Return distinct search terms including an encoded variant."""
+    variants = []
+    for candidate in (term, quote(term, safe="")):
+        if not candidate or candidate in variants:
+            continue
+        variants.append(candidate)
+    return variants
 
 
 def _registered_row_to_dict(row):
@@ -15644,13 +15770,14 @@ def _registered_row_to_dict(row):
         latest_scraped_max_res_no,
         last_scraped_at,
     ) = row
+    display_title = title or _registered_fallback_title(article_id, canonical_url)
     return {
         "article_id": unquote(article_id or ""),
         "article_type": article_type or "",
-        "title": title or "",
+        "title": display_title,
         "canonical_url": canonical_url or "",
         "created_at": created_at or "",
-        "saved_response_count": saved_response_count,
+        "saved_response_count": saved_response_count or 0,
         "latest_scraped_max_res_no": latest_scraped_max_res_no,
         "last_scraped_at": last_scraped_at,
     }
@@ -15681,42 +15808,91 @@ def query_registered_articles(
         return {"rows": [], "total": 0, "page": page, "per_page": per_page}
 
     try:
-        _has_scraped, scraped_sel, scraped_grp = _registered_sql_schema(conn)
+        has_last_scraped = _registered_has_last_scraped_column(conn)
         sort_expr = _registered_sort_sql_expr(sort_by)
+        matched_last_scraped_expr = (
+            "COALESCE(a_exact.latest_scraped_at, a_url.latest_scraped_at)"
+            if has_last_scraped
+            else "NULL"
+        )
+        base_cte_sql = f"""
+            WITH resolved_targets AS (
+                SELECT
+                    t.article_id AS target_article_id,
+                    t.article_type AS target_article_type,
+                    t.canonical_url AS target_canonical_url,
+                    t.created_at AS target_created_at,
+                    COALESCE(a_exact.article_id, a_url.article_id)
+                        AS matched_article_id,
+                    COALESCE(a_exact.article_type, a_url.article_type)
+                        AS matched_article_type,
+                    COALESCE(a_exact.title, a_url.title)
+                        AS matched_title,
+                    {matched_last_scraped_expr} AS matched_last_scraped_at
+                FROM target AS t
+                LEFT JOIN articles AS a_exact
+                    ON t.article_id = a_exact.article_id
+                    AND t.article_type = a_exact.article_type
+                LEFT JOIN articles AS a_url
+                    ON a_exact.id IS NULL
+                    AND a_url.id = (
+                        SELECT a2.id
+                        FROM articles AS a2
+                        WHERE a2.article_type = t.article_type
+                          AND a2.canonical_url = t.canonical_url
+                        ORDER BY a2.id ASC
+                        LIMIT 1
+                    )
+                WHERE t.is_active = 1
+            )
+        """
 
-        where_sql = ""
         where_params: list = []
+        where_sql = ""
         if search:
-            conds = [
-                f"a.{col} LIKE ?" for col in REGISTERED_SEARCH_COLUMNS
-            ]
+            search_variants = _registered_search_variants(search)
+            conds = []
+            for col in REGISTERED_SEARCH_COLUMNS:
+                expr = _registered_search_sql_expr(col)
+                for _ in search_variants:
+                    conds.append(f"{expr} LIKE ?")
             where_sql = "WHERE (" + " OR ".join(conds) + ")"
-            where_params = [
-                f"%{search}%" for _ in REGISTERED_SEARCH_COLUMNS
-            ]
+            where_params = []
+            for _ in REGISTERED_SEARCH_COLUMNS:
+                for variant in search_variants:
+                    where_params.append(f"%{variant}%")
 
-        count_sql = f"SELECT COUNT(*) FROM articles AS a {where_sql}"
-        data_sql = f"""
-            SELECT
-                a.article_id,
-                a.article_type,
-                a.title,
-                a.canonical_url,
-                a.created_at,
-                COUNT(r.id) AS saved_response_count,
-                MAX(r.res_no) AS latest_scraped_max_res_no
-                {scraped_sel}
-            FROM articles AS a
-            LEFT JOIN responses AS r
-                ON a.article_id = r.article_id
-                AND a.article_type = r.article_type
+        count_sql = base_cte_sql + f"""
+            SELECT COUNT(*)
+            FROM resolved_targets AS rt
             {where_sql}
-            GROUP BY
-                a.article_id, a.article_type, a.title,
-                a.canonical_url, a.created_at{scraped_grp}
+        """
+        data_sql = base_cte_sql + f"""
+            SELECT
+                rt.target_article_id,
+                rt.target_article_type,
+                rt.matched_title,
+                rt.target_canonical_url,
+                rt.target_created_at,
+                COALESCE(rs.saved_response_count, 0) AS saved_response_count,
+                rs.latest_scraped_max_res_no,
+                rt.matched_last_scraped_at AS last_scraped_at
+            FROM resolved_targets AS rt
+            LEFT JOIN (
+                SELECT
+                    article_id,
+                    article_type,
+                    COUNT(id) AS saved_response_count,
+                    MAX(res_no) AS latest_scraped_max_res_no
+                FROM responses
+                GROUP BY article_id, article_type
+            ) AS rs
+                ON rt.matched_article_id = rs.article_id
+                AND rt.matched_article_type = rs.article_type
+            {where_sql}
             ORDER BY
                 {sort_expr} {order_dir},
-                a.article_id ASC, a.article_type ASC
+                rt.target_article_id ASC, rt.target_article_type ASC
         """
 
         cur = conn.cursor()
@@ -15749,7 +15925,9 @@ def _render_registered_list_csv(rows):
     writer.writeheader()
     for row in rows:
         writer.writerow({
-            col["csv_header"]: str(row.get(col["key"]) or "")
+            col["csv_header"]: (
+                "" if row.get(col["key"]) is None else str(row.get(col["key"]))
+            )
             for col in REGISTERED_ARTICLE_COLUMNS
         })
     return output.getvalue()
@@ -24083,13 +24261,27 @@ from archive_read import (
     query_registered_articles,
     write_scrape_targets_txt,
 )
-from storage import init_db, save_to_db
+from storage import init_db, register_target, save_to_db
 
 
 def _seed_archive(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     conn = init_db()
     try:
+        register_target(
+            conn,
+            "12345",
+            "a",
+            "https://dic.nicovideo.jp/a/12345",
+        )
+        conn.execute(
+            """
+            UPDATE target
+            SET created_at=?
+            WHERE article_id=? AND article_type=?
+            """,
+            ("2026-01-01T00:00:00+00:00", "12345", "a"),
+        )
         save_to_db(
             conn,
             "12345",
@@ -24107,6 +24299,83 @@ def _seed_archive(tmp_path, monkeypatch):
                 }
             ],
         )
+    finally:
+        conn.close()
+
+
+def _seed_target_slug_saved_numeric_article(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    encoded_slug = "%E3%83%86%E3%82%B9%E3%83%88%E8%A8%98%E4%BA%8B"
+    canonical_url = f"https://dic.nicovideo.jp/a/{encoded_slug}"
+    try:
+        register_target(conn, encoded_slug, "a", canonical_url)
+        conn.execute(
+            """
+            UPDATE target
+            SET created_at=?
+            WHERE article_id=? AND article_type=?
+            """,
+            ("2026-04-01T00:00:00+00:00", encoded_slug, "a"),
+        )
+        save_to_db(
+            conn,
+            "4470620",
+            "a",
+            "Saved Numeric Title",
+            canonical_url,
+            [
+                {
+                    "res_no": 1,
+                    "id_hash": "abc123",
+                    "poster_name": "Alice",
+                    "posted_at": "2025-01-01 00:00",
+                    "content": "First response",
+                    "content_html": "<p>First response</p>",
+                },
+                {
+                    "res_no": 2,
+                    "id_hash": "def456",
+                    "poster_name": "Bob",
+                    "posted_at": "2025-01-01 00:05",
+                    "content": "Second response",
+                    "content_html": "<p>Second response</p>",
+                },
+            ],
+            latest_scraped_at="2026-04-02T00:00:00+00:00",
+        )
+    finally:
+        conn.close()
+
+    return {
+        "encoded_slug": encoded_slug,
+        "decoded_slug": "テスト記事",
+        "canonical_url": canonical_url,
+        "saved_article_id": "4470620",
+    }
+
+
+def _seed_pending_target(
+    tmp_path,
+    monkeypatch,
+    article_id="pending-slug",
+    article_type="a",
+    canonical_url="https://dic.nicovideo.jp/a/pending-slug",
+    created_at="2026-02-01T00:00:00+00:00",
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        register_target(conn, article_id, article_type, canonical_url)
+        conn.execute(
+            """
+            UPDATE target
+            SET created_at=?
+            WHERE article_id=? AND article_type=?
+            """,
+            (created_at, article_id, article_type),
+        )
+        conn.commit()
     finally:
         conn.close()
 
@@ -24584,6 +24853,119 @@ def test_query_registered_articles_default_sort_is_created_at_desc(
     assert result["rows"][0]["article_id"] == "12345"
 
 
+def test_query_registered_articles_includes_active_pending_targets(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="pending-slug",
+        canonical_url="https://dic.nicovideo.jp/a/pending-slug",
+        created_at="2026-02-02T00:00:00+00:00",
+    )
+
+    result = query_registered_articles()
+
+    assert result["total"] == 2
+    assert result["rows"][0]["article_id"] == "pending-slug"
+    assert result["rows"][0]["title"] == "pending-slug"
+    assert result["rows"][0]["saved_response_count"] == 0
+    assert result["rows"][0]["latest_scraped_max_res_no"] is None
+    assert result["rows"][0]["last_scraped_at"] is None
+
+
+def test_query_registered_articles_search_finds_pending_target_by_article_id(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="pending-slug",
+        canonical_url="https://dic.nicovideo.jp/a/pending-slug",
+    )
+
+    result = query_registered_articles(search="pending-slug")
+
+    assert result["total"] == 1
+    assert result["rows"][0]["article_id"] == "pending-slug"
+
+
+def test_query_registered_articles_search_finds_pending_target_by_url(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="pending-slug",
+        canonical_url="https://dic.nicovideo.jp/a/pending-slug",
+    )
+
+    result = query_registered_articles(search="dic.nicovideo.jp/a/pending-slug")
+
+    assert result["total"] == 1
+    assert result["rows"][0]["canonical_url"] == (
+        "https://dic.nicovideo.jp/a/pending-slug"
+    )
+
+
+def test_query_registered_articles_uses_target_created_at_for_default_order(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="older-pending",
+        canonical_url="https://dic.nicovideo.jp/a/older-pending",
+        created_at="2026-01-01T00:00:00+00:00",
+    )
+
+    conn = init_db()
+    try:
+        conn.execute(
+            """
+            UPDATE target
+            SET created_at=?
+            WHERE article_id=? AND article_type=?
+            """,
+            ("2026-03-01T00:00:00+00:00", "12345", "a"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    result = query_registered_articles()
+
+    assert [row["article_id"] for row in result["rows"]] == [
+        "12345",
+        "older-pending",
+    ]
+
+
+def test_query_registered_articles_matches_saved_numeric_article_by_canonical_url(
+    tmp_path,
+    monkeypatch,
+):
+    seeded = _seed_target_slug_saved_numeric_article(tmp_path, monkeypatch)
+
+    result = query_registered_articles()
+
+    assert result["total"] == 1
+    row = result["rows"][0]
+    assert row["article_id"] == seeded["decoded_slug"]
+    assert row["article_type"] == "a"
+    assert row["title"] == "Saved Numeric Title"
+    assert row["canonical_url"] == seeded["canonical_url"]
+    assert row["saved_response_count"] == 2
+    assert row["latest_scraped_max_res_no"] == 2
+    assert row["last_scraped_at"] == "2026-04-02T00:00:00+00:00"
+
+
 def test_query_registered_articles_filters_by_search_title(
     tmp_path,
     monkeypatch,
@@ -24683,6 +25065,26 @@ def test_export_registered_articles_csv_returns_csv_with_header(
     assert reader[0]["article_type"] == "a"
 
 
+def test_export_registered_articles_csv_includes_pending_target_rows(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="pending-slug",
+        canonical_url="https://dic.nicovideo.jp/a/pending-slug",
+    )
+
+    csv_text = export_registered_articles_csv()
+
+    reader = list(csv.DictReader(StringIO(csv_text)))
+    assert len(reader) == 1
+    assert reader[0]["article_id"] == "pending-slug"
+    assert reader[0]["title"] == "pending-slug"
+    assert reader[0]["saved_response_count"] == "0"
+
+
 def test_export_registered_articles_csv_no_db_returns_header_only(
     tmp_path,
     monkeypatch,
@@ -24752,6 +25154,12 @@ def _seed_encoded_article(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     conn = init_db()
     try:
+        register_target(
+            conn,
+            _ENCODED_JP,
+            "a",
+            f"https://dic.nicovideo.jp/a/{_ENCODED_JP}",
+        )
         # Seed a legacy slug-identity row directly (save_to_db rejects now).
         canonical_url = f"https://dic.nicovideo.jp/a/{_ENCODED_JP}"
         cur = conn.cursor()
@@ -24779,6 +25187,29 @@ def _seed_encoded_article(tmp_path, monkeypatch):
                 "hello",
                 "<p>hello</p>",
             ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _seed_encoded_pending_target(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        register_target(
+            conn,
+            _ENCODED_JP,
+            "a",
+            f"https://dic.nicovideo.jp/a/{_ENCODED_JP}",
+        )
+        conn.execute(
+            """
+            UPDATE target
+            SET created_at=?
+            WHERE article_id=? AND article_type=?
+            """,
+            ("2026-05-01T00:00:00+00:00", _ENCODED_JP, "a"),
         )
         conn.commit()
     finally:
@@ -24825,6 +25256,43 @@ def test_query_registered_articles_search_by_raw_encoded_id_still_works(
 
     assert result["total"] == 1
     assert result["rows"][0]["article_id"] == _DECODED_JP
+
+
+def test_query_registered_articles_search_finds_encoded_pending_target_by_decoded_term(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_encoded_pending_target(tmp_path, monkeypatch)
+
+    result = query_registered_articles(search=_DECODED_JP, paginate=False)
+
+    assert result["total"] == 1
+    assert result["rows"][0]["article_id"] == _DECODED_JP
+    assert result["rows"][0]["title"] == _DECODED_JP
+
+
+def test_query_registered_articles_search_finds_encoded_pending_target_by_encoded_term(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_encoded_pending_target(tmp_path, monkeypatch)
+
+    result = query_registered_articles(search=_ENCODED_JP, paginate=False)
+
+    assert result["total"] == 1
+    assert result["rows"][0]["article_id"] == _DECODED_JP
+
+
+def test_query_registered_articles_saved_title_search_still_works_with_search_variants(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = query_registered_articles(search="First", paginate=False)
+
+    assert result["total"] == 1
+    assert result["rows"][0]["title"] == "First Title"
 
 
 def test_export_registered_articles_csv_decodes_url_encoded_article_id(
@@ -27776,7 +28244,7 @@ from operator_cli import (
     list_targets_for_operator,
     show_scraped_res_for_operator,
 )
-from storage import init_db, save_to_db
+from storage import init_db, register_target, save_to_db
 from target_list import deactivate_target, register_target_url
 from unittest.mock import patch
 
@@ -28027,6 +28495,12 @@ def _seed_articles(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     conn = init_db()
     try:
+        register_target(
+            conn,
+            "12345",
+            "a",
+            "https://dic.nicovideo.jp/a/12345",
+        )
         save_to_db(
             conn,
             "12345",
@@ -32975,6 +33449,26 @@ def test_registered_page_csv_contains_all_column_headers():
     assert "canonical_url" in first_line
 
 
+def test_registered_page_csv_renders_pending_target_rows():
+    pending = _make_reg_row(
+        article_id="pending-slug",
+        title="pending-slug",
+        canonical_url="https://dic.nicovideo.jp/a/pending-slug",
+        saved_response_count=0,
+        latest_scraped_max_res_no=None,
+        last_scraped_at=None,
+    )
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([pending]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered/csv")
+
+    assert response["status"] == "200 OK"
+    assert "pending-slug" in response["body"]
+    assert "https://dic.nicovideo.jp/a/pending-slug" in response["body"]
+
+
 def test_registered_csv_includes_csv_download_link_on_page():
     with patch(
         "web_app.query_registered_articles",
@@ -36434,7 +36928,7 @@ def _render_registered_list_page(query_params: dict) -> bytes:
       <input type="hidden" name="sort_order" value="{sort_ord_esc}">
       <input type="hidden" name="per_page" value="{per_page_str}">
       <input type="text" name="q" value="{search_esc}"
-             placeholder="Search title or article ID&hellip;">
+              placeholder="Search title, article ID, or canonical URL&hellip;">
       <button type="submit">Search</button>{clear_link}
     </form>
     <form method="get" action="/registered">
@@ -37072,6 +37566,39 @@ See docs/PERSONAL_RUNTIME.md for runtime-container-specific notes.
 
 
 =============================
+FILE: cursor/SubTask-BugFix-registered-search-encoded-target_report.txt
+=============================
+SubTask-BugFix: registered-search-encoded-target
+
+Summary
+- Registered Articles search now expands each user search term into distinct variants using the original text and urllib.parse.quote(term, safe="") when different.
+- This lets decoded Japanese searches match pending target rows whose target.article_id and target.canonical_url are stored URL-encoded.
+- Existing saved-title, raw article_id, canonical URL, and already-encoded searches remain supported.
+
+Files Touched
+- archive_read.py
+- tests/test_archive_read.py
+
+Tests Added Or Updated
+- Added regression coverage for a URL-encoded pending target found by a decoded Japanese search term.
+- Added regression coverage for the same pending target found by an already-encoded search term.
+- Added focused coverage confirming saved article title search still works after search variant expansion.
+
+Validation
+- Executable validation was not attempted here because the task explicitly disallowed running raw pytest/python commands without a human request.
+- Static editor diagnostics were checked for archive_read.py and tests/test_archive_read.py and reported no errors.
+
+Known Limitations
+- Search still relies on SQL LIKE against stored strings; this fix broadens term matching but does not introduce full Unicode normalization or kana/width normalization.
+- Multiple encoded spellings beyond urllib.parse.quote(term, safe="") are not generated.
+Reviewer Validation
+- ./validate_helix.sh: PASS on copilot and cursor.
+- Copilot: 362 passed.
+- Cursor: 359 passed.
+- Review snapshot exported with ./export_review_snapshot.sh.
+
+
+=============================
 FILE: cursor/SubTask-BugFix-task043-target-only-numeric-slug_report.txt
 =============================
 Editor AI model: GitHub Copilot / GPT-5.4
@@ -37233,6 +37760,40 @@ Large rehearsal DB statement:
 
 
 =============================
+FILE: cursor/SubTask-registered-target-pending-list_report.txt
+=============================
+SubTask: registered-target-pending-list
+
+Summary
+- Registered Articles read-side was changed to list active target rows, not only saved articles.
+- Scraped targets still show saved article title, response count, max res number, and last scraped time.
+- Saved article matching now prefers exact article_id/article_type and falls back to canonical_url/article_type so slug targets can still resolve numeric saved articles.
+- Active pending targets now appear before scraping with a bounded fallback title derived from canonical URL or article_id.
+
+Files Changed
+- archive_read.py
+- web_app.py
+- tests/test_archive_read.py
+- tests/test_operator_cli.py
+- tests/test_web_app.py
+
+Behavior Notes
+- Default ordering now follows target.created_at DESC.
+- Search now covers saved title, target article_id, and canonical_url.
+- Response counts and max res values are now resolved from the matched saved article identity, not assumed from target.article_id.
+- Pending target rows preserve the existing row shape used by the Registered Articles page and CSV export.
+- Article ID display still uses URL-decoding for legacy encoded values where available.
+- CSV rendering now preserves numeric zero values as 0 instead of blank.
+
+Validation
+- Focused executable validation was attempted but skipped in this environment.
+- Static editor diagnostics were checked for archive_read.py, tests/test_archive_read.py, and tests/test_operator_cli.py and reported no errors.
+Reviewer Validation
+- ./validate_helix.sh: PASS on copilot and cursor after the identity-mismatch follow-up fix.
+- Review snapshot exported with ./export_review_snapshot.sh.
+
+
+=============================
 FILE: cursor/archive_read.py
 =============================
 import csv
@@ -37240,7 +37801,7 @@ from datetime import datetime, timezone
 from io import StringIO
 import sqlite3
 from pathlib import Path
-from urllib.parse import unquote
+from urllib.parse import quote, unquote, urlparse
 
 from storage import DEFAULT_DB_PATH
 
@@ -37258,7 +37819,7 @@ REGISTERED_SORT_ALLOWLIST = frozenset({
 
 # Search target columns. Add entries here to extend user-facing search
 # without scattering conditions across query/render code.
-REGISTERED_SEARCH_COLUMNS = ("title", "article_id")
+REGISTERED_SEARCH_COLUMNS = ("title", "article_id", "canonical_url")
 
 DEFAULT_REGISTERED_SORT_BY = "created_at"
 DEFAULT_REGISTERED_SORT_ORDER = "desc"
@@ -37938,108 +38499,63 @@ def get_saved_article_summary_by_id(article_id):
 
 def list_registered_articles():
     """Return per-article summary list for registered article table view."""
-
-    conn = _open_archive_read_conn()
-    if conn is None:
-        return []
-    cur = conn.cursor()
-
-    try:
-        cur.execute("PRAGMA table_info(articles)")
-        column_names = {row[1] for row in cur.fetchall()}
-        has_scraped_at = "latest_scraped_at" in column_names
-
-        if has_scraped_at:
-            scraped_at_sel = (
-                ", a.latest_scraped_at AS last_scraped_at"
-            )
-            scraped_at_grp = ", a.latest_scraped_at"
-        else:
-            scraped_at_sel = ", NULL AS last_scraped_at"
-            scraped_at_grp = ""
-
-        cur.execute(
-            f"""
-            SELECT
-                a.article_id,
-                a.article_type,
-                a.title,
-                a.canonical_url,
-                a.created_at,
-                COUNT(r.id) AS saved_response_count,
-                MAX(r.res_no) AS latest_scraped_max_res_no
-                {scraped_at_sel}
-            FROM articles AS a
-            LEFT JOIN responses AS r
-                ON a.article_id = r.article_id
-                AND a.article_type = r.article_type
-            GROUP BY
-                a.article_id,
-                a.article_type,
-                a.title,
-                a.canonical_url,
-                a.created_at
-                {scraped_at_grp}
-            ORDER BY
-                a.created_at ASC, a.article_id ASC, a.article_type ASC
-            """
-        )
-        rows = cur.fetchall()
-    except sqlite3.OperationalError:
-        return []
-    finally:
-        conn.close()
-
-    return [
-        {
-            "article_id": unquote(article_id or ""),
-            "article_type": article_type,
-            "title": title or "",
-            "canonical_url": canonical_url or "",
-            "created_at": created_at or "",
-            "saved_response_count": saved_response_count,
-            "latest_scraped_max_res_no": latest_scraped_max_res_no,
-            "last_scraped_at": last_scraped_at,
-        }
-        for (
-            article_id,
-            article_type,
-            title,
-            canonical_url,
-            created_at,
-            saved_response_count,
-            latest_scraped_max_res_no,
-            last_scraped_at,
-        ) in rows
-    ]
+    result = query_registered_articles(paginate=False)
+    return result["rows"]
 
 
-def _registered_sql_schema(conn):
-    """Return (has_scraped_at, scraped_sel, scraped_grp) for articles."""
+def _registered_has_last_scraped_column(conn):
+    """Return whether the optional articles.latest_scraped_at column exists."""
     cur = conn.cursor()
     cur.execute("PRAGMA table_info(articles)")
     cols = {row[1] for row in cur.fetchall()}
-    has = "latest_scraped_at" in cols
-    sel = (
-        ", a.latest_scraped_at AS last_scraped_at"
-        if has
-        else ", NULL AS last_scraped_at"
-    )
-    grp = ", a.latest_scraped_at" if has else ""
-    return has, sel, grp
+    return "latest_scraped_at" in cols
+
+
+def _registered_fallback_title(article_id, canonical_url):
+    parsed = urlparse(canonical_url or "")
+    path_parts = [part for part in parsed.path.split("/") if part]
+    if path_parts:
+        fallback = unquote(path_parts[-1]).strip()
+        if fallback:
+            return fallback
+
+    fallback = unquote(article_id or "").strip()
+    if fallback:
+        return fallback
+
+    return ""
 
 
 def _registered_sort_sql_expr(sort_by):
     """Return SQL ORDER BY expression for a validated sort_by key."""
     _map = {
-        "title": "a.title",
-        "article_id": "a.article_id",
-        "created_at": "a.created_at",
+        "title": "COALESCE(NULLIF(rt.matched_title, ''), rt.target_article_id)",
+        "article_id": "rt.target_article_id",
+        "created_at": "rt.target_created_at",
         "saved_response_count": "saved_response_count",
         "latest_scraped_max_res_no": "latest_scraped_max_res_no",
         "last_scraped_at": "last_scraped_at",
     }
-    return _map.get(sort_by, "a.created_at")
+    return _map.get(sort_by, "rt.target_created_at")
+
+
+def _registered_search_sql_expr(column):
+    mapping = {
+        "title": "rt.matched_title",
+        "article_id": "rt.target_article_id",
+        "canonical_url": "rt.target_canonical_url",
+    }
+    return mapping[column]
+
+
+def _registered_search_variants(term):
+    """Return distinct search terms including an encoded variant."""
+    variants = []
+    for candidate in (term, quote(term, safe="")):
+        if not candidate or candidate in variants:
+            continue
+        variants.append(candidate)
+    return variants
 
 
 def _registered_row_to_dict(row):
@@ -38053,13 +38569,14 @@ def _registered_row_to_dict(row):
         latest_scraped_max_res_no,
         last_scraped_at,
     ) = row
+    display_title = title or _registered_fallback_title(article_id, canonical_url)
     return {
         "article_id": unquote(article_id or ""),
         "article_type": article_type or "",
-        "title": title or "",
+        "title": display_title,
         "canonical_url": canonical_url or "",
         "created_at": created_at or "",
-        "saved_response_count": saved_response_count,
+        "saved_response_count": saved_response_count or 0,
         "latest_scraped_max_res_no": latest_scraped_max_res_no,
         "last_scraped_at": last_scraped_at,
     }
@@ -38090,42 +38607,91 @@ def query_registered_articles(
         return {"rows": [], "total": 0, "page": page, "per_page": per_page}
 
     try:
-        _has_scraped, scraped_sel, scraped_grp = _registered_sql_schema(conn)
+        has_last_scraped = _registered_has_last_scraped_column(conn)
         sort_expr = _registered_sort_sql_expr(sort_by)
+        matched_last_scraped_expr = (
+            "COALESCE(a_exact.latest_scraped_at, a_url.latest_scraped_at)"
+            if has_last_scraped
+            else "NULL"
+        )
+        base_cte_sql = f"""
+            WITH resolved_targets AS (
+                SELECT
+                    t.article_id AS target_article_id,
+                    t.article_type AS target_article_type,
+                    t.canonical_url AS target_canonical_url,
+                    t.created_at AS target_created_at,
+                    COALESCE(a_exact.article_id, a_url.article_id)
+                        AS matched_article_id,
+                    COALESCE(a_exact.article_type, a_url.article_type)
+                        AS matched_article_type,
+                    COALESCE(a_exact.title, a_url.title)
+                        AS matched_title,
+                    {matched_last_scraped_expr} AS matched_last_scraped_at
+                FROM target AS t
+                LEFT JOIN articles AS a_exact
+                    ON t.article_id = a_exact.article_id
+                    AND t.article_type = a_exact.article_type
+                LEFT JOIN articles AS a_url
+                    ON a_exact.id IS NULL
+                    AND a_url.id = (
+                        SELECT a2.id
+                        FROM articles AS a2
+                        WHERE a2.article_type = t.article_type
+                          AND a2.canonical_url = t.canonical_url
+                        ORDER BY a2.id ASC
+                        LIMIT 1
+                    )
+                WHERE t.is_active = 1
+            )
+        """
 
-        where_sql = ""
         where_params: list = []
+        where_sql = ""
         if search:
-            conds = [
-                f"a.{col} LIKE ?" for col in REGISTERED_SEARCH_COLUMNS
-            ]
+            search_variants = _registered_search_variants(search)
+            conds = []
+            for col in REGISTERED_SEARCH_COLUMNS:
+                expr = _registered_search_sql_expr(col)
+                for _ in search_variants:
+                    conds.append(f"{expr} LIKE ?")
             where_sql = "WHERE (" + " OR ".join(conds) + ")"
-            where_params = [
-                f"%{search}%" for _ in REGISTERED_SEARCH_COLUMNS
-            ]
+            where_params = []
+            for _ in REGISTERED_SEARCH_COLUMNS:
+                for variant in search_variants:
+                    where_params.append(f"%{variant}%")
 
-        count_sql = f"SELECT COUNT(*) FROM articles AS a {where_sql}"
-        data_sql = f"""
-            SELECT
-                a.article_id,
-                a.article_type,
-                a.title,
-                a.canonical_url,
-                a.created_at,
-                COUNT(r.id) AS saved_response_count,
-                MAX(r.res_no) AS latest_scraped_max_res_no
-                {scraped_sel}
-            FROM articles AS a
-            LEFT JOIN responses AS r
-                ON a.article_id = r.article_id
-                AND a.article_type = r.article_type
+        count_sql = base_cte_sql + f"""
+            SELECT COUNT(*)
+            FROM resolved_targets AS rt
             {where_sql}
-            GROUP BY
-                a.article_id, a.article_type, a.title,
-                a.canonical_url, a.created_at{scraped_grp}
+        """
+        data_sql = base_cte_sql + f"""
+            SELECT
+                rt.target_article_id,
+                rt.target_article_type,
+                rt.matched_title,
+                rt.target_canonical_url,
+                rt.target_created_at,
+                COALESCE(rs.saved_response_count, 0) AS saved_response_count,
+                rs.latest_scraped_max_res_no,
+                rt.matched_last_scraped_at AS last_scraped_at
+            FROM resolved_targets AS rt
+            LEFT JOIN (
+                SELECT
+                    article_id,
+                    article_type,
+                    COUNT(id) AS saved_response_count,
+                    MAX(res_no) AS latest_scraped_max_res_no
+                FROM responses
+                GROUP BY article_id, article_type
+            ) AS rs
+                ON rt.matched_article_id = rs.article_id
+                AND rt.matched_article_type = rs.article_type
+            {where_sql}
             ORDER BY
                 {sort_expr} {order_dir},
-                a.article_id ASC, a.article_type ASC
+                rt.target_article_id ASC, rt.target_article_type ASC
         """
 
         cur = conn.cursor()
@@ -38158,7 +38724,9 @@ def _render_registered_list_csv(rows):
     writer.writeheader()
     for row in rows:
         writer.writerow({
-            col["csv_header"]: str(row.get(col["key"]) or "")
+            col["csv_header"]: (
+                "" if row.get(col["key"]) is None else str(row.get(col["key"]))
+            )
             for col in REGISTERED_ARTICLE_COLUMNS
         })
     return output.getvalue()
@@ -60438,13 +61006,27 @@ from archive_read import (
     query_registered_articles,
     write_scrape_targets_txt,
 )
-from storage import init_db, save_to_db
+from storage import init_db, register_target, save_to_db
 
 
 def _seed_archive(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     conn = init_db()
     try:
+        register_target(
+            conn,
+            "12345",
+            "a",
+            "https://dic.nicovideo.jp/a/12345",
+        )
+        conn.execute(
+            """
+            UPDATE target
+            SET created_at=?
+            WHERE article_id=? AND article_type=?
+            """,
+            ("2026-01-01T00:00:00+00:00", "12345", "a"),
+        )
         save_to_db(
             conn,
             "12345",
@@ -60462,6 +61044,83 @@ def _seed_archive(tmp_path, monkeypatch):
                 }
             ],
         )
+    finally:
+        conn.close()
+
+
+def _seed_target_slug_saved_numeric_article(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    encoded_slug = "%E3%83%86%E3%82%B9%E3%83%88%E8%A8%98%E4%BA%8B"
+    canonical_url = f"https://dic.nicovideo.jp/a/{encoded_slug}"
+    try:
+        register_target(conn, encoded_slug, "a", canonical_url)
+        conn.execute(
+            """
+            UPDATE target
+            SET created_at=?
+            WHERE article_id=? AND article_type=?
+            """,
+            ("2026-04-01T00:00:00+00:00", encoded_slug, "a"),
+        )
+        save_to_db(
+            conn,
+            "4470620",
+            "a",
+            "Saved Numeric Title",
+            canonical_url,
+            [
+                {
+                    "res_no": 1,
+                    "id_hash": "abc123",
+                    "poster_name": "Alice",
+                    "posted_at": "2025-01-01 00:00",
+                    "content": "First response",
+                    "content_html": "<p>First response</p>",
+                },
+                {
+                    "res_no": 2,
+                    "id_hash": "def456",
+                    "poster_name": "Bob",
+                    "posted_at": "2025-01-01 00:05",
+                    "content": "Second response",
+                    "content_html": "<p>Second response</p>",
+                },
+            ],
+            latest_scraped_at="2026-04-02T00:00:00+00:00",
+        )
+    finally:
+        conn.close()
+
+    return {
+        "encoded_slug": encoded_slug,
+        "decoded_slug": "テスト記事",
+        "canonical_url": canonical_url,
+        "saved_article_id": "4470620",
+    }
+
+
+def _seed_pending_target(
+    tmp_path,
+    monkeypatch,
+    article_id="pending-slug",
+    article_type="a",
+    canonical_url="https://dic.nicovideo.jp/a/pending-slug",
+    created_at="2026-02-01T00:00:00+00:00",
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        register_target(conn, article_id, article_type, canonical_url)
+        conn.execute(
+            """
+            UPDATE target
+            SET created_at=?
+            WHERE article_id=? AND article_type=?
+            """,
+            (created_at, article_id, article_type),
+        )
+        conn.commit()
     finally:
         conn.close()
 
@@ -60939,6 +61598,119 @@ def test_query_registered_articles_default_sort_is_created_at_desc(
     assert result["rows"][0]["article_id"] == "12345"
 
 
+def test_query_registered_articles_includes_active_pending_targets(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="pending-slug",
+        canonical_url="https://dic.nicovideo.jp/a/pending-slug",
+        created_at="2026-02-02T00:00:00+00:00",
+    )
+
+    result = query_registered_articles()
+
+    assert result["total"] == 2
+    assert result["rows"][0]["article_id"] == "pending-slug"
+    assert result["rows"][0]["title"] == "pending-slug"
+    assert result["rows"][0]["saved_response_count"] == 0
+    assert result["rows"][0]["latest_scraped_max_res_no"] is None
+    assert result["rows"][0]["last_scraped_at"] is None
+
+
+def test_query_registered_articles_search_finds_pending_target_by_article_id(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="pending-slug",
+        canonical_url="https://dic.nicovideo.jp/a/pending-slug",
+    )
+
+    result = query_registered_articles(search="pending-slug")
+
+    assert result["total"] == 1
+    assert result["rows"][0]["article_id"] == "pending-slug"
+
+
+def test_query_registered_articles_search_finds_pending_target_by_url(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="pending-slug",
+        canonical_url="https://dic.nicovideo.jp/a/pending-slug",
+    )
+
+    result = query_registered_articles(search="dic.nicovideo.jp/a/pending-slug")
+
+    assert result["total"] == 1
+    assert result["rows"][0]["canonical_url"] == (
+        "https://dic.nicovideo.jp/a/pending-slug"
+    )
+
+
+def test_query_registered_articles_uses_target_created_at_for_default_order(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="older-pending",
+        canonical_url="https://dic.nicovideo.jp/a/older-pending",
+        created_at="2026-01-01T00:00:00+00:00",
+    )
+
+    conn = init_db()
+    try:
+        conn.execute(
+            """
+            UPDATE target
+            SET created_at=?
+            WHERE article_id=? AND article_type=?
+            """,
+            ("2026-03-01T00:00:00+00:00", "12345", "a"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    result = query_registered_articles()
+
+    assert [row["article_id"] for row in result["rows"]] == [
+        "12345",
+        "older-pending",
+    ]
+
+
+def test_query_registered_articles_matches_saved_numeric_article_by_canonical_url(
+    tmp_path,
+    monkeypatch,
+):
+    seeded = _seed_target_slug_saved_numeric_article(tmp_path, monkeypatch)
+
+    result = query_registered_articles()
+
+    assert result["total"] == 1
+    row = result["rows"][0]
+    assert row["article_id"] == seeded["decoded_slug"]
+    assert row["article_type"] == "a"
+    assert row["title"] == "Saved Numeric Title"
+    assert row["canonical_url"] == seeded["canonical_url"]
+    assert row["saved_response_count"] == 2
+    assert row["latest_scraped_max_res_no"] == 2
+    assert row["last_scraped_at"] == "2026-04-02T00:00:00+00:00"
+
+
 def test_query_registered_articles_filters_by_search_title(
     tmp_path,
     monkeypatch,
@@ -61038,6 +61810,26 @@ def test_export_registered_articles_csv_returns_csv_with_header(
     assert reader[0]["article_type"] == "a"
 
 
+def test_export_registered_articles_csv_includes_pending_target_rows(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="pending-slug",
+        canonical_url="https://dic.nicovideo.jp/a/pending-slug",
+    )
+
+    csv_text = export_registered_articles_csv()
+
+    reader = list(csv.DictReader(StringIO(csv_text)))
+    assert len(reader) == 1
+    assert reader[0]["article_id"] == "pending-slug"
+    assert reader[0]["title"] == "pending-slug"
+    assert reader[0]["saved_response_count"] == "0"
+
+
 def test_export_registered_articles_csv_no_db_returns_header_only(
     tmp_path,
     monkeypatch,
@@ -61107,6 +61899,12 @@ def _seed_encoded_article(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     conn = init_db()
     try:
+        register_target(
+            conn,
+            _ENCODED_JP,
+            "a",
+            f"https://dic.nicovideo.jp/a/{_ENCODED_JP}",
+        )
         # Seed a legacy slug-identity row directly (save_to_db rejects now).
         canonical_url = f"https://dic.nicovideo.jp/a/{_ENCODED_JP}"
         cur = conn.cursor()
@@ -61134,6 +61932,29 @@ def _seed_encoded_article(tmp_path, monkeypatch):
                 "hello",
                 "<p>hello</p>",
             ),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _seed_encoded_pending_target(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        register_target(
+            conn,
+            _ENCODED_JP,
+            "a",
+            f"https://dic.nicovideo.jp/a/{_ENCODED_JP}",
+        )
+        conn.execute(
+            """
+            UPDATE target
+            SET created_at=?
+            WHERE article_id=? AND article_type=?
+            """,
+            ("2026-05-01T00:00:00+00:00", _ENCODED_JP, "a"),
         )
         conn.commit()
     finally:
@@ -61180,6 +62001,43 @@ def test_query_registered_articles_search_by_raw_encoded_id_still_works(
 
     assert result["total"] == 1
     assert result["rows"][0]["article_id"] == _DECODED_JP
+
+
+def test_query_registered_articles_search_finds_encoded_pending_target_by_decoded_term(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_encoded_pending_target(tmp_path, monkeypatch)
+
+    result = query_registered_articles(search=_DECODED_JP, paginate=False)
+
+    assert result["total"] == 1
+    assert result["rows"][0]["article_id"] == _DECODED_JP
+    assert result["rows"][0]["title"] == _DECODED_JP
+
+
+def test_query_registered_articles_search_finds_encoded_pending_target_by_encoded_term(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_encoded_pending_target(tmp_path, monkeypatch)
+
+    result = query_registered_articles(search=_ENCODED_JP, paginate=False)
+
+    assert result["total"] == 1
+    assert result["rows"][0]["article_id"] == _DECODED_JP
+
+
+def test_query_registered_articles_saved_title_search_still_works_with_search_variants(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    result = query_registered_articles(search="First", paginate=False)
+
+    assert result["total"] == 1
+    assert result["rows"][0]["title"] == "First Title"
 
 
 def test_export_registered_articles_csv_decodes_url_encoded_article_id(
@@ -64131,7 +64989,7 @@ from operator_cli import (
     list_targets_for_operator,
     show_scraped_res_for_operator,
 )
-from storage import init_db, save_to_db
+from storage import init_db, register_target, save_to_db
 from target_list import deactivate_target, register_target_url
 from unittest.mock import patch
 
@@ -64382,6 +65240,12 @@ def _seed_articles(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     conn = init_db()
     try:
+        register_target(
+            conn,
+            "12345",
+            "a",
+            "https://dic.nicovideo.jp/a/12345",
+        )
         save_to_db(
             conn,
             "12345",
@@ -69330,6 +70194,26 @@ def test_registered_page_csv_contains_all_column_headers():
     assert "canonical_url" in first_line
 
 
+def test_registered_page_csv_renders_pending_target_rows():
+    pending = _make_reg_row(
+        article_id="pending-slug",
+        title="pending-slug",
+        canonical_url="https://dic.nicovideo.jp/a/pending-slug",
+        saved_response_count=0,
+        latest_scraped_max_res_no=None,
+        last_scraped_at=None,
+    )
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([pending]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered/csv")
+
+    assert response["status"] == "200 OK"
+    assert "pending-slug" in response["body"]
+    assert "https://dic.nicovideo.jp/a/pending-slug" in response["body"]
+
+
 def test_registered_csv_includes_csv_download_link_on_page():
     with patch(
         "web_app.query_registered_articles",
@@ -72789,7 +73673,7 @@ def _render_registered_list_page(query_params: dict) -> bytes:
       <input type="hidden" name="sort_order" value="{sort_ord_esc}">
       <input type="hidden" name="per_page" value="{per_page_str}">
       <input type="text" name="q" value="{search_esc}"
-             placeholder="Search title or article ID&hellip;">
+              placeholder="Search title, article ID, or canonical URL&hellip;">
       <button type="submit">Search</button>{clear_link}
     </form>
     <form method="get" action="/registered">

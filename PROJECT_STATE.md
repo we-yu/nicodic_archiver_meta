@@ -1840,3 +1840,21 @@ A 30-minute bounded smoke shot completed successfully:
 article rows, no duplicate response keys, and the excluded article remained
 absent.
 
+## 2026-05-08: Registered Articles pending target visibility and encoded search fixes
+
+Completed:
+- SubTask: show pending registered targets (#61)
+  - Registered Articles now lists active target rows, including unsaved/pending targets.
+  - Saved article metadata and response counts are resolved through saved article identity, including canonical_url fallback for target slug vs saved numeric article id cases.
+- SubTask-BugFix: search encoded registered targets (#62)
+  - Registered Articles search now expands decoded user search terms with URL-encoded variants.
+  - Runtime verification confirmed `神谷` search returns 5 rows including `神谷浩史`.
+
+Validation:
+- `./validate_helix.sh` passed before merge.
+- Runtime checkout updated to main and restarted with `tools/runtime_up.sh`.
+- Runtime DB verification confirmed decoded Japanese search works against URL-encoded pending targets.
+
+Operational note:
+- Runtime cron remains disabled intentionally. Do not restart periodic collection until the next denylist/ignore-list decision is made.
+
