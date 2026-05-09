@@ -5322,6 +5322,123 @@ be stopped before natural completion.
 
 
 
+===== REVIEW LOG: META/review_log/SubTask_target_denylist_policy_seam_adoption.md =====
+# SubTask target denylist policy seam adoption log
+
+## Task
+
+- Title: target denylist / ignore policy seam
+- Type: single-editor bounded SubTask
+- Adopted implementation: Copilot
+- Final product commit on main: 359bf50
+- Implementation branch: Subtask-target-denylist-policy-seam-copilot
+- Integration path: GitHub PR merge into product `main`
+
+## Purpose
+
+Before re-enabling runtime cron, prevent known high-volume, low-value
+articles from being registered or collected.
+
+This task targets complete exclusion of known articles from collection.
+It intentionally does not implement per-article response truncation or a
+1,000,000 response cap behavior change.
+
+## Denylisted articles
+
+- `480340`
+  - title: `>>3が理解できることが不幸`
+  - canonical URL:
+    `https://dic.nicovideo.jp/a/%3E%3E3%E3%81%8C%E7%90%86%E8%A7%A3%E3%81%A7%E3%81%8D%E3%82%8B%E3%81%93%E3%81%A8%E3%81%8C%E4%B8%8D%E5%B9%B8`
+  - numeric URL: `https://dic.nicovideo.jp/id/480340`
+- `237789`
+  - title: `4294967295`
+  - canonical URL: `https://dic.nicovideo.jp/a/4294967295`
+  - numeric URL: `https://dic.nicovideo.jp/id/237789`
+
+## Adopted implementation
+
+- Added `collection_policy.py` as a small Python policy seam.
+- Moved `DENYLIST_ARTICLE_IDS` from `orchestrator.py` into the shared policy
+  seam.
+- Kept `RESPONSE_CAP` and `QUEUE_DRAIN_PER_ARTICLE_RESPONSE_CAP` in
+  `orchestrator.py` to avoid broad policy churn.
+- Added denylist checks at the shared target registration boundary in
+  `target_list.register_target_url()`.
+- Added Web manual registration feedback:
+  `This article is excluded from archive collection.`
+- Added delete-request feeder skip accounting:
+  `skipped_denylisted_candidates`.
+- Added direct `main.py add-target` operator-facing denylisted messaging.
+- Preserved scrape-side `skip_denylist` protection in `orchestrator.py`.
+
+## Non-goals
+
+- No response cap behavior change.
+- No per-article scrape truncation.
+- No `denylist.txt`.
+- No DB-backed denylist table.
+- No `target.deny_flag`.
+- No DB schema migration.
+- No runtime DB direct edit.
+- No cron restart.
+- No root/meta file changes by editor AI.
+- No runtime checkout implementation.
+
+## Review notes
+
+The initial editor result had two issues:
+
+1. `collection_policy.py` was missing EOF newline.
+2. delete-request feeder raw `/id/480340` candidates were dropped before
+   `register_target_url()` was reached.
+
+A focused fix prompt was re-run on the same Copilot branch.
+
+The final result skips raw denylisted `/id/<digits>` feeder candidates before
+archive DB resolution or registration, and exposes the skip in feeder summary
+output.
+
+## Validation
+
+Post-merge validation was run from the workspace root with:
+
+`./validate_helix.sh`
+
+Result:
+
+- Copilot main: PASS, 370 passed
+- Cursor main: PASS, 370 passed
+
+## Convergence
+
+Post-merge convergence was checked with:
+
+`./compare_helix.sh --all`
+
+Result:
+
+- `copilot/` and `cursor/` match for selected files.
+- Helix converged.
+
+## Runtime status
+
+Runtime reflection and cron restart were not part of the adoption decision.
+
+Cron remains intentionally stopped at this point.
+
+Runtime reflection and read-only runtime DB checks should be handled as the
+next operational closeout step.
+
+## Conclusion
+
+The SubTask is adopted.
+
+The product `main` now contains a bounded denylist policy seam and shared
+registration-time protection for known high-volume articles.
+
+
+
+
 ===== REVIEW LOG: META/review_log/TASK002_adoption.md =====
 # TASK002 Adoption Log
 
@@ -10728,7 +10845,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Fri May  8 19:26:47 UTC 2026
+generated: Sat May  9 19:48:46 UTC 2026
 mode: full
 
 
@@ -14995,6 +15112,75 @@ Reviewer Validation
 
 
 =============================
+FILE: copilot/SubTask-target-denylist-policy-seam_report.txt
+=============================
+Summary
+- Added a small shared denylist policy seam for known high-volume articles.
+- Target registration now rejects denylisted inputs at the common
+  registration boundary and surfaces the result to web, feeder, and import
+  intake paths.
+- Raw denylisted /id candidates in the delete-request feeder are now skipped
+  before resolution or registration and counted separately.
+- Scrape-side denylist protection in orchestrator remains in place as a
+  safety net.
+
+Files touched
+- collection_policy.py
+- target_list.py
+- delete_request_feeder.py
+- orchestrator.py
+- web_app.py
+- main.py
+- tests/test_target_list.py
+- tests/test_delete_request_feeder.py
+- tests/test_web_app.py
+- tests/test_main.py
+
+Tests added/updated
+- Added target registration denylist tests for direct /id and exact canonical
+  /a URL inputs.
+- Added import target test covering observable denylisted skip counts.
+- Added delete-request feeder tests covering pre-handoff denylisted /id skips
+  and summary formatting of skipped_denylisted_candidates.
+- Added web registration tests covering denylisted manual registration and
+  denylisted slug rejection after resolution to numeric identity.
+- Added a direct add-target CLI test covering denylisted operator messaging.
+- Kept existing orchestrator skip_denylist test coverage intact.
+
+Validation attempted or not attempted
+- Not run.
+- Static inspection only: touched Python files were checked for obvious
+  unused imports/variables and for 88-character line limit issues.
+
+Known limitations
+- Denylist matching is keyed primarily by numeric NicoNicoPedia article id.
+- Supplementary exact URL matching is limited to the known denylisted
+  canonical article URLs and id URLs in the policy seam.
+- Raw denylisted feeder pre-skip is limited to /id/<digits> inputs that are
+  directly observable before the existing resolution path.
+- No fuzzy title matching, DB-backed denylist, schema flags, or extra network
+  requests were added solely for denylist checks.
+
+Policy constants moved
+- Yes.
+- Moved DENYLIST_ARTICLE_IDS from orchestrator.py into collection_policy.py
+  so registration, feeder/import, and scrape layers can share one source.
+- RESPONSE_CAP and QUEUE_DRAIN_PER_ARTICLE_RESPONSE_CAP were intentionally
+  not moved to keep the patch bounded and avoid unrelated policy churn.
+
+Response cap behavior
+- Response cap behavior was intentionally not changed.
+
+Feeder and add-target behavior
+- Raw denylisted /id candidates are skipped before registration and do not
+  increment handed_off_candidates.
+- `python main.py add-target ...` now reports denylisted targets with a clear
+  operator-facing message instead of treating them as invalid input.
+
+Line-length check
+- Touched Python files were checked for the 88-character line limit.
+
+=============================
 FILE: copilot/archive_read.py
 =============================
 import csv
@@ -16406,6 +16592,78 @@ def inspect_article(article_id, article_type, last_n=None):
 
 
 =============================
+FILE: copilot/collection_policy.py
+=============================
+import re
+from urllib.parse import urlparse
+
+
+DENYLISTED_ARTICLES = {
+    "480340": {
+        "title": ">>3が理解できることが不幸",
+        "canonical_url": (
+            "https://dic.nicovideo.jp/a/"
+            "%3E%3E3%E3%81%8C%E7%90%86%E8%A7%A3%E3%81%A7"
+            "%E3%81%8D%E3%82%8B%E3%81%93%E3%81%A8%E3%81%8C"
+            "%E4%B8%8D%E5%B9%B8"
+        ),
+        "id_url": "https://dic.nicovideo.jp/id/480340",
+    },
+    "237789": {
+        "title": "4294967295",
+        "canonical_url": "https://dic.nicovideo.jp/a/4294967295",
+        "id_url": "https://dic.nicovideo.jp/id/237789",
+    },
+}
+
+DENYLIST_ARTICLE_IDS = frozenset(DENYLISTED_ARTICLES)
+
+_ID_URL_RE = re.compile(r"^/id/([0-9]+)$")
+
+_DENYLIST_URL_TO_ID = {
+    article["canonical_url"]: article_id
+    for article_id, article in DENYLISTED_ARTICLES.items()
+}
+_DENYLIST_URL_TO_ID.update(
+    {
+        article["id_url"]: article_id
+        for article_id, article in DENYLISTED_ARTICLES.items()
+    }
+)
+
+
+def _numeric_id_from_url(article_url: str | None) -> str | None:
+    if not article_url:
+        return None
+
+    exact_match = _DENYLIST_URL_TO_ID.get(article_url)
+    if exact_match is not None:
+        return exact_match
+
+    parsed = urlparse(article_url)
+    match = _ID_URL_RE.match(parsed.path)
+    if match is None:
+        return None
+
+    return match.group(1)
+
+
+def find_denylisted_article_id(
+    *,
+    article_id: str | None = None,
+    article_url: str | None = None,
+) -> str | None:
+    if article_id and article_id.isdigit() and article_id in DENYLIST_ARTICLE_IDS:
+        return article_id
+
+    url_article_id = _numeric_id_from_url(article_url)
+    if url_article_id in DENYLIST_ARTICLE_IDS:
+        return url_article_id
+
+    return None
+
+
+=============================
 FILE: copilot/delete_request_feeder.py
 =============================
 import json
@@ -16416,6 +16674,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from article_resolver import resolve_article_input
+from collection_policy import find_denylisted_article_id
 from storage import DEFAULT_DB_PATH, init_db
 from target_list import register_target_url
 
@@ -16653,6 +16912,7 @@ def scan_delete_request_feed(
     candidates: list[dict] = []
     accepted_candidates = 0
     skipped_invalid_candidates = 0
+    skipped_denylisted_candidates = 0
     skipped_resolution_failures = 0
     max_res_no = last_processed_res_no
 
@@ -16664,6 +16924,24 @@ def scan_delete_request_feed(
             normalized_input = None
             failure_kind = None
             if category in SUPPORTED_DELETE_REQUEST_URL_CATEGORIES:
+                if category == "article_id":
+                    denylisted_article_id = find_denylisted_article_id(
+                        article_url=raw_url,
+                    )
+                    if denylisted_article_id is not None:
+                        failure_kind = "denylisted"
+                        skipped_denylisted_candidates += 1
+                        candidates.append(
+                            {
+                                "res_no": res_no,
+                                "raw_url": raw_url,
+                                "category": category,
+                                "accepted": False,
+                                "normalized_input": None,
+                                "failure_kind": failure_kind,
+                            }
+                        )
+                        continue
                 try:
                     normalized_input = normalize_supported_delete_request_input(
                         raw_url,
@@ -16714,6 +16992,7 @@ def scan_delete_request_feed(
             "extracted_candidates": len(candidates),
             "accepted_candidates": accepted_candidates,
             "skipped_invalid_candidates": skipped_invalid_candidates,
+            "skipped_denylisted_candidates": skipped_denylisted_candidates,
             "skipped_resolution_failures": skipped_resolution_failures,
             "skipped_registration_failures": 0,
             "handed_off_candidates": 0,
@@ -16756,6 +17035,10 @@ def run_delete_request_feeder(
 
     handed_off_candidates = 0
     skipped_invalid_candidates = summary.get("skipped_invalid_candidates", 0)
+    skipped_denylisted_candidates = summary.get(
+        "skipped_denylisted_candidates",
+        0,
+    )
     skipped_resolution_failures = summary.get(
         "skipped_resolution_failures",
         0,
@@ -16810,6 +17093,9 @@ def run_delete_request_feeder(
         if register_status == "duplicate":
             duplicate_targets += 1
             continue
+        if register_status == "denylisted":
+            skipped_denylisted_candidates += 1
+            continue
 
         invalid_targets += 1
 
@@ -16824,6 +17110,9 @@ def run_delete_request_feeder(
     summary["skipped_invalid_candidates"] = skipped_invalid_candidates
     summary["skipped_resolution_failures"] = skipped_resolution_failures
     summary["skipped_registration_failures"] = skipped_registration_failures
+    summary["skipped_denylisted_candidates"] = (
+        skipped_denylisted_candidates
+    )
 
     if summary["checked_to_res_no"] is not None:
         save_last_processed_res_no(
@@ -16858,6 +17147,10 @@ def format_delete_request_feed_summary(summary: dict) -> str:
             (
                 "skipped_resolution_failures="
                 f"{summary.get('skipped_resolution_failures', 0)}"
+            ),
+            (
+                "skipped_denylisted_candidates="
+                f"{summary.get('skipped_denylisted_candidates', 0)}"
             ),
             (
                 "skipped_registration_failures="
@@ -20790,6 +21083,12 @@ def main():
         if result == "duplicate":
             print(f"Target already exists: {sys.argv[2]}")
             return
+        if result == "denylisted":
+            print(
+                "Target is excluded from archive collection: "
+                f"{sys.argv[2]}"
+            )
+            sys.exit(1)
 
         print(f"Invalid target URL: {sys.argv[2]}")
         sys.exit(1)
@@ -20808,7 +21107,8 @@ def main():
         )
         print(
             "added={added} duplicate={duplicate} "
-            "reactivated={reactivated} invalid={invalid}".format(
+            "reactivated={reactivated} denylisted={denylisted} "
+            "invalid={invalid}".format(
                 **import_result,
             )
         )
@@ -21238,6 +21538,7 @@ import time
 from urllib.parse import urljoin
 from urllib.parse import urlparse
 
+from collection_policy import DENYLIST_ARTICLE_IDS
 from http_client import fetch_page
 from parser import parse_responses
 from storage import (
@@ -21252,9 +21553,6 @@ from target_list import parse_target_identity
 # 取得レス数の上限。未知の high-volume 記事に対する bounded protection。
 RESPONSE_CAP = 1_000_000
 QUEUE_DRAIN_PER_ARTICLE_RESPONSE_CAP = 10_800
-
-# 仮置き。known high-volume article を skip するための seed。
-DENYLIST_ARTICLE_IDS = frozenset({"480340", "237789"})
 
 DEFAULT_BBS_RESPONSES_PER_PAGE = 30
 DEFAULT_SCRAPE_PAGE_DELAY_SECONDS = 5.0
@@ -23966,6 +24264,7 @@ FILE: copilot/target_list.py
 from pathlib import Path
 from urllib.parse import urlparse
 
+from collection_policy import find_denylisted_article_id
 from http_client import resolve_id_article_url
 from storage import get_target, init_db, list_targets, mark_target_redirected
 from storage import register_target
@@ -24059,6 +24358,9 @@ def validate_target_url(article_url: str) -> bool:
 
 
 def register_target_url(article_url: str, target_db_path: str) -> str:
+    if find_denylisted_article_id(article_url=article_url) is not None:
+        return "denylisted"
+
     normalized_url = normalize_target_url(article_url)
     if normalized_url is None:
         return "invalid"
@@ -24066,6 +24368,12 @@ def register_target_url(article_url: str, target_db_path: str) -> str:
     target_identity = parse_target_identity(normalized_url)
     if target_identity is None:
         return "invalid"
+
+    if find_denylisted_article_id(
+        article_id=target_identity["article_id"],
+        article_url=target_identity["canonical_url"],
+    ) is not None:
+        return "denylisted"
 
     conn = init_db(target_db_path)
     try:
@@ -24210,6 +24518,7 @@ def import_targets_from_text_file(
         "processed": 0,
         "added": 0,
         "duplicate": 0,
+        "denylisted": 0,
         "reactivated": 0,
         "invalid": 0,
     }
@@ -25670,6 +25979,7 @@ from delete_request_feeder import (
     append_batch_targets,
     classify_delete_request_url,
     extract_delete_request_urls,
+    format_delete_request_feed_summary,
     format_delete_request_feed_inspect_lines,
     normalize_supported_delete_request_input,
     resolve_internal_article_id_input,
@@ -25989,6 +26299,58 @@ def test_run_delete_request_feeder_continues_after_registration_failure(
     assert summary["queued_target_urls"] == [
         "https://dic.nicovideo.jp/a/good-three"
     ]
+
+
+def test_run_delete_request_feeder_skips_denylisted_candidate(tmp_path):
+    state_path = tmp_path / "feed_state.json"
+    responses = [
+        {
+            "res_no": 24,
+            "body": "https://dic.nicovideo.jp/id/480340",
+        }
+    ]
+
+    with patch(
+        "delete_request_feeder._load_delete_request_responses",
+        return_value=responses,
+    ), patch(
+        "delete_request_feeder.resolve_article_input",
+    ) as resolve_mock, patch(
+        "delete_request_feeder.register_target_url",
+    ) as register_mock:
+        summary = run_delete_request_feeder(
+            "targets.db",
+            archive_db_path="archive.db",
+            state_path=str(state_path),
+        )
+
+    resolve_mock.assert_not_called()
+    register_mock.assert_not_called()
+    assert summary["handed_off_candidates"] == 0
+    assert summary["registered_candidates"] == 0
+    assert summary["queued_target_urls"] == []
+    assert summary["skipped_denylisted_candidates"] == 1
+
+
+def test_format_delete_request_feed_summary_reports_denylisted_skip_count():
+    text = format_delete_request_feed_summary(
+        {
+            "checked_from_res_no": 1,
+            "checked_to_res_no": 24,
+            "responses_checked": 1,
+            "extracted_candidates": 1,
+            "processed_candidates": 0,
+            "registered_candidates": 0,
+            "handed_off_candidates": 0,
+            "skipped_invalid_candidates": 0,
+            "skipped_resolution_failures": 0,
+            "skipped_denylisted_candidates": 1,
+            "skipped_registration_failures": 0,
+            "updated_last_processed_res_no": 24,
+        }
+    )
+
+    assert "skipped_denylisted_candidates=1" in text
 
 
 def test_append_batch_targets_appends_only_new_urls_at_tail():
@@ -26781,6 +27143,30 @@ def test_main_add_target_calls_register_target_url(mock_add_target, capsys):
     assert "Added target: https://dic.nicovideo.jp/a/12345" in out
 
 
+@patch("main.register_target_url", return_value="denylisted")
+def test_main_add_target_reports_denylisted_target(mock_add_target, capsys):
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "add-target",
+            "https://dic.nicovideo.jp/id/480340",
+            "targets.db",
+        ],
+    ):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    mock_add_target.assert_called_once_with(
+        "https://dic.nicovideo.jp/id/480340",
+        "targets.db",
+    )
+    out = capsys.readouterr().out
+    assert "Target is excluded from archive collection:" in out
+    assert "https://dic.nicovideo.jp/id/480340" in out
+
+
 @patch("main.resolve_article_input")
 def test_main_resolve_article_calls_resolver_and_prints_success(
     mock_resolve_article_input,
@@ -27448,6 +27834,7 @@ def test_main_import_targets_reports_counts(mock_import_targets, capsys):
         "processed": 3,
         "added": 2,
         "duplicate": 1,
+        "denylisted": 4,
         "reactivated": 0,
         "invalid": 0,
     }
@@ -27469,7 +27856,7 @@ def test_main_import_targets_reports_counts(mock_import_targets, capsys):
     )
     out = capsys.readouterr().out
     assert "Imported 3 target line(s)" in out
-    assert "added=2 duplicate=1 reactivated=0 invalid=0" in out
+    assert "added=2 duplicate=1 reactivated=0 denylisted=4 invalid=0" in out
 
 
 def test_main_import_targets_without_required_args_exits_with_usage(capsys):
@@ -32090,6 +32477,33 @@ def test_register_target_url_rejects_unresolved_id_input(tmp_path):
     assert target_db_path.exists() is False
 
 
+def test_register_target_url_rejects_denylisted_numeric_id_input(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+
+    result = register_target_url(
+        "https://dic.nicovideo.jp/id/480340",
+        str(target_db_path),
+    )
+
+    assert result == "denylisted"
+    assert target_db_path.exists() is False
+
+
+def test_register_target_url_rejects_denylisted_canonical_slug_url(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+
+    result = register_target_url(
+        "https://dic.nicovideo.jp/a/"
+        "%3E%3E3%E3%81%8C%E7%90%86%E8%A7%A3%E3%81%A7"
+        "%E3%81%8D%E3%82%8B%E3%81%93%E3%81%A8%E3%81%8C"
+        "%E4%B8%8D%E5%B9%B8",
+        str(target_db_path),
+    )
+
+    assert result == "denylisted"
+    assert target_db_path.exists() is False
+
+
 def test_register_target_url_suppresses_duplicate_identity(tmp_path):
     target_db_path = tmp_path / "targets.db"
     register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
@@ -32142,12 +32556,42 @@ def test_import_targets_from_text_file_is_one_shot_and_non_automatic(tmp_path):
         "processed": 4,
         "added": 2,
         "duplicate": 1,
+        "denylisted": 0,
         "reactivated": 0,
         "invalid": 1,
     }
     assert list_active_target_urls(str(target_db_path)) == [
         "https://dic.nicovideo.jp/a/12345",
         "https://dic.nicovideo.jp/a/777-title",
+    ]
+
+
+def test_import_targets_from_text_file_reports_denylisted_skip(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+    source_file = tmp_path / "targets.txt"
+    source_file.write_text(
+        "https://dic.nicovideo.jp/id/480340\n"
+        "https://dic.nicovideo.jp/a/12345\n",
+        encoding="utf-8",
+    )
+
+    result = import_targets_from_text_file(
+        str(source_file),
+        str(target_db_path),
+    )
+
+    assert result == {
+        "source_path": str(source_file),
+        "target_db_path": str(target_db_path),
+        "processed": 2,
+        "added": 1,
+        "duplicate": 0,
+        "denylisted": 1,
+        "reactivated": 0,
+        "invalid": 0,
+    }
+    assert list_active_target_urls(str(target_db_path)) == [
+        "https://dic.nicovideo.jp/a/12345",
     ]
 
 
@@ -33086,6 +33530,72 @@ def test_application_post_registers_unsaved_article_and_logs_action(tmp_path):
     assert "result_status=added" in log_text
     assert "resolved_title=ニコニコ大百科" in log_text
     assert "%E3%83%8B%E3%82%B3" not in log_text
+
+
+def test_application_post_rejects_denylisted_id_registration(tmp_path):
+    result = {
+        "status": "unsaved",
+        "input": "https://dic.nicovideo.jp/id/480340",
+        "title": ">>3が理解できることが不幸",
+        "matched_by": "article_url",
+        "article_url": "https://dic.nicovideo.jp/id/480340",
+        "article_id": "480340",
+        "article_type": "id",
+        "message": "Resolved article, but no saved archive was found yet.",
+    }
+    log_path = tmp_path / "web_action.log"
+
+    with patch("web_app.check_article_status", return_value=result):
+        with patch("web_app.register_target_url", return_value="denylisted"):
+            response = _run_wsgi_request(
+                "POST",
+                body="article_input=https%3A%2F%2Fdic.nicovideo.jp%2Fid%2F480340",
+                app=create_app(web_action_log_path=str(log_path)),
+            )
+
+    assert response["status"] == "200 OK"
+    assert "This article is excluded from archive collection." in (
+        response["body"]
+    )
+    log_text = log_path.read_text(encoding="utf-8")
+    assert "result_status=denylisted" in log_text
+    assert "error_code=denylisted" in log_text
+
+
+def test_application_post_rejects_denylisted_slug_after_resolution(tmp_path):
+    result = {
+        "status": "unsaved",
+        "input": (
+            "https://dic.nicovideo.jp/a/"
+            "%253E%253E3%E3%81%8C%E7%90%86%E8%A7%A3%E3%81%A7"
+            "%E3%81%8D%E3%82%8B%E3%81%93%E3%81%A8%E3%81%8C"
+            "%E4%B8%8D%E5%B9%B8"
+        ),
+        "title": ">>3が理解できることが不幸",
+        "matched_by": "article_url",
+        "article_url": "https://dic.nicovideo.jp/id/480340",
+        "article_id": "480340",
+        "article_type": "id",
+        "message": "Resolved article, but no saved archive was found yet.",
+    }
+
+    with patch("web_app.check_article_status", return_value=result):
+        with patch("web_app.register_target_url", return_value="denylisted"):
+            response = _run_wsgi_request(
+                "POST",
+                body=(
+                    "article_input=https%3A%2F%2Fdic.nicovideo.jp%2Fa%2F"
+                    "%25253E%25253E3%25E3%2581%258C%25E7%2590%2586"
+                    "%25E8%25A7%25A3%25E3%2581%25A7%25E3%2581%258D"
+                    "%25E3%2582%258B%25E3%2581%2593%25E3%2581%25A8"
+                    "%25E3%2581%258C%25E4%25B8%258D%25E5%25B9%25B8"
+                ),
+            )
+
+    assert response["status"] == "200 OK"
+    assert "This article is excluded from archive collection." in (
+        response["body"]
+    )
 
 
 def test_application_post_unsaved_result_stays_200_when_log_write_fails():
@@ -35723,6 +36233,7 @@ UI_TEXTS = {
     ),
     "error_messages": {
         "not_found": "Article was not found.",
+        "denylisted": "This article is excluded from archive collection.",
         "invalid_input": (
             "Enter an article name or a valid Nicopedia article URL."
         ),
@@ -35949,6 +36460,8 @@ def check_article_status(article_input: str) -> dict:
 
 
 def _result_error_code(result: dict) -> str:
+    if result["status"] == "denylisted":
+        return "denylisted"
     if result["status"] == "resolution_failure":
         return result.get("failure_kind", "unknown_resolution_failure")
     if result["status"] == "internal_error":
@@ -36209,6 +36722,25 @@ def _submit_archive_check(
                 resolved_canonical_url=check_result["article_url"],
             )
             return _build_registered_ui_result(check_result), None
+
+        if registration_status == "denylisted":
+            reference_id = _log_web_action(
+                web_action_log_path,
+                environ,
+                action_kind="registration",
+                input_value=article_input,
+                requested_format=None,
+                result_status="denylisted",
+                resolved_title=check_result["title"],
+                resolved_article_id=check_result["article_id"],
+                resolved_article_type=check_result["article_type"],
+                resolved_canonical_url=check_result["article_url"],
+                error_code="denylisted",
+            )
+            return _build_error_ui_result(
+                {"status": "denylisted"},
+                reference_id,
+            ), None
 
         failure_result = {
             "status": "internal_error",
@@ -37794,6 +38326,75 @@ Reviewer Validation
 
 
 =============================
+FILE: cursor/SubTask-target-denylist-policy-seam_report.txt
+=============================
+Summary
+- Added a small shared denylist policy seam for known high-volume articles.
+- Target registration now rejects denylisted inputs at the common
+  registration boundary and surfaces the result to web, feeder, and import
+  intake paths.
+- Raw denylisted /id candidates in the delete-request feeder are now skipped
+  before resolution or registration and counted separately.
+- Scrape-side denylist protection in orchestrator remains in place as a
+  safety net.
+
+Files touched
+- collection_policy.py
+- target_list.py
+- delete_request_feeder.py
+- orchestrator.py
+- web_app.py
+- main.py
+- tests/test_target_list.py
+- tests/test_delete_request_feeder.py
+- tests/test_web_app.py
+- tests/test_main.py
+
+Tests added/updated
+- Added target registration denylist tests for direct /id and exact canonical
+  /a URL inputs.
+- Added import target test covering observable denylisted skip counts.
+- Added delete-request feeder tests covering pre-handoff denylisted /id skips
+  and summary formatting of skipped_denylisted_candidates.
+- Added web registration tests covering denylisted manual registration and
+  denylisted slug rejection after resolution to numeric identity.
+- Added a direct add-target CLI test covering denylisted operator messaging.
+- Kept existing orchestrator skip_denylist test coverage intact.
+
+Validation attempted or not attempted
+- Not run.
+- Static inspection only: touched Python files were checked for obvious
+  unused imports/variables and for 88-character line limit issues.
+
+Known limitations
+- Denylist matching is keyed primarily by numeric NicoNicoPedia article id.
+- Supplementary exact URL matching is limited to the known denylisted
+  canonical article URLs and id URLs in the policy seam.
+- Raw denylisted feeder pre-skip is limited to /id/<digits> inputs that are
+  directly observable before the existing resolution path.
+- No fuzzy title matching, DB-backed denylist, schema flags, or extra network
+  requests were added solely for denylist checks.
+
+Policy constants moved
+- Yes.
+- Moved DENYLIST_ARTICLE_IDS from orchestrator.py into collection_policy.py
+  so registration, feeder/import, and scrape layers can share one source.
+- RESPONSE_CAP and QUEUE_DRAIN_PER_ARTICLE_RESPONSE_CAP were intentionally
+  not moved to keep the patch bounded and avoid unrelated policy churn.
+
+Response cap behavior
+- Response cap behavior was intentionally not changed.
+
+Feeder and add-target behavior
+- Raw denylisted /id candidates are skipped before registration and do not
+  increment handed_off_candidates.
+- `python main.py add-target ...` now reports denylisted targets with a clear
+  operator-facing message instead of treating them as invalid input.
+
+Line-length check
+- Touched Python files were checked for the 88-character line limit.
+
+=============================
 FILE: cursor/archive_read.py
 =============================
 import csv
@@ -39205,6 +39806,78 @@ def inspect_article(article_id, article_type, last_n=None):
 
 
 =============================
+FILE: cursor/collection_policy.py
+=============================
+import re
+from urllib.parse import urlparse
+
+
+DENYLISTED_ARTICLES = {
+    "480340": {
+        "title": ">>3が理解できることが不幸",
+        "canonical_url": (
+            "https://dic.nicovideo.jp/a/"
+            "%3E%3E3%E3%81%8C%E7%90%86%E8%A7%A3%E3%81%A7"
+            "%E3%81%8D%E3%82%8B%E3%81%93%E3%81%A8%E3%81%8C"
+            "%E4%B8%8D%E5%B9%B8"
+        ),
+        "id_url": "https://dic.nicovideo.jp/id/480340",
+    },
+    "237789": {
+        "title": "4294967295",
+        "canonical_url": "https://dic.nicovideo.jp/a/4294967295",
+        "id_url": "https://dic.nicovideo.jp/id/237789",
+    },
+}
+
+DENYLIST_ARTICLE_IDS = frozenset(DENYLISTED_ARTICLES)
+
+_ID_URL_RE = re.compile(r"^/id/([0-9]+)$")
+
+_DENYLIST_URL_TO_ID = {
+    article["canonical_url"]: article_id
+    for article_id, article in DENYLISTED_ARTICLES.items()
+}
+_DENYLIST_URL_TO_ID.update(
+    {
+        article["id_url"]: article_id
+        for article_id, article in DENYLISTED_ARTICLES.items()
+    }
+)
+
+
+def _numeric_id_from_url(article_url: str | None) -> str | None:
+    if not article_url:
+        return None
+
+    exact_match = _DENYLIST_URL_TO_ID.get(article_url)
+    if exact_match is not None:
+        return exact_match
+
+    parsed = urlparse(article_url)
+    match = _ID_URL_RE.match(parsed.path)
+    if match is None:
+        return None
+
+    return match.group(1)
+
+
+def find_denylisted_article_id(
+    *,
+    article_id: str | None = None,
+    article_url: str | None = None,
+) -> str | None:
+    if article_id and article_id.isdigit() and article_id in DENYLIST_ARTICLE_IDS:
+        return article_id
+
+    url_article_id = _numeric_id_from_url(article_url)
+    if url_article_id in DENYLIST_ARTICLE_IDS:
+        return url_article_id
+
+    return None
+
+
+=============================
 FILE: cursor/delete_request_feeder.py
 =============================
 import json
@@ -39215,6 +39888,7 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 from article_resolver import resolve_article_input
+from collection_policy import find_denylisted_article_id
 from storage import DEFAULT_DB_PATH, init_db
 from target_list import register_target_url
 
@@ -39452,6 +40126,7 @@ def scan_delete_request_feed(
     candidates: list[dict] = []
     accepted_candidates = 0
     skipped_invalid_candidates = 0
+    skipped_denylisted_candidates = 0
     skipped_resolution_failures = 0
     max_res_no = last_processed_res_no
 
@@ -39463,6 +40138,24 @@ def scan_delete_request_feed(
             normalized_input = None
             failure_kind = None
             if category in SUPPORTED_DELETE_REQUEST_URL_CATEGORIES:
+                if category == "article_id":
+                    denylisted_article_id = find_denylisted_article_id(
+                        article_url=raw_url,
+                    )
+                    if denylisted_article_id is not None:
+                        failure_kind = "denylisted"
+                        skipped_denylisted_candidates += 1
+                        candidates.append(
+                            {
+                                "res_no": res_no,
+                                "raw_url": raw_url,
+                                "category": category,
+                                "accepted": False,
+                                "normalized_input": None,
+                                "failure_kind": failure_kind,
+                            }
+                        )
+                        continue
                 try:
                     normalized_input = normalize_supported_delete_request_input(
                         raw_url,
@@ -39513,6 +40206,7 @@ def scan_delete_request_feed(
             "extracted_candidates": len(candidates),
             "accepted_candidates": accepted_candidates,
             "skipped_invalid_candidates": skipped_invalid_candidates,
+            "skipped_denylisted_candidates": skipped_denylisted_candidates,
             "skipped_resolution_failures": skipped_resolution_failures,
             "skipped_registration_failures": 0,
             "handed_off_candidates": 0,
@@ -39555,6 +40249,10 @@ def run_delete_request_feeder(
 
     handed_off_candidates = 0
     skipped_invalid_candidates = summary.get("skipped_invalid_candidates", 0)
+    skipped_denylisted_candidates = summary.get(
+        "skipped_denylisted_candidates",
+        0,
+    )
     skipped_resolution_failures = summary.get(
         "skipped_resolution_failures",
         0,
@@ -39609,6 +40307,9 @@ def run_delete_request_feeder(
         if register_status == "duplicate":
             duplicate_targets += 1
             continue
+        if register_status == "denylisted":
+            skipped_denylisted_candidates += 1
+            continue
 
         invalid_targets += 1
 
@@ -39623,6 +40324,9 @@ def run_delete_request_feeder(
     summary["skipped_invalid_candidates"] = skipped_invalid_candidates
     summary["skipped_resolution_failures"] = skipped_resolution_failures
     summary["skipped_registration_failures"] = skipped_registration_failures
+    summary["skipped_denylisted_candidates"] = (
+        skipped_denylisted_candidates
+    )
 
     if summary["checked_to_res_no"] is not None:
         save_last_processed_res_no(
@@ -39657,6 +40361,10 @@ def format_delete_request_feed_summary(summary: dict) -> str:
             (
                 "skipped_resolution_failures="
                 f"{summary.get('skipped_resolution_failures', 0)}"
+            ),
+            (
+                "skipped_denylisted_candidates="
+                f"{summary.get('skipped_denylisted_candidates', 0)}"
             ),
             (
                 "skipped_registration_failures="
@@ -43589,6 +44297,12 @@ def main():
         if result == "duplicate":
             print(f"Target already exists: {sys.argv[2]}")
             return
+        if result == "denylisted":
+            print(
+                "Target is excluded from archive collection: "
+                f"{sys.argv[2]}"
+            )
+            sys.exit(1)
 
         print(f"Invalid target URL: {sys.argv[2]}")
         sys.exit(1)
@@ -43607,7 +44321,8 @@ def main():
         )
         print(
             "added={added} duplicate={duplicate} "
-            "reactivated={reactivated} invalid={invalid}".format(
+            "reactivated={reactivated} denylisted={denylisted} "
+            "invalid={invalid}".format(
                 **import_result,
             )
         )
@@ -44037,6 +44752,7 @@ import time
 from urllib.parse import urljoin
 from urllib.parse import urlparse
 
+from collection_policy import DENYLIST_ARTICLE_IDS
 from http_client import fetch_page
 from parser import parse_responses
 from storage import (
@@ -44051,9 +44767,6 @@ from target_list import parse_target_identity
 # 取得レス数の上限。未知の high-volume 記事に対する bounded protection。
 RESPONSE_CAP = 1_000_000
 QUEUE_DRAIN_PER_ARTICLE_RESPONSE_CAP = 10_800
-
-# 仮置き。known high-volume article を skip するための seed。
-DENYLIST_ARTICLE_IDS = frozenset({"480340", "237789"})
 
 DEFAULT_BBS_RESPONSES_PER_PAGE = 30
 DEFAULT_SCRAPE_PAGE_DELAY_SECONDS = 5.0
@@ -60711,6 +61424,7 @@ FILE: cursor/target_list.py
 from pathlib import Path
 from urllib.parse import urlparse
 
+from collection_policy import find_denylisted_article_id
 from http_client import resolve_id_article_url
 from storage import get_target, init_db, list_targets, mark_target_redirected
 from storage import register_target
@@ -60804,6 +61518,9 @@ def validate_target_url(article_url: str) -> bool:
 
 
 def register_target_url(article_url: str, target_db_path: str) -> str:
+    if find_denylisted_article_id(article_url=article_url) is not None:
+        return "denylisted"
+
     normalized_url = normalize_target_url(article_url)
     if normalized_url is None:
         return "invalid"
@@ -60811,6 +61528,12 @@ def register_target_url(article_url: str, target_db_path: str) -> str:
     target_identity = parse_target_identity(normalized_url)
     if target_identity is None:
         return "invalid"
+
+    if find_denylisted_article_id(
+        article_id=target_identity["article_id"],
+        article_url=target_identity["canonical_url"],
+    ) is not None:
+        return "denylisted"
 
     conn = init_db(target_db_path)
     try:
@@ -60955,6 +61678,7 @@ def import_targets_from_text_file(
         "processed": 0,
         "added": 0,
         "duplicate": 0,
+        "denylisted": 0,
         "reactivated": 0,
         "invalid": 0,
     }
@@ -62415,6 +63139,7 @@ from delete_request_feeder import (
     append_batch_targets,
     classify_delete_request_url,
     extract_delete_request_urls,
+    format_delete_request_feed_summary,
     format_delete_request_feed_inspect_lines,
     normalize_supported_delete_request_input,
     resolve_internal_article_id_input,
@@ -62734,6 +63459,58 @@ def test_run_delete_request_feeder_continues_after_registration_failure(
     assert summary["queued_target_urls"] == [
         "https://dic.nicovideo.jp/a/good-three"
     ]
+
+
+def test_run_delete_request_feeder_skips_denylisted_candidate(tmp_path):
+    state_path = tmp_path / "feed_state.json"
+    responses = [
+        {
+            "res_no": 24,
+            "body": "https://dic.nicovideo.jp/id/480340",
+        }
+    ]
+
+    with patch(
+        "delete_request_feeder._load_delete_request_responses",
+        return_value=responses,
+    ), patch(
+        "delete_request_feeder.resolve_article_input",
+    ) as resolve_mock, patch(
+        "delete_request_feeder.register_target_url",
+    ) as register_mock:
+        summary = run_delete_request_feeder(
+            "targets.db",
+            archive_db_path="archive.db",
+            state_path=str(state_path),
+        )
+
+    resolve_mock.assert_not_called()
+    register_mock.assert_not_called()
+    assert summary["handed_off_candidates"] == 0
+    assert summary["registered_candidates"] == 0
+    assert summary["queued_target_urls"] == []
+    assert summary["skipped_denylisted_candidates"] == 1
+
+
+def test_format_delete_request_feed_summary_reports_denylisted_skip_count():
+    text = format_delete_request_feed_summary(
+        {
+            "checked_from_res_no": 1,
+            "checked_to_res_no": 24,
+            "responses_checked": 1,
+            "extracted_candidates": 1,
+            "processed_candidates": 0,
+            "registered_candidates": 0,
+            "handed_off_candidates": 0,
+            "skipped_invalid_candidates": 0,
+            "skipped_resolution_failures": 0,
+            "skipped_denylisted_candidates": 1,
+            "skipped_registration_failures": 0,
+            "updated_last_processed_res_no": 24,
+        }
+    )
+
+    assert "skipped_denylisted_candidates=1" in text
 
 
 def test_append_batch_targets_appends_only_new_urls_at_tail():
@@ -63526,6 +64303,30 @@ def test_main_add_target_calls_register_target_url(mock_add_target, capsys):
     assert "Added target: https://dic.nicovideo.jp/a/12345" in out
 
 
+@patch("main.register_target_url", return_value="denylisted")
+def test_main_add_target_reports_denylisted_target(mock_add_target, capsys):
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "add-target",
+            "https://dic.nicovideo.jp/id/480340",
+            "targets.db",
+        ],
+    ):
+        with pytest.raises(SystemExit) as exc_info:
+            main_module.main()
+
+    assert exc_info.value.code == 1
+    mock_add_target.assert_called_once_with(
+        "https://dic.nicovideo.jp/id/480340",
+        "targets.db",
+    )
+    out = capsys.readouterr().out
+    assert "Target is excluded from archive collection:" in out
+    assert "https://dic.nicovideo.jp/id/480340" in out
+
+
 @patch("main.resolve_article_input")
 def test_main_resolve_article_calls_resolver_and_prints_success(
     mock_resolve_article_input,
@@ -64193,6 +64994,7 @@ def test_main_import_targets_reports_counts(mock_import_targets, capsys):
         "processed": 3,
         "added": 2,
         "duplicate": 1,
+        "denylisted": 4,
         "reactivated": 0,
         "invalid": 0,
     }
@@ -64214,7 +65016,7 @@ def test_main_import_targets_reports_counts(mock_import_targets, capsys):
     )
     out = capsys.readouterr().out
     assert "Imported 3 target line(s)" in out
-    assert "added=2 duplicate=1 reactivated=0 invalid=0" in out
+    assert "added=2 duplicate=1 reactivated=0 denylisted=4 invalid=0" in out
 
 
 def test_main_import_targets_without_required_args_exits_with_usage(capsys):
@@ -68835,6 +69637,33 @@ def test_register_target_url_rejects_unresolved_id_input(tmp_path):
     assert target_db_path.exists() is False
 
 
+def test_register_target_url_rejects_denylisted_numeric_id_input(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+
+    result = register_target_url(
+        "https://dic.nicovideo.jp/id/480340",
+        str(target_db_path),
+    )
+
+    assert result == "denylisted"
+    assert target_db_path.exists() is False
+
+
+def test_register_target_url_rejects_denylisted_canonical_slug_url(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+
+    result = register_target_url(
+        "https://dic.nicovideo.jp/a/"
+        "%3E%3E3%E3%81%8C%E7%90%86%E8%A7%A3%E3%81%A7"
+        "%E3%81%8D%E3%82%8B%E3%81%93%E3%81%A8%E3%81%8C"
+        "%E4%B8%8D%E5%B9%B8",
+        str(target_db_path),
+    )
+
+    assert result == "denylisted"
+    assert target_db_path.exists() is False
+
+
 def test_register_target_url_suppresses_duplicate_identity(tmp_path):
     target_db_path = tmp_path / "targets.db"
     register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
@@ -68887,12 +69716,42 @@ def test_import_targets_from_text_file_is_one_shot_and_non_automatic(tmp_path):
         "processed": 4,
         "added": 2,
         "duplicate": 1,
+        "denylisted": 0,
         "reactivated": 0,
         "invalid": 1,
     }
     assert list_active_target_urls(str(target_db_path)) == [
         "https://dic.nicovideo.jp/a/12345",
         "https://dic.nicovideo.jp/a/777-title",
+    ]
+
+
+def test_import_targets_from_text_file_reports_denylisted_skip(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+    source_file = tmp_path / "targets.txt"
+    source_file.write_text(
+        "https://dic.nicovideo.jp/id/480340\n"
+        "https://dic.nicovideo.jp/a/12345\n",
+        encoding="utf-8",
+    )
+
+    result = import_targets_from_text_file(
+        str(source_file),
+        str(target_db_path),
+    )
+
+    assert result == {
+        "source_path": str(source_file),
+        "target_db_path": str(target_db_path),
+        "processed": 2,
+        "added": 1,
+        "duplicate": 0,
+        "denylisted": 1,
+        "reactivated": 0,
+        "invalid": 0,
+    }
+    assert list_active_target_urls(str(target_db_path)) == [
+        "https://dic.nicovideo.jp/a/12345",
     ]
 
 
@@ -69831,6 +70690,72 @@ def test_application_post_registers_unsaved_article_and_logs_action(tmp_path):
     assert "result_status=added" in log_text
     assert "resolved_title=ニコニコ大百科" in log_text
     assert "%E3%83%8B%E3%82%B3" not in log_text
+
+
+def test_application_post_rejects_denylisted_id_registration(tmp_path):
+    result = {
+        "status": "unsaved",
+        "input": "https://dic.nicovideo.jp/id/480340",
+        "title": ">>3が理解できることが不幸",
+        "matched_by": "article_url",
+        "article_url": "https://dic.nicovideo.jp/id/480340",
+        "article_id": "480340",
+        "article_type": "id",
+        "message": "Resolved article, but no saved archive was found yet.",
+    }
+    log_path = tmp_path / "web_action.log"
+
+    with patch("web_app.check_article_status", return_value=result):
+        with patch("web_app.register_target_url", return_value="denylisted"):
+            response = _run_wsgi_request(
+                "POST",
+                body="article_input=https%3A%2F%2Fdic.nicovideo.jp%2Fid%2F480340",
+                app=create_app(web_action_log_path=str(log_path)),
+            )
+
+    assert response["status"] == "200 OK"
+    assert "This article is excluded from archive collection." in (
+        response["body"]
+    )
+    log_text = log_path.read_text(encoding="utf-8")
+    assert "result_status=denylisted" in log_text
+    assert "error_code=denylisted" in log_text
+
+
+def test_application_post_rejects_denylisted_slug_after_resolution(tmp_path):
+    result = {
+        "status": "unsaved",
+        "input": (
+            "https://dic.nicovideo.jp/a/"
+            "%253E%253E3%E3%81%8C%E7%90%86%E8%A7%A3%E3%81%A7"
+            "%E3%81%8D%E3%82%8B%E3%81%93%E3%81%A8%E3%81%8C"
+            "%E4%B8%8D%E5%B9%B8"
+        ),
+        "title": ">>3が理解できることが不幸",
+        "matched_by": "article_url",
+        "article_url": "https://dic.nicovideo.jp/id/480340",
+        "article_id": "480340",
+        "article_type": "id",
+        "message": "Resolved article, but no saved archive was found yet.",
+    }
+
+    with patch("web_app.check_article_status", return_value=result):
+        with patch("web_app.register_target_url", return_value="denylisted"):
+            response = _run_wsgi_request(
+                "POST",
+                body=(
+                    "article_input=https%3A%2F%2Fdic.nicovideo.jp%2Fa%2F"
+                    "%25253E%25253E3%25E3%2581%258C%25E7%2590%2586"
+                    "%25E8%25A7%25A3%25E3%2581%25A7%25E3%2581%258D"
+                    "%25E3%2582%258B%25E3%2581%2593%25E3%2581%25A8"
+                    "%25E3%2581%258C%25E4%25B8%258D%25E5%25B9%25B8"
+                ),
+            )
+
+    assert response["status"] == "200 OK"
+    assert "This article is excluded from archive collection." in (
+        response["body"]
+    )
 
 
 def test_application_post_unsaved_result_stays_200_when_log_write_fails():
@@ -72468,6 +73393,7 @@ UI_TEXTS = {
     ),
     "error_messages": {
         "not_found": "Article was not found.",
+        "denylisted": "This article is excluded from archive collection.",
         "invalid_input": (
             "Enter an article name or a valid Nicopedia article URL."
         ),
@@ -72694,6 +73620,8 @@ def check_article_status(article_input: str) -> dict:
 
 
 def _result_error_code(result: dict) -> str:
+    if result["status"] == "denylisted":
+        return "denylisted"
     if result["status"] == "resolution_failure":
         return result.get("failure_kind", "unknown_resolution_failure")
     if result["status"] == "internal_error":
@@ -72954,6 +73882,25 @@ def _submit_archive_check(
                 resolved_canonical_url=check_result["article_url"],
             )
             return _build_registered_ui_result(check_result), None
+
+        if registration_status == "denylisted":
+            reference_id = _log_web_action(
+                web_action_log_path,
+                environ,
+                action_kind="registration",
+                input_value=article_input,
+                requested_format=None,
+                result_status="denylisted",
+                resolved_title=check_result["title"],
+                resolved_article_id=check_result["article_id"],
+                resolved_article_type=check_result["article_type"],
+                resolved_canonical_url=check_result["article_url"],
+                error_code="denylisted",
+            )
+            return _build_error_ui_result(
+                {"status": "denylisted"},
+                reference_id,
+            ), None
 
         failure_result = {
             "status": "internal_error",
