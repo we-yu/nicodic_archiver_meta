@@ -111,4 +111,29 @@ The SubTask is adopted.
 The product `main` now contains a bounded denylist policy seam and shared
 registration-time protection for known high-volume articles.
 
+## Runtime reflection follow-up
+
+Runtime reflection was completed after adoption.
+
+Observed:
+- runtime checkout fast-forwarded to product main commit `359bf50`
+- runtime image rebuild and force-recreate completed successfully
+- runtime Web container started on `127.0.0.1:58001`
+- public preliminary Web surface was reachable through
+  `nicoarc-prelim.mimizuku.dev`
+- runtime policy smoke confirmed:
+  - `find_denylisted_article_id(.../id/480340) == "480340"`
+  - `find_denylisted_article_id(.../a/4294967295) == "237789"`
+- runtime DB counts after reflection:
+  - `articles=40`
+  - `responses=20153`
+  - `target=12149`
+- cron remained intentionally disabled.
+
+Runtime target follow-up:
+- Existing active target `4294967295` was found after reflection.
+- This row predated the denylist policy seam.
+- It should be deactivated through the operator target tooling before cron is
+  restarted.
+- Raw SQL DB editing is not the preferred path.
 
