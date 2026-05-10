@@ -50,12 +50,16 @@ seam approach better matches that purpose.
 
 ## Validation
 
-Post-adoption validation must be recorded after both child repos are pulled to
-main.
+Post-adoption convergence and validation were run after both child repos were
+pulled to merged `main`.
 
-Expected:
-- `./compare_helix.sh --all`: converged
-- `./validate_helix.sh`: Copilot and Cursor PASS
+Observed:
+- `./compare_helix.sh --all`: PASS
+  - `copilot/` and `cursor/` matched for selected files.
+  - Helix converged.
+- `./validate_helix.sh`: PASS
+  - Copilot main: 379 passed
+  - Cursor main: 379 passed
 
 ## Non-goals
 
