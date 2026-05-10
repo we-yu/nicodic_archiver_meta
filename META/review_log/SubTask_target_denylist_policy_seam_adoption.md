@@ -133,7 +133,11 @@ Observed:
 Runtime target follow-up:
 - Existing active target `4294967295` was found after reflection.
 - This row predated the denylist policy seam.
-- It should be deactivated through the operator target tooling before cron is
-  restarted.
-- Raw SQL DB editing is not the preferred path.
+- It was deactivated through the operator target tooling from the runtime
+  container:
+  `python main.py operator target deactivate 4294967295 a --db /app/data/nicodic.db`
+- Post-deactivation confirmation showed:
+  `('4294967295', 'a', 'https://dic.nicovideo.jp/a/4294967295', 0)`
+- Raw SQL DB editing was avoided.
+- Cron remained intentionally disabled after this cleanup.
 

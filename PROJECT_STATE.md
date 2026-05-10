@@ -1858,3 +1858,66 @@ Validation:
 Operational note:
 - Runtime cron remains disabled intentionally. Do not restart periodic collection until the next denylist/ignore-list decision is made.
 
+## 2026-05-09: Target denylist policy seam reflected to runtime
+
+Completed:
+- SubTask: target denylist / ignore policy seam
+  - Copilot-only bounded SubTask was adopted.
+  - `collection_policy.py` now holds the known high-volume denylist seam.
+  - Target registration rejects denylisted articles at the common registration
+    boundary.
+  - Web registration shows:
+    `This article is excluded from archive collection.`
+  - delete-request feeder and import paths expose denylisted skips.
+  - scrape-side `skip_denylist` protection remains in place.
+  - response cap behavior was intentionally not changed.
+  - no `denylist.txt`, DB-backed denylist table, schema migration, runtime DB
+    direct edit, or cron restart was included in the implementation.
+
+Runtime reflection:
+- runtime checkout was fast-forwarded to product main commit `359bf50`.
+- runtime image rebuild and force-recreate completed successfully.
+- runtime Web container started on `127.0.0.1:58001`.
+- public preliminary Web surface remained reachable through:
+  - `nicoarc-prelim.mimizuku.dev`
+- runtime policy smoke confirmed:
+  - `/id/480340` maps to denylisted ID `480340`
+  - `/a/4294967295` maps to denylisted ID `237789`
+
+Runtime DB state:
+- current runtime DB remains disposable / reconstructable.
+- current counts after reset and bounded smoke are:
+  - `articles=40`
+  - `responses=20153`
+  - active `target` rows initially around `12149`
+- `4294967295` was found as an existing active target that predated the
+  policy seam.
+- `4294967295` was deactivated through operator target tooling from inside the
+  runtime container.
+- follow-up check showed:
+  - `('4294967295', 'a', 'https://dic.nicovideo.jp/a/4294967295', 0)`
+- denylisted saved archive rows were not found for:
+  - `480340`
+  - `237789`
+  - `4294967295`
+
+Operational status:
+- runtime cron remains intentionally disabled.
+- no periodic / batch process was running during the last pre-cron check.
+- cron can be considered for restart after final operator confirmation.
+
+Known UI follow-up:
+- Registered Articles currently lists active target rows, including pending
+  unsaved targets.
+- Pending target rows may display slug/title-like target identity in the
+  `Article ID` column until numeric NicoNicoPedia ID is known.
+- This is not a denylist blocker and does not imply DB corruption.
+- However, the intended Article ID display is the numeric NicoNicoPedia ID
+  derived from metadata such as `og:url`.
+- A bounded follow-up SubTask should adjust Registered Articles display so
+  slug/title-like pending target identity is not presented as numeric
+  `Article ID`.
+- The default Registered Articles sort is currently `target.created_at DESC`;
+  a stable tie-break such as target row id descending may be useful so newly
+  submitted items reliably appear first when timestamps collide.
+
