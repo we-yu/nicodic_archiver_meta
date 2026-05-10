@@ -1921,3 +1921,20 @@ Known UI follow-up:
   a stable tie-break such as target row id descending may be useful so newly
   submitted items reliably appear first when timestamps collide.
 
+## TASK044 adopted: numeric target identity
+
+- TASK044 was run as a MainTask / DHM.
+- Cursor implementation was adopted.
+- Copilot implementation is retained as a reference branch.
+- `target.article_id` for article_type `a` now semantically means numeric
+  NicoNicoPedia article ID.
+- New target writes validate that article_type `a` article IDs are non-empty
+  digit strings.
+- `target.title` was added for pending registered target display.
+- Registered Articles now uses numeric Article ID and stored title for pending
+  rows.
+- Registration resolves `/a/<slug>` and `/id/<digits>` through metadata to
+  numeric ID plus canonical `/a/<slug>` URL.
+- `resolution_failure` is the canonical resolution failure result key.
+- Runtime DB and cron were not changed by TASK044.
+- Runtime cron remains disabled pending runtime reflection and smoke checks.

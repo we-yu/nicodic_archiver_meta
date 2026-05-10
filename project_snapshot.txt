@@ -2921,6 +2921,23 @@ Known UI follow-up:
   a stable tie-break such as target row id descending may be useful so newly
   submitted items reliably appear first when timestamps collide.
 
+## TASK044 adopted: numeric target identity
+
+- TASK044 was run as a MainTask / DHM.
+- Cursor implementation was adopted.
+- Copilot implementation is retained as a reference branch.
+- `target.article_id` for article_type `a` now semantically means numeric
+  NicoNicoPedia article ID.
+- New target writes validate that article_type `a` article IDs are non-empty
+  digit strings.
+- `target.title` was added for pending registered target display.
+- Registered Articles now uses numeric Article ID and stored title for pending
+  rows.
+- Registration resolves `/a/<slug>` and `/id/<digits>` through metadata to
+  numeric ID plus canonical `/a/<slug>` URL.
+- `resolution_failure` is the canonical resolution failure result key.
+- Runtime DB and cron were not changed by TASK044.
+- Runtime cron remains disabled pending runtime reflection and smoke checks.
 
 
 ===== WORKSPACE =====
@@ -10538,6 +10555,91 @@ Recommended follow-up:
 
 
 
+===== REVIEW LOG: META/review_log/TASK044_numeric_target_identity_adoption.md =====
+# TASK044 numeric target identity adoption log
+
+## Task
+
+- Title: Normalize target registry identity to numeric NicoNicoPedia article ID
+- Type: MainTask / Double Helix
+- Adopted implementation: Cursor
+- Reference implementation: Copilot branch retained
+- Adopted product commit: GitHub-merged `main` after Cursor branch
+  `TASK044-numeric-target-identity-cursor`
+
+## Purpose
+
+Registered Articles exposed a target identity mismatch: pending target rows
+stored `/a/<slug>`-derived values in `target.article_id`, causing the Article ID
+column to show values like `zun`, `zzz`, or decoded Japanese titles.
+
+The intended semantic is that Article ID means the numeric NicoNicoPedia article
+ID, normally derived from page metadata such as:
+
+`<meta property="og:url" content="https://dic.nicovideo.jp/id/<digits>"/>`
+
+## Adopted design
+
+- Added a shared URL parsing seam in `dicopedia_urls.py`.
+- Added a shared page identity extraction seam in `article_page_identity.py`.
+- Target registration now resolves article pages to:
+  - numeric `article_id`
+  - `article_type='a'`
+  - canonical `/a/<slug>` URL
+  - title
+- Added optional `target.title`.
+- Added storage boundary validation so `article_type='a'` target rows require a
+  non-empty digits-only `article_id`.
+- Registered Articles and CSV now prefer `target.title` and numeric article ID.
+- Default Registered Articles sort keeps registration-time descending and adds
+  target row id descending as a stable tie-breaker.
+- `resolution_failure` is the canonical registration resolution failure key.
+- `orchestrator.fetch_article_metadata_record` reuses the shared identity
+  extraction seam so scrape-side metadata interpretation stays aligned.
+
+## DHM notes
+
+Copilot produced a smaller existing-structure implementation and was retained as
+a reference branch.
+
+Cursor was adopted because TASK044 is primarily about consistent identity
+interpretation across registration, metadata, and scrape boundaries. The shared
+seam approach better matches that purpose.
+
+## Validation
+
+Post-adoption validation must be recorded after both child repos are pulled to
+main.
+
+Expected:
+- `./compare_helix.sh --all`: converged
+- `./validate_helix.sh`: Copilot and Cursor PASS
+
+## Non-goals
+
+- Runtime DB was not edited by editor AI.
+- Runtime cron was not restarted.
+- Existing runtime DB slug target migration was not included.
+- Response cap behavior was not changed.
+- No `article_type='id'` rows are introduced.
+- No user/video article expansion was implemented.
+
+## Runtime follow-up
+
+Runtime reflection is still pending after product adoption.
+
+Because the current runtime DB is disposable / reconstructable and already
+contains imported target rows with legacy slug identity, runtime maintenance
+should be handled separately after merge.
+
+Preferred operational options:
+- reset/reimport runtime DB using the new registration behavior, or
+- run bounded maintenance only if explicitly designed later.
+
+Cron remains disabled until runtime reflection and smoke checks are complete.
+
+
+
 ===== REVIEW LOG: META/review_log/subtask_bbs_page_boundary_resume_20260429.md =====
 # SubTask adoption log
 
@@ -10937,7 +11039,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Sun May 10 15:36:12 UTC 2026
+generated: Sun May 10 16:38:25 UTC 2026
 mode: full
 
 
@@ -15990,6 +16092,15 @@ def _registered_has_last_scraped_column(conn):
     return "latest_scraped_at" in cols
 
 
+def _registered_has_target_title_column(conn):
+    """Return whether optional target.title column exists (older DB compat)."""
+
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(target)")
+    cols = {row[1] for row in cur.fetchall()}
+    return "title" in cols
+
+
 def _registered_fallback_title(article_id, canonical_url):
     parsed = urlparse(canonical_url or "")
     path_parts = [part for part in parsed.path.split("/") if part]
@@ -16048,9 +16159,14 @@ def _registered_row_to_dict(row):
         latest_scraped_max_res_no,
         last_scraped_at,
     ) = row
+    aid = (article_id or "").strip()
+    if aid.isdigit():
+        display_article_id = aid
+    else:
+        display_article_id = unquote(aid)
     display_title = title or _registered_fallback_title(article_id, canonical_url)
     return {
-        "article_id": unquote(article_id or ""),
+        "article_id": display_article_id,
         "article_type": article_type or "",
         "title": display_title,
         "canonical_url": canonical_url or "",
@@ -16087,15 +16203,25 @@ def query_registered_articles(
 
     try:
         has_last_scraped = _registered_has_last_scraped_column(conn)
+        has_target_title = _registered_has_target_title_column(conn)
         sort_expr = _registered_sort_sql_expr(sort_by)
         matched_last_scraped_expr = (
             "COALESCE(a_exact.latest_scraped_at, a_url.latest_scraped_at)"
             if has_last_scraped
             else "NULL"
         )
+        if has_target_title:
+            matched_title_sql = (
+                "COALESCE("
+                "NULLIF(TRIM(COALESCE(t.title, '')), ''), "
+                "a_exact.title, a_url.title)"
+            )
+        else:
+            matched_title_sql = "COALESCE(a_exact.title, a_url.title)"
         base_cte_sql = f"""
             WITH resolved_targets AS (
                 SELECT
+                    t.id AS target_row_id,
                     t.article_id AS target_article_id,
                     t.article_type AS target_article_type,
                     t.canonical_url AS target_canonical_url,
@@ -16104,7 +16230,7 @@ def query_registered_articles(
                         AS matched_article_id,
                     COALESCE(a_exact.article_type, a_url.article_type)
                         AS matched_article_type,
-                    COALESCE(a_exact.title, a_url.title)
+                    {matched_title_sql}
                         AS matched_title,
                     {matched_last_scraped_expr} AS matched_last_scraped_at
                 FROM target AS t
@@ -16170,7 +16296,8 @@ def query_registered_articles(
             {where_sql}
             ORDER BY
                 {sort_expr} {order_dir},
-                rt.target_article_id ASC, rt.target_article_type ASC
+                rt.target_row_id DESC,
+                rt.target_article_type ASC
         """
 
         cur = conn.cursor()
@@ -16260,10 +16387,158 @@ def write_scrape_targets_txt(data_dir="data"):
 
 
 =============================
+FILE: copilot/article_page_identity.py
+=============================
+"""
+Shared extraction of canonical Nicopedia identity from article HTML metadata.
+
+Registration and scraping both require a numeric NicoNicoPedia article ID and a
+canonical /a/<slug> URL derived from meta tags—not the slash-segment slug.
+"""
+
+import re
+from urllib.parse import urljoin
+
+from storage import validate_saved_article_identity
+from dicopedia_urls import parse_target_identity
+
+
+class ArticleIdMismatchError(ValueError):
+    """Metadata numeric article ID disagrees with a /id/<digits> URL input."""
+
+
+_OG_URL_ID_RE = re.compile(r"/id/([0-9]+)(?:/|$)")
+
+
+def extract_article_title_from_meta(soup) -> str | None:
+    title_tag = soup.find("meta", property="og:title")
+    if title_tag is None:
+        return None
+    raw = title_tag.get("content", "").strip()
+    if not raw:
+        return None
+    return raw.split("とは")[0]
+
+
+def normalize_redirect_target_url(
+    article_url: str,
+    candidate_url: str,
+) -> str | None:
+    raw_target = candidate_url.strip().strip("\"'")
+    if not raw_target:
+        return None
+    resolved_target = urljoin(article_url, raw_target)
+    target_identity = parse_target_identity(resolved_target)
+    if target_identity is None:
+        return None
+    return target_identity["canonical_url"]
+
+
+def extract_canonical_article_a_url(article_url: str, soup) -> str | None:
+    canonical_tag = soup.find(
+        "link",
+        rel=lambda value: value and "canonical" in value,
+    )
+    if canonical_tag is not None:
+        href = canonical_tag.get("href", "").strip()
+        canonical_url = normalize_redirect_target_url(article_url, href)
+        canonical_identity = parse_target_identity(canonical_url or "")
+        if (
+            canonical_identity is not None
+            and canonical_identity["article_type"] == "a"
+        ):
+            return canonical_url
+
+    og_tag = soup.find("meta", property="og:url")
+    if og_tag is None:
+        return None
+
+    return normalize_redirect_target_url(
+        article_url,
+        og_tag.get("content", "").strip(),
+    )
+
+
+def extract_numeric_nicopedia_article_id(soup, canonical_article_url: str) -> str:
+    og_url = soup.find("meta", property="og:url")
+    og_content = og_url.get("content", "").strip() if og_url else ""
+    if og_content:
+        match = _OG_URL_ID_RE.search(og_content)
+        if match is not None:
+            numeric_id = match.group(1)
+            if numeric_id and numeric_id.isdigit():
+                return numeric_id
+
+    canonical_identity = parse_target_identity(canonical_article_url)
+    if canonical_identity is None:
+        raise ValueError(
+            f"invalid canonical_article_url for ID extraction: "
+            f"{canonical_article_url!r}"
+        )
+
+    candidate = canonical_identity["article_id"]
+    if candidate and candidate.isdigit():
+        return candidate
+
+    raise ValueError(
+        "unable to extract numeric article ID from page metadata"
+    )
+
+
+def resolve_registration_identity_from_html(
+    soup,
+    fetched_url: str,
+    *,
+    input_id_numeric_candidate: str | None = None,
+) -> tuple[dict[str, str], str]:
+    """Return canonical_target dict and title string, or raise ValueError."""
+
+    canonical_article_url = extract_canonical_article_a_url(fetched_url, soup)
+    if canonical_article_url is None:
+        raise ValueError("missing canonical Nicopedia article URL")
+
+    tgt = parse_target_identity(canonical_article_url)
+    if tgt is None or tgt["article_type"] != "a":
+        raise ValueError("canonical metadata is not article type /a")
+
+    numeric_article_id = extract_numeric_nicopedia_article_id(
+        soup,
+        canonical_article_url,
+    )
+    validate_saved_article_identity(numeric_article_id, "a")
+
+    if (
+        input_id_numeric_candidate is not None
+        and input_id_numeric_candidate.isdigit()
+        and input_id_numeric_candidate != numeric_article_id
+    ):
+        raise ArticleIdMismatchError(
+            "metadata numeric article ID does not match /id/<digits> input"
+        )
+
+    title = extract_article_title_from_meta(soup)
+    if title is None:
+        raise ValueError("missing og:title metadata")
+
+    return (
+        {
+            "article_url": tgt["canonical_url"],
+            "article_id": numeric_article_id,
+            "article_type": "a",
+        },
+        title,
+    )
+
+
+=============================
 FILE: copilot/article_resolver.py
 =============================
 from urllib.parse import quote, urlparse
 
+from article_page_identity import (
+    ArticleIdMismatchError,
+    resolve_registration_identity_from_html,
+)
 from http_client import fetch_page
 
 
@@ -16312,18 +16587,6 @@ def _looks_like_url_input(normalized_input: str) -> bool:
     return bool(parsed.scheme or parsed.netloc)
 
 
-def _extract_title_from_soup(soup) -> str | None:
-    title_tag = soup.find("meta", property="og:title")
-    if title_tag is None:
-        return None
-
-    title = title_tag.get("content", "").strip()
-    if not title:
-        return None
-
-    return title.split("とは")[0]
-
-
 def _normalize_candidate_url(candidate_url: str) -> str | None:
     parsed = urlparse(candidate_url)
 
@@ -16343,19 +16606,15 @@ def _normalize_candidate_url(candidate_url: str) -> str | None:
     return f"{parsed.scheme}://{parsed.netloc}/{article_type}/{article_slug}"
 
 
-def _extract_canonical_target_from_url(article_url: str) -> dict | None:
-    normalized_url = _normalize_candidate_url(article_url)
-    if normalized_url is None:
-        return None
-
-    parsed = urlparse(normalized_url)
-    article_type, article_id = [part for part in parsed.path.split("/") if part]
-
-    return {
-        "article_url": normalized_url,
-        "article_id": article_id,
-        "article_type": article_type,
-    }
+def _id_url_numeric_from_normalized_url(normalized_url: str) -> str | None:
+    path_parts = [p for p in urlparse(normalized_url).path.split("/") if p]
+    if (
+        len(path_parts) == 2
+        and path_parts[0] == "id"
+        and path_parts[1].isdigit()
+    ):
+        return path_parts[1]
+    return None
 
 
 def _resolve_from_article_url(
@@ -16363,6 +16622,8 @@ def _resolve_from_article_url(
     normalized_input: str,
     matched_by: str,
 ) -> dict:
+    id_candidate = _id_url_numeric_from_normalized_url(article_url)
+
     try:
         soup = fetch_page(article_url)
     except RuntimeError as exc:
@@ -16370,12 +16631,15 @@ def _resolve_from_article_url(
             return _build_failure_result("not_found", normalized_input)
         raise
 
-    og_url = soup.find("meta", property="og:url")
-    canonical_url = og_url.get("content", "").strip() if og_url else ""
-    canonical_target = _extract_canonical_target_from_url(canonical_url)
-    title = _extract_title_from_soup(soup)
-
-    if canonical_target is None or title is None:
+    try:
+        canonical_target, title = resolve_registration_identity_from_html(
+            soup,
+            article_url,
+            input_id_numeric_candidate=id_candidate,
+        )
+    except ArticleIdMismatchError:
+        return _build_failure_result("id_mismatch", normalized_input)
+    except ValueError:
         return _build_failure_result("not_found", normalized_input)
 
     return _build_success_result(
@@ -17174,6 +17438,11 @@ def run_delete_request_feeder(
             skipped_registration_failures += 1
             continue
 
+        if register_status == "resolution_failure":
+            skipped_resolution_failures += 1
+            invalid_targets += 1
+            continue
+
         if register_status == "added":
             added_targets += 1
             queued_target_urls.append(canonical_url)
@@ -17337,6 +17606,47 @@ def _load_delete_request_responses(
         {"res_no": int(res_no), "body": str(body or "")}
         for res_no, body in rows
     ]
+
+
+=============================
+FILE: copilot/dicopedia_urls.py
+=============================
+"""Parse Nicopedia dic.nicovideo.jp article URL shapes (syntax only).
+
+This module must stay free of heavier resolution / registration imports.
+"""
+
+from urllib.parse import urlparse
+
+
+def parse_target_identity(article_url: str) -> dict | None:
+    """Return article_id path segment, type, canonical_url for dic URLs."""
+
+    candidate = article_url.strip()
+    if not candidate:
+        return None
+
+    parsed = urlparse(candidate)
+    if parsed.scheme not in {"http", "https"}:
+        return None
+    if parsed.netloc != "dic.nicovideo.jp":
+        return None
+
+    path_parts = [part for part in parsed.path.split("/") if part]
+    if len(path_parts) != 2:
+        return None
+
+    article_type, article_id = path_parts
+    if not article_type or not article_id:
+        return None
+
+    return {
+        "article_id": article_id,
+        "article_type": article_type,
+        "canonical_url": (
+            f"https://dic.nicovideo.jp/{article_type}/{article_id}"
+        ),
+    }
 
 
 =============================
@@ -21181,6 +21491,12 @@ def main():
                 f"{sys.argv[2]}"
             )
             sys.exit(1)
+        if result == "resolution_failure":
+            print(
+                "Target registration failed: could not resolve article metadata "
+                f"for {sys.argv[2]}"
+            )
+            sys.exit(1)
 
         print(f"Invalid target URL: {sys.argv[2]}")
         sys.exit(1)
@@ -21200,7 +21516,7 @@ def main():
         print(
             "added={added} duplicate={duplicate} "
             "reactivated={reactivated} denylisted={denylisted} "
-            "invalid={invalid}".format(
+            "invalid={invalid} resolution_failure={resolution_failure}".format(
                 **import_result,
             )
         )
@@ -21421,6 +21737,9 @@ def add_target_for_operator(article_url, target_db_path):
     print("Action: add")
     print(f"DB: {target_db_path}")
     print(f"Input: {article_url}")
+    if result == "resolution_failure":
+        print("Reason: could not resolve article metadata for registration")
+        return False
     print("Reason: input must be a canonical Nicopedia article URL")
     return False
 
@@ -21627,9 +21946,13 @@ import math
 import os
 import re
 import time
-from urllib.parse import urljoin
 from urllib.parse import urlparse
 
+from article_page_identity import (
+    extract_canonical_article_a_url,
+    extract_numeric_nicopedia_article_id,
+    normalize_redirect_target_url,
+)
 from collection_policy import DENYLIST_ARTICLE_IDS
 from http_client import fetch_page
 from parser import parse_responses
@@ -21640,7 +21963,7 @@ from storage import (
     save_to_db,
     validate_saved_article_identity,
 )
-from target_list import parse_target_identity
+from dicopedia_urls import parse_target_identity
 
 # 取得レス数の上限。未知の high-volume 記事に対する bounded protection。
 RESPONSE_CAP = 1_000_000
@@ -21803,8 +22126,6 @@ _LOCATION_REPLACE_RE = re.compile(
     re.IGNORECASE,
 )
 
-_OG_URL_ID_RE = re.compile(r"/id/([0-9]+)(?:/|$)")
-
 
 def _extract_page_title(soup) -> str:
     meta_title = soup.find("meta", property="og:title")
@@ -21835,63 +22156,6 @@ def _extract_itemprop_datetime(soup, itemprop: str) -> str | None:
 
     text = tag.get_text(" ", strip=True)
     return text or None
-
-
-def _extract_numeric_article_id(soup, canonical_article_url: str) -> str:
-    """
-    Extract a numeric NicoNicoPedia article ID for storage identity.
-
-    Prefers og:url '/id/<digits>' when present. As a bounded fallback,
-    accepts canonical '/a/<digits>' (numeric-only) but refuses slug values.
-    """
-    og_url = soup.find("meta", property="og:url")
-    og_content = og_url.get("content", "").strip() if og_url else ""
-    if og_content:
-        match = _OG_URL_ID_RE.search(og_content)
-        if match is not None:
-            numeric_id = match.group(1)
-            if numeric_id and numeric_id.isdigit():
-                return numeric_id
-
-    canonical_identity = parse_target_identity(canonical_article_url)
-    if canonical_identity is None:
-        raise ArticleNotFoundError(
-            f"Article not found: {canonical_article_url}"
-        )
-
-    candidate = canonical_identity["article_id"]
-    if candidate and candidate.isdigit():
-        return candidate
-
-    raise ValueError(
-        "Unable to extract numeric article ID from page metadata; "
-        "refusing to fall back to slug identity."
-    )
-
-
-def _extract_canonical_article_url(article_url: str, soup) -> str | None:
-    canonical_tag = soup.find(
-        "link",
-        rel=lambda value: value and "canonical" in value,
-    )
-    if canonical_tag is not None:
-        href = canonical_tag.get("href", "").strip()
-        canonical_url = _normalize_redirect_target_url(article_url, href)
-        canonical_identity = parse_target_identity(canonical_url or "")
-        if (
-            canonical_identity is not None
-            and canonical_identity["article_type"] == "a"
-        ):
-            return canonical_url
-
-    og_url = soup.find("meta", property="og:url")
-    if og_url is None:
-        return None
-
-    return _normalize_redirect_target_url(
-        article_url,
-        og_url.get("content", "").strip(),
-    )
 
 
 def _select_scrape_identity(
@@ -21935,7 +22199,10 @@ def fetch_article_metadata_record(article_url: str) -> dict:
     title_tag = soup.find("meta", property="og:title")
     title = title_tag["content"].split("とは")[0] if title_tag else "unknown"
 
-    canonical_article_url = _extract_canonical_article_url(article_url, soup)
+    canonical_article_url = extract_canonical_article_a_url(
+        article_url,
+        soup,
+    )
     if canonical_article_url is None:
         raise ArticleNotFoundError(f"Article not found: {article_url}")
 
@@ -21946,7 +22213,13 @@ def fetch_article_metadata_record(article_url: str) -> dict:
     if target_identity["article_type"] != "a":
         raise ArticleNotFoundError(f"Article not found: {article_url}")
 
-    numeric_article_id = _extract_numeric_article_id(soup, canonical_article_url)
+    try:
+        numeric_article_id = extract_numeric_nicopedia_article_id(
+            soup,
+            canonical_article_url,
+        )
+    except ValueError as exc:
+        raise ArticleNotFoundError(f"Article not found: {article_url}") from exc
     validate_saved_article_identity(numeric_article_id, "a")
 
     return {
@@ -21957,21 +22230,6 @@ def fetch_article_metadata_record(article_url: str) -> dict:
         "published_at": _extract_itemprop_datetime(soup, "datePublished"),
         "modified_at": _extract_itemprop_datetime(soup, "dateModified"),
     }
-
-
-def _normalize_redirect_target_url(
-    article_url: str,
-    candidate_url: str,
-) -> str | None:
-    raw_target = candidate_url.strip().strip('"\'')
-    if not raw_target:
-        return None
-
-    resolved_target = urljoin(article_url, raw_target)
-    target_identity = parse_target_identity(resolved_target)
-    if target_identity is None:
-        return None
-    return target_identity["canonical_url"]
 
 
 def _extract_meta_refresh_target(article_url: str, soup) -> str | None:
@@ -21985,7 +22243,7 @@ def _extract_meta_refresh_target(article_url: str, soup) -> str | None:
         if match is None:
             continue
 
-        redirect_target = _normalize_redirect_target_url(
+        redirect_target = normalize_redirect_target_url(
             article_url,
             match.group(1),
         )
@@ -22005,7 +22263,7 @@ def _extract_location_replace_target(article_url: str, soup) -> str | None:
         if match is None:
             continue
 
-        redirect_target = _normalize_redirect_target_url(
+        redirect_target = normalize_redirect_target_url(
             article_url,
             match.group(2),
         )
@@ -23531,13 +23789,21 @@ def validate_saved_article_identity(article_id: str, article_type: str) -> None:
     if article_type != "a":
         return
     if not isinstance(article_id, str):
-        raise ValueError("saved article_id must be a string for article_type='a'")
+        raise ValueError(
+            "saved article_id must be a string for article_type='a'"
+        )
     if not article_id:
         raise ValueError("saved article_id must be non-empty for article_type='a'")
     if not article_id.isdigit():
         raise ValueError(
             "saved article_id must be digits-only for article_type='a'"
         )
+
+
+def validate_target_article_identity(article_id: str, article_type: str) -> None:
+    """Reject non-canonical scrape target identities at the persistence seam."""
+
+    validate_saved_article_identity(article_id, article_type)
 
 
 def _target_row_to_entry(row):
@@ -23551,6 +23817,7 @@ def _target_row_to_entry(row):
         "is_redirected": bool(row[6]),
         "redirect_target_url": row[7],
         "redirect_detected_at": row[8],
+        "title": row[9] if len(row) > 9 else None,
     }
 
 
@@ -23585,6 +23852,15 @@ def _ensure_target_redirect_columns(conn: sqlite3.Connection) -> None:
 
     if changed:
         conn.commit()
+
+
+def _ensure_target_title_column(conn: sqlite3.Connection) -> None:
+    column_names = _list_column_names(conn, "target")
+    if "title" in column_names:
+        return
+    cur = conn.cursor()
+    cur.execute("ALTER TABLE target ADD COLUMN title TEXT")
+    conn.commit()
 
 
 def _ensure_article_metadata_columns(conn: sqlite3.Connection) -> None:
@@ -23676,12 +23952,14 @@ def init_db(db_path: str = DEFAULT_DB_PATH):
         redirect_target_url TEXT,
         redirect_detected_at TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        title TEXT,
         UNIQUE(article_id, article_type)
     )
     """)
 
     _ensure_article_metadata_columns(conn)
     _ensure_target_redirect_columns(conn)
+    _ensure_target_title_column(conn)
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS scrape_run_observation (
@@ -23913,15 +24191,35 @@ def dequeue_canonical_target(conn, article_id, article_type):
     return cur.rowcount > 0
 
 
-def register_target(conn, article_id, article_type, canonical_url):
+def _merge_persisted_target_title(
+    existing_title: str | None,
+    incoming_title: str | None,
+) -> str | None:
+    if incoming_title is None:
+        return existing_title
+    stripped = incoming_title.strip()
+    if stripped != "":
+        return stripped
+    return existing_title
+
+
+def register_target(
+    conn,
+    article_id,
+    article_type,
+    canonical_url,
+    title=None,
+):
     """Register or reactivate one canonical scrape target."""
+
+    validate_target_article_identity(article_id, article_type)
 
     cur = conn.cursor()
     cur.execute(
         """
         SELECT id, article_id, article_type, canonical_url, is_active,
                created_at, is_redirected, redirect_target_url,
-               redirect_detected_at
+               redirect_detected_at, title
         FROM target
         WHERE article_id=? AND article_type=?
         """,
@@ -23930,13 +24228,17 @@ def register_target(conn, article_id, article_type, canonical_url):
     existing_row = cur.fetchone()
 
     if existing_row is None:
+        insert_title = None
+        if title is not None:
+            ins = title.strip()
+            insert_title = ins if ins else None
         cur.execute(
             """
             INSERT INTO target
-            (article_id, article_type, canonical_url, is_active)
-            VALUES (?, ?, ?, 1)
+            (article_id, article_type, canonical_url, is_active, title)
+            VALUES (?, ?, ?, 1, ?)
             """,
-            (article_id, article_type, canonical_url),
+            (article_id, article_type, canonical_url, insert_title),
         )
         status = "added"
     else:
@@ -23945,6 +24247,10 @@ def register_target(conn, article_id, article_type, canonical_url):
         if not existing_entry["is_active"]:
             status = "reactivated"
 
+        merged_title = _merge_persisted_target_title(
+            existing_entry.get("title"),
+            title,
+        )
         cur.execute(
             """
             UPDATE target
@@ -23952,10 +24258,11 @@ def register_target(conn, article_id, article_type, canonical_url):
                 is_active=1,
                 is_redirected=0,
                 redirect_target_url=NULL,
-                redirect_detected_at=NULL
+                redirect_detected_at=NULL,
+                title=?
             WHERE article_id=? AND article_type=?
             """,
-            (canonical_url, article_id, article_type),
+            (canonical_url, merged_title, article_id, article_type),
         )
 
     conn.commit()
@@ -23964,7 +24271,7 @@ def register_target(conn, article_id, article_type, canonical_url):
         """
         SELECT id, article_id, article_type, canonical_url, is_active,
                created_at, is_redirected, redirect_target_url,
-               redirect_detected_at
+               redirect_detected_at, title
         FROM target
         WHERE article_id=? AND article_type=?
         """,
@@ -23989,7 +24296,7 @@ def list_targets(conn, active_only=True):
     query = (
         "SELECT id, article_id, article_type, canonical_url, is_active, "
         "created_at, is_redirected, redirect_target_url, "
-        "redirect_detected_at FROM target"
+        "redirect_detected_at, title FROM target"
     )
     params = ()
     if active_only:
@@ -24008,7 +24315,7 @@ def get_target(conn, article_id, article_type):
         """
         SELECT id, article_id, article_type, canonical_url, is_active,
                created_at, is_redirected, redirect_target_url,
-               redirect_detected_at
+               redirect_detected_at, title
         FROM target
         WHERE article_id=? AND article_type=?
         """,
@@ -24354,10 +24661,10 @@ def format_run_telemetry_csv_wide(conn):
 FILE: copilot/target_list.py
 =============================
 from pathlib import Path
-from urllib.parse import urlparse
 
+from article_resolver import resolve_article_input
 from collection_policy import find_denylisted_article_id
-from http_client import resolve_id_article_url
+from dicopedia_urls import parse_target_identity
 from storage import get_target, init_db, list_targets, mark_target_redirected
 from storage import register_target
 from storage import set_target_active_state
@@ -24370,40 +24677,6 @@ def _parse_target_line(raw_line: str) -> str | None:
         return None
 
     return line
-
-
-def parse_target_identity(article_url: str) -> dict | None:
-    """Return article_id, article_type, canonical_url for a valid target URL."""
-
-    return _parse_target_identity(article_url)
-
-
-def _parse_target_identity(article_url: str) -> dict | None:
-    candidate = article_url.strip()
-    if not candidate:
-        return None
-
-    parsed = urlparse(candidate)
-    if parsed.scheme not in {"http", "https"}:
-        return None
-    if parsed.netloc != "dic.nicovideo.jp":
-        return None
-
-    path_parts = [part for part in parsed.path.split("/") if part]
-    if len(path_parts) != 2:
-        return None
-
-    article_type, article_id = path_parts
-    if not article_type or not article_id:
-        return None
-
-    return {
-        "article_id": article_id,
-        "article_type": article_type,
-        "canonical_url": (
-            f"https://dic.nicovideo.jp/{article_type}/{article_id}"
-        ),
-    }
 
 
 def list_active_target_urls(target_db_path: str) -> list[str]:
@@ -24431,49 +24704,57 @@ def list_registered_targets(
 
 
 def normalize_target_url(article_url: str) -> str | None:
-    target_identity = _parse_target_identity(article_url)
+    """Best-effort parse of a dic article URL shape (syntax only; may be id)."""
+
+    target_identity = parse_target_identity(article_url)
     if target_identity is None:
         return None
 
-    canonical_url = target_identity["canonical_url"]
-    if target_identity["article_type"] != "id":
-        return canonical_url
-
-    try:
-        return resolve_id_article_url(canonical_url)
-    except RuntimeError:
-        return None
+    return target_identity["canonical_url"]
 
 
 def validate_target_url(article_url: str) -> bool:
-    return _parse_target_identity(article_url) is not None
+    return parse_target_identity(article_url) is not None
 
 
 def register_target_url(article_url: str, target_db_path: str) -> str:
-    if find_denylisted_article_id(article_url=article_url) is not None:
+    """Resolve numeric identity via metadata, then persist one target row."""
+
+    candidate = article_url.strip()
+    if find_denylisted_article_id(article_url=candidate):
         return "denylisted"
 
-    normalized_url = normalize_target_url(article_url)
-    if normalized_url is None:
+    parsed = parse_target_identity(candidate)
+    if parsed is None:
         return "invalid"
 
-    target_identity = parse_target_identity(normalized_url)
-    if target_identity is None:
-        return "invalid"
+    resolution = resolve_article_input(candidate)
+    if not resolution["ok"]:
+        kind = resolution["failure_kind"]
+        if kind == "invalid_input":
+            return "invalid"
+        return "resolution_failure"
 
-    if find_denylisted_article_id(
-        article_id=target_identity["article_id"],
-        article_url=target_identity["canonical_url"],
-    ) is not None:
+    canonical_target = resolution["canonical_target"]
+    numeric_id = canonical_target["article_id"]
+
+    post_denylisted = find_denylisted_article_id(
+        article_id=numeric_id,
+        article_url=canonical_target["article_url"],
+    )
+    if post_denylisted is not None:
         return "denylisted"
+
+    title = resolution.get("title") or ""
 
     conn = init_db(target_db_path)
     try:
         result = register_target(
             conn,
-            target_identity["article_id"],
-            target_identity["article_type"],
-            target_identity["canonical_url"],
+            numeric_id,
+            canonical_target["article_type"],
+            canonical_target["article_url"],
+            title=title,
         )
     finally:
         conn.close()
@@ -24569,18 +24850,29 @@ def handoff_redirected_target(
 
         register_status = "self_redirect"
         register_entry = None
-        if (
-            article_id,
-            article_type,
-        ) != (
-            redirect_identity["article_id"],
-            redirect_identity["article_type"],
+        nested = resolve_article_input(
+            redirect_identity["canonical_url"],
+        )
+        if not nested["ok"]:
+            register_status = "resolution_failure"
+        elif (
+            nested["canonical_target"]["article_id"] == article_id
+            and nested["canonical_target"]["article_type"] == article_type
         ):
+            pass
+        elif find_denylisted_article_id(
+            article_id=nested["canonical_target"]["article_id"],
+            article_url=nested["canonical_target"]["article_url"],
+        ):
+            register_status = "denylisted"
+        else:
+            ct = nested["canonical_target"]
             register_result = register_target(
                 conn,
-                redirect_identity["article_id"],
-                redirect_identity["article_type"],
-                redirect_identity["canonical_url"],
+                ct["article_id"],
+                ct["article_type"],
+                ct["article_url"],
+                title=nested.get("title") or "",
             )
             register_status = register_result["status"]
             register_entry = register_result["entry"]
@@ -24613,6 +24905,7 @@ def import_targets_from_text_file(
         "denylisted": 0,
         "reactivated": 0,
         "invalid": 0,
+        "resolution_failure": 0,
     }
 
     lines = Path(source_path).read_text(encoding="utf-8").splitlines()
@@ -24710,14 +25003,14 @@ def _seed_target_slug_saved_numeric_article(tmp_path, monkeypatch):
     encoded_slug = "%E3%83%86%E3%82%B9%E3%83%88%E8%A8%98%E4%BA%8B"
     canonical_url = f"https://dic.nicovideo.jp/a/{encoded_slug}"
     try:
-        register_target(conn, encoded_slug, "a", canonical_url)
+        register_target(conn, "4470620", "a", canonical_url)
         conn.execute(
             """
             UPDATE target
             SET created_at=?
             WHERE article_id=? AND article_type=?
             """,
-            ("2026-04-01T00:00:00+00:00", encoded_slug, "a"),
+            ("2026-04-01T00:00:00+00:00", "4470620", "a"),
         )
         save_to_db(
             conn,
@@ -24759,15 +25052,22 @@ def _seed_target_slug_saved_numeric_article(tmp_path, monkeypatch):
 def _seed_pending_target(
     tmp_path,
     monkeypatch,
-    article_id="pending-slug",
+    article_id="8880001",
     article_type="a",
     canonical_url="https://dic.nicovideo.jp/a/pending-slug",
+    title="Pending Display Title",
     created_at="2026-02-01T00:00:00+00:00",
 ):
     monkeypatch.chdir(tmp_path)
     conn = init_db()
     try:
-        register_target(conn, article_id, article_type, canonical_url)
+        register_target(
+            conn,
+            article_id,
+            article_type,
+            canonical_url,
+            title=title,
+        )
         conn.execute(
             """
             UPDATE target
@@ -25262,7 +25562,7 @@ def test_query_registered_articles_includes_active_pending_targets(
     _seed_pending_target(
         tmp_path,
         monkeypatch,
-        article_id="pending-slug",
+        article_id="8880001",
         canonical_url="https://dic.nicovideo.jp/a/pending-slug",
         created_at="2026-02-02T00:00:00+00:00",
     )
@@ -25270,8 +25570,8 @@ def test_query_registered_articles_includes_active_pending_targets(
     result = query_registered_articles()
 
     assert result["total"] == 2
-    assert result["rows"][0]["article_id"] == "pending-slug"
-    assert result["rows"][0]["title"] == "pending-slug"
+    assert result["rows"][0]["article_id"] == "8880001"
+    assert result["rows"][0]["title"] == "Pending Display Title"
     assert result["rows"][0]["saved_response_count"] == 0
     assert result["rows"][0]["latest_scraped_max_res_no"] is None
     assert result["rows"][0]["last_scraped_at"] is None
@@ -25284,14 +25584,14 @@ def test_query_registered_articles_search_finds_pending_target_by_article_id(
     _seed_pending_target(
         tmp_path,
         monkeypatch,
-        article_id="pending-slug",
+        article_id="8880001",
         canonical_url="https://dic.nicovideo.jp/a/pending-slug",
     )
 
-    result = query_registered_articles(search="pending-slug")
+    result = query_registered_articles(search="8880001")
 
     assert result["total"] == 1
-    assert result["rows"][0]["article_id"] == "pending-slug"
+    assert result["rows"][0]["article_id"] == "8880001"
 
 
 def test_query_registered_articles_search_finds_pending_target_by_url(
@@ -25301,16 +25601,13 @@ def test_query_registered_articles_search_finds_pending_target_by_url(
     _seed_pending_target(
         tmp_path,
         monkeypatch,
-        article_id="pending-slug",
         canonical_url="https://dic.nicovideo.jp/a/pending-slug",
     )
 
     result = query_registered_articles(search="dic.nicovideo.jp/a/pending-slug")
 
     assert result["total"] == 1
-    assert result["rows"][0]["canonical_url"] == (
-        "https://dic.nicovideo.jp/a/pending-slug"
-    )
+    assert result["rows"][0]["article_id"] == "8880001"
 
 
 def test_query_registered_articles_uses_target_created_at_for_default_order(
@@ -25321,7 +25618,8 @@ def test_query_registered_articles_uses_target_created_at_for_default_order(
     _seed_pending_target(
         tmp_path,
         monkeypatch,
-        article_id="older-pending",
+        article_id="8880003",
+        title="Older Pending",
         canonical_url="https://dic.nicovideo.jp/a/older-pending",
         created_at="2026-01-01T00:00:00+00:00",
     )
@@ -25344,7 +25642,7 @@ def test_query_registered_articles_uses_target_created_at_for_default_order(
 
     assert [row["article_id"] for row in result["rows"]] == [
         "12345",
-        "older-pending",
+        "8880003",
     ]
 
 
@@ -25358,7 +25656,7 @@ def test_query_registered_articles_matches_saved_numeric_article_by_canonical_ur
 
     assert result["total"] == 1
     row = result["rows"][0]
-    assert row["article_id"] == seeded["decoded_slug"]
+    assert row["article_id"] == "4470620"
     assert row["article_type"] == "a"
     assert row["title"] == "Saved Numeric Title"
     assert row["canonical_url"] == seeded["canonical_url"]
@@ -25473,16 +25771,17 @@ def test_export_registered_articles_csv_includes_pending_target_rows(
     _seed_pending_target(
         tmp_path,
         monkeypatch,
-        article_id="pending-slug",
-        canonical_url="https://dic.nicovideo.jp/a/pending-slug",
+        article_id="8899001",
+        title="Pending CSV Row Title",
+        canonical_url="https://dic.nicovideo.jp/a/pending-for-csv",
     )
 
     csv_text = export_registered_articles_csv()
 
     reader = list(csv.DictReader(StringIO(csv_text)))
     assert len(reader) == 1
-    assert reader[0]["article_id"] == "pending-slug"
-    assert reader[0]["title"] == "pending-slug"
+    assert reader[0]["article_id"] == "8899001"
+    assert reader[0]["title"] == "Pending CSV Row Title"
     assert reader[0]["saved_response_count"] == "0"
 
 
@@ -25555,15 +25854,17 @@ def _seed_encoded_article(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     conn = init_db()
     try:
-        register_target(
-            conn,
-            _ENCODED_JP,
-            "a",
-            f"https://dic.nicovideo.jp/a/{_ENCODED_JP}",
-        )
-        # Seed a legacy slug-identity row directly (save_to_db rejects now).
         canonical_url = f"https://dic.nicovideo.jp/a/{_ENCODED_JP}"
         cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO target
+            (article_id, article_type, canonical_url, is_active)
+            VALUES (?, 'a', ?, 1)
+            """,
+            (_ENCODED_JP, canonical_url),
+        )
+        # Legacy slug target row (read-compat only); archive rows use raw SQL.
         cur.execute(
             """
             INSERT INTO articles (article_id, article_type, title, canonical_url)
@@ -25598,11 +25899,15 @@ def _seed_encoded_pending_target(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     conn = init_db()
     try:
-        register_target(
-            conn,
-            _ENCODED_JP,
-            "a",
-            f"https://dic.nicovideo.jp/a/{_ENCODED_JP}",
+        canonical_url = f"https://dic.nicovideo.jp/a/{_ENCODED_JP}"
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO target
+            (article_id, article_type, canonical_url, is_active)
+            VALUES (?, 'a', ?, 1)
+            """,
+            (_ENCODED_JP, canonical_url),
         )
         conn.execute(
             """
@@ -25868,6 +26173,80 @@ def test_resolve_article_input_still_raises_unexpected_title_search_errors():
             resolve_article_input("Foo")
 
     assert "timeout=10s" in str(exc_info.value)
+
+
+def test_resolve_article_input_uses_og_id_not_numeric_slug_segment():
+    soup = BeautifulSoup(
+        """
+        <html><head>
+        <link rel="canonical"
+              href="https://dic.nicovideo.jp/a/4294967295" />
+        <meta property="og:title" content="4294967295とは">
+        <meta property="og:url"
+              content="https://dic.nicovideo.jp/id/237789" />
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    with patch("article_resolver.fetch_page", return_value=soup):
+        result = resolve_article_input(
+            "https://dic.nicovideo.jp/a/4294967295",
+        )
+
+    assert result["ok"] is True
+    assert result["canonical_target"]["article_id"] == "237789"
+    assert result["canonical_target"]["article_url"] == (
+        "https://dic.nicovideo.jp/a/4294967295"
+    )
+
+
+def test_resolve_article_input_confirm_id_url_matches_metadata():
+    soup = BeautifulSoup(
+        """
+        <html><head>
+        <link rel="canonical"
+              href="https://dic.nicovideo.jp/a/sample" />
+        <meta property="og:title" content="Sとは">
+        <meta property="og:url"
+              content="https://dic.nicovideo.jp/id/777888" />
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    with patch("article_resolver.fetch_page", return_value=soup):
+        result = resolve_article_input("https://dic.nicovideo.jp/id/777888")
+
+    assert result["ok"] is True
+    assert result["canonical_target"]["article_url"] == (
+        "https://dic.nicovideo.jp/a/sample"
+    )
+    assert result["canonical_target"]["article_id"] == "777888"
+
+
+def test_resolve_article_input_id_mismatch_returns_failure():
+    soup = BeautifulSoup(
+        """
+        <html><head>
+        <link rel="canonical"
+              href="https://dic.nicovideo.jp/a/sample" />
+        <meta property="og:title" content="Sとは">
+        <meta property="og:url"
+              content="https://dic.nicovideo.jp/id/222222" />
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    with patch("article_resolver.fetch_page", return_value=soup):
+        result = resolve_article_input("https://dic.nicovideo.jp/id/111111")
+
+    assert result == {
+        "ok": False,
+        "failure_kind": "id_mismatch",
+        "normalized_input": "https://dic.nicovideo.jp/id/111111",
+    }
 
 
 =============================
@@ -26809,6 +27188,17 @@ from identity_merge import (
 from storage import init_db, register_target
 
 
+def _insert_legacy_slug_target(conn, article_id, canonical_url):
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO target (article_id, article_type, canonical_url, is_active)
+        VALUES (?, 'a', ?, 1)
+        """,
+        (article_id, canonical_url),
+    )
+
+
 def _seed_articles_row(
     conn, article_id, article_type, title, canonical_url
 ):
@@ -26851,7 +27241,7 @@ def _build_dup_group_db(tmp_path):
     _seed_response_row(conn, "foo-slug", "a", 2, "KEEP-2")
 
     register_target(conn, "12345", "a", canonical_url)
-    register_target(conn, "foo-slug", "a", canonical_url)
+    _insert_legacy_slug_target(conn, "foo-slug", canonical_url)
 
     conn.commit()
     return conn, str(db_path), canonical_url
@@ -27929,6 +28319,7 @@ def test_main_import_targets_reports_counts(mock_import_targets, capsys):
         "denylisted": 4,
         "reactivated": 0,
         "invalid": 0,
+        "resolution_failure": 0,
     }
 
     with patch(
@@ -27949,6 +28340,7 @@ def test_main_import_targets_reports_counts(mock_import_targets, capsys):
     out = capsys.readouterr().out
     assert "Imported 3 target line(s)" in out
     assert "added=2 duplicate=1 reactivated=0 denylisted=4 invalid=0" in out
+    assert "resolution_failure=0" in out
 
 
 def test_main_import_targets_without_required_args_exits_with_usage(capsys):
@@ -28714,6 +29106,7 @@ FILE: copilot/tests/test_operator_cli.py
 =============================
 import csv
 from io import StringIO
+from unittest.mock import patch
 
 from operator_cli import (
     export_archive_for_operator,
@@ -28725,7 +29118,6 @@ from operator_cli import (
 )
 from storage import init_db, register_target, save_to_db
 from target_list import deactivate_target, register_target_url
-from unittest.mock import patch
 
 
 def test_list_targets_for_operator_shows_status_and_count(
@@ -28736,18 +29128,45 @@ def test_list_targets_for_operator_shows_status_and_count(
     monkeypatch.chdir(tmp_path)
     target_db_path = tmp_path / "targets.db"
 
-    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+    mock_payloads = [
+        {
+            "ok": True,
+            "canonical_target": {
+                "article_url": "https://dic.nicovideo.jp/a/12345",
+                "article_id": "12345",
+                "article_type": "a",
+            },
+            "title": "First",
+            "matched_by": "article_url",
+            "normalized_input": "u1",
+        },
+        {
+            "ok": True,
+            "canonical_target": {
+                "article_url": "https://dic.nicovideo.jp/a/99999-title",
+                "article_id": "88776655",
+                "article_type": "a",
+            },
+            "title": "Second",
+            "matched_by": "article_url",
+            "normalized_input": "u2",
+        },
+    ]
 
     with patch(
-        "target_list.resolve_id_article_url",
-        return_value="https://dic.nicovideo.jp/a/99999-title",
+        "target_list.resolve_article_input",
+        side_effect=mock_payloads,
     ):
+        register_target_url(
+            "https://dic.nicovideo.jp/a/12345",
+            str(target_db_path),
+        )
         register_target_url(
             "https://dic.nicovideo.jp/id/99999",
             str(target_db_path),
         )
 
-    deactivate_target("99999-title", "a", str(target_db_path))
+    deactivate_target("88776655", "a", str(target_db_path))
 
     assert list_targets_for_operator(str(target_db_path), active_only=False) is True
 
@@ -28755,7 +29174,7 @@ def test_list_targets_for_operator_shows_status_and_count(
     assert "=== TARGET REGISTRY ===" in out
     assert "Count: 2" in out
     assert "active   12345 a" in out
-    assert "inactive 99999-title a" in out
+    assert "inactive 88776655 a" in out
 
 
 def test_inspect_target_for_operator_returns_false_for_missing_target(
@@ -30679,6 +31098,17 @@ from tools.repair_slug_article_identity import (
 )
 
 
+def _insert_legacy_slug_target_row(conn, article_id, canonical_url):
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO target (article_id, article_type, canonical_url, is_active)
+        VALUES (?, 'a', ?, 1)
+        """,
+        (article_id, canonical_url),
+    )
+
+
 def _seed_articles_row(conn, article_id, title, canonical_url):
     cur = conn.cursor()
     cur.execute(
@@ -30711,7 +31141,7 @@ def _build_slug_group_db(tmp_path):
     _seed_articles_row(conn, slug_id, "Foo", canonical_url)
     _seed_response_row(conn, slug_id, 1, "S1")
     _seed_response_row(conn, slug_id, 2, "S2")
-    register_target(conn, slug_id, "a", canonical_url)
+    _insert_legacy_slug_target_row(conn, slug_id, canonical_url)
 
     conn.commit()
     return conn, str(db_path), canonical_url, slug_id, numeric_id
@@ -30747,7 +31177,7 @@ def _build_target_only_numeric_slug_db(
     conn = init_db(str(db_path))
     canonical_url = f"https://dic.nicovideo.jp/a/{slug_id}"
 
-    register_target(conn, slug_id, "a", canonical_url)
+    _insert_legacy_slug_target_row(conn, slug_id, canonical_url)
     conn.commit()
     return conn, str(db_path), canonical_url, slug_id
 
@@ -32199,6 +32629,28 @@ def test_dequeue_canonical_target_removes_only_requested_item(tmp_path, monkeypa
         conn.close()
 
 
+def test_register_target_rejects_non_numeric_article_id_for_type_a(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        try:
+            register_target(
+                conn,
+                "sluglike",
+                "a",
+                "https://dic.nicovideo.jp/a/sluglike",
+            )
+        except ValueError as exc:
+            assert "digits-only" in str(exc)
+        else:
+            raise AssertionError("expected ValueError")
+    finally:
+        conn.close()
+
+
 def test_register_target_persists_canonical_identity_once(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     conn = init_db()
@@ -32475,14 +32927,40 @@ from target_list import (
 )
 
 
+def _mock_resolve_for_slug_numeric_pair(canonical_url: str, numeric_id: str):
+    return {
+        "ok": True,
+        "canonical_target": {
+            "article_url": canonical_url,
+            "article_id": numeric_id,
+            "article_type": "a",
+        },
+        "title": "Sample",
+        "matched_by": "article_url",
+        "normalized_input": canonical_url,
+    }
+
+
 def test_list_active_target_urls_reads_registered_targets_stably(tmp_path):
     target_db_path = tmp_path / "targets.db"
 
-    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
     with patch(
-        "target_list.resolve_id_article_url",
-        return_value="https://dic.nicovideo.jp/a/osomatsu-san",
+        "target_list.resolve_article_input",
+        side_effect=[
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/12345",
+                "11111",
+            ),
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/osomatsu-san",
+                "22222",
+            ),
+        ],
     ):
+        register_target_url(
+            "https://dic.nicovideo.jp/a/12345",
+            str(target_db_path),
+        )
         register_target_url(
             "https://dic.nicovideo.jp/id/99999",
             str(target_db_path),
@@ -32499,23 +32977,19 @@ def test_validate_target_url_accepts_minimally_valid_nicopedia_article_url():
 
 
 def test_validate_target_url_stays_syntax_only_for_id_input():
-    with patch("target_list.resolve_id_article_url") as mock_resolve:
-        ok = validate_target_url("https://dic.nicovideo.jp/id/5364158")
+    ok = validate_target_url("https://dic.nicovideo.jp/id/5364158")
 
     assert ok is True
-    mock_resolve.assert_not_called()
 
 
 def test_parse_target_identity_remains_pure_for_id_input():
-    with patch("target_list.resolve_id_article_url") as mock_resolve:
-        identity = parse_target_identity("https://dic.nicovideo.jp/id/5364158")
+    identity = parse_target_identity("https://dic.nicovideo.jp/id/5364158")
 
     assert identity == {
         "article_id": "5364158",
         "article_type": "id",
         "canonical_url": "https://dic.nicovideo.jp/id/5364158",
     }
-    mock_resolve.assert_not_called()
 
 
 def test_validate_target_url_rejects_non_article_shape():
@@ -32527,10 +33001,17 @@ def test_validate_target_url_rejects_non_article_shape():
 def test_register_target_url_inserts_valid_target_into_registry(tmp_path):
     target_db_path = tmp_path / "targets.db"
 
-    result = register_target_url(
-        "https://dic.nicovideo.jp/a/12345",
-        str(target_db_path),
-    )
+    with patch(
+        "target_list.resolve_article_input",
+        return_value=_mock_resolve_for_slug_numeric_pair(
+            "https://dic.nicovideo.jp/a/12345",
+            "5502789",
+        ),
+    ):
+        result = register_target_url(
+            "https://dic.nicovideo.jp/a/12345",
+            str(target_db_path),
+        )
 
     assert result == "added"
     assert list_active_target_urls(str(target_db_path)) == [
@@ -32542,8 +33023,11 @@ def test_register_target_url_stores_resolved_a_target_for_id_input(tmp_path):
     target_db_path = tmp_path / "targets.db"
 
     with patch(
-        "target_list.resolve_id_article_url",
-        return_value="https://dic.nicovideo.jp/a/osomatsu-san",
+        "target_list.resolve_article_input",
+        return_value=_mock_resolve_for_slug_numeric_pair(
+            "https://dic.nicovideo.jp/a/osomatsu-san",
+            "33333",
+        ),
     ):
         result = register_target_url(
             "https://dic.nicovideo.jp/id/5364158",
@@ -32559,13 +33043,20 @@ def test_register_target_url_stores_resolved_a_target_for_id_input(tmp_path):
 def test_register_target_url_rejects_unresolved_id_input(tmp_path):
     target_db_path = tmp_path / "targets.db"
 
-    with patch("target_list.resolve_id_article_url", return_value=None):
+    with patch(
+        "target_list.resolve_article_input",
+        return_value={
+            "ok": False,
+            "failure_kind": "not_found",
+            "normalized_input": "x",
+        },
+    ):
         result = register_target_url(
             "https://dic.nicovideo.jp/id/5364158",
             str(target_db_path),
         )
 
-    assert result == "invalid"
+    assert result == "resolution_failure"
     assert target_db_path.exists() is False
 
 
@@ -32596,14 +33087,50 @@ def test_register_target_url_rejects_denylisted_canonical_slug_url(tmp_path):
     assert target_db_path.exists() is False
 
 
+def test_register_target_url_denylisted_after_numeric_resolution(tmp_path):
+    """Denylist (237789) must apply when only metadata reveals the numeric ID."""
+
+    target_db_path = tmp_path / "targets.db"
+    deny_url = (
+        "https://dic.nicovideo.jp/a/4294967295"
+    )
+
+    with patch(
+        "target_list.resolve_article_input",
+        return_value={
+            "ok": True,
+            "canonical_target": {
+                "article_url": deny_url,
+                "article_id": "237789",
+                "article_type": "a",
+            },
+            "title": "4294967295",
+            "matched_by": "article_url",
+            "normalized_input": deny_url,
+        },
+    ):
+        result = register_target_url(
+            deny_url,
+            str(target_db_path),
+        )
+
+    assert result == "denylisted"
+
+
 def test_register_target_url_suppresses_duplicate_identity(tmp_path):
     target_db_path = tmp_path / "targets.db"
-    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
-
-    result = register_target_url(
+    mock = _mock_resolve_for_slug_numeric_pair(
         "https://dic.nicovideo.jp/a/12345",
-        str(target_db_path),
+        "5502789",
     )
+    with patch("target_list.resolve_article_input", return_value=mock):
+        register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+
+    with patch("target_list.resolve_article_input", return_value=mock):
+        result = register_target_url(
+            "https://dic.nicovideo.jp/a/12345",
+            str(target_db_path),
+        )
 
     assert result == "duplicate"
     assert list_active_target_urls(str(target_db_path)) == [
@@ -32633,9 +33160,20 @@ def test_import_targets_from_text_file_is_one_shot_and_non_automatic(tmp_path):
         encoding="utf-8",
     )
 
+    def _side_effect(article_input: str):
+        if "a/12345" in article_input:
+            return _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/12345",
+                "5502789",
+            )
+        return _mock_resolve_for_slug_numeric_pair(
+            "https://dic.nicovideo.jp/a/777-title",
+            "8888888",
+        )
+
     with patch(
-        "target_list.resolve_id_article_url",
-        return_value="https://dic.nicovideo.jp/a/777-title",
+        "target_list.resolve_article_input",
+        side_effect=_side_effect,
     ):
         result = import_targets_from_text_file(
             str(source_file),
@@ -32651,6 +33189,7 @@ def test_import_targets_from_text_file_is_one_shot_and_non_automatic(tmp_path):
         "denylisted": 0,
         "reactivated": 0,
         "invalid": 1,
+        "resolution_failure": 0,
     }
     assert list_active_target_urls(str(target_db_path)) == [
         "https://dic.nicovideo.jp/a/12345",
@@ -32667,10 +33206,17 @@ def test_import_targets_from_text_file_reports_denylisted_skip(tmp_path):
         encoding="utf-8",
     )
 
-    result = import_targets_from_text_file(
-        str(source_file),
-        str(target_db_path),
-    )
+    with patch(
+        "target_list.resolve_article_input",
+        return_value=_mock_resolve_for_slug_numeric_pair(
+            "https://dic.nicovideo.jp/a/12345",
+            "5502789",
+        ),
+    ):
+        result = import_targets_from_text_file(
+            str(source_file),
+            str(target_db_path),
+        )
 
     assert result == {
         "source_path": str(source_file),
@@ -32681,6 +33227,7 @@ def test_import_targets_from_text_file_reports_denylisted_skip(tmp_path):
         "denylisted": 1,
         "reactivated": 0,
         "invalid": 0,
+        "resolution_failure": 0,
     }
     assert list_active_target_urls(str(target_db_path)) == [
         "https://dic.nicovideo.jp/a/12345",
@@ -32690,8 +33237,16 @@ def test_import_targets_from_text_file_reports_denylisted_skip(tmp_path):
 def test_list_registered_targets_includes_inactive_entries_when_requested(tmp_path):
     target_db_path = tmp_path / "targets.db"
 
-    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
-    deactivate_target("12345", "a", str(target_db_path))
+    with patch(
+        "target_list.resolve_article_input",
+        return_value=_mock_resolve_for_slug_numeric_pair(
+            "https://dic.nicovideo.jp/a/12345",
+            "5502789",
+        ),
+    ):
+        register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+
+    deactivate_target("5502789", "a", str(target_db_path))
 
     all_entries = list_registered_targets(str(target_db_path), active_only=False)
     active_entries = list_registered_targets(str(target_db_path), active_only=True)
@@ -32703,22 +33258,36 @@ def test_list_registered_targets_includes_inactive_entries_when_requested(tmp_pa
 
 def test_inspect_registered_target_returns_entry_by_identity(tmp_path):
     target_db_path = tmp_path / "targets.db"
-    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+    with patch(
+        "target_list.resolve_article_input",
+        return_value=_mock_resolve_for_slug_numeric_pair(
+            "https://dic.nicovideo.jp/a/12345",
+            "5502789",
+        ),
+    ):
+        register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
 
-    entry = inspect_registered_target("12345", "a", str(target_db_path))
+    entry = inspect_registered_target("5502789", "a", str(target_db_path))
 
     assert entry is not None
-    assert entry["article_id"] == "12345"
+    assert entry["article_id"] == "5502789"
     assert entry["article_type"] == "a"
     assert entry["canonical_url"] == "https://dic.nicovideo.jp/a/12345"
 
 
 def test_deactivate_and_reactivate_target_return_operator_facing_result(tmp_path):
     target_db_path = tmp_path / "targets.db"
-    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+    with patch(
+        "target_list.resolve_article_input",
+        return_value=_mock_resolve_for_slug_numeric_pair(
+            "https://dic.nicovideo.jp/a/12345",
+            "5502789",
+        ),
+    ):
+        register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
 
-    deactivated = deactivate_target("12345", "a", str(target_db_path))
-    reactivated = reactivate_target("12345", "a", str(target_db_path))
+    deactivated = deactivate_target("5502789", "a", str(target_db_path))
+    reactivated = reactivate_target("5502789", "a", str(target_db_path))
 
     assert deactivated["status"] == "deactivated"
     assert deactivated["entry"]["is_active"] is False
@@ -32728,14 +33297,26 @@ def test_deactivate_and_reactivate_target_return_operator_facing_result(tmp_path
 
 def test_handoff_redirected_target_deactivates_old_and_registers_new(tmp_path):
     target_db_path = tmp_path / "targets.db"
-    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
-
-    result = handoff_redirected_target(
-        "12345",
-        "a",
-        "https://dic.nicovideo.jp/a/67890",
-        str(target_db_path),
-    )
+    with patch(
+        "target_list.resolve_article_input",
+        side_effect=[
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/12345",
+                "5502789",
+            ),
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/67890",
+                "5502790",
+            ),
+        ],
+    ):
+        register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+        result = handoff_redirected_target(
+            "5502789",
+            "a",
+            "https://dic.nicovideo.jp/a/67890",
+            str(target_db_path),
+        )
 
     assert result["status"] == "redirected"
     assert result["entry"]["is_active"] is False
@@ -32751,21 +33332,118 @@ def test_handoff_redirected_target_deactivates_old_and_registers_new(tmp_path):
 
 def test_handoff_redirected_target_suppresses_duplicate_new_target(tmp_path):
     target_db_path = tmp_path / "targets.db"
-    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
-    register_target_url("https://dic.nicovideo.jp/a/67890", str(target_db_path))
+    with patch(
+        "target_list.resolve_article_input",
+        side_effect=[
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/12345",
+                "5502789",
+            ),
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/67890",
+                "5502790",
+            ),
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/67890",
+                "5502790",
+            ),
+        ],
+    ):
+        register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+        register_target_url("https://dic.nicovideo.jp/a/67890", str(target_db_path))
 
-    result = handoff_redirected_target(
-        "12345",
-        "a",
-        "https://dic.nicovideo.jp/a/67890",
-        str(target_db_path),
-    )
+        result = handoff_redirected_target(
+            "5502789",
+            "a",
+            "https://dic.nicovideo.jp/a/67890",
+            str(target_db_path),
+        )
 
     assert result["status"] == "redirected"
     assert result["register_status"] == "duplicate"
     assert list_active_target_urls(str(target_db_path)) == [
         "https://dic.nicovideo.jp/a/67890",
     ]
+
+
+=============================
+FILE: copilot/tests/test_task044_numeric_target_identity.py
+=============================
+"""TASK044-focused tests: numeric target registry identity and denylist."""
+
+from unittest.mock import patch
+
+from archive_read import query_registered_articles
+from collection_policy import find_denylisted_article_id
+from storage import init_db, register_target
+from target_list import register_target_url
+
+
+def test_denylist_blocks_plain_id_url_237789():
+    assert (
+        find_denylisted_article_id(
+            article_url="https://dic.nicovideo.jp/id/237789",
+        )
+        == "237789"
+    )
+
+
+def test_denylist_blocks_numeric_article_id_237789():
+    assert (
+        find_denylisted_article_id(
+            article_id="237789",
+            article_url="https://dic.nicovideo.jp/a/4294967295",
+        )
+        == "237789"
+    )
+
+
+def test_registered_articles_default_sort_tiebreaks_on_target_row_id(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        register_target(conn, "1", "a", "https://dic.nicovideo.jp/a/q", title="Q")
+        register_target(conn, "2", "a", "https://dic.nicovideo.jp/a/r", title="R")
+        cur = conn.cursor()
+        same_ts = "2026-01-01T00:00:00+00:00"
+        cur.execute(
+            "UPDATE target SET created_at=? WHERE article_id=?",
+            (same_ts, "1"),
+        )
+        cur.execute(
+            "UPDATE target SET created_at=? WHERE article_id=?",
+            (same_ts, "2"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    result = query_registered_articles()
+    assert [row["article_id"] for row in result["rows"]] == ["2", "1"]
+
+
+@patch("target_list.resolve_article_input")
+def test_register_target_url_observes_post_resolve_denylist(mock_res, tmp_path):
+    mock_res.return_value = {
+        "ok": True,
+        "canonical_target": {
+            "article_url": "https://dic.nicovideo.jp/a/unique-test-article",
+            "article_id": "237789",
+            "article_type": "a",
+        },
+        "title": "X",
+        "matched_by": "article_url",
+        "normalized_input": "u",
+    }
+    target_db = tmp_path / "t.db"
+    out = register_target_url(
+        "https://dic.nicovideo.jp/a/unique-test-article",
+        str(target_db),
+    )
+    assert out == "denylisted"
 
 
 =============================
@@ -36334,6 +37012,9 @@ UI_TEXTS = {
             "Temporary fetch failure. Please try again later."
         ),
         "unexpected_internal_error": "An unexpected internal error occurred.",
+        "registration_resolution_failure": (
+            "Article metadata resolution failed; the target was not registered."
+        ),
     },
     "field_labels": {
         "title": "Article title",
@@ -36554,6 +37235,8 @@ def check_article_status(article_input: str) -> dict:
 def _result_error_code(result: dict) -> str:
     if result["status"] == "denylisted":
         return "denylisted"
+    if result["status"] == "registration_resolution_failure":
+        return "registration_resolution_failure"
     if result["status"] == "resolution_failure":
         return result.get("failure_kind", "unknown_resolution_failure")
     if result["status"] == "internal_error":
@@ -36814,6 +37497,30 @@ def _submit_archive_check(
                 resolved_canonical_url=check_result["article_url"],
             )
             return _build_registered_ui_result(check_result), None
+
+        if registration_status == "resolution_failure":
+            failure_result = {
+                "status": "registration_resolution_failure",
+                "input": check_result["input"],
+                "message": (
+                    "Article could not be registered due to a metadata "
+                    "resolution failure."
+                ),
+            }
+            reference_id = _log_web_action(
+                web_action_log_path,
+                environ,
+                action_kind="registration",
+                input_value=article_input,
+                requested_format=None,
+                result_status="resolution_failure",
+                resolved_title=check_result["title"],
+                resolved_article_id=check_result["article_id"],
+                resolved_article_type=check_result["article_type"],
+                resolved_canonical_url=check_result["article_url"],
+                error_code="resolution_failure",
+            )
+            return _build_error_ui_result(failure_result, reference_id), None
 
         if registration_status == "denylisted":
             reference_id = _log_web_action(
@@ -39204,6 +39911,15 @@ def _registered_has_last_scraped_column(conn):
     return "latest_scraped_at" in cols
 
 
+def _registered_has_target_title_column(conn):
+    """Return whether optional target.title column exists (older DB compat)."""
+
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(target)")
+    cols = {row[1] for row in cur.fetchall()}
+    return "title" in cols
+
+
 def _registered_fallback_title(article_id, canonical_url):
     parsed = urlparse(canonical_url or "")
     path_parts = [part for part in parsed.path.split("/") if part]
@@ -39262,9 +39978,14 @@ def _registered_row_to_dict(row):
         latest_scraped_max_res_no,
         last_scraped_at,
     ) = row
+    aid = (article_id or "").strip()
+    if aid.isdigit():
+        display_article_id = aid
+    else:
+        display_article_id = unquote(aid)
     display_title = title or _registered_fallback_title(article_id, canonical_url)
     return {
-        "article_id": unquote(article_id or ""),
+        "article_id": display_article_id,
         "article_type": article_type or "",
         "title": display_title,
         "canonical_url": canonical_url or "",
@@ -39301,15 +40022,25 @@ def query_registered_articles(
 
     try:
         has_last_scraped = _registered_has_last_scraped_column(conn)
+        has_target_title = _registered_has_target_title_column(conn)
         sort_expr = _registered_sort_sql_expr(sort_by)
         matched_last_scraped_expr = (
             "COALESCE(a_exact.latest_scraped_at, a_url.latest_scraped_at)"
             if has_last_scraped
             else "NULL"
         )
+        if has_target_title:
+            matched_title_sql = (
+                "COALESCE("
+                "NULLIF(TRIM(COALESCE(t.title, '')), ''), "
+                "a_exact.title, a_url.title)"
+            )
+        else:
+            matched_title_sql = "COALESCE(a_exact.title, a_url.title)"
         base_cte_sql = f"""
             WITH resolved_targets AS (
                 SELECT
+                    t.id AS target_row_id,
                     t.article_id AS target_article_id,
                     t.article_type AS target_article_type,
                     t.canonical_url AS target_canonical_url,
@@ -39318,7 +40049,7 @@ def query_registered_articles(
                         AS matched_article_id,
                     COALESCE(a_exact.article_type, a_url.article_type)
                         AS matched_article_type,
-                    COALESCE(a_exact.title, a_url.title)
+                    {matched_title_sql}
                         AS matched_title,
                     {matched_last_scraped_expr} AS matched_last_scraped_at
                 FROM target AS t
@@ -39384,7 +40115,8 @@ def query_registered_articles(
             {where_sql}
             ORDER BY
                 {sort_expr} {order_dir},
-                rt.target_article_id ASC, rt.target_article_type ASC
+                rt.target_row_id DESC,
+                rt.target_article_type ASC
         """
 
         cur = conn.cursor()
@@ -39474,10 +40206,158 @@ def write_scrape_targets_txt(data_dir="data"):
 
 
 =============================
+FILE: cursor/article_page_identity.py
+=============================
+"""
+Shared extraction of canonical Nicopedia identity from article HTML metadata.
+
+Registration and scraping both require a numeric NicoNicoPedia article ID and a
+canonical /a/<slug> URL derived from meta tags—not the slash-segment slug.
+"""
+
+import re
+from urllib.parse import urljoin
+
+from storage import validate_saved_article_identity
+from dicopedia_urls import parse_target_identity
+
+
+class ArticleIdMismatchError(ValueError):
+    """Metadata numeric article ID disagrees with a /id/<digits> URL input."""
+
+
+_OG_URL_ID_RE = re.compile(r"/id/([0-9]+)(?:/|$)")
+
+
+def extract_article_title_from_meta(soup) -> str | None:
+    title_tag = soup.find("meta", property="og:title")
+    if title_tag is None:
+        return None
+    raw = title_tag.get("content", "").strip()
+    if not raw:
+        return None
+    return raw.split("とは")[0]
+
+
+def normalize_redirect_target_url(
+    article_url: str,
+    candidate_url: str,
+) -> str | None:
+    raw_target = candidate_url.strip().strip("\"'")
+    if not raw_target:
+        return None
+    resolved_target = urljoin(article_url, raw_target)
+    target_identity = parse_target_identity(resolved_target)
+    if target_identity is None:
+        return None
+    return target_identity["canonical_url"]
+
+
+def extract_canonical_article_a_url(article_url: str, soup) -> str | None:
+    canonical_tag = soup.find(
+        "link",
+        rel=lambda value: value and "canonical" in value,
+    )
+    if canonical_tag is not None:
+        href = canonical_tag.get("href", "").strip()
+        canonical_url = normalize_redirect_target_url(article_url, href)
+        canonical_identity = parse_target_identity(canonical_url or "")
+        if (
+            canonical_identity is not None
+            and canonical_identity["article_type"] == "a"
+        ):
+            return canonical_url
+
+    og_tag = soup.find("meta", property="og:url")
+    if og_tag is None:
+        return None
+
+    return normalize_redirect_target_url(
+        article_url,
+        og_tag.get("content", "").strip(),
+    )
+
+
+def extract_numeric_nicopedia_article_id(soup, canonical_article_url: str) -> str:
+    og_url = soup.find("meta", property="og:url")
+    og_content = og_url.get("content", "").strip() if og_url else ""
+    if og_content:
+        match = _OG_URL_ID_RE.search(og_content)
+        if match is not None:
+            numeric_id = match.group(1)
+            if numeric_id and numeric_id.isdigit():
+                return numeric_id
+
+    canonical_identity = parse_target_identity(canonical_article_url)
+    if canonical_identity is None:
+        raise ValueError(
+            f"invalid canonical_article_url for ID extraction: "
+            f"{canonical_article_url!r}"
+        )
+
+    candidate = canonical_identity["article_id"]
+    if candidate and candidate.isdigit():
+        return candidate
+
+    raise ValueError(
+        "unable to extract numeric article ID from page metadata"
+    )
+
+
+def resolve_registration_identity_from_html(
+    soup,
+    fetched_url: str,
+    *,
+    input_id_numeric_candidate: str | None = None,
+) -> tuple[dict[str, str], str]:
+    """Return canonical_target dict and title string, or raise ValueError."""
+
+    canonical_article_url = extract_canonical_article_a_url(fetched_url, soup)
+    if canonical_article_url is None:
+        raise ValueError("missing canonical Nicopedia article URL")
+
+    tgt = parse_target_identity(canonical_article_url)
+    if tgt is None or tgt["article_type"] != "a":
+        raise ValueError("canonical metadata is not article type /a")
+
+    numeric_article_id = extract_numeric_nicopedia_article_id(
+        soup,
+        canonical_article_url,
+    )
+    validate_saved_article_identity(numeric_article_id, "a")
+
+    if (
+        input_id_numeric_candidate is not None
+        and input_id_numeric_candidate.isdigit()
+        and input_id_numeric_candidate != numeric_article_id
+    ):
+        raise ArticleIdMismatchError(
+            "metadata numeric article ID does not match /id/<digits> input"
+        )
+
+    title = extract_article_title_from_meta(soup)
+    if title is None:
+        raise ValueError("missing og:title metadata")
+
+    return (
+        {
+            "article_url": tgt["canonical_url"],
+            "article_id": numeric_article_id,
+            "article_type": "a",
+        },
+        title,
+    )
+
+
+=============================
 FILE: cursor/article_resolver.py
 =============================
 from urllib.parse import quote, urlparse
 
+from article_page_identity import (
+    ArticleIdMismatchError,
+    resolve_registration_identity_from_html,
+)
 from http_client import fetch_page
 
 
@@ -39526,18 +40406,6 @@ def _looks_like_url_input(normalized_input: str) -> bool:
     return bool(parsed.scheme or parsed.netloc)
 
 
-def _extract_title_from_soup(soup) -> str | None:
-    title_tag = soup.find("meta", property="og:title")
-    if title_tag is None:
-        return None
-
-    title = title_tag.get("content", "").strip()
-    if not title:
-        return None
-
-    return title.split("とは")[0]
-
-
 def _normalize_candidate_url(candidate_url: str) -> str | None:
     parsed = urlparse(candidate_url)
 
@@ -39557,19 +40425,15 @@ def _normalize_candidate_url(candidate_url: str) -> str | None:
     return f"{parsed.scheme}://{parsed.netloc}/{article_type}/{article_slug}"
 
 
-def _extract_canonical_target_from_url(article_url: str) -> dict | None:
-    normalized_url = _normalize_candidate_url(article_url)
-    if normalized_url is None:
-        return None
-
-    parsed = urlparse(normalized_url)
-    article_type, article_id = [part for part in parsed.path.split("/") if part]
-
-    return {
-        "article_url": normalized_url,
-        "article_id": article_id,
-        "article_type": article_type,
-    }
+def _id_url_numeric_from_normalized_url(normalized_url: str) -> str | None:
+    path_parts = [p for p in urlparse(normalized_url).path.split("/") if p]
+    if (
+        len(path_parts) == 2
+        and path_parts[0] == "id"
+        and path_parts[1].isdigit()
+    ):
+        return path_parts[1]
+    return None
 
 
 def _resolve_from_article_url(
@@ -39577,6 +40441,8 @@ def _resolve_from_article_url(
     normalized_input: str,
     matched_by: str,
 ) -> dict:
+    id_candidate = _id_url_numeric_from_normalized_url(article_url)
+
     try:
         soup = fetch_page(article_url)
     except RuntimeError as exc:
@@ -39584,12 +40450,15 @@ def _resolve_from_article_url(
             return _build_failure_result("not_found", normalized_input)
         raise
 
-    og_url = soup.find("meta", property="og:url")
-    canonical_url = og_url.get("content", "").strip() if og_url else ""
-    canonical_target = _extract_canonical_target_from_url(canonical_url)
-    title = _extract_title_from_soup(soup)
-
-    if canonical_target is None or title is None:
+    try:
+        canonical_target, title = resolve_registration_identity_from_html(
+            soup,
+            article_url,
+            input_id_numeric_candidate=id_candidate,
+        )
+    except ArticleIdMismatchError:
+        return _build_failure_result("id_mismatch", normalized_input)
+    except ValueError:
         return _build_failure_result("not_found", normalized_input)
 
     return _build_success_result(
@@ -40388,6 +41257,11 @@ def run_delete_request_feeder(
             skipped_registration_failures += 1
             continue
 
+        if register_status == "resolution_failure":
+            skipped_resolution_failures += 1
+            invalid_targets += 1
+            continue
+
         if register_status == "added":
             added_targets += 1
             queued_target_urls.append(canonical_url)
@@ -40551,6 +41425,47 @@ def _load_delete_request_responses(
         {"res_no": int(res_no), "body": str(body or "")}
         for res_no, body in rows
     ]
+
+
+=============================
+FILE: cursor/dicopedia_urls.py
+=============================
+"""Parse Nicopedia dic.nicovideo.jp article URL shapes (syntax only).
+
+This module must stay free of heavier resolution / registration imports.
+"""
+
+from urllib.parse import urlparse
+
+
+def parse_target_identity(article_url: str) -> dict | None:
+    """Return article_id path segment, type, canonical_url for dic URLs."""
+
+    candidate = article_url.strip()
+    if not candidate:
+        return None
+
+    parsed = urlparse(candidate)
+    if parsed.scheme not in {"http", "https"}:
+        return None
+    if parsed.netloc != "dic.nicovideo.jp":
+        return None
+
+    path_parts = [part for part in parsed.path.split("/") if part]
+    if len(path_parts) != 2:
+        return None
+
+    article_type, article_id = path_parts
+    if not article_type or not article_id:
+        return None
+
+    return {
+        "article_id": article_id,
+        "article_type": article_type,
+        "canonical_url": (
+            f"https://dic.nicovideo.jp/{article_type}/{article_id}"
+        ),
+    }
 
 
 =============================
@@ -44395,6 +45310,12 @@ def main():
                 f"{sys.argv[2]}"
             )
             sys.exit(1)
+        if result == "resolution_failure":
+            print(
+                "Target registration failed: could not resolve article metadata "
+                f"for {sys.argv[2]}"
+            )
+            sys.exit(1)
 
         print(f"Invalid target URL: {sys.argv[2]}")
         sys.exit(1)
@@ -44414,7 +45335,7 @@ def main():
         print(
             "added={added} duplicate={duplicate} "
             "reactivated={reactivated} denylisted={denylisted} "
-            "invalid={invalid}".format(
+            "invalid={invalid} resolution_failure={resolution_failure}".format(
                 **import_result,
             )
         )
@@ -44635,6 +45556,9 @@ def add_target_for_operator(article_url, target_db_path):
     print("Action: add")
     print(f"DB: {target_db_path}")
     print(f"Input: {article_url}")
+    if result == "resolution_failure":
+        print("Reason: could not resolve article metadata for registration")
+        return False
     print("Reason: input must be a canonical Nicopedia article URL")
     return False
 
@@ -44841,9 +45765,13 @@ import math
 import os
 import re
 import time
-from urllib.parse import urljoin
 from urllib.parse import urlparse
 
+from article_page_identity import (
+    extract_canonical_article_a_url,
+    extract_numeric_nicopedia_article_id,
+    normalize_redirect_target_url,
+)
 from collection_policy import DENYLIST_ARTICLE_IDS
 from http_client import fetch_page
 from parser import parse_responses
@@ -44854,7 +45782,7 @@ from storage import (
     save_to_db,
     validate_saved_article_identity,
 )
-from target_list import parse_target_identity
+from dicopedia_urls import parse_target_identity
 
 # 取得レス数の上限。未知の high-volume 記事に対する bounded protection。
 RESPONSE_CAP = 1_000_000
@@ -45017,8 +45945,6 @@ _LOCATION_REPLACE_RE = re.compile(
     re.IGNORECASE,
 )
 
-_OG_URL_ID_RE = re.compile(r"/id/([0-9]+)(?:/|$)")
-
 
 def _extract_page_title(soup) -> str:
     meta_title = soup.find("meta", property="og:title")
@@ -45049,63 +45975,6 @@ def _extract_itemprop_datetime(soup, itemprop: str) -> str | None:
 
     text = tag.get_text(" ", strip=True)
     return text or None
-
-
-def _extract_numeric_article_id(soup, canonical_article_url: str) -> str:
-    """
-    Extract a numeric NicoNicoPedia article ID for storage identity.
-
-    Prefers og:url '/id/<digits>' when present. As a bounded fallback,
-    accepts canonical '/a/<digits>' (numeric-only) but refuses slug values.
-    """
-    og_url = soup.find("meta", property="og:url")
-    og_content = og_url.get("content", "").strip() if og_url else ""
-    if og_content:
-        match = _OG_URL_ID_RE.search(og_content)
-        if match is not None:
-            numeric_id = match.group(1)
-            if numeric_id and numeric_id.isdigit():
-                return numeric_id
-
-    canonical_identity = parse_target_identity(canonical_article_url)
-    if canonical_identity is None:
-        raise ArticleNotFoundError(
-            f"Article not found: {canonical_article_url}"
-        )
-
-    candidate = canonical_identity["article_id"]
-    if candidate and candidate.isdigit():
-        return candidate
-
-    raise ValueError(
-        "Unable to extract numeric article ID from page metadata; "
-        "refusing to fall back to slug identity."
-    )
-
-
-def _extract_canonical_article_url(article_url: str, soup) -> str | None:
-    canonical_tag = soup.find(
-        "link",
-        rel=lambda value: value and "canonical" in value,
-    )
-    if canonical_tag is not None:
-        href = canonical_tag.get("href", "").strip()
-        canonical_url = _normalize_redirect_target_url(article_url, href)
-        canonical_identity = parse_target_identity(canonical_url or "")
-        if (
-            canonical_identity is not None
-            and canonical_identity["article_type"] == "a"
-        ):
-            return canonical_url
-
-    og_url = soup.find("meta", property="og:url")
-    if og_url is None:
-        return None
-
-    return _normalize_redirect_target_url(
-        article_url,
-        og_url.get("content", "").strip(),
-    )
 
 
 def _select_scrape_identity(
@@ -45149,7 +46018,10 @@ def fetch_article_metadata_record(article_url: str) -> dict:
     title_tag = soup.find("meta", property="og:title")
     title = title_tag["content"].split("とは")[0] if title_tag else "unknown"
 
-    canonical_article_url = _extract_canonical_article_url(article_url, soup)
+    canonical_article_url = extract_canonical_article_a_url(
+        article_url,
+        soup,
+    )
     if canonical_article_url is None:
         raise ArticleNotFoundError(f"Article not found: {article_url}")
 
@@ -45160,7 +46032,13 @@ def fetch_article_metadata_record(article_url: str) -> dict:
     if target_identity["article_type"] != "a":
         raise ArticleNotFoundError(f"Article not found: {article_url}")
 
-    numeric_article_id = _extract_numeric_article_id(soup, canonical_article_url)
+    try:
+        numeric_article_id = extract_numeric_nicopedia_article_id(
+            soup,
+            canonical_article_url,
+        )
+    except ValueError as exc:
+        raise ArticleNotFoundError(f"Article not found: {article_url}") from exc
     validate_saved_article_identity(numeric_article_id, "a")
 
     return {
@@ -45171,21 +46049,6 @@ def fetch_article_metadata_record(article_url: str) -> dict:
         "published_at": _extract_itemprop_datetime(soup, "datePublished"),
         "modified_at": _extract_itemprop_datetime(soup, "dateModified"),
     }
-
-
-def _normalize_redirect_target_url(
-    article_url: str,
-    candidate_url: str,
-) -> str | None:
-    raw_target = candidate_url.strip().strip('"\'')
-    if not raw_target:
-        return None
-
-    resolved_target = urljoin(article_url, raw_target)
-    target_identity = parse_target_identity(resolved_target)
-    if target_identity is None:
-        return None
-    return target_identity["canonical_url"]
 
 
 def _extract_meta_refresh_target(article_url: str, soup) -> str | None:
@@ -45199,7 +46062,7 @@ def _extract_meta_refresh_target(article_url: str, soup) -> str | None:
         if match is None:
             continue
 
-        redirect_target = _normalize_redirect_target_url(
+        redirect_target = normalize_redirect_target_url(
             article_url,
             match.group(1),
         )
@@ -45219,7 +46082,7 @@ def _extract_location_replace_target(article_url: str, soup) -> str | None:
         if match is None:
             continue
 
-        redirect_target = _normalize_redirect_target_url(
+        redirect_target = normalize_redirect_target_url(
             article_url,
             match.group(2),
         )
@@ -60691,13 +61554,21 @@ def validate_saved_article_identity(article_id: str, article_type: str) -> None:
     if article_type != "a":
         return
     if not isinstance(article_id, str):
-        raise ValueError("saved article_id must be a string for article_type='a'")
+        raise ValueError(
+            "saved article_id must be a string for article_type='a'"
+        )
     if not article_id:
         raise ValueError("saved article_id must be non-empty for article_type='a'")
     if not article_id.isdigit():
         raise ValueError(
             "saved article_id must be digits-only for article_type='a'"
         )
+
+
+def validate_target_article_identity(article_id: str, article_type: str) -> None:
+    """Reject non-canonical scrape target identities at the persistence seam."""
+
+    validate_saved_article_identity(article_id, article_type)
 
 
 def _target_row_to_entry(row):
@@ -60711,6 +61582,7 @@ def _target_row_to_entry(row):
         "is_redirected": bool(row[6]),
         "redirect_target_url": row[7],
         "redirect_detected_at": row[8],
+        "title": row[9] if len(row) > 9 else None,
     }
 
 
@@ -60745,6 +61617,15 @@ def _ensure_target_redirect_columns(conn: sqlite3.Connection) -> None:
 
     if changed:
         conn.commit()
+
+
+def _ensure_target_title_column(conn: sqlite3.Connection) -> None:
+    column_names = _list_column_names(conn, "target")
+    if "title" in column_names:
+        return
+    cur = conn.cursor()
+    cur.execute("ALTER TABLE target ADD COLUMN title TEXT")
+    conn.commit()
 
 
 def _ensure_article_metadata_columns(conn: sqlite3.Connection) -> None:
@@ -60836,12 +61717,14 @@ def init_db(db_path: str = DEFAULT_DB_PATH):
         redirect_target_url TEXT,
         redirect_detected_at TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        title TEXT,
         UNIQUE(article_id, article_type)
     )
     """)
 
     _ensure_article_metadata_columns(conn)
     _ensure_target_redirect_columns(conn)
+    _ensure_target_title_column(conn)
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS scrape_run_observation (
@@ -61073,15 +61956,35 @@ def dequeue_canonical_target(conn, article_id, article_type):
     return cur.rowcount > 0
 
 
-def register_target(conn, article_id, article_type, canonical_url):
+def _merge_persisted_target_title(
+    existing_title: str | None,
+    incoming_title: str | None,
+) -> str | None:
+    if incoming_title is None:
+        return existing_title
+    stripped = incoming_title.strip()
+    if stripped != "":
+        return stripped
+    return existing_title
+
+
+def register_target(
+    conn,
+    article_id,
+    article_type,
+    canonical_url,
+    title=None,
+):
     """Register or reactivate one canonical scrape target."""
+
+    validate_target_article_identity(article_id, article_type)
 
     cur = conn.cursor()
     cur.execute(
         """
         SELECT id, article_id, article_type, canonical_url, is_active,
                created_at, is_redirected, redirect_target_url,
-               redirect_detected_at
+               redirect_detected_at, title
         FROM target
         WHERE article_id=? AND article_type=?
         """,
@@ -61090,13 +61993,17 @@ def register_target(conn, article_id, article_type, canonical_url):
     existing_row = cur.fetchone()
 
     if existing_row is None:
+        insert_title = None
+        if title is not None:
+            ins = title.strip()
+            insert_title = ins if ins else None
         cur.execute(
             """
             INSERT INTO target
-            (article_id, article_type, canonical_url, is_active)
-            VALUES (?, ?, ?, 1)
+            (article_id, article_type, canonical_url, is_active, title)
+            VALUES (?, ?, ?, 1, ?)
             """,
-            (article_id, article_type, canonical_url),
+            (article_id, article_type, canonical_url, insert_title),
         )
         status = "added"
     else:
@@ -61105,6 +62012,10 @@ def register_target(conn, article_id, article_type, canonical_url):
         if not existing_entry["is_active"]:
             status = "reactivated"
 
+        merged_title = _merge_persisted_target_title(
+            existing_entry.get("title"),
+            title,
+        )
         cur.execute(
             """
             UPDATE target
@@ -61112,10 +62023,11 @@ def register_target(conn, article_id, article_type, canonical_url):
                 is_active=1,
                 is_redirected=0,
                 redirect_target_url=NULL,
-                redirect_detected_at=NULL
+                redirect_detected_at=NULL,
+                title=?
             WHERE article_id=? AND article_type=?
             """,
-            (canonical_url, article_id, article_type),
+            (canonical_url, merged_title, article_id, article_type),
         )
 
     conn.commit()
@@ -61124,7 +62036,7 @@ def register_target(conn, article_id, article_type, canonical_url):
         """
         SELECT id, article_id, article_type, canonical_url, is_active,
                created_at, is_redirected, redirect_target_url,
-               redirect_detected_at
+               redirect_detected_at, title
         FROM target
         WHERE article_id=? AND article_type=?
         """,
@@ -61149,7 +62061,7 @@ def list_targets(conn, active_only=True):
     query = (
         "SELECT id, article_id, article_type, canonical_url, is_active, "
         "created_at, is_redirected, redirect_target_url, "
-        "redirect_detected_at FROM target"
+        "redirect_detected_at, title FROM target"
     )
     params = ()
     if active_only:
@@ -61168,7 +62080,7 @@ def get_target(conn, article_id, article_type):
         """
         SELECT id, article_id, article_type, canonical_url, is_active,
                created_at, is_redirected, redirect_target_url,
-               redirect_detected_at
+               redirect_detected_at, title
         FROM target
         WHERE article_id=? AND article_type=?
         """,
@@ -61514,10 +62426,10 @@ def format_run_telemetry_csv_wide(conn):
 FILE: cursor/target_list.py
 =============================
 from pathlib import Path
-from urllib.parse import urlparse
 
+from article_resolver import resolve_article_input
 from collection_policy import find_denylisted_article_id
-from http_client import resolve_id_article_url
+from dicopedia_urls import parse_target_identity
 from storage import get_target, init_db, list_targets, mark_target_redirected
 from storage import register_target
 from storage import set_target_active_state
@@ -61530,40 +62442,6 @@ def _parse_target_line(raw_line: str) -> str | None:
         return None
 
     return line
-
-
-def parse_target_identity(article_url: str) -> dict | None:
-    """Return article_id, article_type, canonical_url for a valid target URL."""
-
-    return _parse_target_identity(article_url)
-
-
-def _parse_target_identity(article_url: str) -> dict | None:
-    candidate = article_url.strip()
-    if not candidate:
-        return None
-
-    parsed = urlparse(candidate)
-    if parsed.scheme not in {"http", "https"}:
-        return None
-    if parsed.netloc != "dic.nicovideo.jp":
-        return None
-
-    path_parts = [part for part in parsed.path.split("/") if part]
-    if len(path_parts) != 2:
-        return None
-
-    article_type, article_id = path_parts
-    if not article_type or not article_id:
-        return None
-
-    return {
-        "article_id": article_id,
-        "article_type": article_type,
-        "canonical_url": (
-            f"https://dic.nicovideo.jp/{article_type}/{article_id}"
-        ),
-    }
 
 
 def list_active_target_urls(target_db_path: str) -> list[str]:
@@ -61591,49 +62469,57 @@ def list_registered_targets(
 
 
 def normalize_target_url(article_url: str) -> str | None:
-    target_identity = _parse_target_identity(article_url)
+    """Best-effort parse of a dic article URL shape (syntax only; may be id)."""
+
+    target_identity = parse_target_identity(article_url)
     if target_identity is None:
         return None
 
-    canonical_url = target_identity["canonical_url"]
-    if target_identity["article_type"] != "id":
-        return canonical_url
-
-    try:
-        return resolve_id_article_url(canonical_url)
-    except RuntimeError:
-        return None
+    return target_identity["canonical_url"]
 
 
 def validate_target_url(article_url: str) -> bool:
-    return _parse_target_identity(article_url) is not None
+    return parse_target_identity(article_url) is not None
 
 
 def register_target_url(article_url: str, target_db_path: str) -> str:
-    if find_denylisted_article_id(article_url=article_url) is not None:
+    """Resolve numeric identity via metadata, then persist one target row."""
+
+    candidate = article_url.strip()
+    if find_denylisted_article_id(article_url=candidate):
         return "denylisted"
 
-    normalized_url = normalize_target_url(article_url)
-    if normalized_url is None:
+    parsed = parse_target_identity(candidate)
+    if parsed is None:
         return "invalid"
 
-    target_identity = parse_target_identity(normalized_url)
-    if target_identity is None:
-        return "invalid"
+    resolution = resolve_article_input(candidate)
+    if not resolution["ok"]:
+        kind = resolution["failure_kind"]
+        if kind == "invalid_input":
+            return "invalid"
+        return "resolution_failure"
 
-    if find_denylisted_article_id(
-        article_id=target_identity["article_id"],
-        article_url=target_identity["canonical_url"],
-    ) is not None:
+    canonical_target = resolution["canonical_target"]
+    numeric_id = canonical_target["article_id"]
+
+    post_denylisted = find_denylisted_article_id(
+        article_id=numeric_id,
+        article_url=canonical_target["article_url"],
+    )
+    if post_denylisted is not None:
         return "denylisted"
+
+    title = resolution.get("title") or ""
 
     conn = init_db(target_db_path)
     try:
         result = register_target(
             conn,
-            target_identity["article_id"],
-            target_identity["article_type"],
-            target_identity["canonical_url"],
+            numeric_id,
+            canonical_target["article_type"],
+            canonical_target["article_url"],
+            title=title,
         )
     finally:
         conn.close()
@@ -61729,18 +62615,29 @@ def handoff_redirected_target(
 
         register_status = "self_redirect"
         register_entry = None
-        if (
-            article_id,
-            article_type,
-        ) != (
-            redirect_identity["article_id"],
-            redirect_identity["article_type"],
+        nested = resolve_article_input(
+            redirect_identity["canonical_url"],
+        )
+        if not nested["ok"]:
+            register_status = "resolution_failure"
+        elif (
+            nested["canonical_target"]["article_id"] == article_id
+            and nested["canonical_target"]["article_type"] == article_type
         ):
+            pass
+        elif find_denylisted_article_id(
+            article_id=nested["canonical_target"]["article_id"],
+            article_url=nested["canonical_target"]["article_url"],
+        ):
+            register_status = "denylisted"
+        else:
+            ct = nested["canonical_target"]
             register_result = register_target(
                 conn,
-                redirect_identity["article_id"],
-                redirect_identity["article_type"],
-                redirect_identity["canonical_url"],
+                ct["article_id"],
+                ct["article_type"],
+                ct["article_url"],
+                title=nested.get("title") or "",
             )
             register_status = register_result["status"]
             register_entry = register_result["entry"]
@@ -61773,6 +62670,7 @@ def import_targets_from_text_file(
         "denylisted": 0,
         "reactivated": 0,
         "invalid": 0,
+        "resolution_failure": 0,
     }
 
     lines = Path(source_path).read_text(encoding="utf-8").splitlines()
@@ -61870,14 +62768,14 @@ def _seed_target_slug_saved_numeric_article(tmp_path, monkeypatch):
     encoded_slug = "%E3%83%86%E3%82%B9%E3%83%88%E8%A8%98%E4%BA%8B"
     canonical_url = f"https://dic.nicovideo.jp/a/{encoded_slug}"
     try:
-        register_target(conn, encoded_slug, "a", canonical_url)
+        register_target(conn, "4470620", "a", canonical_url)
         conn.execute(
             """
             UPDATE target
             SET created_at=?
             WHERE article_id=? AND article_type=?
             """,
-            ("2026-04-01T00:00:00+00:00", encoded_slug, "a"),
+            ("2026-04-01T00:00:00+00:00", "4470620", "a"),
         )
         save_to_db(
             conn,
@@ -61919,15 +62817,22 @@ def _seed_target_slug_saved_numeric_article(tmp_path, monkeypatch):
 def _seed_pending_target(
     tmp_path,
     monkeypatch,
-    article_id="pending-slug",
+    article_id="8880001",
     article_type="a",
     canonical_url="https://dic.nicovideo.jp/a/pending-slug",
+    title="Pending Display Title",
     created_at="2026-02-01T00:00:00+00:00",
 ):
     monkeypatch.chdir(tmp_path)
     conn = init_db()
     try:
-        register_target(conn, article_id, article_type, canonical_url)
+        register_target(
+            conn,
+            article_id,
+            article_type,
+            canonical_url,
+            title=title,
+        )
         conn.execute(
             """
             UPDATE target
@@ -62422,7 +63327,7 @@ def test_query_registered_articles_includes_active_pending_targets(
     _seed_pending_target(
         tmp_path,
         monkeypatch,
-        article_id="pending-slug",
+        article_id="8880001",
         canonical_url="https://dic.nicovideo.jp/a/pending-slug",
         created_at="2026-02-02T00:00:00+00:00",
     )
@@ -62430,8 +63335,8 @@ def test_query_registered_articles_includes_active_pending_targets(
     result = query_registered_articles()
 
     assert result["total"] == 2
-    assert result["rows"][0]["article_id"] == "pending-slug"
-    assert result["rows"][0]["title"] == "pending-slug"
+    assert result["rows"][0]["article_id"] == "8880001"
+    assert result["rows"][0]["title"] == "Pending Display Title"
     assert result["rows"][0]["saved_response_count"] == 0
     assert result["rows"][0]["latest_scraped_max_res_no"] is None
     assert result["rows"][0]["last_scraped_at"] is None
@@ -62444,14 +63349,14 @@ def test_query_registered_articles_search_finds_pending_target_by_article_id(
     _seed_pending_target(
         tmp_path,
         monkeypatch,
-        article_id="pending-slug",
+        article_id="8880001",
         canonical_url="https://dic.nicovideo.jp/a/pending-slug",
     )
 
-    result = query_registered_articles(search="pending-slug")
+    result = query_registered_articles(search="8880001")
 
     assert result["total"] == 1
-    assert result["rows"][0]["article_id"] == "pending-slug"
+    assert result["rows"][0]["article_id"] == "8880001"
 
 
 def test_query_registered_articles_search_finds_pending_target_by_url(
@@ -62461,16 +63366,13 @@ def test_query_registered_articles_search_finds_pending_target_by_url(
     _seed_pending_target(
         tmp_path,
         monkeypatch,
-        article_id="pending-slug",
         canonical_url="https://dic.nicovideo.jp/a/pending-slug",
     )
 
     result = query_registered_articles(search="dic.nicovideo.jp/a/pending-slug")
 
     assert result["total"] == 1
-    assert result["rows"][0]["canonical_url"] == (
-        "https://dic.nicovideo.jp/a/pending-slug"
-    )
+    assert result["rows"][0]["article_id"] == "8880001"
 
 
 def test_query_registered_articles_uses_target_created_at_for_default_order(
@@ -62481,7 +63383,8 @@ def test_query_registered_articles_uses_target_created_at_for_default_order(
     _seed_pending_target(
         tmp_path,
         monkeypatch,
-        article_id="older-pending",
+        article_id="8880003",
+        title="Older Pending",
         canonical_url="https://dic.nicovideo.jp/a/older-pending",
         created_at="2026-01-01T00:00:00+00:00",
     )
@@ -62504,7 +63407,7 @@ def test_query_registered_articles_uses_target_created_at_for_default_order(
 
     assert [row["article_id"] for row in result["rows"]] == [
         "12345",
-        "older-pending",
+        "8880003",
     ]
 
 
@@ -62518,7 +63421,7 @@ def test_query_registered_articles_matches_saved_numeric_article_by_canonical_ur
 
     assert result["total"] == 1
     row = result["rows"][0]
-    assert row["article_id"] == seeded["decoded_slug"]
+    assert row["article_id"] == "4470620"
     assert row["article_type"] == "a"
     assert row["title"] == "Saved Numeric Title"
     assert row["canonical_url"] == seeded["canonical_url"]
@@ -62633,16 +63536,17 @@ def test_export_registered_articles_csv_includes_pending_target_rows(
     _seed_pending_target(
         tmp_path,
         monkeypatch,
-        article_id="pending-slug",
-        canonical_url="https://dic.nicovideo.jp/a/pending-slug",
+        article_id="8899001",
+        title="Pending CSV Row Title",
+        canonical_url="https://dic.nicovideo.jp/a/pending-for-csv",
     )
 
     csv_text = export_registered_articles_csv()
 
     reader = list(csv.DictReader(StringIO(csv_text)))
     assert len(reader) == 1
-    assert reader[0]["article_id"] == "pending-slug"
-    assert reader[0]["title"] == "pending-slug"
+    assert reader[0]["article_id"] == "8899001"
+    assert reader[0]["title"] == "Pending CSV Row Title"
     assert reader[0]["saved_response_count"] == "0"
 
 
@@ -62715,15 +63619,17 @@ def _seed_encoded_article(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     conn = init_db()
     try:
-        register_target(
-            conn,
-            _ENCODED_JP,
-            "a",
-            f"https://dic.nicovideo.jp/a/{_ENCODED_JP}",
-        )
-        # Seed a legacy slug-identity row directly (save_to_db rejects now).
         canonical_url = f"https://dic.nicovideo.jp/a/{_ENCODED_JP}"
         cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO target
+            (article_id, article_type, canonical_url, is_active)
+            VALUES (?, 'a', ?, 1)
+            """,
+            (_ENCODED_JP, canonical_url),
+        )
+        # Legacy slug target row (read-compat only); archive rows use raw SQL.
         cur.execute(
             """
             INSERT INTO articles (article_id, article_type, title, canonical_url)
@@ -62758,11 +63664,15 @@ def _seed_encoded_pending_target(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     conn = init_db()
     try:
-        register_target(
-            conn,
-            _ENCODED_JP,
-            "a",
-            f"https://dic.nicovideo.jp/a/{_ENCODED_JP}",
+        canonical_url = f"https://dic.nicovideo.jp/a/{_ENCODED_JP}"
+        cur = conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO target
+            (article_id, article_type, canonical_url, is_active)
+            VALUES (?, 'a', ?, 1)
+            """,
+            (_ENCODED_JP, canonical_url),
         )
         conn.execute(
             """
@@ -63028,6 +63938,80 @@ def test_resolve_article_input_still_raises_unexpected_title_search_errors():
             resolve_article_input("Foo")
 
     assert "timeout=10s" in str(exc_info.value)
+
+
+def test_resolve_article_input_uses_og_id_not_numeric_slug_segment():
+    soup = BeautifulSoup(
+        """
+        <html><head>
+        <link rel="canonical"
+              href="https://dic.nicovideo.jp/a/4294967295" />
+        <meta property="og:title" content="4294967295とは">
+        <meta property="og:url"
+              content="https://dic.nicovideo.jp/id/237789" />
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    with patch("article_resolver.fetch_page", return_value=soup):
+        result = resolve_article_input(
+            "https://dic.nicovideo.jp/a/4294967295",
+        )
+
+    assert result["ok"] is True
+    assert result["canonical_target"]["article_id"] == "237789"
+    assert result["canonical_target"]["article_url"] == (
+        "https://dic.nicovideo.jp/a/4294967295"
+    )
+
+
+def test_resolve_article_input_confirm_id_url_matches_metadata():
+    soup = BeautifulSoup(
+        """
+        <html><head>
+        <link rel="canonical"
+              href="https://dic.nicovideo.jp/a/sample" />
+        <meta property="og:title" content="Sとは">
+        <meta property="og:url"
+              content="https://dic.nicovideo.jp/id/777888" />
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    with patch("article_resolver.fetch_page", return_value=soup):
+        result = resolve_article_input("https://dic.nicovideo.jp/id/777888")
+
+    assert result["ok"] is True
+    assert result["canonical_target"]["article_url"] == (
+        "https://dic.nicovideo.jp/a/sample"
+    )
+    assert result["canonical_target"]["article_id"] == "777888"
+
+
+def test_resolve_article_input_id_mismatch_returns_failure():
+    soup = BeautifulSoup(
+        """
+        <html><head>
+        <link rel="canonical"
+              href="https://dic.nicovideo.jp/a/sample" />
+        <meta property="og:title" content="Sとは">
+        <meta property="og:url"
+              content="https://dic.nicovideo.jp/id/222222" />
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    with patch("article_resolver.fetch_page", return_value=soup):
+        result = resolve_article_input("https://dic.nicovideo.jp/id/111111")
+
+    assert result == {
+        "ok": False,
+        "failure_kind": "id_mismatch",
+        "normalized_input": "https://dic.nicovideo.jp/id/111111",
+    }
 
 
 =============================
@@ -63969,6 +64953,17 @@ from identity_merge import (
 from storage import init_db, register_target
 
 
+def _insert_legacy_slug_target(conn, article_id, canonical_url):
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO target (article_id, article_type, canonical_url, is_active)
+        VALUES (?, 'a', ?, 1)
+        """,
+        (article_id, canonical_url),
+    )
+
+
 def _seed_articles_row(
     conn, article_id, article_type, title, canonical_url
 ):
@@ -64011,7 +65006,7 @@ def _build_dup_group_db(tmp_path):
     _seed_response_row(conn, "foo-slug", "a", 2, "KEEP-2")
 
     register_target(conn, "12345", "a", canonical_url)
-    register_target(conn, "foo-slug", "a", canonical_url)
+    _insert_legacy_slug_target(conn, "foo-slug", canonical_url)
 
     conn.commit()
     return conn, str(db_path), canonical_url
@@ -65089,6 +66084,7 @@ def test_main_import_targets_reports_counts(mock_import_targets, capsys):
         "denylisted": 4,
         "reactivated": 0,
         "invalid": 0,
+        "resolution_failure": 0,
     }
 
     with patch(
@@ -65109,6 +66105,7 @@ def test_main_import_targets_reports_counts(mock_import_targets, capsys):
     out = capsys.readouterr().out
     assert "Imported 3 target line(s)" in out
     assert "added=2 duplicate=1 reactivated=0 denylisted=4 invalid=0" in out
+    assert "resolution_failure=0" in out
 
 
 def test_main_import_targets_without_required_args_exits_with_usage(capsys):
@@ -65874,6 +66871,7 @@ FILE: cursor/tests/test_operator_cli.py
 =============================
 import csv
 from io import StringIO
+from unittest.mock import patch
 
 from operator_cli import (
     export_archive_for_operator,
@@ -65885,7 +66883,6 @@ from operator_cli import (
 )
 from storage import init_db, register_target, save_to_db
 from target_list import deactivate_target, register_target_url
-from unittest.mock import patch
 
 
 def test_list_targets_for_operator_shows_status_and_count(
@@ -65896,18 +66893,45 @@ def test_list_targets_for_operator_shows_status_and_count(
     monkeypatch.chdir(tmp_path)
     target_db_path = tmp_path / "targets.db"
 
-    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+    mock_payloads = [
+        {
+            "ok": True,
+            "canonical_target": {
+                "article_url": "https://dic.nicovideo.jp/a/12345",
+                "article_id": "12345",
+                "article_type": "a",
+            },
+            "title": "First",
+            "matched_by": "article_url",
+            "normalized_input": "u1",
+        },
+        {
+            "ok": True,
+            "canonical_target": {
+                "article_url": "https://dic.nicovideo.jp/a/99999-title",
+                "article_id": "88776655",
+                "article_type": "a",
+            },
+            "title": "Second",
+            "matched_by": "article_url",
+            "normalized_input": "u2",
+        },
+    ]
 
     with patch(
-        "target_list.resolve_id_article_url",
-        return_value="https://dic.nicovideo.jp/a/99999-title",
+        "target_list.resolve_article_input",
+        side_effect=mock_payloads,
     ):
+        register_target_url(
+            "https://dic.nicovideo.jp/a/12345",
+            str(target_db_path),
+        )
         register_target_url(
             "https://dic.nicovideo.jp/id/99999",
             str(target_db_path),
         )
 
-    deactivate_target("99999-title", "a", str(target_db_path))
+    deactivate_target("88776655", "a", str(target_db_path))
 
     assert list_targets_for_operator(str(target_db_path), active_only=False) is True
 
@@ -65915,7 +66939,7 @@ def test_list_targets_for_operator_shows_status_and_count(
     assert "=== TARGET REGISTRY ===" in out
     assert "Count: 2" in out
     assert "active   12345 a" in out
-    assert "inactive 99999-title a" in out
+    assert "inactive 88776655 a" in out
 
 
 def test_inspect_target_for_operator_returns_false_for_missing_target(
@@ -67839,6 +68863,17 @@ from tools.repair_slug_article_identity import (
 )
 
 
+def _insert_legacy_slug_target_row(conn, article_id, canonical_url):
+    cur = conn.cursor()
+    cur.execute(
+        """
+        INSERT INTO target (article_id, article_type, canonical_url, is_active)
+        VALUES (?, 'a', ?, 1)
+        """,
+        (article_id, canonical_url),
+    )
+
+
 def _seed_articles_row(conn, article_id, title, canonical_url):
     cur = conn.cursor()
     cur.execute(
@@ -67871,7 +68906,7 @@ def _build_slug_group_db(tmp_path):
     _seed_articles_row(conn, slug_id, "Foo", canonical_url)
     _seed_response_row(conn, slug_id, 1, "S1")
     _seed_response_row(conn, slug_id, 2, "S2")
-    register_target(conn, slug_id, "a", canonical_url)
+    _insert_legacy_slug_target_row(conn, slug_id, canonical_url)
 
     conn.commit()
     return conn, str(db_path), canonical_url, slug_id, numeric_id
@@ -67907,7 +68942,7 @@ def _build_target_only_numeric_slug_db(
     conn = init_db(str(db_path))
     canonical_url = f"https://dic.nicovideo.jp/a/{slug_id}"
 
-    register_target(conn, slug_id, "a", canonical_url)
+    _insert_legacy_slug_target_row(conn, slug_id, canonical_url)
     conn.commit()
     return conn, str(db_path), canonical_url, slug_id
 
@@ -69359,6 +70394,28 @@ def test_dequeue_canonical_target_removes_only_requested_item(tmp_path, monkeypa
         conn.close()
 
 
+def test_register_target_rejects_non_numeric_article_id_for_type_a(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        try:
+            register_target(
+                conn,
+                "sluglike",
+                "a",
+                "https://dic.nicovideo.jp/a/sluglike",
+            )
+        except ValueError as exc:
+            assert "digits-only" in str(exc)
+        else:
+            raise AssertionError("expected ValueError")
+    finally:
+        conn.close()
+
+
 def test_register_target_persists_canonical_identity_once(tmp_path, monkeypatch):
     monkeypatch.chdir(tmp_path)
     conn = init_db()
@@ -69635,14 +70692,40 @@ from target_list import (
 )
 
 
+def _mock_resolve_for_slug_numeric_pair(canonical_url: str, numeric_id: str):
+    return {
+        "ok": True,
+        "canonical_target": {
+            "article_url": canonical_url,
+            "article_id": numeric_id,
+            "article_type": "a",
+        },
+        "title": "Sample",
+        "matched_by": "article_url",
+        "normalized_input": canonical_url,
+    }
+
+
 def test_list_active_target_urls_reads_registered_targets_stably(tmp_path):
     target_db_path = tmp_path / "targets.db"
 
-    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
     with patch(
-        "target_list.resolve_id_article_url",
-        return_value="https://dic.nicovideo.jp/a/osomatsu-san",
+        "target_list.resolve_article_input",
+        side_effect=[
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/12345",
+                "11111",
+            ),
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/osomatsu-san",
+                "22222",
+            ),
+        ],
     ):
+        register_target_url(
+            "https://dic.nicovideo.jp/a/12345",
+            str(target_db_path),
+        )
         register_target_url(
             "https://dic.nicovideo.jp/id/99999",
             str(target_db_path),
@@ -69659,23 +70742,19 @@ def test_validate_target_url_accepts_minimally_valid_nicopedia_article_url():
 
 
 def test_validate_target_url_stays_syntax_only_for_id_input():
-    with patch("target_list.resolve_id_article_url") as mock_resolve:
-        ok = validate_target_url("https://dic.nicovideo.jp/id/5364158")
+    ok = validate_target_url("https://dic.nicovideo.jp/id/5364158")
 
     assert ok is True
-    mock_resolve.assert_not_called()
 
 
 def test_parse_target_identity_remains_pure_for_id_input():
-    with patch("target_list.resolve_id_article_url") as mock_resolve:
-        identity = parse_target_identity("https://dic.nicovideo.jp/id/5364158")
+    identity = parse_target_identity("https://dic.nicovideo.jp/id/5364158")
 
     assert identity == {
         "article_id": "5364158",
         "article_type": "id",
         "canonical_url": "https://dic.nicovideo.jp/id/5364158",
     }
-    mock_resolve.assert_not_called()
 
 
 def test_validate_target_url_rejects_non_article_shape():
@@ -69687,10 +70766,17 @@ def test_validate_target_url_rejects_non_article_shape():
 def test_register_target_url_inserts_valid_target_into_registry(tmp_path):
     target_db_path = tmp_path / "targets.db"
 
-    result = register_target_url(
-        "https://dic.nicovideo.jp/a/12345",
-        str(target_db_path),
-    )
+    with patch(
+        "target_list.resolve_article_input",
+        return_value=_mock_resolve_for_slug_numeric_pair(
+            "https://dic.nicovideo.jp/a/12345",
+            "5502789",
+        ),
+    ):
+        result = register_target_url(
+            "https://dic.nicovideo.jp/a/12345",
+            str(target_db_path),
+        )
 
     assert result == "added"
     assert list_active_target_urls(str(target_db_path)) == [
@@ -69702,8 +70788,11 @@ def test_register_target_url_stores_resolved_a_target_for_id_input(tmp_path):
     target_db_path = tmp_path / "targets.db"
 
     with patch(
-        "target_list.resolve_id_article_url",
-        return_value="https://dic.nicovideo.jp/a/osomatsu-san",
+        "target_list.resolve_article_input",
+        return_value=_mock_resolve_for_slug_numeric_pair(
+            "https://dic.nicovideo.jp/a/osomatsu-san",
+            "33333",
+        ),
     ):
         result = register_target_url(
             "https://dic.nicovideo.jp/id/5364158",
@@ -69719,13 +70808,20 @@ def test_register_target_url_stores_resolved_a_target_for_id_input(tmp_path):
 def test_register_target_url_rejects_unresolved_id_input(tmp_path):
     target_db_path = tmp_path / "targets.db"
 
-    with patch("target_list.resolve_id_article_url", return_value=None):
+    with patch(
+        "target_list.resolve_article_input",
+        return_value={
+            "ok": False,
+            "failure_kind": "not_found",
+            "normalized_input": "x",
+        },
+    ):
         result = register_target_url(
             "https://dic.nicovideo.jp/id/5364158",
             str(target_db_path),
         )
 
-    assert result == "invalid"
+    assert result == "resolution_failure"
     assert target_db_path.exists() is False
 
 
@@ -69756,14 +70852,50 @@ def test_register_target_url_rejects_denylisted_canonical_slug_url(tmp_path):
     assert target_db_path.exists() is False
 
 
+def test_register_target_url_denylisted_after_numeric_resolution(tmp_path):
+    """Denylist (237789) must apply when only metadata reveals the numeric ID."""
+
+    target_db_path = tmp_path / "targets.db"
+    deny_url = (
+        "https://dic.nicovideo.jp/a/4294967295"
+    )
+
+    with patch(
+        "target_list.resolve_article_input",
+        return_value={
+            "ok": True,
+            "canonical_target": {
+                "article_url": deny_url,
+                "article_id": "237789",
+                "article_type": "a",
+            },
+            "title": "4294967295",
+            "matched_by": "article_url",
+            "normalized_input": deny_url,
+        },
+    ):
+        result = register_target_url(
+            deny_url,
+            str(target_db_path),
+        )
+
+    assert result == "denylisted"
+
+
 def test_register_target_url_suppresses_duplicate_identity(tmp_path):
     target_db_path = tmp_path / "targets.db"
-    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
-
-    result = register_target_url(
+    mock = _mock_resolve_for_slug_numeric_pair(
         "https://dic.nicovideo.jp/a/12345",
-        str(target_db_path),
+        "5502789",
     )
+    with patch("target_list.resolve_article_input", return_value=mock):
+        register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+
+    with patch("target_list.resolve_article_input", return_value=mock):
+        result = register_target_url(
+            "https://dic.nicovideo.jp/a/12345",
+            str(target_db_path),
+        )
 
     assert result == "duplicate"
     assert list_active_target_urls(str(target_db_path)) == [
@@ -69793,9 +70925,20 @@ def test_import_targets_from_text_file_is_one_shot_and_non_automatic(tmp_path):
         encoding="utf-8",
     )
 
+    def _side_effect(article_input: str):
+        if "a/12345" in article_input:
+            return _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/12345",
+                "5502789",
+            )
+        return _mock_resolve_for_slug_numeric_pair(
+            "https://dic.nicovideo.jp/a/777-title",
+            "8888888",
+        )
+
     with patch(
-        "target_list.resolve_id_article_url",
-        return_value="https://dic.nicovideo.jp/a/777-title",
+        "target_list.resolve_article_input",
+        side_effect=_side_effect,
     ):
         result = import_targets_from_text_file(
             str(source_file),
@@ -69811,6 +70954,7 @@ def test_import_targets_from_text_file_is_one_shot_and_non_automatic(tmp_path):
         "denylisted": 0,
         "reactivated": 0,
         "invalid": 1,
+        "resolution_failure": 0,
     }
     assert list_active_target_urls(str(target_db_path)) == [
         "https://dic.nicovideo.jp/a/12345",
@@ -69827,10 +70971,17 @@ def test_import_targets_from_text_file_reports_denylisted_skip(tmp_path):
         encoding="utf-8",
     )
 
-    result = import_targets_from_text_file(
-        str(source_file),
-        str(target_db_path),
-    )
+    with patch(
+        "target_list.resolve_article_input",
+        return_value=_mock_resolve_for_slug_numeric_pair(
+            "https://dic.nicovideo.jp/a/12345",
+            "5502789",
+        ),
+    ):
+        result = import_targets_from_text_file(
+            str(source_file),
+            str(target_db_path),
+        )
 
     assert result == {
         "source_path": str(source_file),
@@ -69841,6 +70992,7 @@ def test_import_targets_from_text_file_reports_denylisted_skip(tmp_path):
         "denylisted": 1,
         "reactivated": 0,
         "invalid": 0,
+        "resolution_failure": 0,
     }
     assert list_active_target_urls(str(target_db_path)) == [
         "https://dic.nicovideo.jp/a/12345",
@@ -69850,8 +71002,16 @@ def test_import_targets_from_text_file_reports_denylisted_skip(tmp_path):
 def test_list_registered_targets_includes_inactive_entries_when_requested(tmp_path):
     target_db_path = tmp_path / "targets.db"
 
-    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
-    deactivate_target("12345", "a", str(target_db_path))
+    with patch(
+        "target_list.resolve_article_input",
+        return_value=_mock_resolve_for_slug_numeric_pair(
+            "https://dic.nicovideo.jp/a/12345",
+            "5502789",
+        ),
+    ):
+        register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+
+    deactivate_target("5502789", "a", str(target_db_path))
 
     all_entries = list_registered_targets(str(target_db_path), active_only=False)
     active_entries = list_registered_targets(str(target_db_path), active_only=True)
@@ -69863,22 +71023,36 @@ def test_list_registered_targets_includes_inactive_entries_when_requested(tmp_pa
 
 def test_inspect_registered_target_returns_entry_by_identity(tmp_path):
     target_db_path = tmp_path / "targets.db"
-    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+    with patch(
+        "target_list.resolve_article_input",
+        return_value=_mock_resolve_for_slug_numeric_pair(
+            "https://dic.nicovideo.jp/a/12345",
+            "5502789",
+        ),
+    ):
+        register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
 
-    entry = inspect_registered_target("12345", "a", str(target_db_path))
+    entry = inspect_registered_target("5502789", "a", str(target_db_path))
 
     assert entry is not None
-    assert entry["article_id"] == "12345"
+    assert entry["article_id"] == "5502789"
     assert entry["article_type"] == "a"
     assert entry["canonical_url"] == "https://dic.nicovideo.jp/a/12345"
 
 
 def test_deactivate_and_reactivate_target_return_operator_facing_result(tmp_path):
     target_db_path = tmp_path / "targets.db"
-    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+    with patch(
+        "target_list.resolve_article_input",
+        return_value=_mock_resolve_for_slug_numeric_pair(
+            "https://dic.nicovideo.jp/a/12345",
+            "5502789",
+        ),
+    ):
+        register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
 
-    deactivated = deactivate_target("12345", "a", str(target_db_path))
-    reactivated = reactivate_target("12345", "a", str(target_db_path))
+    deactivated = deactivate_target("5502789", "a", str(target_db_path))
+    reactivated = reactivate_target("5502789", "a", str(target_db_path))
 
     assert deactivated["status"] == "deactivated"
     assert deactivated["entry"]["is_active"] is False
@@ -69888,14 +71062,26 @@ def test_deactivate_and_reactivate_target_return_operator_facing_result(tmp_path
 
 def test_handoff_redirected_target_deactivates_old_and_registers_new(tmp_path):
     target_db_path = tmp_path / "targets.db"
-    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
-
-    result = handoff_redirected_target(
-        "12345",
-        "a",
-        "https://dic.nicovideo.jp/a/67890",
-        str(target_db_path),
-    )
+    with patch(
+        "target_list.resolve_article_input",
+        side_effect=[
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/12345",
+                "5502789",
+            ),
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/67890",
+                "5502790",
+            ),
+        ],
+    ):
+        register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+        result = handoff_redirected_target(
+            "5502789",
+            "a",
+            "https://dic.nicovideo.jp/a/67890",
+            str(target_db_path),
+        )
 
     assert result["status"] == "redirected"
     assert result["entry"]["is_active"] is False
@@ -69911,21 +71097,118 @@ def test_handoff_redirected_target_deactivates_old_and_registers_new(tmp_path):
 
 def test_handoff_redirected_target_suppresses_duplicate_new_target(tmp_path):
     target_db_path = tmp_path / "targets.db"
-    register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
-    register_target_url("https://dic.nicovideo.jp/a/67890", str(target_db_path))
+    with patch(
+        "target_list.resolve_article_input",
+        side_effect=[
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/12345",
+                "5502789",
+            ),
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/67890",
+                "5502790",
+            ),
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/67890",
+                "5502790",
+            ),
+        ],
+    ):
+        register_target_url("https://dic.nicovideo.jp/a/12345", str(target_db_path))
+        register_target_url("https://dic.nicovideo.jp/a/67890", str(target_db_path))
 
-    result = handoff_redirected_target(
-        "12345",
-        "a",
-        "https://dic.nicovideo.jp/a/67890",
-        str(target_db_path),
-    )
+        result = handoff_redirected_target(
+            "5502789",
+            "a",
+            "https://dic.nicovideo.jp/a/67890",
+            str(target_db_path),
+        )
 
     assert result["status"] == "redirected"
     assert result["register_status"] == "duplicate"
     assert list_active_target_urls(str(target_db_path)) == [
         "https://dic.nicovideo.jp/a/67890",
     ]
+
+
+=============================
+FILE: cursor/tests/test_task044_numeric_target_identity.py
+=============================
+"""TASK044-focused tests: numeric target registry identity and denylist."""
+
+from unittest.mock import patch
+
+from archive_read import query_registered_articles
+from collection_policy import find_denylisted_article_id
+from storage import init_db, register_target
+from target_list import register_target_url
+
+
+def test_denylist_blocks_plain_id_url_237789():
+    assert (
+        find_denylisted_article_id(
+            article_url="https://dic.nicovideo.jp/id/237789",
+        )
+        == "237789"
+    )
+
+
+def test_denylist_blocks_numeric_article_id_237789():
+    assert (
+        find_denylisted_article_id(
+            article_id="237789",
+            article_url="https://dic.nicovideo.jp/a/4294967295",
+        )
+        == "237789"
+    )
+
+
+def test_registered_articles_default_sort_tiebreaks_on_target_row_id(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        register_target(conn, "1", "a", "https://dic.nicovideo.jp/a/q", title="Q")
+        register_target(conn, "2", "a", "https://dic.nicovideo.jp/a/r", title="R")
+        cur = conn.cursor()
+        same_ts = "2026-01-01T00:00:00+00:00"
+        cur.execute(
+            "UPDATE target SET created_at=? WHERE article_id=?",
+            (same_ts, "1"),
+        )
+        cur.execute(
+            "UPDATE target SET created_at=? WHERE article_id=?",
+            (same_ts, "2"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    result = query_registered_articles()
+    assert [row["article_id"] for row in result["rows"]] == ["2", "1"]
+
+
+@patch("target_list.resolve_article_input")
+def test_register_target_url_observes_post_resolve_denylist(mock_res, tmp_path):
+    mock_res.return_value = {
+        "ok": True,
+        "canonical_target": {
+            "article_url": "https://dic.nicovideo.jp/a/unique-test-article",
+            "article_id": "237789",
+            "article_type": "a",
+        },
+        "title": "X",
+        "matched_by": "article_url",
+        "normalized_input": "u",
+    }
+    target_db = tmp_path / "t.db"
+    out = register_target_url(
+        "https://dic.nicovideo.jp/a/unique-test-article",
+        str(target_db),
+    )
+    assert out == "denylisted"
 
 
 =============================
@@ -73494,6 +74777,9 @@ UI_TEXTS = {
             "Temporary fetch failure. Please try again later."
         ),
         "unexpected_internal_error": "An unexpected internal error occurred.",
+        "registration_resolution_failure": (
+            "Article metadata resolution failed; the target was not registered."
+        ),
     },
     "field_labels": {
         "title": "Article title",
@@ -73714,6 +75000,8 @@ def check_article_status(article_input: str) -> dict:
 def _result_error_code(result: dict) -> str:
     if result["status"] == "denylisted":
         return "denylisted"
+    if result["status"] == "registration_resolution_failure":
+        return "registration_resolution_failure"
     if result["status"] == "resolution_failure":
         return result.get("failure_kind", "unknown_resolution_failure")
     if result["status"] == "internal_error":
@@ -73974,6 +75262,30 @@ def _submit_archive_check(
                 resolved_canonical_url=check_result["article_url"],
             )
             return _build_registered_ui_result(check_result), None
+
+        if registration_status == "resolution_failure":
+            failure_result = {
+                "status": "registration_resolution_failure",
+                "input": check_result["input"],
+                "message": (
+                    "Article could not be registered due to a metadata "
+                    "resolution failure."
+                ),
+            }
+            reference_id = _log_web_action(
+                web_action_log_path,
+                environ,
+                action_kind="registration",
+                input_value=article_input,
+                requested_format=None,
+                result_status="resolution_failure",
+                resolved_title=check_result["title"],
+                resolved_article_id=check_result["article_id"],
+                resolved_article_type=check_result["article_type"],
+                resolved_canonical_url=check_result["article_url"],
+                error_code="resolution_failure",
+            )
+            return _build_error_ui_result(failure_result, reference_id), None
 
         if registration_status == "denylisted":
             reference_id = _log_web_action(
