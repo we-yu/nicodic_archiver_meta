@@ -1938,3 +1938,87 @@ Known UI follow-up:
 - `resolution_failure` is the canonical resolution failure result key.
 - Runtime DB and cron were not changed by TASK044.
 - Runtime cron remains disabled pending runtime reflection and smoke checks.
+
+
+## Current status: Registered Articles UI polish adopted
+
+The Registered Articles UI polish SubTask has been adopted and reflected to the
+runtime environment.
+
+### Adopted state
+
+- Product `main` includes the Registered Articles UI polish changes.
+- Copilot implementation branch was merged through GitHub PR flow.
+- Runtime checkout was fast-forwarded to merged `main`.
+- Runtime Web container was rebuilt and recreated with `tools/runtime_up.sh`.
+- Runtime Web now displays the improved Registered Articles page.
+- Periodic cron remains active at 3-hour intervals with a 2-hour oneshot limit.
+
+### Registered Articles improvements
+
+The Registered Articles page now has:
+
+- Numeric Article ID sorting.
+- Numeric Saved Responses sorting.
+- Numeric Max Res No sorting using the current existing read-side value.
+- Datetime-like Created At and Last Scraped sorting.
+- Default Created At descending sort preserved.
+- JST Web display for Created At and Last Scraped.
+- Wider search input.
+- Reset action.
+- Refresh action.
+- Pagination above and below the table.
+- Improved Title / Canonical URL column layout.
+- Canonical URL ellipsis in the Web table.
+- Full Canonical URL preserved for href/tooltips and CSV.
+- Better horizontal alignment by data type.
+- Vertical centering for table headers and row cells.
+
+### Validation
+
+The task passed `./validate_helix.sh` before adoption.
+
+Observed validation:
+
+- Copilot: PASS
+- Cursor: PASS
+
+After GitHub merge, Copilot and runtime were updated to merged main. Cursor must
+also be fast-forwarded to main before final Helix convergence is recorded.
+
+### Runtime / cron
+
+Runtime reflection has been completed.
+
+Cron remains:
+
+```text
+5 */3 * * * cd /home/manage/product/nicodic_archiver_runtime && ONESHOT_LIMIT_DURATION_SECONDS=7200 ./runtime/periodic_once.sh >> /home/manage/product/nicodic_archiver_runtime/runtime/logs/host_cron.log 2>&1
+
+This means:
+
+Kick every 3 hours.
+Run with a 2-hour oneshot duration limit.
+Existing lock behavior prevents overlap.
+Explicitly not done
+
+The following were intentionally not included in this SubTask:
+
+Max Res No semantic redesign.
+Live board observed max response tracking.
+Scrape run ID / run mark tracking.
+DB schema changes.
+Runtime DB edits.
+Cron policy change.
+Scraper behavior changes.
+Delete feeder behavior changes.
+Response cap changes.
+Known follow-up
+
+The current Max Res No column still represents the existing locally-derived
+read-side value. It sorts correctly as a number, but it is not yet the live
+NicoNicoPedia board's observed latest response number.
+
+A future MainTask should handle scrape run identity, short run mark display,
+target state tracking, invalid target state, and observed max response number
+semantics.
