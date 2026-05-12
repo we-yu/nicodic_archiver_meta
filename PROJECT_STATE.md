@@ -1939,6 +1939,49 @@ Known UI follow-up:
 - Runtime DB and cron were not changed by TASK044.
 - Runtime cron remains disabled pending runtime reflection and smoke checks.
 
+
+## MainTask completed: Codex adoption planning
+
+MainTask-codex-adoption-planning was completed as a root/meta workflow
+planning task.
+
+Added planning files:
+
+- META/CODEX_ADOPTION_PLAN.md
+- META/CODEX_TRIAL_CHECKLIST.md
+- META/AGENTS_DRAFT.md
+
+Purpose:
+
+- evaluate Codex as a near-term development-process improvement
+- reduce repeated editor-prompt and validation-fix overhead
+- preserve Human / Advisor adoption judgment
+- preserve runtime DB / cron / docker safety boundaries
+- keep current Double Helix intent while allowing future tool substitution
+
+Current decision:
+
+- Codex may be investigated soon.
+- Codex does not replace Human / Advisor final judgment.
+- Codex should not receive runtime DB, cron, docker, heavy scrape, or merge
+  adoption authority at this stage.
+- AGENTS_DRAFT.md is only a draft and is not yet active AGENTS.md.
+
+Recommended first trials:
+
+- Codex Chrome / in-app browser for Web UI smoke with no repository writes.
+- Codex IDE extension for focused child-repo fixes.
+- A small product BugFix such as
+  SubTask-BugFix-registered-search-like-escape.
+
+Runtime status:
+
+- No runtime DB changes were made.
+- No cron changes were made.
+- No docker/runtime reflection was performed.
+- No product code changes were made.
+
+
 ## Current status: Registered Articles UI polish adopted
 
 The Registered Articles UI polish SubTask has been adopted and reflected to the runtime environment.
