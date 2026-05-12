@@ -1939,24 +1939,22 @@ Known UI follow-up:
 - Runtime DB and cron were not changed by TASK044.
 - Runtime cron remains disabled pending runtime reflection and smoke checks.
 
-
 ## Current status: Registered Articles UI polish adopted
 
-The Registered Articles UI polish SubTask has been adopted and reflected to the
-runtime environment.
+The Registered Articles UI polish SubTask has been adopted and reflected to the runtime environment.
 
-### Adopted state
+Adopted state:
 
-- Product `main` includes the Registered Articles UI polish changes.
+- Product main includes the Registered Articles UI polish changes.
 - Copilot implementation branch was merged through GitHub PR flow.
-- Runtime checkout was fast-forwarded to merged `main`.
-- Runtime Web container was rebuilt and recreated with `tools/runtime_up.sh`.
+- Cursor main was fast-forwarded to merged product main.
+- Copilot and Cursor are converged on the adopted product state.
+- Runtime checkout was fast-forwarded to merged main.
+- Runtime Web container was rebuilt and recreated with tools/runtime_up.sh.
 - Runtime Web now displays the improved Registered Articles page.
 - Periodic cron remains active at 3-hour intervals with a 2-hour oneshot limit.
 
-### Registered Articles improvements
-
-The Registered Articles page now has:
+Registered Articles improvements:
 
 - Numeric Article ID sorting.
 - Numeric Saved Responses sorting.
@@ -1974,51 +1972,49 @@ The Registered Articles page now has:
 - Better horizontal alignment by data type.
 - Vertical centering for table headers and row cells.
 
-### Validation
+Validation:
 
-The task passed `./validate_helix.sh` before adoption.
+- ./validate_helix.sh passed before adoption.
+- Post-merge ./compare_helix.sh --all passed.
+- Post-merge ./validate_helix.sh passed.
+- Final observed validation:
+  - Copilot: 394 tests passed
+  - Cursor: 394 tests passed
 
-Observed validation:
+Runtime / cron:
 
-- Copilot: PASS
-- Cursor: PASS
+Periodic cron remains active.
 
-After GitHub merge, Copilot and runtime were updated to merged main. Cursor must
-also be fast-forwarded to main before final Helix convergence is recorded.
+Cron command line:
 
-### Runtime / cron
-
-Runtime reflection has been completed.
-
-Cron remains:
-
-```text
-5 */3 * * * cd /home/manage/product/nicodic_archiver_runtime && ONESHOT_LIMIT_DURATION_SECONDS=7200 ./runtime/periodic_once.sh >> /home/manage/product/nicodic_archiver_runtime/runtime/logs/host_cron.log 2>&1
+> 5 */3 * * * cd /home/manage/product/nicodic_archiver_runtime && ONESHOT_LIMIT_DURATION_SECONDS=7200 ./runtime/periodic_once.sh >> /home/manage/product/nicodic_archiver_runtime/runtime/logs/host_cron.log 2>&1
 
 This means:
 
-Kick every 3 hours.
-Run with a 2-hour oneshot duration limit.
-Existing lock behavior prevents overlap.
-Explicitly not done
+- Kick every 3 hours.
+- Run with a 2-hour oneshot duration limit.
+- Existing lock behavior prevents overlap.
+- Current article is allowed to finish when the duration limit is reached.
 
-The following were intentionally not included in this SubTask:
+Explicitly not done:
 
-Max Res No semantic redesign.
-Live board observed max response tracking.
-Scrape run ID / run mark tracking.
-DB schema changes.
-Runtime DB edits.
-Cron policy change.
-Scraper behavior changes.
-Delete feeder behavior changes.
-Response cap changes.
-Known follow-up
+- Max Res No semantic redesign.
+- Live board observed max response tracking.
+- Scrape run ID / run mark tracking.
+- DB schema changes.
+- Runtime DB edits.
+- Cron policy change.
+- Scraper behavior changes.
+- Delete feeder behavior changes.
+- Response cap changes.
 
-The current Max Res No column still represents the existing locally-derived
-read-side value. It sorts correctly as a number, but it is not yet the live
-NicoNicoPedia board's observed latest response number.
+Known follow-up:
 
-A future MainTask should handle scrape run identity, short run mark display,
-target state tracking, invalid target state, and observed max response number
-semantics.
+The current Max Res No column still represents the existing locally-derived read-side value. It sorts correctly as a number, but it is not yet the live NicoNicoPedia board's observed latest response number.
+
+A future MainTask should handle scrape run identity, short run mark display, target state tracking, invalid target state, and observed max response number semantics.
+
+Near-term task candidates are tracked in:
+
+- META/NEXT_TASK_CANDIDATES.md
+

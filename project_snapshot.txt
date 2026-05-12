@@ -2939,6 +2939,86 @@ Known UI follow-up:
 - Runtime DB and cron were not changed by TASK044.
 - Runtime cron remains disabled pending runtime reflection and smoke checks.
 
+## Current status: Registered Articles UI polish adopted
+
+The Registered Articles UI polish SubTask has been adopted and reflected to the runtime environment.
+
+Adopted state:
+
+- Product main includes the Registered Articles UI polish changes.
+- Copilot implementation branch was merged through GitHub PR flow.
+- Cursor main was fast-forwarded to merged product main.
+- Copilot and Cursor are converged on the adopted product state.
+- Runtime checkout was fast-forwarded to merged main.
+- Runtime Web container was rebuilt and recreated with tools/runtime_up.sh.
+- Runtime Web now displays the improved Registered Articles page.
+- Periodic cron remains active at 3-hour intervals with a 2-hour oneshot limit.
+
+Registered Articles improvements:
+
+- Numeric Article ID sorting.
+- Numeric Saved Responses sorting.
+- Numeric Max Res No sorting using the current existing read-side value.
+- Datetime-like Created At and Last Scraped sorting.
+- Default Created At descending sort preserved.
+- JST Web display for Created At and Last Scraped.
+- Wider search input.
+- Reset action.
+- Refresh action.
+- Pagination above and below the table.
+- Improved Title / Canonical URL column layout.
+- Canonical URL ellipsis in the Web table.
+- Full Canonical URL preserved for href/tooltips and CSV.
+- Better horizontal alignment by data type.
+- Vertical centering for table headers and row cells.
+
+Validation:
+
+- ./validate_helix.sh passed before adoption.
+- Post-merge ./compare_helix.sh --all passed.
+- Post-merge ./validate_helix.sh passed.
+- Final observed validation:
+  - Copilot: 394 tests passed
+  - Cursor: 394 tests passed
+
+Runtime / cron:
+
+Periodic cron remains active.
+
+Cron command line:
+
+> 5 */3 * * * cd /home/manage/product/nicodic_archiver_runtime && ONESHOT_LIMIT_DURATION_SECONDS=7200 ./runtime/periodic_once.sh >> /home/manage/product/nicodic_archiver_runtime/runtime/logs/host_cron.log 2>&1
+
+This means:
+
+- Kick every 3 hours.
+- Run with a 2-hour oneshot duration limit.
+- Existing lock behavior prevents overlap.
+- Current article is allowed to finish when the duration limit is reached.
+
+Explicitly not done:
+
+- Max Res No semantic redesign.
+- Live board observed max response tracking.
+- Scrape run ID / run mark tracking.
+- DB schema changes.
+- Runtime DB edits.
+- Cron policy change.
+- Scraper behavior changes.
+- Delete feeder behavior changes.
+- Response cap changes.
+
+Known follow-up:
+
+The current Max Res No column still represents the existing locally-derived read-side value. It sorts correctly as a number, but it is not yet the live NicoNicoPedia board's observed latest response number.
+
+A future MainTask should handle scrape run identity, short run mark display, target state tracking, invalid target state, and observed max response number semantics.
+
+Near-term task candidates are tracked in:
+
+- META/NEXT_TASK_CANDIDATES.md
+
+
 
 ===== WORKSPACE =====
 # Workspace
@@ -5320,6 +5400,213 @@ This task did not:
 - restore JSON archive output
 - introduce a new scheduler
 
+
+
+
+===== REVIEW LOG: META/review_log/SubTask_registered_articles_ui_polish_adoption.md =====
+# SubTask: Registered Articles UI polish adoption
+
+## Summary
+
+The Registered Articles UI polish SubTask has been adopted into product main and reflected to the provisional runtime checkout.
+
+This SubTask improved the read-side and Web UI behavior of the Registered Articles page after TASK044 normalized target identity handling to numeric NicoNicoPedia article IDs.
+
+## Task type
+
+- Type: bounded SubTask
+- Editor path: Copilot-only single-editor SubTask
+- DHM: not used
+- Product branch: Subtask-registered-articles-ui-polish-copilot
+- Product merge target: product main
+- Runtime reflection: completed
+
+This was treated as a bounded single-editor SubTask because the scope was limited to read-side sorting, table layout, Web display formatting, CSV preservation, and focused tests.
+
+## Adopted product changes
+
+### Registered Articles sorting
+
+Adopted behavior:
+
+- Article ID sorts numerically for numeric article IDs.
+- Saved Responses sorts numerically.
+- Max Res No sorts numerically using the current existing read-side value.
+- Created At sorts as a datetime-like value.
+- Last Scraped sorts as a datetime-like value.
+- Default sort remains Created At descending.
+- Stable ordering for ordinary list browsing was preserved.
+
+### Registered Articles Web UI
+
+Adopted behavior:
+
+- Web table times are displayed in JST.
+- Created At and Last Scraped use a consistent compact display style.
+- Search input width was increased.
+- Reset action was added.
+- Refresh action was added.
+- Pagination controls are shown above and below the table.
+- Title and Canonical URL column widths were adjusted.
+- Long canonical URLs are ellipsized in the Web table.
+- Full canonical URLs remain available through the actual link target and tooltip/title behavior.
+- Table header and body cells are vertically centered.
+- Horizontal alignment was adjusted by data type:
+  - Title and Canonical URL are left-aligned.
+  - Article ID, Saved Responses, and Max Res No are right-aligned.
+  - Type and date columns are centered.
+
+### CSV behavior
+
+CSV export behavior was intentionally preserved where it matters for data use.
+
+- CSV keeps full Canonical URL values.
+- CSV does not use visual ellipsis.
+- CSV date formatting was preserved as machine-friendly existing values.
+- Web-only table display was changed to JST.
+
+## Final browser review
+
+A Copilot temporary Web smoke server was launched against runtime data for browser review before adoption.
+
+Browser review confirmed:
+
+- Article ID numeric sorting behaved correctly.
+- Created At and Last Scraped were displayed in JST.
+- Search input width was improved.
+- Reset and Refresh were present and usable.
+- Top pagination was present.
+- Bottom pagination remained present.
+- URL display used ellipsis while preserving full link behavior.
+- CSV retained full Canonical URL values.
+- Title and URL column widths were adjusted after review.
+- Final Title 21 percent / URL 13 percent width balance was accepted.
+- Table vertical alignment was accepted after the final alignment tweak.
+
+The UI can still be refined in future polish work, but the current state is acceptable for regular use.
+
+## Validation
+
+Pre-adoption validation:
+
+- ./validate_helix.sh
+- Copilot: PASS
+- Cursor: PASS
+
+Post-merge synchronization and validation were also completed after Cursor pulled merged main.
+
+Final observed state:
+
+- ./compare_helix.sh --all: PASS
+- ./validate_helix.sh: PASS
+- Copilot: 394 tests passed
+- Cursor: 394 tests passed
+
+## Runtime reflection
+
+Runtime update was performed after product merge.
+
+Runtime reflection steps completed:
+
+- Confirmed no periodic/batch process was running before reflection.
+- Confirmed periodic_once.lock was absent before reflection.
+- Removed obsolete runtime-only temporary file:
+  - orchestrator.py.pre_df_cap_20260510_180127
+- Fast-forwarded /home/manage/product/nicodic_archiver_runtime to merged main.
+- Rebuilt and recreated runtime with tools/runtime_up.sh.
+- Confirmed runtime container restarted.
+- Confirmed runtime Web process is running.
+- Confirmed runtime Web now shows the improved Registered Articles UI.
+
+## Runtime / cron
+
+Periodic cron remains active.
+
+Cron command line:
+
+> 5 */3 * * * cd /home/manage/product/nicodic_archiver_runtime && ONESHOT_LIMIT_DURATION_SECONDS=7200 ./runtime/periodic_once.sh >> /home/manage/product/nicodic_archiver_runtime/runtime/logs/host_cron.log 2>&1
+
+Meaning:
+
+- Kick every 3 hours.
+- Run with a 2-hour oneshot duration limit.
+- The current article is allowed to finish when the duration limit is reached.
+- Existing lock behavior prevents overlap.
+
+Cron behavior was not changed by this SubTask.
+
+## Explicit non-goals
+
+The following were intentionally not changed:
+
+- Max Res No semantic redesign.
+- Scraper behavior.
+- Delete-request feeder behavior.
+- Runtime DB contents.
+- Runtime cron policy.
+- Response cap behavior.
+- DB schema.
+- DB migrations.
+- Article identity semantics.
+- Direct runtime DB editing.
+- JavaScript-heavy table redesign.
+
+## Max Res No note
+
+Max Res No still uses the current read-side value derived from locally saved responses.
+
+It now sorts numerically, but its deeper semantic mismatch with the live NicoNicoPedia board's observed latest response number remains unresolved.
+
+This should be handled as a separate future MainTask, likely together with scrape run identity, short run mark display, target state tracking, invalid target state, and observed max response number semantics.
+
+## Files changed in product repo
+
+- archive_read.py
+- web_app.py
+- tests/test_archive_read.py
+- tests/test_web_app.py
+- SubTask-registered-articles-ui-polish_report.txt
+
+## Product-local report
+
+Product-local report file:
+
+- SubTask-registered-articles-ui-polish_report.txt
+
+The report includes:
+
+- Summary
+- Files touched
+- Tests added or updated
+- Validation status reported by the editor
+- Known limitations
+- Max Res No semantic non-goal
+- CSV date formatting note
+- 88-character line limit note
+- Final layout tweak note
+
+## Follow-up candidates
+
+Likely follow-up work:
+
+- Max Res No semantic redesign.
+- Scrape run identity and short run mark display.
+- Target state tracking, including invalid state and observed max response number.
+- Import / feeder resilience when individual article resolution fails.
+- Root/meta generated snapshot handling policy.
+- Compact shot heartbeat log polish.
+- Download export lazy cache.
+- Codex adoption planning and workflow tooling refinement.
+
+## Repository outcome
+
+After closeout:
+
+- Copilot main and Cursor main both point to the adopted product state.
+- Helix convergence was confirmed.
+- Runtime checkout is on adopted main.
+- Runtime Web reflects the adopted UI polish.
+- Root meta review memory records this task.
 
 
 
@@ -11043,7 +11330,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Mon May 11 11:19:47 UTC 2026
+generated: Tue May 12 16:08:24 UTC 2026
 mode: full
 
 
@@ -12944,6 +13231,263 @@ A good rule of thumb:
 - roadmap = broad reference
 - medium-term direction = working near-term plan
 - state files + snapshots = authoritative truth
+
+
+=============================
+FILE: META/NEXT_TASK_CANDIDATES.md
+=============================
+# Next Task Candidates
+
+This file is planning memory for near-term development.
+
+It is not a fixed task order and does not replace PROJECT_STATE.md, WORKSPACE.md, or review logs.
+
+## Recommended order
+
+1. SubTask-meta-record-cleanup-after-ui-polish
+2. MainTask-codex-adoption-planning
+3. MainTask-workflow-tooling-independence
+4. SubTask-compact-shot-heartbeat-log
+5. SubTask-import-and-feeder-resilience
+6. SubTask-download-export-lazy-cache
+7. MainTask-scrape-run-identity-and-target-state
+8. Later polish / maintenance tasks
+
+## 1. SubTask-meta-record-cleanup-after-ui-polish
+
+Type:
+
+- SubTask / meta cleanup
+
+Purpose:
+
+- Repair malformed meta records after the Registered Articles UI polish closeout.
+- Remove broken Markdown fenced-block artifacts, EOF remnants, and pasted command debris.
+- Keep the authoritative state readable for the next AI session.
+
+Method:
+
+- Rewrite the affected review log into clean Markdown without fenced code blocks.
+- Replace the UI polish section in PROJECT_STATE.md with a clean summary.
+- Regenerate project snapshots.
+
+Expected benefit:
+
+- Future AI context restoration becomes safer.
+- The next task starts from clean project memory.
+
+## 2. MainTask-codex-adoption-planning
+
+Type:
+
+- MainTask / process
+
+Purpose:
+
+- Decide how Codex should be introduced without disrupting the current Human + Advisor + Copilot/Cursor + Mac Terminal workflow.
+- Preserve the purpose of DHM while allowing tool substitution where useful.
+
+Method:
+
+- Define what Codex may and may not do.
+- Draft AGENTS.md.
+- Decide first safe trial surface:
+  - Chrome / in-app browser
+  - IDE extension
+  - Cloud task
+- Define how Codex can support or partially replace DHM.
+- Keep runtime DB, cron, docker, long scrape decisions, and merge adoption judgment under Human + Advisor control for now.
+
+Expected benefit:
+
+- Reduces repeated prompt overhead.
+- Makes future AI execution more consistent.
+- Allows safe experimentation with Codex before product semantics are entrusted to it.
+
+## 3. MainTask-workflow-tooling-independence
+
+Type:
+
+- MainTask / workflow tooling
+
+Purpose:
+
+- Make validation and review tooling more repository-local and editor-safe.
+- Reduce cases where editor AIs try to create virtual environments or run inappropriate ad-hoc tests.
+- Make SubTask-only work easier to validate without always running the full Double Helix path.
+
+Method:
+
+- Add child-repo-local helper scripts such as:
+  - tools/validate_local.sh
+  - tools/collect_local.sh
+  - tools/editor_safe_check.sh
+- Make root wrappers call those child-local helpers.
+- Add options for copilot-only, cursor-only, or all-repo validation.
+- Add short AI-facing reminders to frequently pasted helper output.
+
+Expected benefit:
+
+- Better tool independence.
+- Lower Human monitoring load.
+- Fewer editor-AI interruptions.
+- Easier Codex adoption later.
+
+Merged prior ideas:
+
+- SubTask-tool-independent
+- add editor-safe validation tool
+- AI reminder output in collect/validation helpers
+
+## 4. SubTask-compact-shot-heartbeat-log
+
+Type:
+
+- SubTask / product log polish
+
+Purpose:
+
+- Make batch and host cron logs easier to scan while preserving useful information.
+- Keep long scrape shots readable without hiding failure detail.
+
+Method:
+
+- Add STEP START / STEP END style log blocks.
+- Keep START / END index and total aligned.
+- Use compact heartbeat groups for normal page success.
+- Preserve WARN and ERROR detail.
+- Do not change scrape behavior.
+- Do not introduce a logging platform.
+
+Desired shape:
+
+- STEP START line at the beginning of each target.
+- Indented heartbeat INFO lines during page progress.
+- WARN / ERROR detail lines retained.
+- STEP END line with status, title, saved response count, observed max response number, and duration.
+
+Expected benefit:
+
+- Easier runtime monitoring.
+- Better debugging when a long shot partially fails.
+- Safe first Codex product SubTask candidate.
+
+## 5. SubTask-import-and-feeder-resilience
+
+Type:
+
+- SubTask / product resilience
+
+Purpose:
+
+- Prevent one transient resolution/fetch/registration failure from aborting a large import or feeder-like registration process.
+
+Method:
+
+- Keep per-candidate failures local.
+- Continue processing later candidates.
+- Report registered, skipped, failed, and retryable counts.
+- Preserve enough failed-candidate information for later manual retry.
+
+Expected benefit:
+
+- Safer DB rebuild and target import workflows.
+- Less operator babysitting.
+- Better behavior when NicoNicoPedia returns transient 500 responses.
+
+## 6. SubTask-download-export-lazy-cache
+
+Type:
+
+- SubTask / product performance
+
+Purpose:
+
+- Avoid re-reading and re-rendering very large saved articles on repeated TXT/MD/CSV downloads.
+
+Method:
+
+- Keep DB as source of truth.
+- On first download, generate export from DB and write cache.
+- On later download, compare lightweight DB summary with cache metadata.
+- If response_count, max_res_no, latest scraped reference, and export version match, return cached file.
+- If metadata differs, regenerate cache on demand.
+- Do not make scrape/save flow responsible for cache deletion.
+
+Expected benefit:
+
+- Lower repeat-download load for huge articles.
+- Keeps scrape path simpler.
+- Avoids eager generation for rarely downloaded articles.
+
+## 7. MainTask-scrape-run-identity-and-target-state
+
+Type:
+
+- MainTask / product semantics and schema
+
+Purpose:
+
+- Add a clear run identity / short run mark so operators can see which scrape shot updated which rows.
+- Redesign Max Res No semantics so it can represent observed live board state rather than only locally saved response count.
+- Add target state tracking for invalid or failing targets.
+
+Method:
+
+- Consider adding scrape run table or equivalent run record.
+- Consider target state fields such as:
+  - last_attempted_at
+  - last_success_at
+  - last_error_code
+  - invalid_reason
+  - observed_max_res_no
+  - last_changed_run_uid
+- Consider a short two-symbol run mark.
+- Keep the mark human-facing and non-critical.
+- Candidate run mark set:
+  - zodiac animals: 🐭 🐮 🐯 🐰 🐲 🐍 🐴 🐑 🐵 🐔 🐶 🐷
+  - five elements: 🌳 🔥 🪨 🥇 💧
+  - 12 x 5 = 60 patterns
+
+Expected benefit:
+
+- Better runtime debugging.
+- Easier visual grouping in Registered Articles.
+- Corrects the deeper Max Res No meaning mismatch.
+- Supports future invalid-target and retry policy work.
+
+## Later candidates
+
+### SubTask-target-denylist-externalization
+
+Purpose:
+
+- Move denylist policy from hardcoded Python seam toward a repo-managed policy file or similarly bounded operator-editable source.
+
+Expected benefit:
+
+- Easier maintenance of known excluded articles.
+
+### SubTask-meta-snapshot-policy
+
+Purpose:
+
+- Decide how generated project_snapshot.txt and project_knowledge_snapshot.txt should be tracked, ignored, or regenerated.
+
+Expected benefit:
+
+- Reduces recurring AI confusion around generated snapshot diffs.
+
+### Further Registered Articles UI polish
+
+Purpose:
+
+- Continue minor UI refinements only after semantic tasks settle.
+
+Expected benefit:
+
+- Avoids endless visual tweaking before core operational semantics are clear.
+
 
 
 =============================
@@ -15276,6 +15820,73 @@ Large rehearsal DB statement:
 
 
 =============================
+FILE: copilot/SubTask-registered-articles-ui-polish_report.txt
+=============================
+Summary
+- Registered Articles read-side sorting now uses typed ORDER BY logic for
+  numeric and datetime-like fields while keeping the default sort as
+  Created At descending.
+- Registered Articles web UI now shows JST-formatted table times, gives the
+  Title column more visual weight, truncates long Canonical URL display in the
+  table, widens the search field, and adds Reset and Refresh actions.
+- Registered Articles layout was tightened so long URLs stay single-line and
+  ellipsized inside their column, titles wrap safely, alignment matches data
+  type, and pagination now appears above and below the table.
+- Registered Articles table header and body cells now use consistent vertical
+  centering so wrapped Title rows no longer pull neighboring cells upward.
+- CSV export behavior was preserved for full Canonical URL values and existing
+  machine-friendly date values.
+
+Files touched
+- archive_read.py
+- web_app.py
+- tests/test_archive_read.py
+- tests/test_web_app.py
+
+Tests added or updated
+- Added registered-article sort coverage for numeric Article ID values.
+- Added numeric sort coverage for Saved Responses and Max Res No.
+- Added datetime-like sort coverage for Created At and Last Scraped, including
+  missing Last Scraped ordering.
+- Added web HTML coverage for JST table display, URL truncation class/full href
+  preservation, Reset link, Refresh link, wider search input, and CSV full URL
+  preservation.
+- Added focused web HTML coverage for top pagination, alignment classes, and
+  title/URL layout styles.
+- Added a focused web HTML/style check for middle vertical alignment on table
+  cells.
+
+Validation attempted or not attempted
+- Executable validation: Not run.
+- Static inspection only: checked touched Python files with editor error
+  reporting, inspected for over-88-character lines, reviewed touched diffs,
+  and updated the web HTML/style assertion coverage.
+
+Known limitations
+- Max Res No semantic redesign was intentionally not changed in this SubTask.
+  The column still sorts numerically using the current existing read-side value
+  derived from locally saved responses.
+- CSV date formatting was preserved; web-only table display was changed to JST.
+- Refresh is implemented as a simple state-preserving link. No JavaScript was
+  added.
+
+Quality notes
+- The 88-character line limit was checked for all touched Python files.
+- EOF newline was inspected for touched/new files.
+- Unused variables were checked via editor static inspection on touched Python
+  files.
+- Unrelated repository changes were not modified.
+
+Editor AI model/tool information
+- GitHub Copilot using GPT-5.4.
+- Tools used: workspace file edits, workspace search, git change inspection,
+  and editor static error inspection.
+
+Follow-up layout tweak
+- Adjusted Registered Articles column widths from Title 19% / URL 15% to Title 21% / URL 13% so long system article titles fit better while URL ellipsis behavior remains intact.
+
+
+=============================
 FILE: copilot/SubTask-registered-target-pending-list_report.txt
 =============================
 SubTask: registered-target-pending-list
@@ -16120,17 +16731,58 @@ def _registered_fallback_title(article_id, canonical_url):
     return ""
 
 
-def _registered_sort_sql_expr(sort_by):
-    """Return SQL ORDER BY expression for a validated sort_by key."""
-    _map = {
-        "title": "COALESCE(NULLIF(rt.matched_title, ''), rt.target_article_id)",
-        "article_id": "rt.target_article_id",
-        "created_at": "rt.target_created_at",
-        "saved_response_count": "saved_response_count",
-        "latest_scraped_max_res_no": "latest_scraped_max_res_no",
-        "last_scraped_at": "last_scraped_at",
+def _registered_order_by_clause(sort_by, order_dir):
+    """Return a typed ORDER BY clause for a validated sort key."""
+    numeric_article_id = (
+        "rt.target_article_id != '' "
+        "AND rt.target_article_id NOT GLOB '*[^0-9]*'"
+    )
+    sort_terms = {
+        "title": [
+            (
+                "COALESCE(NULLIF(rt.matched_title, ''), rt.target_article_id) "
+                f"COLLATE NOCASE {order_dir}"
+            ),
+        ],
+        "article_id": [
+            (
+                "CASE WHEN "
+                f"{numeric_article_id} THEN 0 ELSE 1 END ASC"
+            ),
+            (
+                "CASE WHEN "
+                f"{numeric_article_id} "
+                "THEN CAST(rt.target_article_id AS INTEGER) END "
+                f"{order_dir}"
+            ),
+            f"rt.target_article_id COLLATE NOCASE {order_dir}",
+        ],
+        "created_at": [
+            "CASE WHEN rt.target_created_at IS NULL THEN 1 ELSE 0 END ASC",
+            f"julianday(rt.target_created_at) {order_dir}",
+        ],
+        "saved_response_count": [
+            f"COALESCE(rs.saved_response_count, 0) {order_dir}",
+        ],
+        "latest_scraped_max_res_no": [
+            (
+                "CASE WHEN rs.latest_scraped_max_res_no IS NULL "
+                "THEN 1 ELSE 0 END ASC"
+            ),
+            f"rs.latest_scraped_max_res_no {order_dir}",
+        ],
+        "last_scraped_at": [
+            "CASE WHEN rt.matched_last_scraped_at IS NULL THEN 1 ELSE 0 END ASC",
+            f"julianday(rt.matched_last_scraped_at) {order_dir}",
+        ],
     }
-    return _map.get(sort_by, "rt.target_created_at")
+    selected = sort_terms.get(sort_by, sort_terms[DEFAULT_REGISTERED_SORT_BY])
+    return ",\n                ".join(
+        selected + [
+            "rt.target_row_id DESC",
+            "rt.target_article_type ASC",
+        ]
+    )
 
 
 def _registered_search_sql_expr(column):
@@ -16208,7 +16860,6 @@ def query_registered_articles(
     try:
         has_last_scraped = _registered_has_last_scraped_column(conn)
         has_target_title = _registered_has_target_title_column(conn)
-        sort_expr = _registered_sort_sql_expr(sort_by)
         matched_last_scraped_expr = (
             "COALESCE(a_exact.latest_scraped_at, a_url.latest_scraped_at)"
             if has_last_scraped
@@ -16222,6 +16873,7 @@ def query_registered_articles(
             )
         else:
             matched_title_sql = "COALESCE(a_exact.title, a_url.title)"
+        order_by_sql = _registered_order_by_clause(sort_by, order_dir)
         base_cte_sql = f"""
             WITH resolved_targets AS (
                 SELECT
@@ -16299,9 +16951,7 @@ def query_registered_articles(
                 AND rt.matched_article_type = rs.article_type
             {where_sql}
             ORDER BY
-                {sort_expr} {order_dir},
-                rt.target_row_id DESC,
-                rt.target_article_type ASC
+                {order_by_sql}
         """
 
         cur = conn.cursor()
@@ -25085,6 +25735,57 @@ def _seed_pending_target(
         conn.close()
 
 
+def _seed_registered_sort_case(
+    tmp_path,
+    monkeypatch,
+    article_id,
+    *,
+    created_at,
+    response_numbers=None,
+    latest_scraped_at=None,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        register_target(
+            conn,
+            article_id,
+            "a",
+            f"https://dic.nicovideo.jp/a/{article_id}",
+            title=f"Title {article_id}",
+        )
+        conn.execute(
+            """
+            UPDATE target
+            SET created_at=?
+            WHERE article_id=? AND article_type=?
+            """,
+            (created_at, article_id, "a"),
+        )
+        if response_numbers:
+            save_to_db(
+                conn,
+                article_id,
+                "a",
+                f"Title {article_id}",
+                f"https://dic.nicovideo.jp/a/{article_id}",
+                [
+                    {
+                        "res_no": res_no,
+                        "id_hash": f"id{res_no}",
+                        "poster_name": f"Poster {res_no}",
+                        "posted_at": "2025-01-01 00:00",
+                        "content": f"Response {res_no}",
+                        "content_html": f"<p>Response {res_no}</p>",
+                    }
+                    for res_no in response_numbers
+                ],
+                latest_scraped_at=latest_scraped_at,
+            )
+    finally:
+        conn.close()
+
+
 def test_has_saved_article_returns_true_for_existing_article(
     tmp_path,
     monkeypatch,
@@ -25691,6 +26392,182 @@ def test_query_registered_articles_filters_by_search_article_id(
 
     assert result["total"] == 1
     assert result["rows"][0]["article_id"] == "12345"
+
+
+def test_query_registered_articles_sorts_article_id_numerically(
+    tmp_path,
+    monkeypatch,
+):
+    for article_id in ("1", "2", "10", "100"):
+        _seed_registered_sort_case(
+            tmp_path,
+            monkeypatch,
+            article_id,
+            created_at="2026-01-01T00:00:00+00:00",
+        )
+
+    result = query_registered_articles(
+        sort_by="article_id",
+        sort_order="asc",
+        paginate=False,
+    )
+
+    assert [row["article_id"] for row in result["rows"]] == [
+        "1",
+        "2",
+        "10",
+        "100",
+    ]
+
+
+def test_query_registered_articles_sorts_saved_response_count_numerically(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "11",
+        created_at="2026-01-01T00:00:00+00:00",
+        response_numbers=[1, 2],
+        latest_scraped_at="2026-01-01T00:00:00+00:00",
+    )
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "12",
+        created_at="2026-01-01T00:00:00+00:00",
+        response_numbers=list(range(1, 11)),
+        latest_scraped_at="2026-01-01T00:00:00+00:00",
+    )
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "13",
+        created_at="2026-01-01T00:00:00+00:00",
+        response_numbers=[1],
+        latest_scraped_at="2026-01-01T00:00:00+00:00",
+    )
+
+    result = query_registered_articles(
+        sort_by="saved_response_count",
+        sort_order="asc",
+        paginate=False,
+    )
+
+    assert [row["article_id"] for row in result["rows"]] == [
+        "13",
+        "11",
+        "12",
+    ]
+
+
+def test_query_registered_articles_sorts_max_res_no_numerically(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "21",
+        created_at="2026-01-01T00:00:00+00:00",
+        response_numbers=[2],
+        latest_scraped_at="2026-01-01T00:00:00+00:00",
+    )
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "22",
+        created_at="2026-01-01T00:00:00+00:00",
+        response_numbers=[10],
+        latest_scraped_at="2026-01-01T00:00:00+00:00",
+    )
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "23",
+        created_at="2026-01-01T00:00:00+00:00",
+        response_numbers=[100],
+        latest_scraped_at="2026-01-01T00:00:00+00:00",
+    )
+
+    result = query_registered_articles(
+        sort_by="latest_scraped_max_res_no",
+        sort_order="asc",
+        paginate=False,
+    )
+
+    assert [row["article_id"] for row in result["rows"]] == [
+        "21",
+        "22",
+        "23",
+    ]
+
+
+def test_query_registered_articles_sorts_created_at_as_datetime(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "31",
+        created_at="2026-01-01T00:30:00+09:00",
+    )
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "32",
+        created_at="2025-12-31T23:00:00+00:00",
+    )
+
+    result = query_registered_articles(
+        sort_by="created_at",
+        sort_order="desc",
+        paginate=False,
+    )
+
+    assert [row["article_id"] for row in result["rows"]] == ["32", "31"]
+
+
+def test_query_registered_articles_sorts_last_scraped_as_datetime(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "41",
+        created_at="2026-01-01T00:00:00+00:00",
+        response_numbers=[1],
+        latest_scraped_at="2026-01-01T00:30:00+09:00",
+    )
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "42",
+        created_at="2026-01-01T00:00:00+00:00",
+        response_numbers=[1],
+        latest_scraped_at="2025-12-31T23:00:00+00:00",
+    )
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "43",
+        created_at="2026-01-01T00:00:00+00:00",
+    )
+
+    result = query_registered_articles(
+        sort_by="last_scraped_at",
+        sort_order="desc",
+        paginate=False,
+    )
+
+    assert [row["article_id"] for row in result["rows"]] == [
+        "42",
+        "41",
+        "43",
+    ]
 
 
 def test_query_registered_articles_no_match_returns_empty(
@@ -34550,13 +35427,13 @@ def test_top_page_includes_registered_list_link():
     assert "登録済み記事一覧" in response["body"]
 
 
-def _mock_query_result(rows):
+def _mock_query_result(rows, *, total=None, per_page=100):
     """Build a query_registered_articles return value for mocking."""
     return {
         "rows": rows,
-        "total": len(rows),
+        "total": len(rows) if total is None else total,
         "page": 1,
-        "per_page": 100,
+        "per_page": per_page,
     }
 
 
@@ -34595,7 +35472,7 @@ def test_registered_page_renders_html_table_with_expected_columns():
     assert "https://dic.nicovideo.jp/a/12345" in response["body"]
     assert ">42<" in response["body"]
     assert ">50<" in response["body"]
-    assert "2026-01-01T00:00:00+00:00" in response["body"]
+    assert "2026-01-01 09:00 JST" in response["body"]
     assert "12345" in response["body"]
 
 
@@ -34621,6 +35498,139 @@ def test_registered_page_canonical_url_is_clickable_link():
     assert 'target="_blank"' in response["body"]
 
 
+def test_registered_page_truncates_long_url_display_but_keeps_full_link():
+    long_url = (
+        "https://dic.nicovideo.jp/a/this-is-a-very-long-canonical-url-"
+        "that-should-be-truncated-in-the-table-display"
+    )
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([
+            _make_reg_row(canonical_url=long_url),
+        ]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert 'class="ext-link truncated-url"' in response["body"]
+    assert f'href="{long_url}"' in response["body"]
+    assert f'title="{long_url}"' in response["body"]
+    assert "max-width: 100%;" in response["body"]
+    assert "white-space: nowrap;" in response["body"]
+
+
+def test_registered_page_formats_table_times_in_jst():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([
+            _make_reg_row(
+                created_at="2026-01-01T00:00:00+00:00",
+                last_scraped_at="2026-01-01T03:15:00+00:00",
+            )
+        ]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert "2026-01-01 09:00 JST" in response["body"]
+    assert "2026-01-01 12:15 JST" in response["body"]
+    assert "2026-01-01T00:00:00+00:00" not in response["body"]
+
+
+def test_registered_page_includes_refresh_link_with_current_state():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result(
+            [_make_reg_row()],
+            total=300,
+            per_page=200,
+        ),
+    ):
+        response = _run_wsgi_request(
+            "GET",
+            path="/registered",
+            query_string=(
+                "sort_by=title&sort_order=asc&q=foo%20bar&page=2&per_page=200"
+            ),
+        )
+
+    assert (
+        'href="/registered?sort_by=title&amp;sort_order=asc&amp;'
+        'page=2&amp;per_page=200&amp;q=foo+bar" class="aux-link">Refresh<'
+    ) in response["body"]
+
+
+def test_registered_page_includes_reset_link_to_default_view():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
+    ):
+        response = _run_wsgi_request(
+            "GET",
+            path="/registered",
+            query_string="sort_by=title&sort_order=asc&q=foo&page=3",
+        )
+
+    assert 'href="/registered" class="aux-link">Reset</a>' in response["body"]
+
+
+def test_registered_page_search_input_uses_wider_classed_field():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert 'class="registered-search-input"' in response["body"]
+    assert "min-width: 280px;" in response["body"]
+
+
+def test_registered_page_renders_top_and_bottom_pagination():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result(
+            [_make_reg_row()],
+            total=300,
+            per_page=100,
+        ),
+    ):
+        response = _run_wsgi_request(
+            "GET",
+            path="/registered",
+            query_string="page=2",
+        )
+
+    assert response["body"].count('class="pagination top"') == 1
+    assert response["body"].count('class="pagination bottom"') == 1
+    assert response["body"].count("Page 2 / 3") == 2
+
+
+def test_registered_page_uses_alignment_classes_for_columns():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert 'class="col-title align-left"' in response["body"]
+    assert 'class="col-canonical-url align-left"' in response["body"]
+    assert 'class="col-article-id align-right"' in response["body"]
+    assert 'class="col-article-type align-center"' in response["body"]
+    assert 'class="col-created-at align-center"' in response["body"]
+    assert 'class="col-last-scraped align-center"' in response["body"]
+    assert 'class="col-saved-count align-right"' in response["body"]
+    assert 'class="col-max-res align-right"' in response["body"]
+
+
+def test_registered_page_uses_wrapping_title_column_styles():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert ".col-title { width: 21%; }" in response["body"]
+    assert "overflow-wrap: anywhere;" in response["body"]
+
+
 def test_registered_page_highlights_not_scraped_rows():
     unscrapped = _make_reg_row(
         title="未スクレイプ",
@@ -34635,6 +35645,16 @@ def test_registered_page_highlights_not_scraped_rows():
         response = _run_wsgi_request("GET", path="/registered")
 
     assert "not-scraped" in response["body"]
+
+
+def test_registered_page_uses_middle_vertical_alignment_for_cells():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert "vertical-align: middle;" in response["body"]
 
 
 def test_registered_page_scraped_rows_have_no_special_class():
@@ -34751,6 +35771,23 @@ def test_registered_page_csv_renders_pending_target_rows():
     assert response["status"] == "200 OK"
     assert "pending-slug" in response["body"]
     assert "https://dic.nicovideo.jp/a/pending-slug" in response["body"]
+
+
+def test_registered_page_csv_keeps_full_canonical_url():
+    long_url = (
+        "https://dic.nicovideo.jp/a/this-is-a-very-long-canonical-url-"
+        "that-should-remain-complete-in-csv-output"
+    )
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([
+            _make_reg_row(canonical_url=long_url),
+        ]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered/csv")
+
+    assert response["status"] == "200 OK"
+    assert long_url in response["body"]
 
 
 def test_registered_csv_includes_csv_download_link_on_page():
@@ -36941,7 +37978,7 @@ FILE: copilot/web_app.py
 =============================
 import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
@@ -36972,6 +38009,7 @@ DEFAULT_WEB_ACTION_LOG_PATH = os.environ.get(
 )
 DEFAULT_DOWNLOAD_FORMAT = "txt"
 DOWNLOAD_FORMATS = ("txt", "md", "csv")
+JST = timezone(timedelta(hours=9))
 
 UI_TEXTS = {
     "page_title": "NicoNicoPedia Archive Checker",
@@ -37968,6 +39006,45 @@ def _build_registered_url(
     return "/registered?" + urlencode(params)
 
 
+def _registered_column_class(key: str) -> str:
+    classes = {
+        "article_id": "col-article-id",
+        "article_type": "col-article-type",
+        "title": "col-title",
+        "canonical_url": "col-canonical-url",
+        "created_at": "col-created-at",
+        "saved_response_count": "col-saved-count",
+        "latest_scraped_max_res_no": "col-max-res",
+        "last_scraped_at": "col-last-scraped",
+    }
+    return classes.get(key, "")
+
+
+def _registered_align_class(key: str) -> str:
+    if key in {"title", "canonical_url"}:
+        return "align-left"
+    if key in {"article_id", "saved_response_count", "latest_scraped_max_res_no"}:
+        return "align-right"
+    return "align-center"
+
+
+def _format_registered_time(value: str | None) -> str:
+    if not value:
+        return ""
+    normalized = value.strip()
+    if not normalized:
+        return ""
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return normalized
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(JST).strftime("%Y-%m-%d %H:%M JST")
+
+
 def _registered_sort_header_cell(
     col: dict,
     sort_by: str,
@@ -37978,8 +39055,17 @@ def _registered_sort_header_cell(
 ) -> str:
     key = col["key"]
     label = escape(col["label"])
+    col_class = " ".join(
+        part
+        for part in (
+            _registered_column_class(key),
+            _registered_align_class(key),
+        )
+        if part
+    )
+    cls_attr = f' class="{col_class}"' if col_class else ""
     if key not in REGISTERED_SORT_ALLOWLIST:
-        return f"<th>{label}</th>"
+        return f"<th{cls_attr}>{label}</th>"
     if sort_by == key:
         next_order = "asc" if sort_order == "desc" else "desc"
         ind = " &#9660;" if sort_order == "desc" else " &#9650;"
@@ -37988,7 +39074,7 @@ def _registered_sort_header_cell(
         ind = ""
     url = escape(_build_registered_url(key, next_order, q, page, per_page))
     return (
-        f'<th><a href="{url}" class="sort-link">'
+        f'<th{cls_attr}><a href="{url}" class="sort-link">'
         f"{label}{ind}</a></th>"
     )
 
@@ -38000,17 +39086,30 @@ def _registered_row_html(row: dict) -> str:
     for col in REGISTERED_ARTICLE_COLUMNS:
         key = col["key"]
         val = row.get(key)
+        col_class = " ".join(
+            part
+            for part in (
+                _registered_column_class(key),
+                _registered_align_class(key),
+            )
+            if part
+        )
+        cls_attr = f' class="{col_class}"' if col_class else ""
         if key == "canonical_url" and val:
             safe_url = escape(str(val))
             cell = (
-                f'<td><a href="{safe_url}" target="_blank"'
+                f'<td{cls_attr}><a href="{safe_url}" target="_blank"'
                 f' rel="noopener noreferrer"'
-                f' class="ext-link">{safe_url}</a></td>'
+                f' class="ext-link truncated-url" title="{safe_url}">'
+                f"{safe_url}</a></td>"
             )
+        elif key in {"created_at", "last_scraped_at"}:
+            display = _format_registered_time(val)
+            cell = f"<td{cls_attr}>{escape(display)}</td>"
         elif val is None:
-            cell = "<td></td>"
+            cell = f"<td{cls_attr}></td>"
         else:
-            cell = f"<td>{escape(str(val))}</td>"
+            cell = f"<td{cls_attr}>{escape(str(val))}</td>"
         cells.append(cell)
     return f"<tr{cls}>{''.join(cells)}</tr>"
 
@@ -38093,7 +39192,10 @@ def _render_registered_list_page(query_params: dict) -> bytes:
         for col in REGISTERED_ARTICLE_COLUMNS
     )
     rows_html = "".join(_registered_row_html(r) for r in rows)
-    pagination = _registered_pagination_html(
+    top_pagination = _registered_pagination_html(
+        page, total_pages, sort_by, sort_order, search, per_page
+    )
+    bottom_pagination = _registered_pagination_html(
         page, total_pages, sort_by, sort_order, search, per_page
     )
 
@@ -38111,6 +39213,10 @@ def _render_registered_list_page(query_params: dict) -> bytes:
     sort_by_esc = escape(sort_by)
     sort_ord_esc = escape(sort_order)
     per_page_str = str(per_page)
+    refresh_url = escape(
+        _build_registered_url(sort_by, sort_order, search, page, per_page)
+    )
+    reset_url = "/registered"
 
     csv_params = urlencode({
         "sort_by": sort_by,
@@ -38120,13 +39226,6 @@ def _render_registered_list_page(query_params: dict) -> bytes:
         "per_page": per_page_str,
     })
     csv_url = escape(f"/registered/csv?{csv_params}")
-
-    clear_link = ""
-    if search:
-        cl_url = escape(
-            _build_registered_url(sort_by, sort_order, "", 1, per_page)
-        )
-        clear_link = f' <a href="{cl_url}" class="clear-link">Clear</a>'
 
     per_page_opts = "".join(
         f'<option value="{n}"'
@@ -38168,7 +39267,8 @@ def _render_registered_list_page(query_params: dict) -> bytes:
       border: 1px solid #d9ccb4;
       border-radius: 6px;
       font: inherit;
-      min-width: 180px;
+            min-width: 280px;
+            width: min(42vw, 30rem);
     }}
     button, .btn {{
       padding: 5px 14px;
@@ -38181,19 +39281,13 @@ def _render_registered_list_page(query_params: dict) -> bytes:
       text-decoration: none;
     }}
     button:hover, .btn:hover {{ background: #0d6560; }}
-    .clear-link {{
-      color: #6b7280;
-      font-size: 0.88rem;
-      text-decoration: none;
-    }}
-    .clear-link:hover {{ text-decoration: underline; }}
     select.per-page {{
       padding: 4px 8px;
       border: 1px solid #d9ccb4;
       border-radius: 6px;
       font: inherit;
     }}
-    .csv-link {{
+        .csv-link, .aux-link {{
       padding: 5px 12px;
       border: 1px solid #0f766e;
       border-radius: 6px;
@@ -38202,22 +39296,28 @@ def _render_registered_list_page(query_params: dict) -> bytes:
       font-size: 0.9rem;
       background: transparent;
     }}
-    .csv-link:hover {{ background: rgba(15, 118, 110, 0.08); }}
+        .csv-link:hover, .aux-link:hover {{
+            background: rgba(15, 118, 110, 0.08);
+        }}
+        .aux-link {{ border-color: #d9ccb4; color: #1f2430; }}
     table {{
       border-collapse: collapse;
       width: 100%;
+            table-layout: fixed;
       background: #fffaf2;
       border: 1px solid #d9ccb4;
       border-radius: 8px;
       overflow: hidden;
     }}
     th, td {{
-      text-align: left;
       padding: 8px 12px;
       border-bottom: 1px solid #e8dfc8;
-      word-break: break-word;
+            vertical-align: middle;
     }}
     th {{ background: #f0e9d8; font-weight: 700; }}
+        th.align-left, td.align-left {{ text-align: left; }}
+        th.align-center, td.align-center {{ text-align: center; }}
+        th.align-right, td.align-right {{ text-align: right; }}
     th a.sort-link {{
       color: #1f2430;
       text-decoration: none;
@@ -38227,7 +39327,33 @@ def _render_registered_list_page(query_params: dict) -> bytes:
     tr:last-child td {{ border-bottom: none; }}
     tr.not-scraped td {{ background: #fff8e6; }}
     a {{ color: #0f766e; }}
-    .ext-link {{ word-break: break-all; }}
+        .col-article-id {{ width: 9ch; }}
+        .col-article-type {{ width: 6ch; }}
+        .col-title {{ width: 21%; }}
+        .col-canonical-url {{ width: 13%; }}
+        .col-created-at, .col-last-scraped {{ width: 17ch; }}
+        .col-saved-count, .col-max-res {{ width: 11ch; }}
+        td.col-title {{
+            font-weight: 600;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }}
+        th.col-title {{ white-space: nowrap; }}
+        th.col-canonical-url,
+        td.col-canonical-url {{
+            white-space: nowrap;
+            overflow: hidden;
+        }}
+        .ext-link.truncated-url {{
+            display: block;
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            word-break: normal;
+        }}
     .pagination {{
       display: flex;
       flex-wrap: wrap;
@@ -38235,6 +39361,8 @@ def _render_registered_list_page(query_params: dict) -> bytes:
       align-items: center;
       margin-top: 16px;
     }}
+        .pagination.top {{ margin: 0 0 12px; }}
+        .pagination.bottom {{ margin-top: 16px; }}
     .page-btn {{
       padding: 4px 10px;
       border: 1px solid #d9ccb4;
@@ -38262,9 +39390,14 @@ def _render_registered_list_page(query_params: dict) -> bytes:
       <input type="hidden" name="sort_by" value="{sort_by_esc}">
       <input type="hidden" name="sort_order" value="{sort_ord_esc}">
       <input type="hidden" name="per_page" value="{per_page_str}">
-      <input type="text" name="q" value="{search_esc}"
-              placeholder="Search title, article ID, or canonical URL&hellip;">
-      <button type="submit">Search</button>{clear_link}
+            <input
+                type="text"
+                name="q"
+                value="{search_esc}"
+                class="registered-search-input"
+                placeholder="Search title, article ID, or canonical URL&hellip;"
+            >
+            <button type="submit">Search</button>
     </form>
     <form method="get" action="/registered">
       <input type="hidden" name="q" value="{search_esc}">
@@ -38275,7 +39408,10 @@ def _render_registered_list_page(query_params: dict) -> bytes:
               onchange="this.form.submit()">{per_page_opts}</select>
     </form>
     <a href="{csv_url}" class="csv-link">&#8595; CSV (this page)</a>
+        <a href="{refresh_url}" class="aux-link">Refresh</a>
+        <a href="{reset_url}" class="aux-link">Reset</a>
   </div>
+    {top_pagination.replace('class="pagination"', 'class="pagination top"')}
   <table>
     <thead>
       <tr>{header_cells}</tr>
@@ -38284,7 +39420,7 @@ def _render_registered_list_page(query_params: dict) -> bytes:
 {rows_html}
     </tbody>
   </table>
-  {pagination}
+    {bottom_pagination.replace('class="pagination"', 'class="pagination bottom"')}
 </body>
 </html>
 """
@@ -39092,6 +40228,73 @@ Production apply statement:
 
 Large rehearsal DB statement:
 - Large rehearsal DB files were not deleted by this task.
+
+
+=============================
+FILE: cursor/SubTask-registered-articles-ui-polish_report.txt
+=============================
+Summary
+- Registered Articles read-side sorting now uses typed ORDER BY logic for
+  numeric and datetime-like fields while keeping the default sort as
+  Created At descending.
+- Registered Articles web UI now shows JST-formatted table times, gives the
+  Title column more visual weight, truncates long Canonical URL display in the
+  table, widens the search field, and adds Reset and Refresh actions.
+- Registered Articles layout was tightened so long URLs stay single-line and
+  ellipsized inside their column, titles wrap safely, alignment matches data
+  type, and pagination now appears above and below the table.
+- Registered Articles table header and body cells now use consistent vertical
+  centering so wrapped Title rows no longer pull neighboring cells upward.
+- CSV export behavior was preserved for full Canonical URL values and existing
+  machine-friendly date values.
+
+Files touched
+- archive_read.py
+- web_app.py
+- tests/test_archive_read.py
+- tests/test_web_app.py
+
+Tests added or updated
+- Added registered-article sort coverage for numeric Article ID values.
+- Added numeric sort coverage for Saved Responses and Max Res No.
+- Added datetime-like sort coverage for Created At and Last Scraped, including
+  missing Last Scraped ordering.
+- Added web HTML coverage for JST table display, URL truncation class/full href
+  preservation, Reset link, Refresh link, wider search input, and CSV full URL
+  preservation.
+- Added focused web HTML coverage for top pagination, alignment classes, and
+  title/URL layout styles.
+- Added a focused web HTML/style check for middle vertical alignment on table
+  cells.
+
+Validation attempted or not attempted
+- Executable validation: Not run.
+- Static inspection only: checked touched Python files with editor error
+  reporting, inspected for over-88-character lines, reviewed touched diffs,
+  and updated the web HTML/style assertion coverage.
+
+Known limitations
+- Max Res No semantic redesign was intentionally not changed in this SubTask.
+  The column still sorts numerically using the current existing read-side value
+  derived from locally saved responses.
+- CSV date formatting was preserved; web-only table display was changed to JST.
+- Refresh is implemented as a simple state-preserving link. No JavaScript was
+  added.
+
+Quality notes
+- The 88-character line limit was checked for all touched Python files.
+- EOF newline was inspected for touched/new files.
+- Unused variables were checked via editor static inspection on touched Python
+  files.
+- Unrelated repository changes were not modified.
+
+Editor AI model/tool information
+- GitHub Copilot using GPT-5.4.
+- Tools used: workspace file edits, workspace search, git change inspection,
+  and editor static error inspection.
+
+Follow-up layout tweak
+- Adjusted Registered Articles column widths from Title 19% / URL 15% to Title 21% / URL 13% so long system article titles fit better while URL ellipsis behavior remains intact.
 
 
 =============================
@@ -39939,17 +41142,58 @@ def _registered_fallback_title(article_id, canonical_url):
     return ""
 
 
-def _registered_sort_sql_expr(sort_by):
-    """Return SQL ORDER BY expression for a validated sort_by key."""
-    _map = {
-        "title": "COALESCE(NULLIF(rt.matched_title, ''), rt.target_article_id)",
-        "article_id": "rt.target_article_id",
-        "created_at": "rt.target_created_at",
-        "saved_response_count": "saved_response_count",
-        "latest_scraped_max_res_no": "latest_scraped_max_res_no",
-        "last_scraped_at": "last_scraped_at",
+def _registered_order_by_clause(sort_by, order_dir):
+    """Return a typed ORDER BY clause for a validated sort key."""
+    numeric_article_id = (
+        "rt.target_article_id != '' "
+        "AND rt.target_article_id NOT GLOB '*[^0-9]*'"
+    )
+    sort_terms = {
+        "title": [
+            (
+                "COALESCE(NULLIF(rt.matched_title, ''), rt.target_article_id) "
+                f"COLLATE NOCASE {order_dir}"
+            ),
+        ],
+        "article_id": [
+            (
+                "CASE WHEN "
+                f"{numeric_article_id} THEN 0 ELSE 1 END ASC"
+            ),
+            (
+                "CASE WHEN "
+                f"{numeric_article_id} "
+                "THEN CAST(rt.target_article_id AS INTEGER) END "
+                f"{order_dir}"
+            ),
+            f"rt.target_article_id COLLATE NOCASE {order_dir}",
+        ],
+        "created_at": [
+            "CASE WHEN rt.target_created_at IS NULL THEN 1 ELSE 0 END ASC",
+            f"julianday(rt.target_created_at) {order_dir}",
+        ],
+        "saved_response_count": [
+            f"COALESCE(rs.saved_response_count, 0) {order_dir}",
+        ],
+        "latest_scraped_max_res_no": [
+            (
+                "CASE WHEN rs.latest_scraped_max_res_no IS NULL "
+                "THEN 1 ELSE 0 END ASC"
+            ),
+            f"rs.latest_scraped_max_res_no {order_dir}",
+        ],
+        "last_scraped_at": [
+            "CASE WHEN rt.matched_last_scraped_at IS NULL THEN 1 ELSE 0 END ASC",
+            f"julianday(rt.matched_last_scraped_at) {order_dir}",
+        ],
     }
-    return _map.get(sort_by, "rt.target_created_at")
+    selected = sort_terms.get(sort_by, sort_terms[DEFAULT_REGISTERED_SORT_BY])
+    return ",\n                ".join(
+        selected + [
+            "rt.target_row_id DESC",
+            "rt.target_article_type ASC",
+        ]
+    )
 
 
 def _registered_search_sql_expr(column):
@@ -40027,7 +41271,6 @@ def query_registered_articles(
     try:
         has_last_scraped = _registered_has_last_scraped_column(conn)
         has_target_title = _registered_has_target_title_column(conn)
-        sort_expr = _registered_sort_sql_expr(sort_by)
         matched_last_scraped_expr = (
             "COALESCE(a_exact.latest_scraped_at, a_url.latest_scraped_at)"
             if has_last_scraped
@@ -40041,6 +41284,7 @@ def query_registered_articles(
             )
         else:
             matched_title_sql = "COALESCE(a_exact.title, a_url.title)"
+        order_by_sql = _registered_order_by_clause(sort_by, order_dir)
         base_cte_sql = f"""
             WITH resolved_targets AS (
                 SELECT
@@ -40118,9 +41362,7 @@ def query_registered_articles(
                 AND rt.matched_article_type = rs.article_type
             {where_sql}
             ORDER BY
-                {sort_expr} {order_dir},
-                rt.target_row_id DESC,
-                rt.target_article_type ASC
+                {order_by_sql}
         """
 
         cur = conn.cursor()
@@ -62850,6 +64092,57 @@ def _seed_pending_target(
         conn.close()
 
 
+def _seed_registered_sort_case(
+    tmp_path,
+    monkeypatch,
+    article_id,
+    *,
+    created_at,
+    response_numbers=None,
+    latest_scraped_at=None,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        register_target(
+            conn,
+            article_id,
+            "a",
+            f"https://dic.nicovideo.jp/a/{article_id}",
+            title=f"Title {article_id}",
+        )
+        conn.execute(
+            """
+            UPDATE target
+            SET created_at=?
+            WHERE article_id=? AND article_type=?
+            """,
+            (created_at, article_id, "a"),
+        )
+        if response_numbers:
+            save_to_db(
+                conn,
+                article_id,
+                "a",
+                f"Title {article_id}",
+                f"https://dic.nicovideo.jp/a/{article_id}",
+                [
+                    {
+                        "res_no": res_no,
+                        "id_hash": f"id{res_no}",
+                        "poster_name": f"Poster {res_no}",
+                        "posted_at": "2025-01-01 00:00",
+                        "content": f"Response {res_no}",
+                        "content_html": f"<p>Response {res_no}</p>",
+                    }
+                    for res_no in response_numbers
+                ],
+                latest_scraped_at=latest_scraped_at,
+            )
+    finally:
+        conn.close()
+
+
 def test_has_saved_article_returns_true_for_existing_article(
     tmp_path,
     monkeypatch,
@@ -63456,6 +64749,182 @@ def test_query_registered_articles_filters_by_search_article_id(
 
     assert result["total"] == 1
     assert result["rows"][0]["article_id"] == "12345"
+
+
+def test_query_registered_articles_sorts_article_id_numerically(
+    tmp_path,
+    monkeypatch,
+):
+    for article_id in ("1", "2", "10", "100"):
+        _seed_registered_sort_case(
+            tmp_path,
+            monkeypatch,
+            article_id,
+            created_at="2026-01-01T00:00:00+00:00",
+        )
+
+    result = query_registered_articles(
+        sort_by="article_id",
+        sort_order="asc",
+        paginate=False,
+    )
+
+    assert [row["article_id"] for row in result["rows"]] == [
+        "1",
+        "2",
+        "10",
+        "100",
+    ]
+
+
+def test_query_registered_articles_sorts_saved_response_count_numerically(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "11",
+        created_at="2026-01-01T00:00:00+00:00",
+        response_numbers=[1, 2],
+        latest_scraped_at="2026-01-01T00:00:00+00:00",
+    )
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "12",
+        created_at="2026-01-01T00:00:00+00:00",
+        response_numbers=list(range(1, 11)),
+        latest_scraped_at="2026-01-01T00:00:00+00:00",
+    )
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "13",
+        created_at="2026-01-01T00:00:00+00:00",
+        response_numbers=[1],
+        latest_scraped_at="2026-01-01T00:00:00+00:00",
+    )
+
+    result = query_registered_articles(
+        sort_by="saved_response_count",
+        sort_order="asc",
+        paginate=False,
+    )
+
+    assert [row["article_id"] for row in result["rows"]] == [
+        "13",
+        "11",
+        "12",
+    ]
+
+
+def test_query_registered_articles_sorts_max_res_no_numerically(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "21",
+        created_at="2026-01-01T00:00:00+00:00",
+        response_numbers=[2],
+        latest_scraped_at="2026-01-01T00:00:00+00:00",
+    )
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "22",
+        created_at="2026-01-01T00:00:00+00:00",
+        response_numbers=[10],
+        latest_scraped_at="2026-01-01T00:00:00+00:00",
+    )
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "23",
+        created_at="2026-01-01T00:00:00+00:00",
+        response_numbers=[100],
+        latest_scraped_at="2026-01-01T00:00:00+00:00",
+    )
+
+    result = query_registered_articles(
+        sort_by="latest_scraped_max_res_no",
+        sort_order="asc",
+        paginate=False,
+    )
+
+    assert [row["article_id"] for row in result["rows"]] == [
+        "21",
+        "22",
+        "23",
+    ]
+
+
+def test_query_registered_articles_sorts_created_at_as_datetime(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "31",
+        created_at="2026-01-01T00:30:00+09:00",
+    )
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "32",
+        created_at="2025-12-31T23:00:00+00:00",
+    )
+
+    result = query_registered_articles(
+        sort_by="created_at",
+        sort_order="desc",
+        paginate=False,
+    )
+
+    assert [row["article_id"] for row in result["rows"]] == ["32", "31"]
+
+
+def test_query_registered_articles_sorts_last_scraped_as_datetime(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "41",
+        created_at="2026-01-01T00:00:00+00:00",
+        response_numbers=[1],
+        latest_scraped_at="2026-01-01T00:30:00+09:00",
+    )
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "42",
+        created_at="2026-01-01T00:00:00+00:00",
+        response_numbers=[1],
+        latest_scraped_at="2025-12-31T23:00:00+00:00",
+    )
+    _seed_registered_sort_case(
+        tmp_path,
+        monkeypatch,
+        "43",
+        created_at="2026-01-01T00:00:00+00:00",
+    )
+
+    result = query_registered_articles(
+        sort_by="last_scraped_at",
+        sort_order="desc",
+        paginate=False,
+    )
+
+    assert [row["article_id"] for row in result["rows"]] == [
+        "42",
+        "41",
+        "43",
+    ]
 
 
 def test_query_registered_articles_no_match_returns_empty(
@@ -72315,13 +73784,13 @@ def test_top_page_includes_registered_list_link():
     assert "登録済み記事一覧" in response["body"]
 
 
-def _mock_query_result(rows):
+def _mock_query_result(rows, *, total=None, per_page=100):
     """Build a query_registered_articles return value for mocking."""
     return {
         "rows": rows,
-        "total": len(rows),
+        "total": len(rows) if total is None else total,
         "page": 1,
-        "per_page": 100,
+        "per_page": per_page,
     }
 
 
@@ -72360,7 +73829,7 @@ def test_registered_page_renders_html_table_with_expected_columns():
     assert "https://dic.nicovideo.jp/a/12345" in response["body"]
     assert ">42<" in response["body"]
     assert ">50<" in response["body"]
-    assert "2026-01-01T00:00:00+00:00" in response["body"]
+    assert "2026-01-01 09:00 JST" in response["body"]
     assert "12345" in response["body"]
 
 
@@ -72386,6 +73855,139 @@ def test_registered_page_canonical_url_is_clickable_link():
     assert 'target="_blank"' in response["body"]
 
 
+def test_registered_page_truncates_long_url_display_but_keeps_full_link():
+    long_url = (
+        "https://dic.nicovideo.jp/a/this-is-a-very-long-canonical-url-"
+        "that-should-be-truncated-in-the-table-display"
+    )
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([
+            _make_reg_row(canonical_url=long_url),
+        ]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert 'class="ext-link truncated-url"' in response["body"]
+    assert f'href="{long_url}"' in response["body"]
+    assert f'title="{long_url}"' in response["body"]
+    assert "max-width: 100%;" in response["body"]
+    assert "white-space: nowrap;" in response["body"]
+
+
+def test_registered_page_formats_table_times_in_jst():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([
+            _make_reg_row(
+                created_at="2026-01-01T00:00:00+00:00",
+                last_scraped_at="2026-01-01T03:15:00+00:00",
+            )
+        ]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert "2026-01-01 09:00 JST" in response["body"]
+    assert "2026-01-01 12:15 JST" in response["body"]
+    assert "2026-01-01T00:00:00+00:00" not in response["body"]
+
+
+def test_registered_page_includes_refresh_link_with_current_state():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result(
+            [_make_reg_row()],
+            total=300,
+            per_page=200,
+        ),
+    ):
+        response = _run_wsgi_request(
+            "GET",
+            path="/registered",
+            query_string=(
+                "sort_by=title&sort_order=asc&q=foo%20bar&page=2&per_page=200"
+            ),
+        )
+
+    assert (
+        'href="/registered?sort_by=title&amp;sort_order=asc&amp;'
+        'page=2&amp;per_page=200&amp;q=foo+bar" class="aux-link">Refresh<'
+    ) in response["body"]
+
+
+def test_registered_page_includes_reset_link_to_default_view():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
+    ):
+        response = _run_wsgi_request(
+            "GET",
+            path="/registered",
+            query_string="sort_by=title&sort_order=asc&q=foo&page=3",
+        )
+
+    assert 'href="/registered" class="aux-link">Reset</a>' in response["body"]
+
+
+def test_registered_page_search_input_uses_wider_classed_field():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert 'class="registered-search-input"' in response["body"]
+    assert "min-width: 280px;" in response["body"]
+
+
+def test_registered_page_renders_top_and_bottom_pagination():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result(
+            [_make_reg_row()],
+            total=300,
+            per_page=100,
+        ),
+    ):
+        response = _run_wsgi_request(
+            "GET",
+            path="/registered",
+            query_string="page=2",
+        )
+
+    assert response["body"].count('class="pagination top"') == 1
+    assert response["body"].count('class="pagination bottom"') == 1
+    assert response["body"].count("Page 2 / 3") == 2
+
+
+def test_registered_page_uses_alignment_classes_for_columns():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert 'class="col-title align-left"' in response["body"]
+    assert 'class="col-canonical-url align-left"' in response["body"]
+    assert 'class="col-article-id align-right"' in response["body"]
+    assert 'class="col-article-type align-center"' in response["body"]
+    assert 'class="col-created-at align-center"' in response["body"]
+    assert 'class="col-last-scraped align-center"' in response["body"]
+    assert 'class="col-saved-count align-right"' in response["body"]
+    assert 'class="col-max-res align-right"' in response["body"]
+
+
+def test_registered_page_uses_wrapping_title_column_styles():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert ".col-title { width: 21%; }" in response["body"]
+    assert "overflow-wrap: anywhere;" in response["body"]
+
+
 def test_registered_page_highlights_not_scraped_rows():
     unscrapped = _make_reg_row(
         title="未スクレイプ",
@@ -72400,6 +74002,16 @@ def test_registered_page_highlights_not_scraped_rows():
         response = _run_wsgi_request("GET", path="/registered")
 
     assert "not-scraped" in response["body"]
+
+
+def test_registered_page_uses_middle_vertical_alignment_for_cells():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert "vertical-align: middle;" in response["body"]
 
 
 def test_registered_page_scraped_rows_have_no_special_class():
@@ -72516,6 +74128,23 @@ def test_registered_page_csv_renders_pending_target_rows():
     assert response["status"] == "200 OK"
     assert "pending-slug" in response["body"]
     assert "https://dic.nicovideo.jp/a/pending-slug" in response["body"]
+
+
+def test_registered_page_csv_keeps_full_canonical_url():
+    long_url = (
+        "https://dic.nicovideo.jp/a/this-is-a-very-long-canonical-url-"
+        "that-should-remain-complete-in-csv-output"
+    )
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([
+            _make_reg_row(canonical_url=long_url),
+        ]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered/csv")
+
+    assert response["status"] == "200 OK"
+    assert long_url in response["body"]
 
 
 def test_registered_csv_includes_csv_download_link_on_page():
@@ -74706,7 +76335,7 @@ FILE: cursor/web_app.py
 =============================
 import os
 import re
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from html import escape
 from pathlib import Path
 from urllib.parse import parse_qs, quote, unquote, urlencode, urlparse
@@ -74737,6 +76366,7 @@ DEFAULT_WEB_ACTION_LOG_PATH = os.environ.get(
 )
 DEFAULT_DOWNLOAD_FORMAT = "txt"
 DOWNLOAD_FORMATS = ("txt", "md", "csv")
+JST = timezone(timedelta(hours=9))
 
 UI_TEXTS = {
     "page_title": "NicoNicoPedia Archive Checker",
@@ -75733,6 +77363,45 @@ def _build_registered_url(
     return "/registered?" + urlencode(params)
 
 
+def _registered_column_class(key: str) -> str:
+    classes = {
+        "article_id": "col-article-id",
+        "article_type": "col-article-type",
+        "title": "col-title",
+        "canonical_url": "col-canonical-url",
+        "created_at": "col-created-at",
+        "saved_response_count": "col-saved-count",
+        "latest_scraped_max_res_no": "col-max-res",
+        "last_scraped_at": "col-last-scraped",
+    }
+    return classes.get(key, "")
+
+
+def _registered_align_class(key: str) -> str:
+    if key in {"title", "canonical_url"}:
+        return "align-left"
+    if key in {"article_id", "saved_response_count", "latest_scraped_max_res_no"}:
+        return "align-right"
+    return "align-center"
+
+
+def _format_registered_time(value: str | None) -> str:
+    if not value:
+        return ""
+    normalized = value.strip()
+    if not normalized:
+        return ""
+    if normalized.endswith("Z"):
+        normalized = normalized[:-1] + "+00:00"
+    try:
+        parsed = datetime.fromisoformat(normalized)
+    except ValueError:
+        return normalized
+    if parsed.tzinfo is None:
+        parsed = parsed.replace(tzinfo=timezone.utc)
+    return parsed.astimezone(JST).strftime("%Y-%m-%d %H:%M JST")
+
+
 def _registered_sort_header_cell(
     col: dict,
     sort_by: str,
@@ -75743,8 +77412,17 @@ def _registered_sort_header_cell(
 ) -> str:
     key = col["key"]
     label = escape(col["label"])
+    col_class = " ".join(
+        part
+        for part in (
+            _registered_column_class(key),
+            _registered_align_class(key),
+        )
+        if part
+    )
+    cls_attr = f' class="{col_class}"' if col_class else ""
     if key not in REGISTERED_SORT_ALLOWLIST:
-        return f"<th>{label}</th>"
+        return f"<th{cls_attr}>{label}</th>"
     if sort_by == key:
         next_order = "asc" if sort_order == "desc" else "desc"
         ind = " &#9660;" if sort_order == "desc" else " &#9650;"
@@ -75753,7 +77431,7 @@ def _registered_sort_header_cell(
         ind = ""
     url = escape(_build_registered_url(key, next_order, q, page, per_page))
     return (
-        f'<th><a href="{url}" class="sort-link">'
+        f'<th{cls_attr}><a href="{url}" class="sort-link">'
         f"{label}{ind}</a></th>"
     )
 
@@ -75765,17 +77443,30 @@ def _registered_row_html(row: dict) -> str:
     for col in REGISTERED_ARTICLE_COLUMNS:
         key = col["key"]
         val = row.get(key)
+        col_class = " ".join(
+            part
+            for part in (
+                _registered_column_class(key),
+                _registered_align_class(key),
+            )
+            if part
+        )
+        cls_attr = f' class="{col_class}"' if col_class else ""
         if key == "canonical_url" and val:
             safe_url = escape(str(val))
             cell = (
-                f'<td><a href="{safe_url}" target="_blank"'
+                f'<td{cls_attr}><a href="{safe_url}" target="_blank"'
                 f' rel="noopener noreferrer"'
-                f' class="ext-link">{safe_url}</a></td>'
+                f' class="ext-link truncated-url" title="{safe_url}">'
+                f"{safe_url}</a></td>"
             )
+        elif key in {"created_at", "last_scraped_at"}:
+            display = _format_registered_time(val)
+            cell = f"<td{cls_attr}>{escape(display)}</td>"
         elif val is None:
-            cell = "<td></td>"
+            cell = f"<td{cls_attr}></td>"
         else:
-            cell = f"<td>{escape(str(val))}</td>"
+            cell = f"<td{cls_attr}>{escape(str(val))}</td>"
         cells.append(cell)
     return f"<tr{cls}>{''.join(cells)}</tr>"
 
@@ -75858,7 +77549,10 @@ def _render_registered_list_page(query_params: dict) -> bytes:
         for col in REGISTERED_ARTICLE_COLUMNS
     )
     rows_html = "".join(_registered_row_html(r) for r in rows)
-    pagination = _registered_pagination_html(
+    top_pagination = _registered_pagination_html(
+        page, total_pages, sort_by, sort_order, search, per_page
+    )
+    bottom_pagination = _registered_pagination_html(
         page, total_pages, sort_by, sort_order, search, per_page
     )
 
@@ -75876,6 +77570,10 @@ def _render_registered_list_page(query_params: dict) -> bytes:
     sort_by_esc = escape(sort_by)
     sort_ord_esc = escape(sort_order)
     per_page_str = str(per_page)
+    refresh_url = escape(
+        _build_registered_url(sort_by, sort_order, search, page, per_page)
+    )
+    reset_url = "/registered"
 
     csv_params = urlencode({
         "sort_by": sort_by,
@@ -75885,13 +77583,6 @@ def _render_registered_list_page(query_params: dict) -> bytes:
         "per_page": per_page_str,
     })
     csv_url = escape(f"/registered/csv?{csv_params}")
-
-    clear_link = ""
-    if search:
-        cl_url = escape(
-            _build_registered_url(sort_by, sort_order, "", 1, per_page)
-        )
-        clear_link = f' <a href="{cl_url}" class="clear-link">Clear</a>'
 
     per_page_opts = "".join(
         f'<option value="{n}"'
@@ -75933,7 +77624,8 @@ def _render_registered_list_page(query_params: dict) -> bytes:
       border: 1px solid #d9ccb4;
       border-radius: 6px;
       font: inherit;
-      min-width: 180px;
+            min-width: 280px;
+            width: min(42vw, 30rem);
     }}
     button, .btn {{
       padding: 5px 14px;
@@ -75946,19 +77638,13 @@ def _render_registered_list_page(query_params: dict) -> bytes:
       text-decoration: none;
     }}
     button:hover, .btn:hover {{ background: #0d6560; }}
-    .clear-link {{
-      color: #6b7280;
-      font-size: 0.88rem;
-      text-decoration: none;
-    }}
-    .clear-link:hover {{ text-decoration: underline; }}
     select.per-page {{
       padding: 4px 8px;
       border: 1px solid #d9ccb4;
       border-radius: 6px;
       font: inherit;
     }}
-    .csv-link {{
+        .csv-link, .aux-link {{
       padding: 5px 12px;
       border: 1px solid #0f766e;
       border-radius: 6px;
@@ -75967,22 +77653,28 @@ def _render_registered_list_page(query_params: dict) -> bytes:
       font-size: 0.9rem;
       background: transparent;
     }}
-    .csv-link:hover {{ background: rgba(15, 118, 110, 0.08); }}
+        .csv-link:hover, .aux-link:hover {{
+            background: rgba(15, 118, 110, 0.08);
+        }}
+        .aux-link {{ border-color: #d9ccb4; color: #1f2430; }}
     table {{
       border-collapse: collapse;
       width: 100%;
+            table-layout: fixed;
       background: #fffaf2;
       border: 1px solid #d9ccb4;
       border-radius: 8px;
       overflow: hidden;
     }}
     th, td {{
-      text-align: left;
       padding: 8px 12px;
       border-bottom: 1px solid #e8dfc8;
-      word-break: break-word;
+            vertical-align: middle;
     }}
     th {{ background: #f0e9d8; font-weight: 700; }}
+        th.align-left, td.align-left {{ text-align: left; }}
+        th.align-center, td.align-center {{ text-align: center; }}
+        th.align-right, td.align-right {{ text-align: right; }}
     th a.sort-link {{
       color: #1f2430;
       text-decoration: none;
@@ -75992,7 +77684,33 @@ def _render_registered_list_page(query_params: dict) -> bytes:
     tr:last-child td {{ border-bottom: none; }}
     tr.not-scraped td {{ background: #fff8e6; }}
     a {{ color: #0f766e; }}
-    .ext-link {{ word-break: break-all; }}
+        .col-article-id {{ width: 9ch; }}
+        .col-article-type {{ width: 6ch; }}
+        .col-title {{ width: 21%; }}
+        .col-canonical-url {{ width: 13%; }}
+        .col-created-at, .col-last-scraped {{ width: 17ch; }}
+        .col-saved-count, .col-max-res {{ width: 11ch; }}
+        td.col-title {{
+            font-weight: 600;
+            white-space: normal;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+        }}
+        th.col-title {{ white-space: nowrap; }}
+        th.col-canonical-url,
+        td.col-canonical-url {{
+            white-space: nowrap;
+            overflow: hidden;
+        }}
+        .ext-link.truncated-url {{
+            display: block;
+            width: 100%;
+            max-width: 100%;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            word-break: normal;
+        }}
     .pagination {{
       display: flex;
       flex-wrap: wrap;
@@ -76000,6 +77718,8 @@ def _render_registered_list_page(query_params: dict) -> bytes:
       align-items: center;
       margin-top: 16px;
     }}
+        .pagination.top {{ margin: 0 0 12px; }}
+        .pagination.bottom {{ margin-top: 16px; }}
     .page-btn {{
       padding: 4px 10px;
       border: 1px solid #d9ccb4;
@@ -76027,9 +77747,14 @@ def _render_registered_list_page(query_params: dict) -> bytes:
       <input type="hidden" name="sort_by" value="{sort_by_esc}">
       <input type="hidden" name="sort_order" value="{sort_ord_esc}">
       <input type="hidden" name="per_page" value="{per_page_str}">
-      <input type="text" name="q" value="{search_esc}"
-              placeholder="Search title, article ID, or canonical URL&hellip;">
-      <button type="submit">Search</button>{clear_link}
+            <input
+                type="text"
+                name="q"
+                value="{search_esc}"
+                class="registered-search-input"
+                placeholder="Search title, article ID, or canonical URL&hellip;"
+            >
+            <button type="submit">Search</button>
     </form>
     <form method="get" action="/registered">
       <input type="hidden" name="q" value="{search_esc}">
@@ -76040,7 +77765,10 @@ def _render_registered_list_page(query_params: dict) -> bytes:
               onchange="this.form.submit()">{per_page_opts}</select>
     </form>
     <a href="{csv_url}" class="csv-link">&#8595; CSV (this page)</a>
+        <a href="{refresh_url}" class="aux-link">Refresh</a>
+        <a href="{reset_url}" class="aux-link">Reset</a>
   </div>
+    {top_pagination.replace('class="pagination"', 'class="pagination top"')}
   <table>
     <thead>
       <tr>{header_cells}</tr>
@@ -76049,7 +77777,7 @@ def _render_registered_list_page(query_params: dict) -> bytes:
 {rows_html}
     </tbody>
   </table>
-  {pagination}
+    {bottom_pagination.replace('class="pagination"', 'class="pagination bottom"')}
 </body>
 </html>
 """
