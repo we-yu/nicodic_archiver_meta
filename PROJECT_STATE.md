@@ -2061,3 +2061,41 @@ Near-term task candidates are tracked in:
 
 - META/NEXT_TASK_CANDIDATES.md
 
+## SubTask-BugFix completed: Registered Articles visible-field search
+
+Registered Articles search was corrected so the normal search box targets only
+visible user-facing fields:
+
+- Article ID
+- Title
+
+Canonical URL, dates, Saved Responses, and Max Res No are not direct search
+targets.
+
+This fixes confusing results where Japanese queries could match hidden
+canonical URL encodings instead of visible titles.
+
+Validation:
+
+- ./validate_helix.sh passed before adoption.
+- Browser smoke was performed against a temporary Copilot Web container using
+  runtime data.
+- Post-merge ./compare_helix.sh --all passed.
+- Post-merge ./validate_helix.sh passed.
+- Final observed validation:
+  - Copilot: 397 tests passed
+  - Cursor: 397 tests passed
+
+Codex trial note:
+
+- This was used as a small Codex single-editor product BugFix trial.
+- Codex implementation was useful, but it incorrectly suggested host Python /
+  venv-style validation commands.
+- Future AGENTS.md should explicitly prefer existing project scripts such as
+  validate_helix.sh and runtime_exec.sh over ad-hoc host Python / venv
+  workflows unless explicitly instructed.
+
+Runtime reflection:
+
+- Pending until product main is reflected to runtime.
+

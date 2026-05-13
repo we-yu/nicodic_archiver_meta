@@ -3061,6 +3061,44 @@ Near-term task candidates are tracked in:
 
 - META/NEXT_TASK_CANDIDATES.md
 
+## SubTask-BugFix completed: Registered Articles visible-field search
+
+Registered Articles search was corrected so the normal search box targets only
+visible user-facing fields:
+
+- Article ID
+- Title
+
+Canonical URL, dates, Saved Responses, and Max Res No are not direct search
+targets.
+
+This fixes confusing results where Japanese queries could match hidden
+canonical URL encodings instead of visible titles.
+
+Validation:
+
+- ./validate_helix.sh passed before adoption.
+- Browser smoke was performed against a temporary Copilot Web container using
+  runtime data.
+- Post-merge ./compare_helix.sh --all passed.
+- Post-merge ./validate_helix.sh passed.
+- Final observed validation:
+  - Copilot: 397 tests passed
+  - Cursor: 397 tests passed
+
+Codex trial note:
+
+- This was used as a small Codex single-editor product BugFix trial.
+- Codex implementation was useful, but it incorrectly suggested host Python /
+  venv-style validation commands.
+- Future AGENTS.md should explicitly prefer existing project scripts such as
+  validate_helix.sh and runtime_exec.sh over ad-hoc host Python / venv
+  workflows unless explicitly instructed.
+
+Runtime reflection:
+
+- Pending until product main is reflected to runtime.
+
 
 
 ===== WORKSPACE =====
@@ -5650,6 +5688,124 @@ After closeout:
 - Runtime checkout is on adopted main.
 - Runtime Web reflects the adopted UI polish.
 - Root meta review memory records this task.
+
+
+
+===== REVIEW LOG: META/review_log/SubTask_registered_search_visible_fields_adoption.md =====
+# SubTask-BugFix: Registered Articles visible-field search adoption
+
+## Summary
+
+Registered Articles search was corrected so the normal search box matches only
+visible, user-understandable fields:
+
+- Article ID
+- Title
+
+Canonical URL, Created At, Last Scraped, Saved Responses, and Max Res No are no
+longer direct search targets.
+
+This fixes confusing search results where a Japanese query such as "艦" could
+return rows whose visible Title did not contain the searched term, likely due to
+hidden canonical URL or encoded URL matching.
+
+## Implementation summary
+
+Adopted behavior:
+
+- Search matches visible Article ID by partial text match.
+- Search matches visible Title by partial text match.
+- Canonical URL-only matches are excluded.
+- SQL LIKE wildcard characters in user input are treated literally.
+- Percent sign, underscore, and backslash are escaped for LIKE.
+- Legacy/pending encoded identity rows are searched by visible display values,
+  not raw DB encoded values.
+
+## Codex trial note
+
+This was the first small product BugFix attempted as a Codex IDE/Copilot style
+single-editor trial.
+
+Outcome:
+
+- Codex produced a mostly correct bounded implementation.
+- A focused reprompt was needed after validation found legacy/pending encoded
+  identity failures.
+- After the focused fix, Human validation passed.
+- Codex suggested host Python / venv-style validation commands, which were
+  rejected because this project validates through existing project scripts and
+  container-aware workflows.
+
+Process lesson:
+
+- Codex is usable for bounded product fixes.
+- Codex still needs explicit project-environment guidance.
+- Future AGENTS.md should state that host Python / venv test suggestions are
+  not the default workflow and existing scripts such as validate_helix.sh and
+  runtime_exec.sh should be preferred unless explicitly told otherwise.
+
+## Validation
+
+Human validation before merge:
+
+- ./validate_helix.sh
+- Copilot branch: PASS
+- Cursor main: PASS
+- Copilot branch collected 397 tests and passed all tests.
+- Cursor main collected 394 tests and passed all tests.
+
+Post-merge validation:
+
+- ./compare_helix.sh --all: PASS
+- ./validate_helix.sh: PASS
+- Copilot main collected 397 tests and passed all tests.
+- Cursor main collected 397 tests and passed all tests.
+
+## Browser smoke
+
+Human launched the Copilot branch as a temporary Web container using runtime
+data and checked Registered Articles behavior in a browser.
+
+Confirmed:
+
+- /registered rendered.
+- q=99 matched visible Article ID and visible Title values.
+- Search behavior appeared consistent with the new visible-field semantics.
+- The search placeholder was corrected to remove Canonical URL from the visible
+  search description.
+- The temporary Web container and image were removed after smoke.
+
+## Files changed in product repo
+
+- archive_read.py
+- web_app.py
+- tests/test_archive_read.py
+- SubTask-registered-search-visible-fields_report.txt
+
+Note:
+
+- tests/test_web_app.py was not changed in the final product diff.
+- web_app.py was changed only for the visible search placeholder wording.
+
+## Product commit / merge
+
+Product branch:
+
+- subtask-bugfix-registered-search-visible-fields-codex
+
+Product main merge:
+
+- merged on GitHub
+- product main commit observed after merge: ca12fe7
+
+## Runtime note
+
+Runtime reflection is separate.
+
+No runtime DB, cron, or docker production changes were part of the product
+implementation itself.
+
+Runtime reflection remains pending until the runtime checkout is safely updated.
 
 
 
@@ -11373,7 +11529,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Tue May 12 16:29:05 UTC 2026
+generated: Wed May 13 16:53:17 UTC 2026
 mode: full
 
 
@@ -11971,6 +12127,20 @@ The purpose is:
 If asked to provide an alternative implementation, intentionally follow the
 requested strategy rather than converging to the same solution.
 
+## Project validation workflow notes
+
+Do not assume host Python, local venv, or ad-hoc pytest is the default
+validation workflow.
+
+Prefer existing project scripts and container-aware helpers when available:
+
+- ./validate_helix.sh
+- ./compare_helix.sh
+- ./collect_task_review.sh
+- ./runtime_exec.sh for runtime-facing Python/DB checks
+
+Do not suggest creating a new virtual environment or running host-local Python
+tests unless the Human explicitly asks for that workflow.
 
 
 =============================
@@ -16493,6 +16663,67 @@ Follow-up layout tweak
 
 
 =============================
+FILE: copilot/SubTask-registered-search-visible-fields_report.txt
+=============================
+Summary
+- Registered Articles search now matches only visible Title and Article ID
+  fields.
+- Canonical URL-only matches were removed from Registered Articles search.
+- User-entered LIKE wildcard characters such as % and _ are now treated as
+  literal text.
+- SQL search now uses visible-value helpers for Article ID and Title so legacy
+  URL-encoded pending/article identities follow the same semantics as the
+  rendered table.
+
+Files touched
+- archive_read.py
+- tests/test_archive_read.py
+
+Tests added or updated
+- Updated Registered Articles search coverage so canonical URL-only hits no
+  longer match.
+- Added coverage for visible Title and Article ID partial-text search,
+  including a Japanese visible-title term.
+- Added coverage for literal % and _ handling in search input.
+- Updated encoded-term search expectations to match visible-field-only search.
+
+Validation attempted or not attempted
+- Input validation context: user reported 3 failing tests in
+  tests/test_archive_read.py around legacy/pending URL-encoded identity search.
+- Executable validation: Not run. A focused pytest run was attempted but the
+  tool execution was skipped.
+- Static inspection only: editor error inspection plus manual review of touched
+  diffs, line lengths, and EOF state.
+
+Known limitations
+- Visible-field search is limited to Title and Article ID only.
+- Registered Articles sorting, pagination, CSV export, layout, and Max Res No
+  semantics were intentionally not changed.
+- This update does not include a fresh executable confirmation of the previously
+  reported 3 failing tests.
+
+Editor AI model/tool information
+- GitHub Copilot using GPT-5.4.
+- Tools used: workspace file edits, workspace search, git change inspection,
+  and editor static error inspection.
+Human validation
+- Human ran root ./validate_helix.sh after the focused fix.
+- Result: copilot PASS, cursor PASS.
+- Copilot branch collected 397 tests and passed all tests.
+- Cursor main collected 394 tests and passed all tests.
+- Codex suggested host Python / venv-style validation commands, but those were rejected because this project validates through existing container/script workflows.
+
+Browser smoke
+- Human launched the Copilot branch as a temporary Web container on 127.0.0.1:58043 using runtime data.
+- Human confirmed /registered rendered correctly in the browser.
+- Human confirmed q=99 matches visible Article ID and visible Title values.
+- Human confirmed the temporary Web container and image were removed after smoke.
+
+Follow-up wording fix
+- Updated the Registered Articles search placeholder to remove canonical URL from the visible search description, because search now intentionally targets only visible Title and Article ID.
+
+
+=============================
 FILE: copilot/SubTask-registered-target-pending-list_report.txt
 =============================
 SubTask: registered-target-pending-list
@@ -16603,7 +16834,7 @@ from datetime import datetime, timezone
 from io import StringIO
 import sqlite3
 from pathlib import Path
-from urllib.parse import quote, unquote, urlparse
+from urllib.parse import unquote, urlparse
 
 from storage import DEFAULT_DB_PATH
 
@@ -16619,9 +16850,8 @@ REGISTERED_SORT_ALLOWLIST = frozenset({
     "last_scraped_at",
 })
 
-# Search target columns. Add entries here to extend user-facing search
-# without scattering conditions across query/render code.
-REGISTERED_SEARCH_COLUMNS = ("title", "article_id", "canonical_url")
+# Search only fields users can understand from the visible table.
+REGISTERED_SEARCH_COLUMNS = ("title", "article_id")
 
 DEFAULT_REGISTERED_SORT_BY = "created_at"
 DEFAULT_REGISTERED_SORT_ORDER = "desc"
@@ -17393,21 +17623,44 @@ def _registered_order_by_clause(sort_by, order_dir):
 
 def _registered_search_sql_expr(column):
     mapping = {
-        "title": "rt.matched_title",
-        "article_id": "rt.target_article_id",
-        "canonical_url": "rt.target_canonical_url",
+        "title": (
+            "registered_visible_title("
+            "rt.target_article_id, rt.target_canonical_url, rt.matched_title)"
+        ),
+        "article_id": "registered_visible_article_id(rt.target_article_id)",
     }
     return mapping[column]
 
 
-def _registered_search_variants(term):
-    """Return distinct search terms including an encoded variant."""
-    variants = []
-    for candidate in (term, quote(term, safe="")):
-        if not candidate or candidate in variants:
-            continue
-        variants.append(candidate)
-    return variants
+def _escape_registered_like_term(term):
+    """Escape LIKE wildcard characters so user input is treated literally."""
+    escaped = term.replace("\\", "\\\\")
+    escaped = escaped.replace("%", "\\%")
+    return escaped.replace("_", "\\_")
+
+
+def _registered_visible_article_id(value):
+    return unquote(value or "").strip()
+
+
+def _registered_visible_title(article_id, canonical_url, matched_title):
+    title = (matched_title or "").strip()
+    if title:
+        return title
+    return _registered_fallback_title(article_id, canonical_url)
+
+
+def _register_registered_search_functions(conn):
+    conn.create_function(
+        "registered_visible_article_id",
+        1,
+        _registered_visible_article_id,
+    )
+    conn.create_function(
+        "registered_visible_title",
+        3,
+        _registered_visible_title,
+    )
 
 
 def _registered_row_to_dict(row):
@@ -17464,6 +17717,7 @@ def query_registered_articles(
         return {"rows": [], "total": 0, "page": page, "per_page": per_page}
 
     try:
+        _register_registered_search_functions(conn)
         has_last_scraped = _registered_has_last_scraped_column(conn)
         has_target_title = _registered_has_target_title_column(conn)
         matched_last_scraped_expr = (
@@ -17516,17 +17770,15 @@ def query_registered_articles(
         where_params: list = []
         where_sql = ""
         if search:
-            search_variants = _registered_search_variants(search)
             conds = []
             for col in REGISTERED_SEARCH_COLUMNS:
                 expr = _registered_search_sql_expr(col)
-                for _ in search_variants:
-                    conds.append(f"{expr} LIKE ?")
+                conds.append(f"{expr} LIKE ? ESCAPE '\\'")
             where_sql = "WHERE (" + " OR ".join(conds) + ")"
-            where_params = []
-            for _ in REGISTERED_SEARCH_COLUMNS:
-                for variant in search_variants:
-                    where_params.append(f"%{variant}%")
+            escaped_search = _escape_registered_like_term(search)
+            where_params = [
+                f"%{escaped_search}%" for _ in REGISTERED_SEARCH_COLUMNS
+            ]
 
         count_sql = base_cte_sql + f"""
             SELECT COUNT(*)
@@ -26905,7 +27157,7 @@ def test_query_registered_articles_search_finds_pending_target_by_article_id(
     assert result["rows"][0]["article_id"] == "8880001"
 
 
-def test_query_registered_articles_search_finds_pending_target_by_url(
+def test_query_registered_articles_search_does_not_match_canonical_url_only(
     tmp_path,
     monkeypatch,
 ):
@@ -26917,8 +27169,7 @@ def test_query_registered_articles_search_finds_pending_target_by_url(
 
     result = query_registered_articles(search="dic.nicovideo.jp/a/pending-slug")
 
-    assert result["total"] == 1
-    assert result["rows"][0]["article_id"] == "8880001"
+    assert result["total"] == 0
 
 
 def test_query_registered_articles_uses_target_created_at_for_default_order(
@@ -26998,6 +27249,88 @@ def test_query_registered_articles_filters_by_search_article_id(
 
     assert result["total"] == 1
     assert result["rows"][0]["article_id"] == "12345"
+
+
+def test_query_registered_articles_search_matches_visible_title_and_article_id(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="991100",
+        title="Pending Display Title",
+        canonical_url="https://dic.nicovideo.jp/a/pending-a",
+    )
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="880001",
+        title="Title 99 Visible",
+        canonical_url="https://dic.nicovideo.jp/a/pending-b",
+        created_at="2026-02-02T00:00:00+00:00",
+    )
+
+    result = query_registered_articles(search="99", paginate=False)
+
+    assert [row["article_id"] for row in result["rows"]] == [
+        "880001",
+        "991100",
+    ]
+
+
+def test_query_registered_articles_search_matches_visible_japanese_title(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="771100",
+        title="連合艦隊これくしょん",
+        canonical_url="https://dic.nicovideo.jp/a/hidden-encoded-match",
+    )
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="771101",
+        title="連合船隊これくしょん",
+        canonical_url="https://dic.nicovideo.jp/a/%E8%89%A6-only-hit",
+        created_at="2026-02-02T00:00:00+00:00",
+    )
+
+    result = query_registered_articles(search="艦", paginate=False)
+
+    assert [row["article_id"] for row in result["rows"]] == ["771100"]
+
+
+def test_query_registered_articles_search_escapes_like_wildcards(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="wild-1",
+        article_type="id",
+        title="Rate 100%_艦 Visible",
+        canonical_url="https://dic.nicovideo.jp/id/wild-1",
+    )
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="plain-2",
+        article_type="id",
+        title="Rate 100X艦 Visible",
+        canonical_url="https://dic.nicovideo.jp/id/plain-2",
+        created_at="2026-02-02T00:00:00+00:00",
+    )
+
+    percent_result = query_registered_articles(search="%", paginate=False)
+    underscore_result = query_registered_articles(search="_", paginate=False)
+
+    assert [row["article_id"] for row in percent_result["rows"]] == ["wild-1"]
+    assert [row["article_id"] for row in underscore_result["rows"]] == ["wild-1"]
 
 
 def test_query_registered_articles_sorts_article_id_numerically(
@@ -27439,7 +27772,7 @@ def test_query_registered_articles_decodes_url_encoded_article_id(
     )
 
 
-def test_query_registered_articles_search_by_raw_encoded_id_still_works(
+def test_query_registered_articles_search_by_raw_encoded_id_no_longer_matches(
     tmp_path,
     monkeypatch,
 ):
@@ -27447,8 +27780,7 @@ def test_query_registered_articles_search_by_raw_encoded_id_still_works(
 
     result = query_registered_articles(search=_ENCODED_JP)
 
-    assert result["total"] == 1
-    assert result["rows"][0]["article_id"] == _DECODED_JP
+    assert result["total"] == 0
 
 
 def test_query_registered_articles_search_finds_encoded_pending_target_by_decoded_term(
@@ -27464,7 +27796,7 @@ def test_query_registered_articles_search_finds_encoded_pending_target_by_decode
     assert result["rows"][0]["title"] == _DECODED_JP
 
 
-def test_query_registered_articles_search_finds_encoded_pending_target_by_encoded_term(
+def test_query_registered_articles_search_encoded_pending_by_encoded_term_no_match(
     tmp_path,
     monkeypatch,
 ):
@@ -27472,8 +27804,7 @@ def test_query_registered_articles_search_finds_encoded_pending_target_by_encode
 
     result = query_registered_articles(search=_ENCODED_JP, paginate=False)
 
-    assert result["total"] == 1
-    assert result["rows"][0]["article_id"] == _DECODED_JP
+    assert result["total"] == 0
 
 
 def test_query_registered_articles_saved_title_search_still_works_with_search_variants(
@@ -40001,7 +40332,7 @@ def _render_registered_list_page(query_params: dict) -> bytes:
                 name="q"
                 value="{search_esc}"
                 class="registered-search-input"
-                placeholder="Search title, article ID, or canonical URL&hellip;"
+                placeholder="Search title or article ID"
             >
             <button type="submit">Search</button>
     </form>
@@ -40904,6 +41235,67 @@ Follow-up layout tweak
 
 
 =============================
+FILE: cursor/SubTask-registered-search-visible-fields_report.txt
+=============================
+Summary
+- Registered Articles search now matches only visible Title and Article ID
+  fields.
+- Canonical URL-only matches were removed from Registered Articles search.
+- User-entered LIKE wildcard characters such as % and _ are now treated as
+  literal text.
+- SQL search now uses visible-value helpers for Article ID and Title so legacy
+  URL-encoded pending/article identities follow the same semantics as the
+  rendered table.
+
+Files touched
+- archive_read.py
+- tests/test_archive_read.py
+
+Tests added or updated
+- Updated Registered Articles search coverage so canonical URL-only hits no
+  longer match.
+- Added coverage for visible Title and Article ID partial-text search,
+  including a Japanese visible-title term.
+- Added coverage for literal % and _ handling in search input.
+- Updated encoded-term search expectations to match visible-field-only search.
+
+Validation attempted or not attempted
+- Input validation context: user reported 3 failing tests in
+  tests/test_archive_read.py around legacy/pending URL-encoded identity search.
+- Executable validation: Not run. A focused pytest run was attempted but the
+  tool execution was skipped.
+- Static inspection only: editor error inspection plus manual review of touched
+  diffs, line lengths, and EOF state.
+
+Known limitations
+- Visible-field search is limited to Title and Article ID only.
+- Registered Articles sorting, pagination, CSV export, layout, and Max Res No
+  semantics were intentionally not changed.
+- This update does not include a fresh executable confirmation of the previously
+  reported 3 failing tests.
+
+Editor AI model/tool information
+- GitHub Copilot using GPT-5.4.
+- Tools used: workspace file edits, workspace search, git change inspection,
+  and editor static error inspection.
+Human validation
+- Human ran root ./validate_helix.sh after the focused fix.
+- Result: copilot PASS, cursor PASS.
+- Copilot branch collected 397 tests and passed all tests.
+- Cursor main collected 394 tests and passed all tests.
+- Codex suggested host Python / venv-style validation commands, but those were rejected because this project validates through existing container/script workflows.
+
+Browser smoke
+- Human launched the Copilot branch as a temporary Web container on 127.0.0.1:58043 using runtime data.
+- Human confirmed /registered rendered correctly in the browser.
+- Human confirmed q=99 matches visible Article ID and visible Title values.
+- Human confirmed the temporary Web container and image were removed after smoke.
+
+Follow-up wording fix
+- Updated the Registered Articles search placeholder to remove canonical URL from the visible search description, because search now intentionally targets only visible Title and Article ID.
+
+
+=============================
 FILE: cursor/SubTask-registered-target-pending-list_report.txt
 =============================
 SubTask: registered-target-pending-list
@@ -41014,7 +41406,7 @@ from datetime import datetime, timezone
 from io import StringIO
 import sqlite3
 from pathlib import Path
-from urllib.parse import quote, unquote, urlparse
+from urllib.parse import unquote, urlparse
 
 from storage import DEFAULT_DB_PATH
 
@@ -41030,9 +41422,8 @@ REGISTERED_SORT_ALLOWLIST = frozenset({
     "last_scraped_at",
 })
 
-# Search target columns. Add entries here to extend user-facing search
-# without scattering conditions across query/render code.
-REGISTERED_SEARCH_COLUMNS = ("title", "article_id", "canonical_url")
+# Search only fields users can understand from the visible table.
+REGISTERED_SEARCH_COLUMNS = ("title", "article_id")
 
 DEFAULT_REGISTERED_SORT_BY = "created_at"
 DEFAULT_REGISTERED_SORT_ORDER = "desc"
@@ -41804,21 +42195,44 @@ def _registered_order_by_clause(sort_by, order_dir):
 
 def _registered_search_sql_expr(column):
     mapping = {
-        "title": "rt.matched_title",
-        "article_id": "rt.target_article_id",
-        "canonical_url": "rt.target_canonical_url",
+        "title": (
+            "registered_visible_title("
+            "rt.target_article_id, rt.target_canonical_url, rt.matched_title)"
+        ),
+        "article_id": "registered_visible_article_id(rt.target_article_id)",
     }
     return mapping[column]
 
 
-def _registered_search_variants(term):
-    """Return distinct search terms including an encoded variant."""
-    variants = []
-    for candidate in (term, quote(term, safe="")):
-        if not candidate or candidate in variants:
-            continue
-        variants.append(candidate)
-    return variants
+def _escape_registered_like_term(term):
+    """Escape LIKE wildcard characters so user input is treated literally."""
+    escaped = term.replace("\\", "\\\\")
+    escaped = escaped.replace("%", "\\%")
+    return escaped.replace("_", "\\_")
+
+
+def _registered_visible_article_id(value):
+    return unquote(value or "").strip()
+
+
+def _registered_visible_title(article_id, canonical_url, matched_title):
+    title = (matched_title or "").strip()
+    if title:
+        return title
+    return _registered_fallback_title(article_id, canonical_url)
+
+
+def _register_registered_search_functions(conn):
+    conn.create_function(
+        "registered_visible_article_id",
+        1,
+        _registered_visible_article_id,
+    )
+    conn.create_function(
+        "registered_visible_title",
+        3,
+        _registered_visible_title,
+    )
 
 
 def _registered_row_to_dict(row):
@@ -41875,6 +42289,7 @@ def query_registered_articles(
         return {"rows": [], "total": 0, "page": page, "per_page": per_page}
 
     try:
+        _register_registered_search_functions(conn)
         has_last_scraped = _registered_has_last_scraped_column(conn)
         has_target_title = _registered_has_target_title_column(conn)
         matched_last_scraped_expr = (
@@ -41927,17 +42342,15 @@ def query_registered_articles(
         where_params: list = []
         where_sql = ""
         if search:
-            search_variants = _registered_search_variants(search)
             conds = []
             for col in REGISTERED_SEARCH_COLUMNS:
                 expr = _registered_search_sql_expr(col)
-                for _ in search_variants:
-                    conds.append(f"{expr} LIKE ?")
+                conds.append(f"{expr} LIKE ? ESCAPE '\\'")
             where_sql = "WHERE (" + " OR ".join(conds) + ")"
-            where_params = []
-            for _ in REGISTERED_SEARCH_COLUMNS:
-                for variant in search_variants:
-                    where_params.append(f"%{variant}%")
+            escaped_search = _escape_registered_like_term(search)
+            where_params = [
+                f"%{escaped_search}%" for _ in REGISTERED_SEARCH_COLUMNS
+            ]
 
         count_sql = base_cte_sql + f"""
             SELECT COUNT(*)
@@ -65262,7 +65675,7 @@ def test_query_registered_articles_search_finds_pending_target_by_article_id(
     assert result["rows"][0]["article_id"] == "8880001"
 
 
-def test_query_registered_articles_search_finds_pending_target_by_url(
+def test_query_registered_articles_search_does_not_match_canonical_url_only(
     tmp_path,
     monkeypatch,
 ):
@@ -65274,8 +65687,7 @@ def test_query_registered_articles_search_finds_pending_target_by_url(
 
     result = query_registered_articles(search="dic.nicovideo.jp/a/pending-slug")
 
-    assert result["total"] == 1
-    assert result["rows"][0]["article_id"] == "8880001"
+    assert result["total"] == 0
 
 
 def test_query_registered_articles_uses_target_created_at_for_default_order(
@@ -65355,6 +65767,88 @@ def test_query_registered_articles_filters_by_search_article_id(
 
     assert result["total"] == 1
     assert result["rows"][0]["article_id"] == "12345"
+
+
+def test_query_registered_articles_search_matches_visible_title_and_article_id(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="991100",
+        title="Pending Display Title",
+        canonical_url="https://dic.nicovideo.jp/a/pending-a",
+    )
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="880001",
+        title="Title 99 Visible",
+        canonical_url="https://dic.nicovideo.jp/a/pending-b",
+        created_at="2026-02-02T00:00:00+00:00",
+    )
+
+    result = query_registered_articles(search="99", paginate=False)
+
+    assert [row["article_id"] for row in result["rows"]] == [
+        "880001",
+        "991100",
+    ]
+
+
+def test_query_registered_articles_search_matches_visible_japanese_title(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="771100",
+        title="連合艦隊これくしょん",
+        canonical_url="https://dic.nicovideo.jp/a/hidden-encoded-match",
+    )
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="771101",
+        title="連合船隊これくしょん",
+        canonical_url="https://dic.nicovideo.jp/a/%E8%89%A6-only-hit",
+        created_at="2026-02-02T00:00:00+00:00",
+    )
+
+    result = query_registered_articles(search="艦", paginate=False)
+
+    assert [row["article_id"] for row in result["rows"]] == ["771100"]
+
+
+def test_query_registered_articles_search_escapes_like_wildcards(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="wild-1",
+        article_type="id",
+        title="Rate 100%_艦 Visible",
+        canonical_url="https://dic.nicovideo.jp/id/wild-1",
+    )
+    _seed_pending_target(
+        tmp_path,
+        monkeypatch,
+        article_id="plain-2",
+        article_type="id",
+        title="Rate 100X艦 Visible",
+        canonical_url="https://dic.nicovideo.jp/id/plain-2",
+        created_at="2026-02-02T00:00:00+00:00",
+    )
+
+    percent_result = query_registered_articles(search="%", paginate=False)
+    underscore_result = query_registered_articles(search="_", paginate=False)
+
+    assert [row["article_id"] for row in percent_result["rows"]] == ["wild-1"]
+    assert [row["article_id"] for row in underscore_result["rows"]] == ["wild-1"]
 
 
 def test_query_registered_articles_sorts_article_id_numerically(
@@ -65796,7 +66290,7 @@ def test_query_registered_articles_decodes_url_encoded_article_id(
     )
 
 
-def test_query_registered_articles_search_by_raw_encoded_id_still_works(
+def test_query_registered_articles_search_by_raw_encoded_id_no_longer_matches(
     tmp_path,
     monkeypatch,
 ):
@@ -65804,8 +66298,7 @@ def test_query_registered_articles_search_by_raw_encoded_id_still_works(
 
     result = query_registered_articles(search=_ENCODED_JP)
 
-    assert result["total"] == 1
-    assert result["rows"][0]["article_id"] == _DECODED_JP
+    assert result["total"] == 0
 
 
 def test_query_registered_articles_search_finds_encoded_pending_target_by_decoded_term(
@@ -65821,7 +66314,7 @@ def test_query_registered_articles_search_finds_encoded_pending_target_by_decode
     assert result["rows"][0]["title"] == _DECODED_JP
 
 
-def test_query_registered_articles_search_finds_encoded_pending_target_by_encoded_term(
+def test_query_registered_articles_search_encoded_pending_by_encoded_term_no_match(
     tmp_path,
     monkeypatch,
 ):
@@ -65829,8 +66322,7 @@ def test_query_registered_articles_search_finds_encoded_pending_target_by_encode
 
     result = query_registered_articles(search=_ENCODED_JP, paginate=False)
 
-    assert result["total"] == 1
-    assert result["rows"][0]["article_id"] == _DECODED_JP
+    assert result["total"] == 0
 
 
 def test_query_registered_articles_saved_title_search_still_works_with_search_variants(
@@ -78358,7 +78850,7 @@ def _render_registered_list_page(query_params: dict) -> bytes:
                 name="q"
                 value="{search_esc}"
                 class="registered-search-input"
-                placeholder="Search title, article ID, or canonical URL&hellip;"
+                placeholder="Search title or article ID"
             >
             <button type="submit">Search</button>
     </form>

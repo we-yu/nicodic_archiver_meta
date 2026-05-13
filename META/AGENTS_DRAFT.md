@@ -115,3 +115,17 @@ The purpose is:
 If asked to provide an alternative implementation, intentionally follow the
 requested strategy rather than converging to the same solution.
 
+## Project validation workflow notes
+
+Do not assume host Python, local venv, or ad-hoc pytest is the default
+validation workflow.
+
+Prefer existing project scripts and container-aware helpers when available:
+
+- ./validate_helix.sh
+- ./compare_helix.sh
+- ./collect_task_review.sh
+- ./runtime_exec.sh for runtime-facing Python/DB checks
+
+Do not suggest creating a new virtual environment or running host-local Python
+tests unless the Human explicitly asks for that workflow.
