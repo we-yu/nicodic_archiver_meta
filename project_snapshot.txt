@@ -11580,7 +11580,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Sat May 16 16:28:18 UTC 2026
+generated: Sat May 16 16:47:15 UTC 2026
 mode: full
 
 
@@ -14119,6 +14119,7 @@ Use `META/` files as targeted supplements, not as a default full read.
 | `META/DEVELOPMENT_ENVIRONMENT.md` | Development environment reference for the workspace. | Reference | Read when environment assumptions matter. | Yes, as environment facts change. |
 | Root helper wrappers such as `export_snapshot.sh`, `publish_snapshots.sh`, `compare_helix.sh`, `validate_helix.sh`, `collect_task_review.sh`, `prepare_task_evidence.sh`, `new_task_branches.sh`, `export_open_issues.sh` | Thin root entrypoints for recurring workflow operations. | Operational helper layer | Read or run when performing the corresponding workflow task from the root repo. | Yes, but treat behavior changes as workflow changes, not casual cleanup. |
 | `META/scripts/` | Implementations behind root helper wrappers. Includes snapshot and review export logic. | Operational helper implementation | Read when a wrapper is insufficient and the implementation behavior matters. | Yes, but only for intentional workflow/tooling changes. |
+| `META/scripts/append_project_state_block.py` | Small helper for safely appending headed blocks to `PROJECT_STATE.md` from standard input. Skips duplicate headings by default. | Operational helper implementation | Use when recording bounded root/meta state updates. Regenerate snapshots after use. | Yes, when PROJECT_STATE append practice changes. |
 
 ## Architecture and schema reference
 
@@ -14829,6 +14830,135 @@ Follow-up:
 - Re-enable runtime cron with bounded one-shot duration.
 - Add a later task to review ignore-list behavior for max-BBS-response-count
   challenge pages.
+
+
+
+=============================
+FILE: META/scripts/append_project_state_block.py
+=============================
+#!/usr/bin/env python3
+"""Safely append a headed Markdown block to PROJECT_STATE.md.
+
+This helper is intentionally small and root-meta specific.
+
+Usage example:
+
+  python3 META/scripts/append_project_state_block.py --heading "Example" <<'EOF'
+  Body text.
+  EOF
+
+If the target file already contains the normalized heading, the helper exits
+successfully without modifying the file.
+"""
+
+from __future__ import annotations
+
+import argparse
+import sys
+from pathlib import Path
+
+
+DEFAULT_TARGET = Path("PROJECT_STATE.md")
+
+
+def normalize_heading(raw_heading: str) -> str:
+    heading = raw_heading.strip()
+    if not heading:
+        raise ValueError("heading must not be empty")
+    if heading.startswith("#"):
+        return heading
+    return f"## {heading}"
+
+
+def read_stdin_block() -> str:
+    block = sys.stdin.read().strip()
+    if not block:
+        raise ValueError("stdin block must not be empty")
+    return block
+
+
+def build_block(marker_heading: str, block: str) -> str:
+    if marker_heading not in block:
+        return f"{marker_heading}\n\n{block.strip()}\n"
+    return block.strip() + "\n"
+
+
+def append_block(
+    target_path: Path,
+    marker_heading: str,
+    block: str,
+    *,
+    allow_duplicate: bool,
+    dry_run: bool,
+) -> str:
+    text = target_path.read_text(encoding="utf-8")
+
+    if not allow_duplicate and marker_heading in text:
+        return "already_present"
+
+    append_text = build_block(marker_heading, block)
+    new_text = text.rstrip() + "\n\n" + append_text
+
+    if dry_run:
+        return "would_append"
+
+    target_path.write_text(new_text, encoding="utf-8")
+    return "appended"
+
+
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description="Safely append a headed block to PROJECT_STATE.md.",
+    )
+    parser.add_argument(
+        "--heading",
+        required=True,
+        help="Heading used as the duplicate-detection marker.",
+    )
+    parser.add_argument(
+        "--target",
+        default=str(DEFAULT_TARGET),
+        help="Target Markdown file. Defaults to PROJECT_STATE.md.",
+    )
+    parser.add_argument(
+        "--allow-duplicate",
+        action="store_true",
+        help="Append even when the heading already exists.",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Report what would happen without writing.",
+    )
+    return parser.parse_args()
+
+
+def main() -> int:
+    args = parse_args()
+
+    try:
+        marker_heading = normalize_heading(args.heading)
+        block = read_stdin_block()
+        result = append_block(
+            Path(args.target),
+            marker_heading,
+            block,
+            allow_duplicate=args.allow_duplicate,
+            dry_run=args.dry_run,
+        )
+    except OSError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 1
+    except ValueError as exc:
+        print(f"error: {exc}", file=sys.stderr)
+        return 2
+
+    print(result)
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
 
 
 
