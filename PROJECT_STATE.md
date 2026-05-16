@@ -2099,3 +2099,54 @@ Runtime reflection:
 
 - Pending until product main is reflected to runtime.
 
+## MetaTask completed: optimizing metadata index
+
+MetaTask-optimizing-metadata was completed as a bounded root/meta repository
+organization task.
+
+Added files:
+
+- META/METADATA_INDEX.md
+- MetaTask-optimizing-metadata_report.md
+
+Purpose:
+
+- reduce confusion in the growing root/meta repository
+- clarify which meta files are authoritative restore context
+- clarify which files are workflow guidance, architecture/schema reference,
+  historical review memory, Codex planning material, or generated snapshot
+  artifacts
+- provide a safe index before any future metadata slimming or relocation work
+
+Adopted outcome:
+
+- A metadata index was added.
+- A task report was added.
+- Existing authoritative files were not rewritten.
+- Existing historical logs were not moved.
+- PROJECT_STATE.md was not slimmed in this task.
+- AGENTS_DRAFT.md remains draft-only and was not promoted to AGENTS.md.
+- project_snapshot.txt tracking was not changed.
+- product code was not changed.
+- runtime files, cron, docker, and DB state were not changed.
+
+Current interpretation:
+
+- The immediate problem was not lack of information, but lack of a readable
+  cross-reference for authority level, purpose, and normal edit policy.
+- The new metadata index should be used as the first reference when deciding
+  where future meta information belongs.
+- PROJECT_STATE.md slimming may be useful later, but should be handled as a
+  separate bounded task.
+- project_snapshot.txt tracking should be revisited only after the restore
+  model and generated-artifact policy are explicitly reviewed.
+- AGENTS_DRAFT.md should remain draft until Codex operating rules are proven
+  through more trials.
+
+Recommended follow-up candidates:
+
+- create a helper script for safe PROJECT_STATE append blocks
+- consider a bounded PROJECT_STATE current-summary / historical-log split
+- review generated snapshot tracking policy
+- decide whether AGENTS_DRAFT.md should become active AGENTS.md after more
+  Codex trials
