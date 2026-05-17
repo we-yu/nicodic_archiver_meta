@@ -2150,3 +2150,79 @@ Recommended follow-up candidates:
 - review generated snapshot tracking policy
 - decide whether AGENTS_DRAFT.md should become active AGENTS.md after more
   Codex trials
+
+## SubTasks completed: compact scrape logging and OK0 host-log compression
+
+Two bounded runtime logging subtasks were completed and adopted:
+
+- SubTask-compact-shot-heartbeat-log
+- SubTask-compact-ok0-host-log
+
+Product adoption:
+
+- SubTask-compact-shot-heartbeat-log was adopted into product main as #67.
+- SubTask-compact-ok0-host-log was adopted into product main as #68.
+- Copilot implementation was adopted for the OK0 compression task.
+- Both child product repos were synced back to main.
+- Helix convergence was confirmed.
+
+Validation:
+
+- validate_helix.sh passed after merge.
+- copilot: 409 tests passed.
+- cursor: 409 tests passed.
+
+Runtime reflection:
+
+- Runtime reflection was performed after confirming no periodic_once lock.
+- runtime container was rebuilt/recreated through the standard runtime reflection flow.
+- A short periodic-once smoke run was executed with ONESHOT_LIMIT_DURATION_SECONDS=180.
+
+Observed runtime smoke:
+
+- host_cron.log emitted one-line [STEP OK0 🟢] rows for clean no-change targets.
+- RUN DIGEST reported hit_targets=0, ok0_targets=146, warn_targets=0,
+  fail_targets=0, total_new_responses=0, and [OK0] others=146.
+- This confirms the normal no-change path is compressed as intended.
+- No WARN / FAIL runtime case appeared in the short smoke run; longer scheduled
+  runs are expected to eventually exercise 🟡 / 🔴 cases.
+
+Current logging baseline:
+
+- host_cron.log is now the compact live/tail operations log.
+- batch_*.log remains the detailed audit/postmortem log.
+- RUN DIGEST is the primary per-run quick summary.
+- Clean no-change targets are represented as [STEP OK0 🟢].
+- HIT / WARN / FAIL / partial / multi-page / unknown-observed cases remain in
+  detailed compact STEP START / PAGE / STEP END form.
+
+Important behavior:
+
+- OK0 compression is intentionally narrow.
+- A target is compressed only when it is success, stored_new=0,
+  already_up_to_date, exactly one successful PAGE token, known saved/observed
+  values, and no WARN/FAIL/status detail.
+- Non-qualifying targets fall back to detailed compact logging.
+- Board page token display now drops the trailing dash.
+
+Review memory:
+
+- Added META/review_log/SubTask_compact_scrape_logging_20260517.md as the
+  future-facing review log for these logging tasks.
+
+Non-goals preserved:
+
+- No DB schema changes.
+- No scrape_id / scrape_mark implementation.
+- No Delete Feeder detailed logging redesign.
+- No parent log / third log stream.
+- No JSON logging or observability platform.
+- No cron schedule redesign.
+- No scrape ordering or response collection semantic changes.
+- No Max Res No semantic redesign.
+
+Cron status:
+
+- Existing cron cadence remains active.
+- Current periodic cron continues to run every 3 hours with
+  ONESHOT_LIMIT_DURATION_SECONDS=8500.
