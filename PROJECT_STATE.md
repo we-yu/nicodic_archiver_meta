@@ -2306,3 +2306,76 @@ Follow-up candidate:
   or petition-related restrictions.
 - Existing archived responses must remain downloadable if a board becomes
   unavailable later.
+
+## SubTask completed: zero-response board scraped state
+
+SubTask-zero-response-board-scraped-state was completed.
+
+Purpose:
+
+- treat completed zero-response scrapes as scraped/checked
+- prevent zero-response articles from looking like never-scraped pending rows
+  in Registered Articles
+- separate scrape/check completion state from saved response count
+
+Adopted implementation:
+
+- Cursor implementation was selected.
+- No schema change was introduced.
+- Existing articles.latest_scraped_at is used as the scrape/check completion
+  signal.
+- Registered Articles treats rows as checked when they have saved responses or
+  a populated last_scraped_at value.
+- Completed zero-response rows show saved responses = 0, Max Res No = 0, and
+  populated Last Scraped.
+- Pending/not-scraped visual state is now reserved for rows with both
+  saved_response_count == 0 and no last_scraped_at.
+
+Archive safety:
+
+- Existing saved responses are not deleted.
+- Existing saved responses are not overwritten.
+- No fake/dummy responses are inserted.
+- A later empty scrape/check does not reset an article with existing responses
+  back to zero.
+- Existing archived responses remain downloadable even if a later scrape/check
+  finds no collectable responses.
+
+Adoption:
+
+- Copilot and Cursor alternatives both passed validation.
+- Cursor was adopted because it made the scrape/check completion semantics more
+  explicit and kept displayed/sorted Max Res No behavior more consistent.
+- Product main was updated.
+- copilot and cursor child repos were synced to main.
+- Helix convergence was confirmed.
+- validate_helix.sh passed after adoption.
+
+Review log:
+
+- Added META/review_log/SubTask_zero_response_board_scraped_state_20260519.md.
+
+Non-goals preserved:
+
+- No response deletion.
+- No response overwrite.
+- No fake response insertion.
+- No broad schema migration.
+- No Max Res No full semantic redesign.
+- No scrape_id / run mark.
+- No target state system redesign.
+- No board migration or redirect archive merge.
+- No Delete Feeder changes.
+- No cron policy changes.
+
+## Runtime reflected: zero-response board scraped state
+
+Runtime reflection for SubTask-zero-response-board-scraped-state was completed.
+
+- reflect_runtime.sh was run after confirming no active periodic_once lock and
+  no active scrape process.
+- runtime checkout was fast-forwarded to the adopted product main.
+- runtime container was rebuilt/recreated through the standard reflection flow.
+- Runtime smoke should continue through normal cron observation, especially for
+  Registered Articles rows with saved responses = 0, Max Res No = 0, and
+  populated Last Scraped.
