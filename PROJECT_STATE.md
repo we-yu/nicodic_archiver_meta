@@ -2226,3 +2226,83 @@ Cron status:
 - Existing cron cadence remains active.
 - Current periodic cron continues to run every 3 hours with
   ONESHOT_LIMIT_DURATION_SECONDS=8500.
+
+## MainTask completed: direct article title resolution
+
+MainTask-direct-article-title-resolution was completed.
+
+Purpose:
+
+- restore the intended article registration philosophy
+- resolve user-entered exact article titles directly as Nicopedia article pages
+- remove Nicopedia Search from the normal title resolution path
+
+Adopted behavior:
+
+- URL input continues to resolve directly.
+- Non-URL title input now builds and fetches:
+  https://dic.nicovideo.jp/a/<URL-encoded title>
+- If that exact article page exists, normal canonical/article-id extraction is
+  used and the target can be registered.
+- If that exact article page does not exist, the resolver returns not_found.
+- User typos are not corrected.
+- Fuzzy matching, alternate suggestions, and Search fallback were not added.
+
+Adoption:
+
+- Cursor implementation was selected.
+- Copilot and Cursor alternatives were both validated before selection.
+- Product main was updated.
+- copilot and cursor child repos were synced to main.
+- Helix convergence was confirmed.
+- validate_helix.sh passed after adoption.
+
+Runtime reflection:
+
+- Runtime reflection was performed after the active periodic run was stopped
+  cleanly and no periodic_once lock remained.
+- reflect_runtime.sh fast-forwarded the runtime checkout to the direct title
+  resolution implementation.
+- runtime container was rebuilt/recreated through the standard runtime flow.
+
+Runtime Web smoke:
+
+- Web registration of ストローマン論法 succeeded.
+- Registered Articles showed article_id=5400838, type=a, title=ストローマン論法.
+- This confirms the provisional runtime environment now accepts exact Japanese
+  title input without relying on Nicopedia Search.
+
+Development Web note:
+
+- A Cursor child-repo development Web smoke returned an internal error.
+- Its DB appeared old / non-runtime-like.
+- Direct article page fetch from inside that development container returned
+  HTTP 200.
+- Final acceptance was therefore based on provisional runtime Web smoke.
+
+Review log:
+
+- Added META/review_log/MainTask_direct_article_title_resolution_20260517.md.
+
+Non-goals preserved:
+
+- No Nicopedia Search fallback.
+- No fuzzy matching.
+- No typo recovery.
+- No alternate title suggestions.
+- No DB schema changes.
+- No scrape behavior changes.
+- No cron/runtime policy changes.
+- No Delete Feeder changes.
+- No article_type="id".
+- No Max Res No semantic redesign.
+
+Follow-up candidate:
+
+- Existing articles with no board responses should be marked as scraped with
+  saved responses = 0 and max res no = 0 after the first scrape confirms that
+  no responses exist.
+- This includes boards with no posts and boards unavailable due platform-side
+  or petition-related restrictions.
+- Existing archived responses must remain downloadable if a board becomes
+  unavailable later.

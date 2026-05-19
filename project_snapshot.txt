@@ -3227,6 +3227,86 @@ Cron status:
 - Current periodic cron continues to run every 3 hours with
   ONESHOT_LIMIT_DURATION_SECONDS=8500.
 
+## MainTask completed: direct article title resolution
+
+MainTask-direct-article-title-resolution was completed.
+
+Purpose:
+
+- restore the intended article registration philosophy
+- resolve user-entered exact article titles directly as Nicopedia article pages
+- remove Nicopedia Search from the normal title resolution path
+
+Adopted behavior:
+
+- URL input continues to resolve directly.
+- Non-URL title input now builds and fetches:
+  https://dic.nicovideo.jp/a/<URL-encoded title>
+- If that exact article page exists, normal canonical/article-id extraction is
+  used and the target can be registered.
+- If that exact article page does not exist, the resolver returns not_found.
+- User typos are not corrected.
+- Fuzzy matching, alternate suggestions, and Search fallback were not added.
+
+Adoption:
+
+- Cursor implementation was selected.
+- Copilot and Cursor alternatives were both validated before selection.
+- Product main was updated.
+- copilot and cursor child repos were synced to main.
+- Helix convergence was confirmed.
+- validate_helix.sh passed after adoption.
+
+Runtime reflection:
+
+- Runtime reflection was performed after the active periodic run was stopped
+  cleanly and no periodic_once lock remained.
+- reflect_runtime.sh fast-forwarded the runtime checkout to the direct title
+  resolution implementation.
+- runtime container was rebuilt/recreated through the standard runtime flow.
+
+Runtime Web smoke:
+
+- Web registration of ストローマン論法 succeeded.
+- Registered Articles showed article_id=5400838, type=a, title=ストローマン論法.
+- This confirms the provisional runtime environment now accepts exact Japanese
+  title input without relying on Nicopedia Search.
+
+Development Web note:
+
+- A Cursor child-repo development Web smoke returned an internal error.
+- Its DB appeared old / non-runtime-like.
+- Direct article page fetch from inside that development container returned
+  HTTP 200.
+- Final acceptance was therefore based on provisional runtime Web smoke.
+
+Review log:
+
+- Added META/review_log/MainTask_direct_article_title_resolution_20260517.md.
+
+Non-goals preserved:
+
+- No Nicopedia Search fallback.
+- No fuzzy matching.
+- No typo recovery.
+- No alternate title suggestions.
+- No DB schema changes.
+- No scrape behavior changes.
+- No cron/runtime policy changes.
+- No Delete Feeder changes.
+- No article_type="id".
+- No Max Res No semantic redesign.
+
+Follow-up candidate:
+
+- Existing articles with no board responses should be marked as scraped with
+  saved responses = 0 and max res no = 0 after the first scrape confirms that
+  no responses exist.
+- This includes boards with no posts and boards unavailable due platform-side
+  or petition-related restrictions.
+- Existing archived responses must remain downloadable if a board becomes
+  unavailable later.
+
 
 ===== WORKSPACE =====
 # Workspace
@@ -4383,6 +4463,143 @@ Important current interpretation:
 ## Next candidate work
 
 - Review target/import/scrape denylist behavior, especially high-volume pages such as `>>3が理解できることが不幸`.
+
+
+===== REVIEW LOG: META/review_log/MainTask45_direct_article_title_resolution_20260517.md =====
+# MainTask: direct article title resolution
+
+## Summary
+
+MainTask-direct-article-title-resolution corrected the article title
+resolution boundary.
+
+The application now treats non-URL user input as an exact Nicopedia article
+title and resolves it by directly fetching:
+
+- `https://dic.nicovideo.jp/a/<URL-encoded user input>`
+
+This restores the intended product philosophy:
+
+- the user specifies the exact article
+- the app attempts to fetch that exact article
+- if that exact article does not exist, the app returns not_found
+- the app does not depend on Nicopedia Search for normal title registration
+
+## Background
+
+A user attempted to register:
+
+- `ストローマン論法`
+
+Expected behavior:
+
+- resolve the exact article page directly
+- register it as a scraping target if the page exists
+
+Observed pre-fix behavior:
+
+- Web UI showed `Article was not found.`
+- the target was not registered
+- investigation showed that title input used a Nicopedia Search URL
+- the Search URL could fail even when the direct article page existed
+
+## Adopted decision
+
+The project decided that normal title input must not use Nicopedia Search.
+
+This was treated as a product philosophy / resolver-boundary correction, not
+as a request to update the Search URL.
+
+## Adopted implementation
+
+Cursor implementation was adopted.
+
+Main behavior after adoption:
+
+- URL input continues to use direct article URL resolution.
+- Non-URL title input constructs `/a/<encoded title>` and fetches that page
+  directly.
+- Existing canonical / article-id extraction remains the source of normalized
+  target identity.
+- Search-based title resolution was removed from the normal path.
+- Fuzzy matching, typo correction, alternate suggestions, and Search fallback
+  were not added.
+
+## Validation
+
+Before adoption:
+
+- Copilot and Cursor variants were both implemented and validated.
+- Cursor was selected for adoption.
+- validate_helix.sh passed for both variants before selection.
+- Cursor variant reported 413 tests passed.
+
+After adoption:
+
+- product main was reflected to the runtime checkout.
+- runtime container was rebuilt/recreated through the standard reflection flow.
+
+## Runtime Web smoke
+
+Runtime Web smoke succeeded after reflection.
+
+Smoke target:
+
+- `ストローマン論法`
+
+Observed result:
+
+- Web registration succeeded.
+- The UI showed the article was registered for archive checking.
+- Registered Articles showed:
+  - article_id: 5400838
+  - type: a
+  - title: ストローマン論法
+- This confirmed that exact title input now resolves directly to the article
+  page and registers the target in the provisional runtime environment.
+
+## Development Web note
+
+A child-repo development Web smoke was attempted first.
+
+That environment returned an internal error and used a non-runtime-like old DB.
+The direct article page fetch from inside the container returned HTTP 200, so
+the development Web failure was treated as an environment-specific smoke issue,
+not as adoption evidence against the resolver change.
+
+## Explicit non-goals
+
+This task intentionally did not introduce:
+
+- Nicopedia Search fallback
+- fuzzy title matching
+- typo recovery
+- alternate title suggestions
+- DB schema changes
+- scrape behavior changes
+- cron/runtime policy changes
+- Delete Feeder changes
+- article_type="id"
+- Max Res No semantic changes
+
+## Follow-up candidate: zero-response boards
+
+During runtime review, a separate behavior was observed:
+
+- articles that exist but have no board responses can continue to look like
+  never-scraped targets in the Registered Articles list
+
+Desired future behavior:
+
+- once an existing article is scraped and no responses are found, it should be
+  represented as a scraped article with saved responses = 0 and max res no = 0
+- this should apply regardless of why the board has no responses
+- examples include boards with no posts and boards unavailable due platform-side
+  or petition-related restrictions
+- if an article previously had archived responses but later the board becomes
+  unavailable, existing archived responses must remain downloadable
+
+This should be handled as a separate bounded task.
 
 
 ===== REVIEW LOG: META/review_log/SUBTASK001_kgs_builtin_trim_fix.md =====
@@ -11856,7 +12073,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Sun May 17 05:23:06 UTC 2026
+generated: Tue May 19 15:53:26 UTC 2026
 mode: full
 
 
@@ -16981,6 +17198,81 @@ SOFTWARE.
 
 
 =============================
+FILE: copilot/MainTask-direct-article-title-resolution_report.txt
+=============================
+MainTask: direct article title resolution — report
+
+Summary
+-------
+Non-URL article input is resolved by fetching a single direct Nicopedia article
+URL built as `https://dic.nicovideo.jp/a/<URL-encoded title>`, then passing the
+response through the existing `resolve_registration_identity_from_html` path.
+The Nicopedia Search endpoint is no longer used for normal title registration.
+
+Files touched
+-------------
+- article_resolver.py — replaced search + link scraping with
+  `_build_direct_article_url_from_title` and `_resolve_from_exact_title` calling
+  `_resolve_from_article_url`.
+- tests/test_article_resolver.py — updated expectations; added Japanese slug,
+  no-/search/, 404, and metadata-miss cases; removed ambiguous multi-search-hit
+  case.
+- tests/test_web_app.py — `check_article_status` direct-fetch + 404 cases;
+  POST integration registering a Japanese plain title with mocked `fetch_page`.
+
+Root cause
+----------
+Title resolution used `https://dic.nicovideo.jp/search/<query>` and parsed
+anchor text for an exact title match. Search can 404 or diverge from article
+existence, so a valid `/a/<title>` article was reported as not found.
+
+Behavior before / after
+-----------------------
+Before: trim non-URL input → search page → exact-title link(s) → fetch article.
+After: trim non-URL input → fetch `/a/<urllib.parse.quote(title, safe='')>` →
+same HTML identity extraction as URL input. URL-shaped input is unchanged.
+
+Search usage decision
+---------------------
+No Nicopedia Search for primary title resolution (per product requirement).
+Legacy search helpers were removed from the resolver. The `ambiguous`
+failure_kind is no longer emitted from this title path.
+
+Tests added or updated
+----------------------
+- test_article_resolver.py: direct URL for exact title; Japanese example;
+  asserts no `/search/` in fetch URL; 404 and non-404 errors; missing metadata
+  → not_found.
+- test_web_app.py:
+  `test_check_article_status_plain_exact_title_via_direct_article_fetch`,
+  `test_check_article_status_plain_exact_title_not_found_on_direct_404`,
+  `test_application_post_registers_plain_exact_title_via_resolver`.
+
+Validation attempted or not attempted
+--------------------------------------
+Attempted and passed: `docker compose run --rm --entrypoint "" scraper pytest
+tests/test_article_resolver.py tests/test_web_app.py -q` (61 passed).
+
+Known limitations
+-----------------
+- Titles that Nicopedia serves only under a different slug still resolve to
+  `not_found` if `/a/<exact-encoded-input>` does not exist (intended: no
+  typo recovery or alternate titles).
+- `ambiguous` may still appear only in older UI strings if other code paths ever
+  reuse that key; title resolution no longer produces it.
+
+Explicit non-goals preserved
+----------------------------
+No DB schema, scrape, cron/runtime, denylist policy, or identity semantics
+changes; no `article_type=id` registration mode; no live network tests; no
+fuzzy search or user suggestions; no runtime/root edits; no git commit/push.
+
+Editor AI model / tool information
+----------------------------------
+Composer (Cursor agent); Docker-backed pytest run as above.
+
+
+=============================
 FILE: copilot/Makefile
 =============================
 .PHONY: build run test lint clean inspect
@@ -19022,53 +19314,17 @@ def _resolve_from_article_url(
     )
 
 
-def _build_title_search_url(normalized_title: str) -> str:
-    return f"{NICO_TOP_URL}/search/{quote(normalized_title)}"
+def _build_direct_article_url_from_title(normalized_title: str) -> str:
+    """Encode the trimmed title into a dic /a/<slug> article URL."""
 
-
-def _extract_exact_title_candidate_urls(soup, normalized_title: str) -> list[str]:
-    candidate_urls = []
-    seen_urls = set()
-
-    for anchor in soup.find_all("a", href=True):
-        candidate_title = anchor.get_text(strip=True)
-        if candidate_title != normalized_title:
-            continue
-
-        href = anchor["href"].strip()
-        if href.startswith("/"):
-            href = f"{NICO_TOP_URL}{href}"
-
-        normalized_url = _normalize_candidate_url(href)
-        if normalized_url is None:
-            continue
-        if normalized_url in seen_urls:
-            continue
-
-        seen_urls.add(normalized_url)
-        candidate_urls.append(normalized_url)
-
-    return candidate_urls
+    slug = quote(normalized_title, safe="")
+    return f"{NICO_TOP_URL}/a/{slug}"
 
 
 def _resolve_from_exact_title(normalized_title: str) -> dict:
-    search_url = _build_title_search_url(normalized_title)
-    try:
-        soup = fetch_page(search_url)
-    except RuntimeError as exc:
-        if _is_not_found_runtime_error(exc):
-            return _build_failure_result("not_found", normalized_title)
-        raise
-
-    candidate_urls = _extract_exact_title_candidate_urls(soup, normalized_title)
-
-    if not candidate_urls:
-        return _build_failure_result("not_found", normalized_title)
-    if len(candidate_urls) >= 2:
-        return _build_failure_result("ambiguous", normalized_title)
-
+    article_url = _build_direct_article_url_from_title(normalized_title)
     return _resolve_from_article_url(
-        candidate_urls[0],
+        article_url,
         normalized_input=normalized_title,
         matched_by="exact_title",
     )
@@ -29842,6 +30098,7 @@ def test_export_registered_articles_csv_decodes_url_encoded_article_id(
 FILE: copilot/tests/test_article_resolver.py
 =============================
 from unittest.mock import patch
+from urllib.parse import quote
 
 from bs4 import BeautifulSoup
 import pytest
@@ -29878,35 +30135,28 @@ def test_resolve_article_input_succeeds_for_full_article_url():
 
 
 def test_resolve_article_input_succeeds_for_exact_title_first_page_only():
-    search_soup = BeautifulSoup(
-        """
-        <html><body>
-        <a href="/a/12345">Foo</a>
-        <a href="/a/99999">Foo Extra</a>
-        </body></html>
-        """,
-        "lxml",
-    )
     article_soup = BeautifulSoup(
         """
         <html><head>
         <meta property="og:title" content="Fooとは">
-        <meta property="og:url" content="https://dic.nicovideo.jp/a/12345">
+        <meta property="og:url" content="https://dic.nicovideo.jp/id/12345">
+        <link rel="canonical" href="https://dic.nicovideo.jp/a/Foo"/>
         </head></html>
         """,
         "lxml",
     )
 
+    expected = f"https://dic.nicovideo.jp/a/{quote('Foo', safe='')}"
     with patch(
         "article_resolver.fetch_page",
-        side_effect=[search_soup, article_soup],
+        return_value=article_soup,
     ) as mock_fetch:
         result = resolve_article_input("Foo")
 
-    assert mock_fetch.call_count == 2
+    mock_fetch.assert_called_once_with(expected)
     assert result["ok"] is True
     assert result["canonical_target"] == {
-        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_url": "https://dic.nicovideo.jp/a/Foo",
         "article_id": "12345",
         "article_type": "a",
     }
@@ -29925,18 +30175,13 @@ def test_resolve_article_input_rejects_invalid_url_shape():
     }
 
 
-def test_resolve_article_input_returns_not_found_for_missing_exact_title():
-    search_soup = BeautifulSoup(
-        """
-        <html><body>
-        <a href="/a/12345">Other</a>
-        </body></html>
-        """,
-        "lxml",
-    )
+def test_resolve_article_input_returns_not_found_for_missing_article_metadata():
+    bad_soup = BeautifulSoup("<html><head></head><body></body></html>", "lxml")
 
-    with patch("article_resolver.fetch_page", return_value=search_soup):
+    dire = f"https://dic.nicovideo.jp/a/{quote('Foo', safe='')}"
+    with patch("article_resolver.fetch_page", return_value=bad_soup) as mf:
         result = resolve_article_input("Foo")
+    mf.assert_called_once_with(dire)
 
     assert result == {
         "ok": False,
@@ -29945,32 +30190,58 @@ def test_resolve_article_input_returns_not_found_for_missing_exact_title():
     }
 
 
-def test_resolve_article_input_returns_ambiguous_for_multiple_exact_titles():
-    search_soup = BeautifulSoup(
+def test_resolve_article_input_exact_title_japanese_queries_direct_article_url():
+    slug = quote("ストローマン論法", safe="")
+    expected_fetch = f"https://dic.nicovideo.jp/a/{slug}"
+    article_soup = BeautifulSoup(
+        f"""
+        <html><head>
+        <meta property="og:title" content="ストローマン論法とは">
+        <meta property="og:url"
+              content="https://dic.nicovideo.jp/id/880011">
+        <link rel="canonical" href="{expected_fetch}"/>
+        </head></html>
+        """,
+        "lxml",
+    )
+    with patch(
+        "article_resolver.fetch_page",
+        return_value=article_soup,
+    ) as mock_fetch:
+        result = resolve_article_input("ストローマン論法")
+    mock_fetch.assert_called_once_with(expected_fetch)
+    assert result["ok"] is True
+    assert result["normalized_input"] == "ストローマン論法"
+    assert result["matched_by"] == "exact_title"
+    assert result["canonical_target"]["article_id"] == "880011"
+
+
+def test_resolve_article_input_exact_title_never_requests_search_path():
+    soup = BeautifulSoup(
         """
-        <html><body>
-        <a href="/a/12345">Foo</a>
-        <a href="/a/67890">Foo</a>
-        </body></html>
+        <html><head>
+        <meta property="og:title" content="Xとは">
+        <meta property="og:url" content="https://dic.nicovideo.jp/id/9">
+        <link rel="canonical" href="https://dic.nicovideo.jp/a/X"/>
+        </head></html>
         """,
         "lxml",
     )
 
-    with patch("article_resolver.fetch_page", return_value=search_soup):
-        result = resolve_article_input("Foo")
+    def _grab(url):
+        assert "/search/" not in url
+        return soup
 
-    assert result == {
-        "ok": False,
-        "failure_kind": "ambiguous",
-        "normalized_input": "Foo",
-    }
+    with patch("article_resolver.fetch_page", side_effect=_grab):
+        resolve_article_input("X")
 
 
-def test_resolve_article_input_returns_not_found_when_title_search_is_404():
+def test_resolve_article_input_returns_not_found_when_direct_article_is_404():
+    expected = f"https://dic.nicovideo.jp/a/{quote('Foo', safe='')}"
     with patch(
         "article_resolver.fetch_page",
         side_effect=RuntimeError(
-            "Failed to fetch https://dic.nicovideo.jp/search/Foo (status=404)"
+            f"Failed to fetch {expected} (status=404)"
         ),
     ):
         result = resolve_article_input("Foo")
@@ -29982,12 +30253,12 @@ def test_resolve_article_input_returns_not_found_when_title_search_is_404():
     }
 
 
-def test_resolve_article_input_still_raises_unexpected_title_search_errors():
+def test_resolve_article_input_still_raises_unexpected_direct_fetch_errors():
+    expected = f"https://dic.nicovideo.jp/a/{quote('Foo', safe='')}"
     with patch(
         "article_resolver.fetch_page",
         side_effect=RuntimeError(
-            "Failed to fetch https://dic.nicovideo.jp/search/Foo "
-            "(timeout=10s)"
+            f"Failed to fetch {expected} (timeout=10s)"
         ),
     ):
         with pytest.raises(RuntimeError) as exc_info:
@@ -37891,8 +38162,12 @@ FILE: copilot/tests/test_web_app.py
 from io import BytesIO
 import sqlite3
 from unittest.mock import patch
+from urllib.parse import quote, quote_plus
+
+from bs4 import BeautifulSoup
 
 import web_app
+from storage import init_db, list_targets
 from web_app import application, check_article_status, create_app
 
 
@@ -38071,6 +38346,93 @@ def test_check_article_status_restores_saved_parity_for_encoded_url_input():
     assert result["article_id"] == "5502789"
     assert result["article_type"] == "a"
     assert result["article_url"] == "https://dic.nicovideo.jp/a/たつきショック"
+
+
+def test_check_article_status_plain_exact_title_via_direct_article_fetch():
+    """Title input resolves with one fetch of /a/<url-encoded-title>, no search."""
+    empty_summary = {
+        "found": False,
+        "article_id": None,
+        "article_type": None,
+        "title": None,
+        "url": None,
+        "created_at": None,
+        "published_at": None,
+        "modified_at": None,
+        "response_count": 0,
+    }
+
+    ttl = "ストローマン論法"
+    dire = f"https://dic.nicovideo.jp/a/{quote(ttl, safe='')}"
+    soup = BeautifulSoup(
+        f"""
+        <html><head>
+        <meta property="og:title" content="{ttl}とは">
+        <meta property="og:url"
+              content="https://dic.nicovideo.jp/id/880011">
+        <link rel="canonical" href="{dire}"/>
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    arc_miss = {
+        "found": False,
+        "article_id": "880011",
+        "article_type": "a",
+        "title": None,
+        "url": None,
+        "created_at": None,
+        "published_at": None,
+        "modified_at": None,
+        "response_count": 0,
+    }
+
+    with patch(
+        "web_app.get_saved_article_summary_by_exact_title",
+        return_value=empty_summary,
+    ):
+        with patch(
+            "web_app.get_saved_article_summary",
+            return_value=arc_miss,
+        ):
+            with patch(
+                "article_resolver.fetch_page",
+                return_value=soup,
+            ) as mf:
+                result = check_article_status(ttl)
+
+    mf.assert_called_once_with(dire)
+    assert result["status"] == "unsaved"
+    assert result["matched_by"] == "exact_title"
+    assert result["article_id"] == "880011"
+
+
+def test_check_article_status_plain_exact_title_not_found_on_direct_404():
+    empty_summary = {
+        "found": False,
+        "article_id": None,
+        "article_type": None,
+        "title": None,
+        "url": None,
+        "created_at": None,
+        "published_at": None,
+        "modified_at": None,
+        "response_count": 0,
+    }
+    ttl = "存在しない完全一致タイトル"
+    dire = f"https://dic.nicovideo.jp/a/{quote(ttl, safe='')}"
+    err = RuntimeError(f"Failed to fetch {dire} (status=404)")
+
+    with patch(
+        "web_app.get_saved_article_summary_by_exact_title",
+        return_value=empty_summary,
+    ):
+        with patch("article_resolver.fetch_page", side_effect=err):
+            result = check_article_status(ttl)
+
+    assert result["status"] == "resolution_failure"
+    assert result["failure_kind"] == "not_found"
 
 
 def test_check_article_status_classifies_temporary_fetch_failure():
@@ -38477,6 +38839,53 @@ def test_saved_encoded_url_input_with_csv_selection_keeps_download_flow():
 
     assert response["status"] == "200 OK"
     assert 'name="requested_format" value="csv"' in response["body"]
+
+
+def test_application_post_registers_plain_exact_title_via_resolver(
+    tmp_path, monkeypatch,
+):
+    """End-to-end: Japanese exact title resolves by direct slug URL and persists."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir(parents=True, exist_ok=True)
+    tgt_db = tmp_path / "targets.db"
+    log_path = tmp_path / "web_action.log"
+
+    ttl = "ストローマン論法"
+    dire = f"https://dic.nicovideo.jp/a/{quote(ttl, safe='')}"
+    soup = BeautifulSoup(
+        f"""
+        <html><head>
+        <meta property="og:title" content="{ttl}とは">
+        <meta property="og:url"
+              content="https://dic.nicovideo.jp/id/880011">
+        <link rel="canonical" href="{dire}"/>
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    body = f"article_input={quote_plus(ttl)}"
+    with patch("article_resolver.fetch_page", return_value=soup):
+        captured = _run_wsgi_request(
+            "POST",
+            body=body,
+            app=create_app(
+                target_db_path=str(tgt_db),
+                web_action_log_path=str(log_path),
+            ),
+        )
+
+    assert captured["status"] == "200 OK"
+    assert "Article registered for archive checking." in captured["body"]
+    assert f"Article title:</strong> {ttl}" in captured["body"]
+
+    conn = init_db(str(tgt_db))
+    try:
+        rows = list_targets(conn)
+    finally:
+        conn.close()
+    assert len(rows) == 1
+    assert rows[0]["article_id"] == "880011"
 
 
 def test_application_post_registration_write_failure_returns_bounded_error():
@@ -43272,6 +43681,81 @@ SOFTWARE.
 
 
 =============================
+FILE: cursor/MainTask-direct-article-title-resolution_report.txt
+=============================
+MainTask: direct article title resolution — report
+
+Summary
+-------
+Non-URL article input is resolved by fetching a single direct Nicopedia article
+URL built as `https://dic.nicovideo.jp/a/<URL-encoded title>`, then passing the
+response through the existing `resolve_registration_identity_from_html` path.
+The Nicopedia Search endpoint is no longer used for normal title registration.
+
+Files touched
+-------------
+- article_resolver.py — replaced search + link scraping with
+  `_build_direct_article_url_from_title` and `_resolve_from_exact_title` calling
+  `_resolve_from_article_url`.
+- tests/test_article_resolver.py — updated expectations; added Japanese slug,
+  no-/search/, 404, and metadata-miss cases; removed ambiguous multi-search-hit
+  case.
+- tests/test_web_app.py — `check_article_status` direct-fetch + 404 cases;
+  POST integration registering a Japanese plain title with mocked `fetch_page`.
+
+Root cause
+----------
+Title resolution used `https://dic.nicovideo.jp/search/<query>` and parsed
+anchor text for an exact title match. Search can 404 or diverge from article
+existence, so a valid `/a/<title>` article was reported as not found.
+
+Behavior before / after
+-----------------------
+Before: trim non-URL input → search page → exact-title link(s) → fetch article.
+After: trim non-URL input → fetch `/a/<urllib.parse.quote(title, safe='')>` →
+same HTML identity extraction as URL input. URL-shaped input is unchanged.
+
+Search usage decision
+---------------------
+No Nicopedia Search for primary title resolution (per product requirement).
+Legacy search helpers were removed from the resolver. The `ambiguous`
+failure_kind is no longer emitted from this title path.
+
+Tests added or updated
+----------------------
+- test_article_resolver.py: direct URL for exact title; Japanese example;
+  asserts no `/search/` in fetch URL; 404 and non-404 errors; missing metadata
+  → not_found.
+- test_web_app.py:
+  `test_check_article_status_plain_exact_title_via_direct_article_fetch`,
+  `test_check_article_status_plain_exact_title_not_found_on_direct_404`,
+  `test_application_post_registers_plain_exact_title_via_resolver`.
+
+Validation attempted or not attempted
+--------------------------------------
+Attempted and passed: `docker compose run --rm --entrypoint "" scraper pytest
+tests/test_article_resolver.py tests/test_web_app.py -q` (61 passed).
+
+Known limitations
+-----------------
+- Titles that Nicopedia serves only under a different slug still resolve to
+  `not_found` if `/a/<exact-encoded-input>` does not exist (intended: no
+  typo recovery or alternate titles).
+- `ambiguous` may still appear only in older UI strings if other code paths ever
+  reuse that key; title resolution no longer produces it.
+
+Explicit non-goals preserved
+----------------------------
+No DB schema, scrape, cron/runtime, denylist policy, or identity semantics
+changes; no `article_type=id` registration mode; no live network tests; no
+fuzzy search or user suggestions; no runtime/root edits; no git commit/push.
+
+Editor AI model / tool information
+----------------------------------
+Composer (Cursor agent); Docker-backed pytest run as above.
+
+
+=============================
 FILE: cursor/Makefile
 =============================
 .PHONY: build run test lint clean inspect
@@ -45313,53 +45797,17 @@ def _resolve_from_article_url(
     )
 
 
-def _build_title_search_url(normalized_title: str) -> str:
-    return f"{NICO_TOP_URL}/search/{quote(normalized_title)}"
+def _build_direct_article_url_from_title(normalized_title: str) -> str:
+    """Encode the trimmed title into a dic /a/<slug> article URL."""
 
-
-def _extract_exact_title_candidate_urls(soup, normalized_title: str) -> list[str]:
-    candidate_urls = []
-    seen_urls = set()
-
-    for anchor in soup.find_all("a", href=True):
-        candidate_title = anchor.get_text(strip=True)
-        if candidate_title != normalized_title:
-            continue
-
-        href = anchor["href"].strip()
-        if href.startswith("/"):
-            href = f"{NICO_TOP_URL}{href}"
-
-        normalized_url = _normalize_candidate_url(href)
-        if normalized_url is None:
-            continue
-        if normalized_url in seen_urls:
-            continue
-
-        seen_urls.add(normalized_url)
-        candidate_urls.append(normalized_url)
-
-    return candidate_urls
+    slug = quote(normalized_title, safe="")
+    return f"{NICO_TOP_URL}/a/{slug}"
 
 
 def _resolve_from_exact_title(normalized_title: str) -> dict:
-    search_url = _build_title_search_url(normalized_title)
-    try:
-        soup = fetch_page(search_url)
-    except RuntimeError as exc:
-        if _is_not_found_runtime_error(exc):
-            return _build_failure_result("not_found", normalized_title)
-        raise
-
-    candidate_urls = _extract_exact_title_candidate_urls(soup, normalized_title)
-
-    if not candidate_urls:
-        return _build_failure_result("not_found", normalized_title)
-    if len(candidate_urls) >= 2:
-        return _build_failure_result("ambiguous", normalized_title)
-
+    article_url = _build_direct_article_url_from_title(normalized_title)
     return _resolve_from_article_url(
-        candidate_urls[0],
+        article_url,
         normalized_input=normalized_title,
         matched_by="exact_title",
     )
@@ -70079,6 +70527,7 @@ def test_export_registered_articles_csv_decodes_url_encoded_article_id(
 FILE: cursor/tests/test_article_resolver.py
 =============================
 from unittest.mock import patch
+from urllib.parse import quote
 
 from bs4 import BeautifulSoup
 import pytest
@@ -70115,35 +70564,28 @@ def test_resolve_article_input_succeeds_for_full_article_url():
 
 
 def test_resolve_article_input_succeeds_for_exact_title_first_page_only():
-    search_soup = BeautifulSoup(
-        """
-        <html><body>
-        <a href="/a/12345">Foo</a>
-        <a href="/a/99999">Foo Extra</a>
-        </body></html>
-        """,
-        "lxml",
-    )
     article_soup = BeautifulSoup(
         """
         <html><head>
         <meta property="og:title" content="Fooとは">
-        <meta property="og:url" content="https://dic.nicovideo.jp/a/12345">
+        <meta property="og:url" content="https://dic.nicovideo.jp/id/12345">
+        <link rel="canonical" href="https://dic.nicovideo.jp/a/Foo"/>
         </head></html>
         """,
         "lxml",
     )
 
+    expected = f"https://dic.nicovideo.jp/a/{quote('Foo', safe='')}"
     with patch(
         "article_resolver.fetch_page",
-        side_effect=[search_soup, article_soup],
+        return_value=article_soup,
     ) as mock_fetch:
         result = resolve_article_input("Foo")
 
-    assert mock_fetch.call_count == 2
+    mock_fetch.assert_called_once_with(expected)
     assert result["ok"] is True
     assert result["canonical_target"] == {
-        "article_url": "https://dic.nicovideo.jp/a/12345",
+        "article_url": "https://dic.nicovideo.jp/a/Foo",
         "article_id": "12345",
         "article_type": "a",
     }
@@ -70162,18 +70604,13 @@ def test_resolve_article_input_rejects_invalid_url_shape():
     }
 
 
-def test_resolve_article_input_returns_not_found_for_missing_exact_title():
-    search_soup = BeautifulSoup(
-        """
-        <html><body>
-        <a href="/a/12345">Other</a>
-        </body></html>
-        """,
-        "lxml",
-    )
+def test_resolve_article_input_returns_not_found_for_missing_article_metadata():
+    bad_soup = BeautifulSoup("<html><head></head><body></body></html>", "lxml")
 
-    with patch("article_resolver.fetch_page", return_value=search_soup):
+    dire = f"https://dic.nicovideo.jp/a/{quote('Foo', safe='')}"
+    with patch("article_resolver.fetch_page", return_value=bad_soup) as mf:
         result = resolve_article_input("Foo")
+    mf.assert_called_once_with(dire)
 
     assert result == {
         "ok": False,
@@ -70182,32 +70619,58 @@ def test_resolve_article_input_returns_not_found_for_missing_exact_title():
     }
 
 
-def test_resolve_article_input_returns_ambiguous_for_multiple_exact_titles():
-    search_soup = BeautifulSoup(
+def test_resolve_article_input_exact_title_japanese_queries_direct_article_url():
+    slug = quote("ストローマン論法", safe="")
+    expected_fetch = f"https://dic.nicovideo.jp/a/{slug}"
+    article_soup = BeautifulSoup(
+        f"""
+        <html><head>
+        <meta property="og:title" content="ストローマン論法とは">
+        <meta property="og:url"
+              content="https://dic.nicovideo.jp/id/880011">
+        <link rel="canonical" href="{expected_fetch}"/>
+        </head></html>
+        """,
+        "lxml",
+    )
+    with patch(
+        "article_resolver.fetch_page",
+        return_value=article_soup,
+    ) as mock_fetch:
+        result = resolve_article_input("ストローマン論法")
+    mock_fetch.assert_called_once_with(expected_fetch)
+    assert result["ok"] is True
+    assert result["normalized_input"] == "ストローマン論法"
+    assert result["matched_by"] == "exact_title"
+    assert result["canonical_target"]["article_id"] == "880011"
+
+
+def test_resolve_article_input_exact_title_never_requests_search_path():
+    soup = BeautifulSoup(
         """
-        <html><body>
-        <a href="/a/12345">Foo</a>
-        <a href="/a/67890">Foo</a>
-        </body></html>
+        <html><head>
+        <meta property="og:title" content="Xとは">
+        <meta property="og:url" content="https://dic.nicovideo.jp/id/9">
+        <link rel="canonical" href="https://dic.nicovideo.jp/a/X"/>
+        </head></html>
         """,
         "lxml",
     )
 
-    with patch("article_resolver.fetch_page", return_value=search_soup):
-        result = resolve_article_input("Foo")
+    def _grab(url):
+        assert "/search/" not in url
+        return soup
 
-    assert result == {
-        "ok": False,
-        "failure_kind": "ambiguous",
-        "normalized_input": "Foo",
-    }
+    with patch("article_resolver.fetch_page", side_effect=_grab):
+        resolve_article_input("X")
 
 
-def test_resolve_article_input_returns_not_found_when_title_search_is_404():
+def test_resolve_article_input_returns_not_found_when_direct_article_is_404():
+    expected = f"https://dic.nicovideo.jp/a/{quote('Foo', safe='')}"
     with patch(
         "article_resolver.fetch_page",
         side_effect=RuntimeError(
-            "Failed to fetch https://dic.nicovideo.jp/search/Foo (status=404)"
+            f"Failed to fetch {expected} (status=404)"
         ),
     ):
         result = resolve_article_input("Foo")
@@ -70219,12 +70682,12 @@ def test_resolve_article_input_returns_not_found_when_title_search_is_404():
     }
 
 
-def test_resolve_article_input_still_raises_unexpected_title_search_errors():
+def test_resolve_article_input_still_raises_unexpected_direct_fetch_errors():
+    expected = f"https://dic.nicovideo.jp/a/{quote('Foo', safe='')}"
     with patch(
         "article_resolver.fetch_page",
         side_effect=RuntimeError(
-            "Failed to fetch https://dic.nicovideo.jp/search/Foo "
-            "(timeout=10s)"
+            f"Failed to fetch {expected} (timeout=10s)"
         ),
     ):
         with pytest.raises(RuntimeError) as exc_info:
@@ -78128,8 +78591,12 @@ FILE: cursor/tests/test_web_app.py
 from io import BytesIO
 import sqlite3
 from unittest.mock import patch
+from urllib.parse import quote, quote_plus
+
+from bs4 import BeautifulSoup
 
 import web_app
+from storage import init_db, list_targets
 from web_app import application, check_article_status, create_app
 
 
@@ -78308,6 +78775,93 @@ def test_check_article_status_restores_saved_parity_for_encoded_url_input():
     assert result["article_id"] == "5502789"
     assert result["article_type"] == "a"
     assert result["article_url"] == "https://dic.nicovideo.jp/a/たつきショック"
+
+
+def test_check_article_status_plain_exact_title_via_direct_article_fetch():
+    """Title input resolves with one fetch of /a/<url-encoded-title>, no search."""
+    empty_summary = {
+        "found": False,
+        "article_id": None,
+        "article_type": None,
+        "title": None,
+        "url": None,
+        "created_at": None,
+        "published_at": None,
+        "modified_at": None,
+        "response_count": 0,
+    }
+
+    ttl = "ストローマン論法"
+    dire = f"https://dic.nicovideo.jp/a/{quote(ttl, safe='')}"
+    soup = BeautifulSoup(
+        f"""
+        <html><head>
+        <meta property="og:title" content="{ttl}とは">
+        <meta property="og:url"
+              content="https://dic.nicovideo.jp/id/880011">
+        <link rel="canonical" href="{dire}"/>
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    arc_miss = {
+        "found": False,
+        "article_id": "880011",
+        "article_type": "a",
+        "title": None,
+        "url": None,
+        "created_at": None,
+        "published_at": None,
+        "modified_at": None,
+        "response_count": 0,
+    }
+
+    with patch(
+        "web_app.get_saved_article_summary_by_exact_title",
+        return_value=empty_summary,
+    ):
+        with patch(
+            "web_app.get_saved_article_summary",
+            return_value=arc_miss,
+        ):
+            with patch(
+                "article_resolver.fetch_page",
+                return_value=soup,
+            ) as mf:
+                result = check_article_status(ttl)
+
+    mf.assert_called_once_with(dire)
+    assert result["status"] == "unsaved"
+    assert result["matched_by"] == "exact_title"
+    assert result["article_id"] == "880011"
+
+
+def test_check_article_status_plain_exact_title_not_found_on_direct_404():
+    empty_summary = {
+        "found": False,
+        "article_id": None,
+        "article_type": None,
+        "title": None,
+        "url": None,
+        "created_at": None,
+        "published_at": None,
+        "modified_at": None,
+        "response_count": 0,
+    }
+    ttl = "存在しない完全一致タイトル"
+    dire = f"https://dic.nicovideo.jp/a/{quote(ttl, safe='')}"
+    err = RuntimeError(f"Failed to fetch {dire} (status=404)")
+
+    with patch(
+        "web_app.get_saved_article_summary_by_exact_title",
+        return_value=empty_summary,
+    ):
+        with patch("article_resolver.fetch_page", side_effect=err):
+            result = check_article_status(ttl)
+
+    assert result["status"] == "resolution_failure"
+    assert result["failure_kind"] == "not_found"
 
 
 def test_check_article_status_classifies_temporary_fetch_failure():
@@ -78714,6 +79268,53 @@ def test_saved_encoded_url_input_with_csv_selection_keeps_download_flow():
 
     assert response["status"] == "200 OK"
     assert 'name="requested_format" value="csv"' in response["body"]
+
+
+def test_application_post_registers_plain_exact_title_via_resolver(
+    tmp_path, monkeypatch,
+):
+    """End-to-end: Japanese exact title resolves by direct slug URL and persists."""
+    monkeypatch.chdir(tmp_path)
+    (tmp_path / "data").mkdir(parents=True, exist_ok=True)
+    tgt_db = tmp_path / "targets.db"
+    log_path = tmp_path / "web_action.log"
+
+    ttl = "ストローマン論法"
+    dire = f"https://dic.nicovideo.jp/a/{quote(ttl, safe='')}"
+    soup = BeautifulSoup(
+        f"""
+        <html><head>
+        <meta property="og:title" content="{ttl}とは">
+        <meta property="og:url"
+              content="https://dic.nicovideo.jp/id/880011">
+        <link rel="canonical" href="{dire}"/>
+        </head></html>
+        """,
+        "lxml",
+    )
+
+    body = f"article_input={quote_plus(ttl)}"
+    with patch("article_resolver.fetch_page", return_value=soup):
+        captured = _run_wsgi_request(
+            "POST",
+            body=body,
+            app=create_app(
+                target_db_path=str(tgt_db),
+                web_action_log_path=str(log_path),
+            ),
+        )
+
+    assert captured["status"] == "200 OK"
+    assert "Article registered for archive checking." in captured["body"]
+    assert f"Article title:</strong> {ttl}" in captured["body"]
+
+    conn = init_db(str(tgt_db))
+    try:
+        rows = list_targets(conn)
+    finally:
+        conn.close()
+    assert len(rows) == 1
+    assert rows[0]["article_id"] == "880011"
 
 
 def test_application_post_registration_write_failure_returns_bounded_error():
