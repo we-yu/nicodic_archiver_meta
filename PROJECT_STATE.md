@@ -2511,3 +2511,112 @@ Non-goals preserved:
 - No DB/schema changes.
 - No scrape semantics changes.
 - No target ordering algorithm changes.
+
+## Thread handoff: runtime DB lock and dev sample DB setup
+
+Current handoff state:
+
+- Product child repos are on main and converged.
+- Latest product main includes:
+  - MainTask-target-order-modes
+  - SubTask-BugFix-forward-target-order-env-to-runtime-wrapper
+  - SubTask-BugFix-forward-target-order-env-to-runtime-wrapper-followup
+- TARGET_ORDER_MODE supports default, reverse, and random_rotation.
+- TARGET_ORDER_START_ARTICLE_ID works through runtime/periodic_once.sh.
+- Blank TARGET_ORDER_START_ARTICLE_ID is treated as absent.
+
+Runtime status:
+
+- The target-order cron policy was tried as:
+  - 00:05 default
+  - 03:05 reverse
+  - 06/09/12/15/18/21 random_rotation
+- Manual/random runtime smoke confirmed effective=random_rotation and actual target processing.
+- During that run, sqlite3.OperationalError: database is locked occurred at:
+  - storage.append_scrape_run_observation
+  - conn.commit()
+- The failure appears to be in scrape_run_observation / telemetry persistence,
+  not in target ordering itself.
+- Runtime periodic cron lines are currently commented out to prevent automatic
+  re-entry while DB lock tolerance is unresolved.
+- The stuck periodic process and periodic_once.lock were cleared.
+- Runtime is currently expected to be:
+  - no periodic_once lock
+  - no periodic/batch process
+  - Web container alive
+
+Immediate next task:
+
+- RuntimeOps-build-dev-sample-db
+- Root branch already created:
+  - runtimeops-build-dev-sample-db
+- Purpose:
+  - build a reusable root/meta helper that creates a compact Dev sample DB from
+    the 8.4GB runtime DB
+  - install the generated sample DB into copilot/runtime/data/nicodic.db and
+    cursor/runtime/data/nicodic.db when the human runs the helper
+  - avoid copying the full runtime DB
+  - avoid live scraping
+  - avoid Delete Feeder mass rebuild behavior
+
+Planned files for RuntimeOps-build-dev-sample-db:
+
+- build_dev_sample_db.sh
+- META/scripts/build_dev_sample_db.py
+- META/DEV_SAMPLE_DB.md
+
+Important constraints for RuntimeOps-build-dev-sample-db:
+
+- Do not edit copilot/ or cursor/ during helper implementation.
+- Do not modify the runtime DB.
+- Do not run live scraping.
+- Do not copy the full runtime DB.
+- Use current product storage.init_db schema creation if practical.
+- Copy selected data from runtime DB into a small generated DB.
+- Copy the same generated DB to both child repos only when the helper is run.
+- Create dev_sample_manifest.json beside each generated DB.
+- Create or refresh empty web_action.log beside each generated DB.
+- Enforce Delete Feeder guard:
+  - sample DB must contain zero responses for article_id=5511090 and
+    article_type=a.
+
+Fixed sample article selection:
+
+- Required article_ids, article_type=a:
+  - 5512354
+  - 5513908
+  - 5527590
+  - 5523983
+  - 5527595
+  - 5523746
+  - 1919260
+  - 5228140
+  - 4493425
+  - 5535296
+  - 5104766
+  - 5287728
+  - 4897961
+  - 5509670
+  - 5351038
+  - 5501738
+  - 4982057
+- Optional article_id:
+  - 5400838
+
+Follow-up after Dev sample DB:
+
+- SubTask-BugFix-observation-db-lock-tolerance
+- Goal:
+  - keep archive-critical writes fatal
+  - add retry/warn behavior only for scrape_run_observation / telemetry lock
+    failures
+  - avoid turning telemetry-only database locks into full run FAILs
+  - preserve response storage integrity
+
+Later candidate:
+
+- MainTask-sqlite-access-hardening
+- Purpose:
+  - review and harden SQLite connection timeout / busy_timeout / read/write
+    access patterns across storage, archive_read, web_app, target_list, and
+    related runtime paths.
