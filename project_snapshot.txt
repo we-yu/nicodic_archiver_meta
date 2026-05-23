@@ -3380,6 +3380,84 @@ Runtime reflection for SubTask-zero-response-board-scraped-state was completed.
   Registered Articles rows with saved responses = 0, Max Res No = 0, and
   populated Last Scraped.
 
+## MainTask completed: target order modes
+
+MainTask-target-order-modes was completed.
+
+Purpose:
+
+- avoid always starting periodic / batch runs from the beginning of the active
+  target list
+- make it possible to reach newer / Delete Feeder appended targets earlier
+- provide random_rotation for long-term target traversal spreading
+- provide a focused start article override for verification
+
+Adopted implementation:
+
+- Copilot implementation was selected.
+- Added a bounded target_ordering.py boundary.
+- Added TARGET_ORDER_MODE with supported values:
+  - default
+  - reverse
+  - random_rotation
+- Added TARGET_ORDER_START_ARTICLE_ID.
+- Added CLI options for batch, periodic-once, and periodic:
+  - --target-order-mode
+  - --target-order-start-article-id
+- CLI values override environment values.
+- Environment values override default behavior.
+- Invalid or unknown configuration falls back to default order without aborting.
+- Invalid or not-found start article override falls back to default order.
+- Stored numeric article_id values are used for start override, so numeric
+  article_id matching works even when canonical_url is /a/<encoded title>.
+- One compact [TARGET ORDER] line is emitted near run start and written to
+  batch / host-cron-visible logs.
+
+Validation:
+
+- validate_helix.sh passed before adoption.
+- Copilot branch reported 437 tests passed.
+- Cursor comparison branch reported 429 tests passed.
+- After merge, copilot and cursor should be synced to main and full validation
+  should be rerun.
+
+Runtime note:
+
+- Runtime reflection is a separate step.
+- This task does not change crontab.
+- This task does not choose the final scheduling policy.
+- Future runtime-operation tuning may use frequent random_rotation runs plus
+  occasional reverse runs to reach newly appended targets sooner.
+
+Review log:
+
+- Added META/review_log/MainTask_target_order_modes_20260523.md.
+
+Non-goals preserved:
+
+- No cron changes.
+- No Docker compose changes.
+- No DB schema changes.
+- No scrape semantics changes.
+- No response storage changes.
+- No Delete Feeder semantics changes.
+- No persistent resume cursor.
+- No per-target shuffle.
+- No scrape_id / run mark.
+
+## Runtime reflected: target order modes
+
+Runtime reflection for MainTask-target-order-modes was completed.
+
+- reflect_runtime.sh was run after confirming no active periodic_once lock and
+  no active scrape process.
+- runtime checkout was fast-forwarded to the adopted product main.
+- runtime container was rebuilt/recreated through the standard reflection flow.
+- Current crontab was not changed by this task.
+- Existing runtime scheduling policy remains in effect.
+- Future scheduling changes such as daily reverse plus frequent random_rotation
+  should be handled as a separate runtime-operation task.
+
 
 ===== WORKSPACE =====
 # Workspace
@@ -4673,6 +4751,129 @@ Desired future behavior:
   unavailable, existing archived responses must remain downloadable
 
 This should be handled as a separate bounded task.
+
+
+===== REVIEW LOG: META/review_log/MainTask_target_order_modes_20260523.md =====
+# MainTask: target order modes
+
+## Summary
+
+MainTask-target-order-modes was completed.
+
+The task introduced a bounded target-ordering boundary for batch and periodic
+scraping so runtime runs no longer have to always traverse active targets from
+the beginning of the registered target list.
+
+## Adopted implementation
+
+The Copilot implementation was adopted.
+
+Reason:
+
+- It provides a dedicated target_ordering.py boundary.
+- It supports default, reverse, and random_rotation modes.
+- It supports TARGET_ORDER_START_ARTICLE_ID as a focused verification override.
+- It adds CLI options for batch, periodic-once, and periodic.
+- It preserves env-based runtime defaults.
+- It preserves default traversal compatibility.
+- It uses stored numeric article_id values for start override, so numeric
+  article_id matching still works for canonical /a/<encoded title> URLs.
+- It emits compact [TARGET ORDER] logging suitable for host cron / batch logs.
+- It updates runtime env examples and PERSONAL_RUNTIME documentation.
+
+## Implemented modes
+
+- default:
+  - preserves current loaded target order
+- reverse:
+  - reverses the loaded active target list
+  - useful for reaching recently registered / Delete Feeder appended targets
+    sooner
+- random_rotation:
+  - selects one start index at run start
+  - rotates the loaded target list once
+  - does not shuffle per target
+  - does not duplicate targets within one run
+- start article override:
+  - TARGET_ORDER_START_ARTICLE_ID or --target-order-start-article-id rotates
+    the list so the matching stored article_id is first
+  - invalid or not-found override falls back to default order
+
+## Configuration
+
+Environment variables:
+
+- TARGET_ORDER_MODE
+- TARGET_ORDER_START_ARTICLE_ID
+
+CLI options:
+
+- --target-order-mode
+- --target-order-start-article-id
+
+Precedence:
+
+1. CLI option values
+2. environment values
+3. default behavior
+
+## Logging
+
+Each run emits one compact [TARGET ORDER] line near run start.
+
+The line includes:
+
+- requested mode
+- mode source when available
+- requested start article_id when available
+- target count
+- effective mode
+- start index / start article_id when applicable
+- fallback reason when applicable
+
+## Validation
+
+Before adoption:
+
+- validate_helix.sh passed.
+- Copilot branch: 437 tests passed.
+- Cursor comparison branch: 429 tests passed.
+
+After adoption:
+
+- product main should be updated from the Copilot implementation.
+- copilot and cursor child repos should be synced to main.
+- compare_helix.sh --all should confirm convergence.
+- validate_helix.sh should pass again.
+
+## Runtime status
+
+Runtime reflection should be recorded separately after reflect_runtime.sh is
+run.
+
+This task intentionally does not change crontab or runtime scheduling policy.
+
+The expected future runtime-operation follow-up is to decide a schedule such
+as:
+
+- frequent random_rotation runs
+- occasional reverse runs for newer / Delete Feeder appended targets
+- optional explicit start-article verification runs
+
+## Non-goals
+
+This task intentionally did not introduce:
+
+- cron changes
+- Docker compose changes
+- DB schema changes
+- scrape semantics changes
+- response storage changes
+- Delete Feeder semantics changes
+- persistent resume cursor
+- per-target shuffle
+- scrape_id / run mark
+- target registration order changes in storage
 
 
 ===== REVIEW LOG: META/review_log/SUBTASK001_kgs_builtin_trim_fix.md =====
@@ -12248,7 +12449,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Tue May 19 16:54:48 UTC 2026
+generated: Sat May 23 09:01:24 UTC 2026
 mode: full
 
 
@@ -17190,6 +17391,12 @@ LOCAL_UID=1000
 LOCAL_GID=1000
 SCRAPE_PAGE_DELAY_SECONDS=5.0
 BBS_RESPONSES_PER_PAGE=30
+TARGET_ORDER_MODE=default
+# TARGET_ORDER_MODE=random_rotation
+# TARGET_ORDER_MODE=reverse
+# TARGET_ORDER_START_ARTICLE_ID=
+# CLI override example:
+# python main.py batch /app/data/nicodic.db --target-order-mode reverse
 SOFT_TERMINATE_FILE=runtime/control/stop_after_current
 ONESHOT_LIMIT_DURATION_SECONDS=3600
 
@@ -17446,6 +17653,117 @@ Editor AI model / tool information
 ----------------------------------
 Composer (Cursor agent); Docker-backed pytest run as above.
 
+
+=============================
+FILE: copilot/MainTask-target-order-modes_report.txt
+=============================
+Summary
+- Added a bounded target-ordering boundary for batch and periodic scraping.
+- Supported default, reverse, random_rotation, and start article override.
+- Invalid or unknown configuration falls back to default order without aborting runs.
+- Added CLI overrides for batch, periodic-once, and periodic while preserving env fallback.
+
+Files touched
+- main.py
+- target_ordering.py
+- .env.runtime.local.example
+- docs/PERSONAL_RUNTIME.md
+- tests/test_main.py
+- tests/test_target_list.py
+- tests/test_runtime_local_ops.py
+- tests/test_target_ordering.py
+
+Implemented modes
+- default: preserves loaded target order.
+- reverse: reverses the loaded target list.
+- random_rotation: picks one start index at run start and rotates once through the list.
+- start article override: rotates the loaded target list so the matching article_id is first.
+
+CLI options added
+- --target-order-mode MODE
+- --target-order-start-article-id ARTICLE_ID
+
+Environment variables
+- TARGET_ORDER_MODE
+- TARGET_ORDER_START_ARTICLE_ID
+
+Ordering/fallback rules
+- CLI options override environment values.
+- Unset, empty, or invalid TARGET_ORDER_MODE falls back to default.
+- TARGET_ORDER_START_ARTICLE_ID takes precedence over reverse and random_rotation.
+- If TARGET_ORDER_START_ARTICLE_ID is empty, invalid, or not found in the active loaded target list, the effective order falls back to default.
+- Start override fallback does not continue into reverse or random_rotation.
+
+Precedence rules
+- CLI option values
+- Environment values
+- Default behavior
+
+Article_id override fix
+- Active target ordering now reads stored article_id values from the target table for already-registered targets.
+- This allows TARGET_ORDER_START_ARTICLE_ID to match numeric article_id even when canonical_url is a slug or encoded /a/<title> URL.
+- The final ordered sequence still passed to run_scrape remains canonical URLs.
+
+Logging behavior
+- Added one compact [TARGET ORDER] line near run start.
+- The line includes requested mode, effective mode, target count, and start_index/start_article_id when applicable.
+- The line also includes CLI/env source fields when available.
+- Fallback cases include fallback mode and reason fields.
+- The line is emitted to stdout or host-cron reporter output and is also appended to the batch log.
+
+Tests added or updated
+- Added unit tests for target_ordering.py covering default, reverse, random_rotation, override precedence, unknown mode fallback, invalid override fallback, empty list safety, and log formatting.
+- Added tests for CLI precedence resolution and stored article_id matching for slug URLs.
+- Updated main batch and periodic tests to verify CLI target-order options are parsed and forwarded.
+- Updated main batch tests to verify reverse ordering is applied and invalid start override falls back to default order with logging.
+- Updated runtime local ops tests to cover the new env example and runtime doc mentions.
+- Added a focused target-list compatibility test proving active default traversal order remains aligned with the legacy URL-only reader.
+
+E501 fix
+- Fixed flake8 E501 only in target_ordering.py, tests/test_main.py, and tests/test_target_ordering.py.
+
+Default-order compatibility confirmation
+- list_active_target_urls() reads active rows through list_targets(conn) with the storage query ordered by id ASC.
+- list_registered_targets(..., active_only=True) also reads through list_targets(conn, active_only=True) with the same ORDER BY id ASC clause.
+- Added a focused compatibility test to prove the active canonical_url projection from list_registered_targets(active_only=True) matches list_active_target_urls().
+
+Validation attempted or not attempted
+- Attempted a narrow Python compile check with python; the environment had no python alias.
+- Re-ran the narrow compile check with python3 and a temporary pycache prefix; that succeeded.
+- Ran the existing container-based test workflow with a focused scope:
+	docker compose run --rm --entrypoint "" scraper pytest -q tests/test_target_ordering.py tests/test_main.py tests/test_runtime_local_ops.py
+- Result after the follow-up CLI override changes: 94 passed in 1.08s.
+- Re-ran flake8 for the requested files to clear E501 issues:
+	docker compose run --rm --entrypoint "" scraper flake8 target_ordering.py tests/test_main.py tests/test_target_ordering.py
+- Result: no output, E501 cleared for the requested files.
+- Re-ran focused pytest including the target-list compatibility test after this follow-up fix:
+	docker compose run --rm --entrypoint "" scraper pytest -q tests/test_target_ordering.py tests/test_main.py tests/test_runtime_local_ops.py tests/test_target_list.py
+- Result: 115 passed in 2.18s.
+- validate_helix.sh is not present in this child product repository, so PASS against that script could not be claimed in this task.
+
+Runtime scheduling follow-up note
+- CLI options are now available for batch, periodic-once, and periodic.
+- .env settings remain available for normal runtime defaults.
+- Actual runtime scheduling policy such as daily reverse plus frequent random_rotation is a follow-up runtime-operation task and was not completed here.
+
+Known limitations
+- Start article override still expects a numeric article_id string.
+- Target ordering is in-memory per run only; no persistent resume cursor is introduced.
+
+Explicit non-goals preserved
+- No cron changes.
+- No Docker compose changes.
+- No DB schema changes.
+- No scrape semantics changes.
+- No response storage changes.
+- No delete feeder semantics changes.
+- No persistent continuation state or per-target shuffle.
+- No target registration order changes in storage.
+
+Editor AI model/tool information if available
+- Agent: GitHub Copilot
+- Model: GPT-5.4
+- Tools used: workspace file reads/search, apply_patch, terminal validation
 
 =============================
 FILE: copilot/Makefile
@@ -21538,6 +21856,8 @@ Expected keys:
 - `LOCAL_GID`
 - `SCRAPE_PAGE_DELAY_SECONDS`
 - `BBS_RESPONSES_PER_PAGE`
+- `TARGET_ORDER_MODE`
+- `TARGET_ORDER_START_ARTICLE_ID`
 - `SOFT_TERMINATE_FILE`
 - `ONESHOT_LIMIT_DURATION_SECONDS`
 
@@ -21557,6 +21877,25 @@ scrape pagination. If it is unset or invalid, the application falls back to
 `BBS_RESPONSES_PER_PAGE` controls the BBS page boundary size used for resume
 and later-page progression. If it is unset or invalid, the application falls
 back to `30` responses per page.
+
+`TARGET_ORDER_MODE` controls the batch / periodic target traversal order. The
+supported values are `default`, `reverse`, and `random_rotation`. If it is
+unset, empty, or invalid, the runtime falls back to `default`.
+
+Use `random_rotation` for frequent normal runs so one-shot batches do not keep
+starting from the earliest registered targets.
+
+Use `reverse` for occasional newer-target-first runs when you want recently
+registered or Delete Feeder-appended targets to be reached sooner.
+
+`TARGET_ORDER_START_ARTICLE_ID` is an optional debug override. When it matches
+an active loaded target, the run rotates the current target list so that
+article starts first. If it is empty, invalid, or not found in the active
+target list, the runtime falls back to the default order and emits a compact
+warning line near run start.
+
+Use `--target-order-start-article-id` for focused verification around a known
+numeric article ID without editing the env file.
 
 `SOFT_TERMINATE_FILE` controls the file-based stop-after-current flag path.
 If it is unset or empty, the runtime uses
@@ -21770,8 +22109,33 @@ Useful environment overrides for external schedulers:
 - `COMPOSE_SERVICE_NAME` defaults to `personal_runtime`
 - `LOCK_DIR_PATH` defaults to `runtime/logs/periodic_once.lock`
 - `RUNTIME_LOCAL_ENV_FILE` defaults to `.env.runtime.local`
+- `TARGET_ORDER_MODE` defaults to `default`
+- `TARGET_ORDER_START_ARTICLE_ID` is disabled unless set
 - `SOFT_TERMINATE_FILE` defaults to `runtime/control/stop_after_current`
 - `ONESHOT_LIMIT_DURATION_SECONDS` is disabled unless set to a positive value
+
+Example target-order settings for `.env.runtime.local`:
+
+```sh
+TARGET_ORDER_MODE=default
+# TARGET_ORDER_MODE=random_rotation
+# TARGET_ORDER_MODE=reverse
+# TARGET_ORDER_START_ARTICLE_ID=
+```
+
+CLI options override those env defaults for one invocation. Examples:
+
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py batch /app/data/nicodic.db --target-order-mode random_rotation
+
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py batch /app/data/nicodic.db --target-order-mode reverse
+
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py periodic-once /app/data/nicodic.db \
+		--target-order-start-article-id 5400838
+```
 
 Example scheduler-facing invocation shape:
 
@@ -23803,10 +24167,15 @@ from storage import (
     format_run_telemetry_csv_wide,
     init_db,
 )
+from target_ordering import TargetOrderConfig
+from target_ordering import format_target_order_log_line
+from target_ordering import order_targets_for_run
+from target_ordering import resolve_target_order_config
 from target_list import (
     handoff_redirected_target,
     import_targets_from_text_file,
     list_active_target_urls,
+    list_registered_targets,
     parse_target_identity,
     register_target_url,
 )
@@ -24171,9 +24540,103 @@ def _emit_delete_request_feed_summary(progress_reporter, summary: dict) -> None:
     )
 
 
+def _emit_target_order_summary(progress_reporter, log_path: Path, line: str) -> None:
+    if progress_reporter is None:
+        print(line)
+    elif hasattr(progress_reporter, "emit"):
+        progress_reporter.emit("INFO", line, indent_level=1)
+
+    _append_batch_log_lines(log_path, [line])
+
+
+def _load_active_targets_for_ordering(
+    target_db_path: str,
+) -> tuple[list[str], dict[str, str]]:
+    existing_target_entries = list_registered_targets(
+        target_db_path,
+        active_only=True,
+    )
+    if existing_target_entries:
+        return (
+            [entry["canonical_url"] for entry in existing_target_entries],
+            {
+                entry["canonical_url"]: entry["article_id"]
+                for entry in existing_target_entries
+            },
+        )
+
+    return list_active_target_urls(target_db_path), {}
+
+
+def _read_target_order_config(args: list[str]) -> TargetOrderConfig | None:
+    if not args:
+        return None
+
+    mode = None
+    start_article_id = None
+    index = 0
+
+    while index < len(args):
+        token = args[index]
+        if token == "--target-order-mode":
+            if index + 1 >= len(args):
+                raise ValueError("Missing value for --target-order-mode")
+            mode = args[index + 1]
+            index += 2
+            continue
+        if token == "--target-order-start-article-id":
+            if index + 1 >= len(args):
+                raise ValueError(
+                    "Missing value for --target-order-start-article-id"
+                )
+            start_article_id = args[index + 1]
+            index += 2
+            continue
+        raise ValueError(f"Unknown argument: {token}")
+
+    return resolve_target_order_config(
+        cli_mode=mode,
+        cli_start_article_id=start_article_id,
+        environ=os.environ,
+    )
+
+
+def _read_periodic_cli_options(
+    args: list[str],
+) -> tuple[int | None, TargetOrderConfig | None]:
+    max_runs = None
+    target_order_args: list[str] = []
+    index = 0
+
+    while index < len(args):
+        token = args[index]
+        if token == "--max-runs":
+            if index + 1 >= len(args):
+                raise ValueError("Missing value for --max-runs")
+            max_runs = int(args[index + 1])
+            index += 2
+            continue
+
+        target_order_args.append(token)
+        if token in {
+            "--target-order-mode",
+            "--target-order-start-article-id",
+        }:
+            if index + 1 >= len(args):
+                raise ValueError(f"Missing value for {token}")
+            target_order_args.append(args[index + 1])
+            index += 2
+            continue
+
+        raise ValueError(f"Unknown argument: {token}")
+
+    return max_runs, _read_target_order_config(target_order_args)
+
+
 def run_batch_scrape(
     target_db_path: str,
     progress_reporter=None,
+    target_order_config: TargetOrderConfig | None = None,
 ) -> tuple[str, int]:
     """Run one full batch pass and return (final_status, failed_targets)."""
 
@@ -24193,7 +24656,9 @@ def run_batch_scrape(
     else:
         batch_digest_tracker = None
 
-    existing_targets = list_active_target_urls(target_db_path)
+    existing_targets, stored_article_ids_by_url = _load_active_targets_for_ordering(
+        target_db_path
+    )
     delete_request_feed_summary = run_delete_request_feeder(
         target_db_path,
         archive_db_path=archive_db_path,
@@ -24202,6 +24667,17 @@ def run_batch_scrape(
         existing_targets,
         delete_request_feed_summary["queued_target_urls"],
     )
+    target_article_ids = [stored_article_ids_by_url.get(target) for target in targets]
+    effective_target_order_config = (
+        target_order_config or resolve_target_order_config(environ=os.environ)
+    )
+    target_order_decision = order_targets_for_run(
+        targets,
+        config=effective_target_order_config,
+        target_article_ids=target_article_ids,
+    )
+    targets = target_order_decision.ordered_targets
+    target_order_line = format_target_order_log_line(target_order_decision)
 
     bcm_fn = getattr(progress_reporter or None, "begin_compact_host_run", None)
     if callable(bcm_fn):
@@ -24232,10 +24708,14 @@ def run_batch_scrape(
                 progress_reporter,
                 delete_request_feed_summary,
             )
+        _emit_target_order_summary(progress_reporter, log_path, target_order_line)
         progress_reporter.note_targets_loaded(len(targets), target_db_path)
         nss = getattr(progress_reporter, "note_scrape_start_compact", None)
         if callable(nss):
             nss()
+
+    if progress_reporter is None:
+        _emit_target_order_summary(progress_reporter, log_path, target_order_line)
 
     _append_batch_run_start(
         log_path,
@@ -24721,6 +25201,7 @@ def run_batch_scrape(
 def _run_periodic_once_with_host_cron(
     target_db_path: str,
     host_cron_log_path: str,
+    target_order_config: TargetOrderConfig | None = None,
 ) -> None:
     log_path = Path(host_cron_log_path)
     run_now = local_now()
@@ -24747,7 +25228,12 @@ def _run_periodic_once_with_host_cron(
     try:
         stream = log_path.open("a", encoding="utf-8")
     except OSError:
-        run_periodic_scrape(target_db_path, 0.0, max_runs=1)
+        run_periodic_scrape(
+            target_db_path,
+            0.0,
+            max_runs=1,
+            target_order_config=target_order_config,
+        )
         return
 
     reporter = HostCronReporter(stream)
@@ -24762,6 +25248,7 @@ def _run_periodic_once_with_host_cron(
             final_status, _failed_targets = run_batch_scrape(
                 target_db_path,
                 progress_reporter=reporter,
+                target_order_config=target_order_config,
             )
         except KeyboardInterrupt:
             reporter.note_maintenance_warning("periodic_execution_interrupted")
@@ -24787,6 +25274,7 @@ def run_periodic_scrape(
     target_db_path: str,
     interval_seconds: float,
     max_runs: int | None = None,
+    target_order_config: TargetOrderConfig | None = None,
 ) -> None:
     """Run full batch passes repeatedly with a fixed sleep interval."""
 
@@ -24801,7 +25289,13 @@ def run_periodic_scrape(
         _inside_periodic_batch = True
         try:
             try:
-                final_status, failed_targets = run_batch_scrape(target_db_path)
+                if target_order_config is not None:
+                    final_status, failed_targets = run_batch_scrape(
+                        target_db_path,
+                        target_order_config=target_order_config,
+                    )
+                else:
+                    final_status, failed_targets = run_batch_scrape(target_db_path)
             except KeyboardInterrupt:
                 print("Periodic execution interrupted. Exiting safely.")
                 return
@@ -24825,15 +25319,27 @@ def run_periodic_scrape(
             return
 
 
-def run_periodic_once(target_db_path: str) -> None:
+def run_periodic_once(
+    target_db_path: str,
+    target_order_config: TargetOrderConfig | None = None,
+) -> None:
     """Run one periodic cycle without requiring a sleep interval argument."""
 
     host_cron_log_path = os.environ.get("HOST_CRON_LOG_PATH")
     if host_cron_log_path:
-        _run_periodic_once_with_host_cron(target_db_path, host_cron_log_path)
+        _run_periodic_once_with_host_cron(
+            target_db_path,
+            host_cron_log_path,
+            target_order_config=target_order_config,
+        )
         return
 
-    run_periodic_scrape(target_db_path, 0.0, max_runs=1)
+    run_periodic_scrape(
+        target_db_path,
+        0.0,
+        max_runs=1,
+        target_order_config=target_order_config,
+    )
 
 
 def _read_optional_flag(args, flag_name, default=None):
@@ -25323,8 +25829,16 @@ def main():
         )
         print("  python main.py resolve-article <article_url_or_full_title>")
         print("  python main.py targets <target_db_path>")
-        print("  python main.py batch <target_db_path>")
-        print("  python main.py periodic-once <target_db_path>")
+        print(
+            "  python main.py batch <target_db_path> "
+            "[--target-order-mode MODE] "
+            "[--target-order-start-article-id ARTICLE_ID]"
+        )
+        print(
+            "  python main.py periodic-once <target_db_path> "
+            "[--target-order-mode MODE] "
+            "[--target-order-start-article-id ARTICLE_ID]"
+        )
         print(
             "  python main.py inspect-delete-request-feed "
             "[--archive-db PATH] [--state-path PATH] [--full-scan]"
@@ -25339,7 +25853,8 @@ def main():
         )
         print(
             "  python main.py periodic <target_db_path> <interval_seconds> "
-            "[--max-runs N]"
+            "[--max-runs N] [--target-order-mode MODE] "
+            "[--target-order-start-article-id ARTICLE_ID]"
         )
         print(
             "  python main.py export-run-telemetry-csv "
@@ -25561,10 +26076,25 @@ def main():
     if sys.argv[1] == "batch":
 
         if len(sys.argv) < 3:
-            print("Usage: batch <target_db_path>")
+            print(
+                "Usage: batch <target_db_path> [--target-order-mode MODE] "
+                "[--target-order-start-article-id ARTICLE_ID]"
+            )
             sys.exit(1)
 
-        _, failed_targets = run_batch_scrape(sys.argv[2])
+        try:
+            target_order_config = _read_target_order_config(sys.argv[3:])
+        except ValueError:
+            print(
+                "Usage: batch <target_db_path> [--target-order-mode MODE] "
+                "[--target-order-start-article-id ARTICLE_ID]"
+            )
+            sys.exit(1)
+
+        _, failed_targets = run_batch_scrape(
+            sys.argv[2],
+            target_order_config=target_order_config,
+        )
 
         if failed_targets:
             sys.exit(1)
@@ -25573,10 +26103,24 @@ def main():
     if sys.argv[1] == "periodic-once":
 
         if len(sys.argv) < 3:
-            print("Usage: periodic-once <target_db_path>")
+            print(
+                "Usage: periodic-once <target_db_path> "
+                "[--target-order-mode MODE] "
+                "[--target-order-start-article-id ARTICLE_ID]"
+            )
             sys.exit(1)
 
-        run_periodic_once(sys.argv[2])
+        try:
+            target_order_config = _read_target_order_config(sys.argv[3:])
+        except ValueError:
+            print(
+                "Usage: periodic-once <target_db_path> "
+                "[--target-order-mode MODE] "
+                "[--target-order-start-article-id ARTICLE_ID]"
+            )
+            sys.exit(1)
+
+        run_periodic_once(sys.argv[2], target_order_config=target_order_config)
         return
 
     if sys.argv[1] == "periodic":
@@ -25584,19 +26128,32 @@ def main():
         if len(sys.argv) < 4:
             print(
                 "Usage: periodic <target_db_path> <interval_seconds> "
-                "[--max-runs N]"
+                "[--max-runs N] [--target-order-mode MODE] "
+                "[--target-order-start-article-id ARTICLE_ID]"
             )
             sys.exit(1)
 
         target_db_path = sys.argv[2]
         interval_seconds = float(sys.argv[3])
 
-        max_runs = None
-        if "--max-runs" in sys.argv:
-            idx = sys.argv.index("--max-runs")
-            max_runs = int(sys.argv[idx + 1])
+        try:
+            max_runs, target_order_config = _read_periodic_cli_options(
+                sys.argv[4:]
+            )
+        except ValueError:
+            print(
+                "Usage: periodic <target_db_path> <interval_seconds> "
+                "[--max-runs N] [--target-order-mode MODE] "
+                "[--target-order-start-article-id ARTICLE_ID]"
+            )
+            sys.exit(1)
 
-        run_periodic_scrape(target_db_path, interval_seconds, max_runs=max_runs)
+        run_periodic_scrape(
+            target_db_path,
+            interval_seconds,
+            max_runs=max_runs,
+            target_order_config=target_order_config,
+        )
         return
 
     if sys.argv[1] == "web":
@@ -28963,6 +29520,280 @@ def import_targets_from_text_file(
         counts[result] += 1
 
     return counts
+
+
+=============================
+FILE: copilot/target_ordering.py
+=============================
+import os
+import random
+from dataclasses import dataclass
+
+from dicopedia_urls import parse_target_identity
+
+
+DEFAULT_TARGET_ORDER_MODE = "default"
+REVERSE_TARGET_ORDER_MODE = "reverse"
+RANDOM_ROTATION_TARGET_ORDER_MODE = "random_rotation"
+
+VALID_TARGET_ORDER_MODES = {
+    DEFAULT_TARGET_ORDER_MODE,
+    REVERSE_TARGET_ORDER_MODE,
+    RANDOM_ROTATION_TARGET_ORDER_MODE,
+}
+
+
+@dataclass(frozen=True)
+class TargetOrderDecision:
+    ordered_targets: list[str]
+    requested_mode: str
+    effective_mode: str
+    target_count: int
+    requested_mode_source: str | None = None
+    requested_start_article_id: str | None = None
+    requested_start_article_id_source: str | None = None
+    start_index: int | None = None
+    start_article_id: str | None = None
+    fallback_mode: str | None = None
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
+class TargetOrderConfig:
+    mode: str | None = None
+    start_article_id: str | None = None
+    mode_source: str | None = None
+    start_article_id_source: str | None = None
+
+
+def _normalized_mode(raw_mode: str | None) -> str:
+    text = (raw_mode or "").strip().lower()
+    if not text:
+        return DEFAULT_TARGET_ORDER_MODE
+    return text
+
+
+def _normalized_optional_text(raw_value: str | None) -> str | None:
+    if raw_value is None:
+        return None
+    return raw_value.strip()
+
+
+def _article_id_for_target(target_url: str) -> str | None:
+    identity = parse_target_identity(target_url)
+    if identity is None:
+        return None
+    return identity["article_id"]
+
+
+def _rotate_targets(targets: list[str], start_index: int) -> list[str]:
+    if not targets:
+        return []
+    return targets[start_index:] + targets[:start_index]
+
+
+def _article_ids_for_targets(
+    targets: list[str],
+    target_article_ids: list[str | None] | None,
+) -> list[str | None]:
+    if target_article_ids is None:
+        return [_article_id_for_target(target) for target in targets]
+    if len(target_article_ids) != len(targets):
+        raise ValueError("target_article_ids must match targets length")
+
+    article_ids: list[str | None] = []
+    for target, article_id in zip(targets, target_article_ids):
+        article_ids.append(article_id or _article_id_for_target(target))
+    return article_ids
+
+
+def resolve_target_order_config(
+    *,
+    cli_mode: str | None = None,
+    cli_start_article_id: str | None = None,
+    environ: dict[str, str] | None = None,
+) -> TargetOrderConfig:
+    env = environ or os.environ
+
+    if cli_mode is not None:
+        mode = cli_mode
+        mode_source = "cli"
+    else:
+        mode = env.get("TARGET_ORDER_MODE")
+        mode_source = "env" if mode is not None else "default"
+
+    if cli_start_article_id is not None:
+        start_article_id = cli_start_article_id
+        start_article_id_source = "cli"
+    else:
+        start_article_id = env.get("TARGET_ORDER_START_ARTICLE_ID")
+        start_article_id_source = "env" if start_article_id is not None else None
+
+    return TargetOrderConfig(
+        mode=mode,
+        start_article_id=start_article_id,
+        mode_source=mode_source,
+        start_article_id_source=start_article_id_source,
+    )
+
+
+def order_targets_for_run(
+    targets: list[str],
+    *,
+    config: TargetOrderConfig | None = None,
+    mode: str | None = None,
+    start_article_id: str | None = None,
+    target_article_ids: list[str | None] | None = None,
+    randrange_fn=None,
+) -> TargetOrderDecision:
+    active_config = config or TargetOrderConfig(
+        mode=mode,
+        start_article_id=start_article_id,
+    )
+    requested_mode = _normalized_mode(active_config.mode)
+    target_count = len(targets)
+    ordered_targets = list(targets)
+    requested_start = _normalized_optional_text(active_config.start_article_id)
+    article_ids = _article_ids_for_targets(targets, target_article_ids)
+
+    if requested_start is not None:
+        if not requested_start or not requested_start.isdigit():
+            return TargetOrderDecision(
+                ordered_targets=ordered_targets,
+                requested_mode=requested_mode,
+                effective_mode=DEFAULT_TARGET_ORDER_MODE,
+                target_count=target_count,
+                requested_mode_source=active_config.mode_source,
+                requested_start_article_id=requested_start,
+                requested_start_article_id_source=(
+                    active_config.start_article_id_source
+                ),
+                fallback_mode=DEFAULT_TARGET_ORDER_MODE,
+                reason="invalid_start_article_id",
+            )
+
+        for index, target_article_id in enumerate(article_ids):
+            if target_article_id == requested_start:
+                return TargetOrderDecision(
+                    ordered_targets=_rotate_targets(list(targets), index),
+                    requested_mode=requested_mode,
+                    effective_mode="start_article_id",
+                    target_count=target_count,
+                    requested_mode_source=active_config.mode_source,
+                    requested_start_article_id=requested_start,
+                    requested_start_article_id_source=(
+                        active_config.start_article_id_source
+                    ),
+                    start_index=index,
+                    start_article_id=requested_start,
+                )
+
+        return TargetOrderDecision(
+            ordered_targets=ordered_targets,
+            requested_mode=requested_mode,
+            effective_mode=DEFAULT_TARGET_ORDER_MODE,
+            target_count=target_count,
+            requested_mode_source=active_config.mode_source,
+            requested_start_article_id=requested_start,
+            requested_start_article_id_source=active_config.start_article_id_source,
+            fallback_mode=DEFAULT_TARGET_ORDER_MODE,
+            reason="start_article_id_not_found",
+        )
+
+    if requested_mode not in VALID_TARGET_ORDER_MODES:
+        return TargetOrderDecision(
+            ordered_targets=ordered_targets,
+            requested_mode=requested_mode,
+            effective_mode=DEFAULT_TARGET_ORDER_MODE,
+            target_count=target_count,
+            requested_mode_source=active_config.mode_source,
+            fallback_mode=DEFAULT_TARGET_ORDER_MODE,
+            reason="unknown_mode",
+        )
+
+    if requested_mode == REVERSE_TARGET_ORDER_MODE:
+        return TargetOrderDecision(
+            ordered_targets=list(reversed(targets)),
+            requested_mode=requested_mode,
+            effective_mode=REVERSE_TARGET_ORDER_MODE,
+            target_count=target_count,
+            requested_mode_source=active_config.mode_source,
+        )
+
+    if requested_mode == RANDOM_ROTATION_TARGET_ORDER_MODE and targets:
+        chooser = randrange_fn or random.randrange
+        start_index = chooser(len(targets))
+        return TargetOrderDecision(
+            ordered_targets=_rotate_targets(list(targets), start_index),
+            requested_mode=requested_mode,
+            effective_mode=RANDOM_ROTATION_TARGET_ORDER_MODE,
+            target_count=target_count,
+            requested_mode_source=active_config.mode_source,
+            start_index=start_index,
+            start_article_id=article_ids[start_index],
+        )
+
+    return TargetOrderDecision(
+        ordered_targets=ordered_targets,
+        requested_mode=requested_mode,
+        effective_mode=DEFAULT_TARGET_ORDER_MODE,
+        target_count=target_count,
+        requested_mode_source=active_config.mode_source,
+    )
+
+
+def order_targets_for_run_from_env(
+    targets: list[str],
+    *,
+    environ: dict[str, str] | None = None,
+    target_article_ids: list[str | None] | None = None,
+    randrange_fn=None,
+) -> TargetOrderDecision:
+    config = resolve_target_order_config(environ=environ)
+    return order_targets_for_run(
+        targets,
+        config=config,
+        target_article_ids=target_article_ids,
+        randrange_fn=randrange_fn,
+    )
+
+
+def format_target_order_log_line(decision: TargetOrderDecision) -> str:
+    parts = [
+        "[TARGET ORDER]",
+        f"mode={decision.requested_mode}",
+    ]
+
+    if decision.requested_mode_source is not None:
+        parts.append(f"mode_source={decision.requested_mode_source}")
+
+    if decision.requested_start_article_id is not None:
+        parts.append(
+            "requested_start_article_id="
+            f"{decision.requested_start_article_id}"
+        )
+        if decision.requested_start_article_id_source is not None:
+            parts.append(
+                "requested_start_article_id_source="
+                f"{decision.requested_start_article_id_source}"
+            )
+
+    parts.append(f"targets={decision.target_count}")
+    parts.append(f"effective={decision.effective_mode}")
+
+    if decision.start_index is not None:
+        parts.append(f"start_index={decision.start_index}")
+
+    if decision.start_article_id is not None:
+        parts.append(f"start_article_id={decision.start_article_id}")
+
+    if decision.fallback_mode is not None:
+        parts.append(f"fallback={decision.fallback_mode}")
+
+    if decision.reason is not None:
+        parts.append(f"reason={decision.reason}")
+
+    return " ".join(parts)
 
 
 =============================
@@ -33637,6 +34468,287 @@ def test_main_batch_without_path_exits_with_usage(capsys):
         "invalid_targets": 0,
     },
 )
+@patch(
+    "main.list_registered_targets",
+    return_value=[
+        {"canonical_url": "https://dic.nicovideo.jp/a/1", "article_id": "1"},
+        {"canonical_url": "https://dic.nicovideo.jp/a/2", "article_id": "2"},
+        {"canonical_url": "https://dic.nicovideo.jp/a/3", "article_id": "3"},
+    ],
+)
+@patch(
+    "main.list_active_target_urls",
+    return_value=[
+        "https://dic.nicovideo.jp/a/1",
+        "https://dic.nicovideo.jp/a/2",
+        "https://dic.nicovideo.jp/a/3",
+    ],
+)
+@patch(
+    "main.run_scrape",
+    side_effect=[
+        ScrapeResult(True, "ok", article_title="Third Title"),
+        ScrapeResult(True, "ok", article_title="Second Title"),
+        ScrapeResult(True, "ok", article_title="First Title"),
+    ],
+)
+def test_run_batch_scrape_applies_reverse_target_order(
+    mock_run_scrape,
+    mock_load_targets,
+    mock_list_registered_targets,
+    mock_run_delete_request_feeder,
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
+    config = main_module.resolve_target_order_config(
+        cli_mode="reverse",
+        environ={},
+    )
+
+    final_status, failed_targets = main_module.run_batch_scrape(
+        "targets.db",
+        target_order_config=config,
+    )
+
+    assert final_status == "success"
+    assert failed_targets == 0
+    assert [call.args[0] for call in mock_run_scrape.call_args_list] == [
+        "https://dic.nicovideo.jp/a/3",
+        "https://dic.nicovideo.jp/a/2",
+        "https://dic.nicovideo.jp/a/1",
+    ]
+
+    out = capsys.readouterr().out
+    assert (
+        "[TARGET ORDER] mode=reverse mode_source=cli targets=3 "
+        "effective=reverse" in out
+    )
+
+    logs = list(Path(tmp_path).glob("batch_*.log"))
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    assert (
+        "[TARGET ORDER] mode=reverse mode_source=cli targets=3 "
+        "effective=reverse" in text
+    )
+
+
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
+@patch(
+    "main.list_registered_targets",
+    return_value=[
+        {"canonical_url": "https://dic.nicovideo.jp/a/1", "article_id": "1"},
+        {"canonical_url": "https://dic.nicovideo.jp/a/2", "article_id": "2"},
+    ],
+)
+@patch(
+    "main.list_active_target_urls",
+    return_value=[
+        "https://dic.nicovideo.jp/a/1",
+        "https://dic.nicovideo.jp/a/2",
+    ],
+)
+@patch(
+    "main.run_scrape",
+    side_effect=[
+        ScrapeResult(True, "ok", article_title="First Title"),
+        ScrapeResult(True, "ok", article_title="Second Title"),
+    ],
+)
+def test_run_batch_scrape_invalid_start_override_falls_back_to_default_order(
+    mock_run_scrape,
+    mock_load_targets,
+    mock_list_registered_targets,
+    mock_run_delete_request_feeder,
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
+    monkeypatch.setenv("TARGET_ORDER_MODE", "random_rotation")
+    monkeypatch.setenv("TARGET_ORDER_START_ARTICLE_ID", "999999999")
+
+    final_status, failed_targets = main_module.run_batch_scrape("targets.db")
+
+    assert final_status == "success"
+    assert failed_targets == 0
+    assert [call.args[0] for call in mock_run_scrape.call_args_list] == [
+        "https://dic.nicovideo.jp/a/1",
+        "https://dic.nicovideo.jp/a/2",
+    ]
+
+    out = capsys.readouterr().out
+    assert "requested_start_article_id=999999999" in out
+    assert "requested_start_article_id_source=env" in out
+    assert "effective=default" in out
+    assert "fallback=default" in out
+    assert "reason=start_article_id_not_found" in out
+
+
+@patch("main.run_batch_scrape", return_value=("success", 0))
+def test_main_batch_cli_target_order_mode_is_passed_to_run_batch_scrape(
+    mock_run_batch_scrape,
+):
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "batch",
+            "targets.db",
+            "--target-order-mode",
+            "reverse",
+        ],
+    ):
+        main_module.main()
+
+    target_order_config = mock_run_batch_scrape.call_args.kwargs["target_order_config"]
+    assert target_order_config.mode == "reverse"
+    assert target_order_config.mode_source == "cli"
+
+
+@patch("main.run_batch_scrape", return_value=("success", 0))
+def test_main_batch_cli_target_order_overrides_environment(
+    mock_run_batch_scrape,
+    monkeypatch,
+):
+    monkeypatch.setenv("TARGET_ORDER_MODE", "default")
+
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "batch",
+            "targets.db",
+            "--target-order-mode",
+            "reverse",
+        ],
+    ):
+        main_module.main()
+
+    target_order_config = mock_run_batch_scrape.call_args.kwargs["target_order_config"]
+    assert target_order_config.mode == "reverse"
+    assert target_order_config.mode_source == "cli"
+
+
+@patch(
+    "main.list_registered_targets",
+    return_value=[
+        {
+            "canonical_url": "https://dic.nicovideo.jp/a/%E3%83%86%E3%82%B9%E3%83%88",
+            "article_id": "5400838",
+        },
+        {"canonical_url": "https://dic.nicovideo.jp/a/other", "article_id": "2"},
+    ],
+)
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
+@patch(
+    "main.run_scrape",
+    side_effect=[
+        ScrapeResult(True, "ok", article_title="Stored Numeric Match"),
+        ScrapeResult(True, "ok", article_title="Second Title"),
+    ],
+)
+def test_run_batch_scrape_start_override_matches_stored_article_id_for_slug_url(
+    mock_run_scrape,
+    mock_run_delete_request_feeder,
+    mock_list_registered_targets,
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
+    config = main_module.resolve_target_order_config(
+        cli_start_article_id="5400838",
+        environ={},
+    )
+
+    final_status, failed_targets = main_module.run_batch_scrape(
+        "targets.db",
+        target_order_config=config,
+    )
+
+    assert final_status == "success"
+    assert failed_targets == 0
+    assert [call.args[0] for call in mock_run_scrape.call_args_list] == [
+        "https://dic.nicovideo.jp/a/%E3%83%86%E3%82%B9%E3%83%88",
+        "https://dic.nicovideo.jp/a/other",
+    ]
+
+    out = capsys.readouterr().out
+    assert "requested_start_article_id=5400838" in out
+    assert "requested_start_article_id_source=cli" in out
+    assert "effective=start_article_id" in out
+
+
+@patch("main.run_batch_scrape", return_value=("success", 0))
+def test_main_batch_cli_random_rotation_is_passed_to_run_batch_scrape(
+    mock_run_batch_scrape,
+):
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "batch",
+            "targets.db",
+            "--target-order-mode",
+            "random_rotation",
+        ],
+    ):
+        main_module.main()
+
+    target_order_config = mock_run_batch_scrape.call_args.kwargs["target_order_config"]
+    assert target_order_config.mode == "random_rotation"
+    assert target_order_config.mode_source == "cli"
+
+
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
 @patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
     "https://dic.nicovideo.jp/a/2",
@@ -33864,10 +34976,26 @@ def test_run_batch_scrape_duration_limit_stops_after_current_target(
 
 @patch("main.run_periodic_once")
 def test_main_periodic_once_calls_run_periodic_once(mock_run_periodic_once):
-    with patch("sys.argv", ["main.py", "periodic-once", "targets.db"]):
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "periodic-once",
+            "targets.db",
+            "--target-order-mode",
+            "reverse",
+            "--target-order-start-article-id",
+            "5400838",
+        ],
+    ):
         main_module.main()
 
-    mock_run_periodic_once.assert_called_once_with("targets.db")
+    target_order_config = mock_run_periodic_once.call_args.kwargs["target_order_config"]
+    assert mock_run_periodic_once.call_args.args == ("targets.db",)
+    assert target_order_config.mode == "reverse"
+    assert target_order_config.mode_source == "cli"
+    assert target_order_config.start_article_id == "5400838"
+    assert target_order_config.start_article_id_source == "cli"
 
 
 def test_main_periodic_once_without_path_exits_with_usage(capsys):
@@ -33878,18 +35006,27 @@ def test_main_periodic_once_without_path_exits_with_usage(capsys):
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
     assert "Usage: periodic-once <target_db_path>" in out
+    assert "--target-order-mode MODE" in out
 
 
 @patch("main.run_periodic_scrape")
 def test_run_periodic_once_delegates_to_single_periodic_cycle(
     mock_run_periodic_scrape,
 ):
-    main_module.run_periodic_once("targets.db")
+    target_order_config = main_module.resolve_target_order_config(
+        cli_mode="reverse",
+        environ={},
+    )
+    main_module.run_periodic_once(
+        "targets.db",
+        target_order_config=target_order_config,
+    )
 
     mock_run_periodic_scrape.assert_called_once_with(
         "targets.db",
         0.0,
         max_runs=1,
+        target_order_config=target_order_config,
     )
 
 
@@ -33902,13 +35039,49 @@ def test_run_periodic_once_uses_host_cron_log_path_when_configured(
 ):
     monkeypatch.setenv("HOST_CRON_LOG_PATH", "/runtime/logs/host_cron.log")
 
-    main_module.run_periodic_once("targets.db")
+    target_order_config = main_module.resolve_target_order_config(
+        cli_mode="reverse",
+        environ={},
+    )
+
+    main_module.run_periodic_once(
+        "targets.db",
+        target_order_config=target_order_config,
+    )
 
     mock_host_cron_run.assert_called_once_with(
         "targets.db",
         "/runtime/logs/host_cron.log",
+        target_order_config=target_order_config,
     )
     mock_run_periodic_scrape.assert_not_called()
+
+
+@patch("main.run_batch_scrape", return_value=("success", 0))
+@patch("main.time.sleep")
+def test_main_periodic_accepts_target_order_cli_options(
+    mock_sleep,
+    mock_run_batch,
+):
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "periodic",
+            "targets.db",
+            "30",
+            "--max-runs",
+            "1",
+            "--target-order-mode",
+            "reverse",
+        ],
+    ):
+        main_module.main()
+
+    target_order_config = mock_run_batch.call_args.kwargs["target_order_config"]
+    assert target_order_config.mode == "reverse"
+    assert target_order_config.mode_source == "cli"
+    mock_sleep.assert_not_called()
 
 
 @patch(
@@ -37131,6 +38304,10 @@ def test_runtime_local_example_contains_expected_keys():
     assert "WEB_PORT=" in text
     assert "LOCAL_UID=" in text
     assert "LOCAL_GID=" in text
+    assert "TARGET_ORDER_MODE=default" in text
+    assert "# TARGET_ORDER_MODE=random_rotation" in text
+    assert "# TARGET_ORDER_MODE=reverse" in text
+    assert "# TARGET_ORDER_START_ARTICLE_ID=" in text
 
 
 def test_gitignore_treats_runtime_local_env_as_local_only():
@@ -37164,6 +38341,10 @@ def test_personal_runtime_doc_mentions_local_env_and_wrapper():
     assert "tools/runtime_up.sh" in text
     assert "LOCAL_UID" in text
     assert "WEB_PORT" in text
+    assert "TARGET_ORDER_MODE" in text
+    assert "TARGET_ORDER_START_ARTICLE_ID" in text
+    assert "--target-order-mode reverse" in text
+    assert "--target-order-start-article-id 5400838" in text
 
 
 =============================
@@ -38209,6 +39390,38 @@ def test_list_registered_targets_includes_inactive_entries_when_requested(tmp_pa
     assert active_entries == []
 
 
+def test_list_registered_targets_active_order_matches_active_target_urls(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+
+    with patch(
+        "target_list.resolve_article_input",
+        side_effect=[
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/100",
+                "100",
+            ),
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/200",
+                "200",
+            ),
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/300",
+                "300",
+            ),
+        ],
+    ):
+        register_target_url("https://dic.nicovideo.jp/a/100", str(target_db_path))
+        register_target_url("https://dic.nicovideo.jp/id/200", str(target_db_path))
+        register_target_url("https://dic.nicovideo.jp/a/300", str(target_db_path))
+
+    deactivate_target("200", "a", str(target_db_path))
+
+    active_urls = list_active_target_urls(str(target_db_path))
+    active_entries = list_registered_targets(str(target_db_path), active_only=True)
+
+    assert [entry["canonical_url"] for entry in active_entries] == active_urls
+
+
 def test_inspect_registered_target_returns_entry_by_identity(tmp_path):
     target_db_path = tmp_path / "targets.db"
     with patch(
@@ -38317,6 +39530,199 @@ def test_handoff_redirected_target_suppresses_duplicate_new_target(tmp_path):
     assert list_active_target_urls(str(target_db_path)) == [
         "https://dic.nicovideo.jp/a/67890",
     ]
+
+
+=============================
+FILE: copilot/tests/test_target_ordering.py
+=============================
+from target_ordering import format_target_order_log_line
+from target_ordering import resolve_target_order_config
+from target_ordering import order_targets_for_run
+
+
+TARGETS = [
+    "https://dic.nicovideo.jp/a/1",
+    "https://dic.nicovideo.jp/a/2",
+    "https://dic.nicovideo.jp/a/3",
+    "https://dic.nicovideo.jp/a/4",
+    "https://dic.nicovideo.jp/a/5",
+]
+
+
+def test_default_mode_preserves_input_order():
+    decision = order_targets_for_run(TARGETS, mode="default")
+
+    assert decision.ordered_targets == TARGETS
+    assert decision.effective_mode == "default"
+    assert decision.requested_mode == "default"
+
+
+def test_reverse_mode_reverses_input_order():
+    decision = order_targets_for_run(TARGETS, mode="reverse")
+
+    assert decision.ordered_targets == list(reversed(TARGETS))
+    assert decision.effective_mode == "reverse"
+
+
+def test_random_rotation_rotates_without_shuffle_or_duplicates():
+    chooser_calls: list[int] = []
+
+    def chooser(limit: int) -> int:
+        chooser_calls.append(limit)
+        return 2
+
+    decision = order_targets_for_run(
+        TARGETS,
+        mode="random_rotation",
+        randrange_fn=chooser,
+    )
+
+    assert chooser_calls == [5]
+    assert decision.ordered_targets == [
+        "https://dic.nicovideo.jp/a/3",
+        "https://dic.nicovideo.jp/a/4",
+        "https://dic.nicovideo.jp/a/5",
+        "https://dic.nicovideo.jp/a/1",
+        "https://dic.nicovideo.jp/a/2",
+    ]
+    assert sorted(decision.ordered_targets) == sorted(TARGETS)
+    assert len(set(decision.ordered_targets)) == len(TARGETS)
+    assert decision.effective_mode == "random_rotation"
+    assert decision.start_index == 2
+    assert decision.start_article_id == "3"
+
+
+def test_start_article_override_rotates_to_matching_article_id():
+    decision = order_targets_for_run(
+        TARGETS,
+        mode="default",
+        start_article_id="4",
+    )
+
+    assert decision.ordered_targets == [
+        "https://dic.nicovideo.jp/a/4",
+        "https://dic.nicovideo.jp/a/5",
+        "https://dic.nicovideo.jp/a/1",
+        "https://dic.nicovideo.jp/a/2",
+        "https://dic.nicovideo.jp/a/3",
+    ]
+    assert decision.effective_mode == "start_article_id"
+    assert decision.start_index == 3
+    assert decision.start_article_id == "4"
+
+
+def test_start_article_override_takes_precedence_over_reverse_and_random():
+    decision = order_targets_for_run(
+        TARGETS,
+        mode="reverse",
+        start_article_id="2",
+        randrange_fn=lambda _limit: 4,
+    )
+
+    assert decision.ordered_targets == [
+        "https://dic.nicovideo.jp/a/2",
+        "https://dic.nicovideo.jp/a/3",
+        "https://dic.nicovideo.jp/a/4",
+        "https://dic.nicovideo.jp/a/5",
+        "https://dic.nicovideo.jp/a/1",
+    ]
+    assert decision.effective_mode == "start_article_id"
+
+
+def test_invalid_start_article_override_falls_back_to_default_order():
+    decision = order_targets_for_run(
+        TARGETS,
+        mode="random_rotation",
+        start_article_id="999999999",
+        randrange_fn=lambda _limit: 3,
+    )
+
+    assert decision.ordered_targets == TARGETS
+    assert decision.effective_mode == "default"
+    assert decision.fallback_mode == "default"
+    assert decision.reason == "start_article_id_not_found"
+
+
+def test_unknown_mode_falls_back_to_default_order():
+    decision = order_targets_for_run(TARGETS, mode="unknown")
+
+    assert decision.ordered_targets == TARGETS
+    assert decision.effective_mode == "default"
+    assert decision.fallback_mode == "default"
+    assert decision.reason == "unknown_mode"
+
+
+def test_empty_target_list_is_safe():
+    decision = order_targets_for_run([], mode="random_rotation")
+
+    assert decision.ordered_targets == []
+    assert decision.target_count == 0
+    assert decision.effective_mode == "default"
+
+
+def test_log_line_includes_effective_target_order_decision_fields():
+    config = resolve_target_order_config(cli_mode="random_rotation")
+    decision = order_targets_for_run(
+        TARGETS,
+        config=config,
+        randrange_fn=lambda _limit: 1,
+    )
+
+    line = format_target_order_log_line(decision)
+
+    assert line.startswith("[TARGET ORDER]")
+    assert "mode=random_rotation" in line
+    assert "mode_source=cli" in line
+    assert "targets=5" in line
+    assert "effective=random_rotation" in line
+    assert "start_index=1" in line
+    assert "start_article_id=2" in line
+
+
+def test_start_article_override_matches_stored_numeric_article_id():
+    targets = [
+        "https://dic.nicovideo.jp/a/%E3%83%86%E3%82%B9%E3%83%88",
+        "https://dic.nicovideo.jp/a/other",
+    ]
+    decision = order_targets_for_run(
+        targets,
+        start_article_id="5400838",
+        target_article_ids=["5400838", "200"],
+    )
+
+    assert decision.ordered_targets == targets
+    assert decision.effective_mode == "start_article_id"
+    assert decision.start_article_id == "5400838"
+
+
+def test_cli_values_override_environment_values_in_resolved_config():
+    config = resolve_target_order_config(
+        cli_mode="reverse",
+        cli_start_article_id="5400838",
+        environ={
+            "TARGET_ORDER_MODE": "random_rotation",
+            "TARGET_ORDER_START_ARTICLE_ID": "11111",
+        },
+    )
+
+    assert config.mode == "reverse"
+    assert config.mode_source == "cli"
+    assert config.start_article_id == "5400838"
+    assert config.start_article_id_source == "cli"
+
+
+def test_env_values_are_used_when_cli_values_are_absent():
+    config = resolve_target_order_config(
+        environ={
+            "TARGET_ORDER_MODE": "reverse",
+            "TARGET_ORDER_START_ARTICLE_ID": "12345",
+        }
+    )
+
+    assert config.mode == "reverse"
+    assert config.mode_source == "env"
+    assert config.start_article_id == "12345"
+    assert config.start_article_id_source == "env"
 
 
 =============================
@@ -43986,6 +45392,12 @@ LOCAL_UID=1000
 LOCAL_GID=1000
 SCRAPE_PAGE_DELAY_SECONDS=5.0
 BBS_RESPONSES_PER_PAGE=30
+TARGET_ORDER_MODE=default
+# TARGET_ORDER_MODE=random_rotation
+# TARGET_ORDER_MODE=reverse
+# TARGET_ORDER_START_ARTICLE_ID=
+# CLI override example:
+# python main.py batch /app/data/nicodic.db --target-order-mode reverse
 SOFT_TERMINATE_FILE=runtime/control/stop_after_current
 ONESHOT_LIMIT_DURATION_SECONDS=3600
 
@@ -44212,6 +45624,117 @@ Editor AI model / tool information
 ----------------------------------
 Composer (Cursor agent); Docker-backed pytest run as above.
 
+
+=============================
+FILE: cursor/MainTask-target-order-modes_report.txt
+=============================
+Summary
+- Added a bounded target-ordering boundary for batch and periodic scraping.
+- Supported default, reverse, random_rotation, and start article override.
+- Invalid or unknown configuration falls back to default order without aborting runs.
+- Added CLI overrides for batch, periodic-once, and periodic while preserving env fallback.
+
+Files touched
+- main.py
+- target_ordering.py
+- .env.runtime.local.example
+- docs/PERSONAL_RUNTIME.md
+- tests/test_main.py
+- tests/test_target_list.py
+- tests/test_runtime_local_ops.py
+- tests/test_target_ordering.py
+
+Implemented modes
+- default: preserves loaded target order.
+- reverse: reverses the loaded target list.
+- random_rotation: picks one start index at run start and rotates once through the list.
+- start article override: rotates the loaded target list so the matching article_id is first.
+
+CLI options added
+- --target-order-mode MODE
+- --target-order-start-article-id ARTICLE_ID
+
+Environment variables
+- TARGET_ORDER_MODE
+- TARGET_ORDER_START_ARTICLE_ID
+
+Ordering/fallback rules
+- CLI options override environment values.
+- Unset, empty, or invalid TARGET_ORDER_MODE falls back to default.
+- TARGET_ORDER_START_ARTICLE_ID takes precedence over reverse and random_rotation.
+- If TARGET_ORDER_START_ARTICLE_ID is empty, invalid, or not found in the active loaded target list, the effective order falls back to default.
+- Start override fallback does not continue into reverse or random_rotation.
+
+Precedence rules
+- CLI option values
+- Environment values
+- Default behavior
+
+Article_id override fix
+- Active target ordering now reads stored article_id values from the target table for already-registered targets.
+- This allows TARGET_ORDER_START_ARTICLE_ID to match numeric article_id even when canonical_url is a slug or encoded /a/<title> URL.
+- The final ordered sequence still passed to run_scrape remains canonical URLs.
+
+Logging behavior
+- Added one compact [TARGET ORDER] line near run start.
+- The line includes requested mode, effective mode, target count, and start_index/start_article_id when applicable.
+- The line also includes CLI/env source fields when available.
+- Fallback cases include fallback mode and reason fields.
+- The line is emitted to stdout or host-cron reporter output and is also appended to the batch log.
+
+Tests added or updated
+- Added unit tests for target_ordering.py covering default, reverse, random_rotation, override precedence, unknown mode fallback, invalid override fallback, empty list safety, and log formatting.
+- Added tests for CLI precedence resolution and stored article_id matching for slug URLs.
+- Updated main batch and periodic tests to verify CLI target-order options are parsed and forwarded.
+- Updated main batch tests to verify reverse ordering is applied and invalid start override falls back to default order with logging.
+- Updated runtime local ops tests to cover the new env example and runtime doc mentions.
+- Added a focused target-list compatibility test proving active default traversal order remains aligned with the legacy URL-only reader.
+
+E501 fix
+- Fixed flake8 E501 only in target_ordering.py, tests/test_main.py, and tests/test_target_ordering.py.
+
+Default-order compatibility confirmation
+- list_active_target_urls() reads active rows through list_targets(conn) with the storage query ordered by id ASC.
+- list_registered_targets(..., active_only=True) also reads through list_targets(conn, active_only=True) with the same ORDER BY id ASC clause.
+- Added a focused compatibility test to prove the active canonical_url projection from list_registered_targets(active_only=True) matches list_active_target_urls().
+
+Validation attempted or not attempted
+- Attempted a narrow Python compile check with python; the environment had no python alias.
+- Re-ran the narrow compile check with python3 and a temporary pycache prefix; that succeeded.
+- Ran the existing container-based test workflow with a focused scope:
+	docker compose run --rm --entrypoint "" scraper pytest -q tests/test_target_ordering.py tests/test_main.py tests/test_runtime_local_ops.py
+- Result after the follow-up CLI override changes: 94 passed in 1.08s.
+- Re-ran flake8 for the requested files to clear E501 issues:
+	docker compose run --rm --entrypoint "" scraper flake8 target_ordering.py tests/test_main.py tests/test_target_ordering.py
+- Result: no output, E501 cleared for the requested files.
+- Re-ran focused pytest including the target-list compatibility test after this follow-up fix:
+	docker compose run --rm --entrypoint "" scraper pytest -q tests/test_target_ordering.py tests/test_main.py tests/test_runtime_local_ops.py tests/test_target_list.py
+- Result: 115 passed in 2.18s.
+- validate_helix.sh is not present in this child product repository, so PASS against that script could not be claimed in this task.
+
+Runtime scheduling follow-up note
+- CLI options are now available for batch, periodic-once, and periodic.
+- .env settings remain available for normal runtime defaults.
+- Actual runtime scheduling policy such as daily reverse plus frequent random_rotation is a follow-up runtime-operation task and was not completed here.
+
+Known limitations
+- Start article override still expects a numeric article_id string.
+- Target ordering is in-memory per run only; no persistent resume cursor is introduced.
+
+Explicit non-goals preserved
+- No cron changes.
+- No Docker compose changes.
+- No DB schema changes.
+- No scrape semantics changes.
+- No response storage changes.
+- No delete feeder semantics changes.
+- No persistent continuation state or per-target shuffle.
+- No target registration order changes in storage.
+
+Editor AI model/tool information if available
+- Agent: GitHub Copilot
+- Model: GPT-5.4
+- Tools used: workspace file reads/search, apply_patch, terminal validation
 
 =============================
 FILE: cursor/Makefile
@@ -48304,6 +49827,8 @@ Expected keys:
 - `LOCAL_GID`
 - `SCRAPE_PAGE_DELAY_SECONDS`
 - `BBS_RESPONSES_PER_PAGE`
+- `TARGET_ORDER_MODE`
+- `TARGET_ORDER_START_ARTICLE_ID`
 - `SOFT_TERMINATE_FILE`
 - `ONESHOT_LIMIT_DURATION_SECONDS`
 
@@ -48323,6 +49848,25 @@ scrape pagination. If it is unset or invalid, the application falls back to
 `BBS_RESPONSES_PER_PAGE` controls the BBS page boundary size used for resume
 and later-page progression. If it is unset or invalid, the application falls
 back to `30` responses per page.
+
+`TARGET_ORDER_MODE` controls the batch / periodic target traversal order. The
+supported values are `default`, `reverse`, and `random_rotation`. If it is
+unset, empty, or invalid, the runtime falls back to `default`.
+
+Use `random_rotation` for frequent normal runs so one-shot batches do not keep
+starting from the earliest registered targets.
+
+Use `reverse` for occasional newer-target-first runs when you want recently
+registered or Delete Feeder-appended targets to be reached sooner.
+
+`TARGET_ORDER_START_ARTICLE_ID` is an optional debug override. When it matches
+an active loaded target, the run rotates the current target list so that
+article starts first. If it is empty, invalid, or not found in the active
+target list, the runtime falls back to the default order and emits a compact
+warning line near run start.
+
+Use `--target-order-start-article-id` for focused verification around a known
+numeric article ID without editing the env file.
 
 `SOFT_TERMINATE_FILE` controls the file-based stop-after-current flag path.
 If it is unset or empty, the runtime uses
@@ -48536,8 +50080,33 @@ Useful environment overrides for external schedulers:
 - `COMPOSE_SERVICE_NAME` defaults to `personal_runtime`
 - `LOCK_DIR_PATH` defaults to `runtime/logs/periodic_once.lock`
 - `RUNTIME_LOCAL_ENV_FILE` defaults to `.env.runtime.local`
+- `TARGET_ORDER_MODE` defaults to `default`
+- `TARGET_ORDER_START_ARTICLE_ID` is disabled unless set
 - `SOFT_TERMINATE_FILE` defaults to `runtime/control/stop_after_current`
 - `ONESHOT_LIMIT_DURATION_SECONDS` is disabled unless set to a positive value
+
+Example target-order settings for `.env.runtime.local`:
+
+```sh
+TARGET_ORDER_MODE=default
+# TARGET_ORDER_MODE=random_rotation
+# TARGET_ORDER_MODE=reverse
+# TARGET_ORDER_START_ARTICLE_ID=
+```
+
+CLI options override those env defaults for one invocation. Examples:
+
+```sh
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py batch /app/data/nicodic.db --target-order-mode random_rotation
+
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py batch /app/data/nicodic.db --target-order-mode reverse
+
+docker compose -f docker-compose.runtime.yml exec personal_runtime \
+	python main.py periodic-once /app/data/nicodic.db \
+		--target-order-start-article-id 5400838
+```
 
 Example scheduler-facing invocation shape:
 
@@ -50569,10 +52138,15 @@ from storage import (
     format_run_telemetry_csv_wide,
     init_db,
 )
+from target_ordering import TargetOrderConfig
+from target_ordering import format_target_order_log_line
+from target_ordering import order_targets_for_run
+from target_ordering import resolve_target_order_config
 from target_list import (
     handoff_redirected_target,
     import_targets_from_text_file,
     list_active_target_urls,
+    list_registered_targets,
     parse_target_identity,
     register_target_url,
 )
@@ -50937,9 +52511,103 @@ def _emit_delete_request_feed_summary(progress_reporter, summary: dict) -> None:
     )
 
 
+def _emit_target_order_summary(progress_reporter, log_path: Path, line: str) -> None:
+    if progress_reporter is None:
+        print(line)
+    elif hasattr(progress_reporter, "emit"):
+        progress_reporter.emit("INFO", line, indent_level=1)
+
+    _append_batch_log_lines(log_path, [line])
+
+
+def _load_active_targets_for_ordering(
+    target_db_path: str,
+) -> tuple[list[str], dict[str, str]]:
+    existing_target_entries = list_registered_targets(
+        target_db_path,
+        active_only=True,
+    )
+    if existing_target_entries:
+        return (
+            [entry["canonical_url"] for entry in existing_target_entries],
+            {
+                entry["canonical_url"]: entry["article_id"]
+                for entry in existing_target_entries
+            },
+        )
+
+    return list_active_target_urls(target_db_path), {}
+
+
+def _read_target_order_config(args: list[str]) -> TargetOrderConfig | None:
+    if not args:
+        return None
+
+    mode = None
+    start_article_id = None
+    index = 0
+
+    while index < len(args):
+        token = args[index]
+        if token == "--target-order-mode":
+            if index + 1 >= len(args):
+                raise ValueError("Missing value for --target-order-mode")
+            mode = args[index + 1]
+            index += 2
+            continue
+        if token == "--target-order-start-article-id":
+            if index + 1 >= len(args):
+                raise ValueError(
+                    "Missing value for --target-order-start-article-id"
+                )
+            start_article_id = args[index + 1]
+            index += 2
+            continue
+        raise ValueError(f"Unknown argument: {token}")
+
+    return resolve_target_order_config(
+        cli_mode=mode,
+        cli_start_article_id=start_article_id,
+        environ=os.environ,
+    )
+
+
+def _read_periodic_cli_options(
+    args: list[str],
+) -> tuple[int | None, TargetOrderConfig | None]:
+    max_runs = None
+    target_order_args: list[str] = []
+    index = 0
+
+    while index < len(args):
+        token = args[index]
+        if token == "--max-runs":
+            if index + 1 >= len(args):
+                raise ValueError("Missing value for --max-runs")
+            max_runs = int(args[index + 1])
+            index += 2
+            continue
+
+        target_order_args.append(token)
+        if token in {
+            "--target-order-mode",
+            "--target-order-start-article-id",
+        }:
+            if index + 1 >= len(args):
+                raise ValueError(f"Missing value for {token}")
+            target_order_args.append(args[index + 1])
+            index += 2
+            continue
+
+        raise ValueError(f"Unknown argument: {token}")
+
+    return max_runs, _read_target_order_config(target_order_args)
+
+
 def run_batch_scrape(
     target_db_path: str,
     progress_reporter=None,
+    target_order_config: TargetOrderConfig | None = None,
 ) -> tuple[str, int]:
     """Run one full batch pass and return (final_status, failed_targets)."""
 
@@ -50959,7 +52627,9 @@ def run_batch_scrape(
     else:
         batch_digest_tracker = None
 
-    existing_targets = list_active_target_urls(target_db_path)
+    existing_targets, stored_article_ids_by_url = _load_active_targets_for_ordering(
+        target_db_path
+    )
     delete_request_feed_summary = run_delete_request_feeder(
         target_db_path,
         archive_db_path=archive_db_path,
@@ -50968,6 +52638,17 @@ def run_batch_scrape(
         existing_targets,
         delete_request_feed_summary["queued_target_urls"],
     )
+    target_article_ids = [stored_article_ids_by_url.get(target) for target in targets]
+    effective_target_order_config = (
+        target_order_config or resolve_target_order_config(environ=os.environ)
+    )
+    target_order_decision = order_targets_for_run(
+        targets,
+        config=effective_target_order_config,
+        target_article_ids=target_article_ids,
+    )
+    targets = target_order_decision.ordered_targets
+    target_order_line = format_target_order_log_line(target_order_decision)
 
     bcm_fn = getattr(progress_reporter or None, "begin_compact_host_run", None)
     if callable(bcm_fn):
@@ -50998,10 +52679,14 @@ def run_batch_scrape(
                 progress_reporter,
                 delete_request_feed_summary,
             )
+        _emit_target_order_summary(progress_reporter, log_path, target_order_line)
         progress_reporter.note_targets_loaded(len(targets), target_db_path)
         nss = getattr(progress_reporter, "note_scrape_start_compact", None)
         if callable(nss):
             nss()
+
+    if progress_reporter is None:
+        _emit_target_order_summary(progress_reporter, log_path, target_order_line)
 
     _append_batch_run_start(
         log_path,
@@ -51487,6 +53172,7 @@ def run_batch_scrape(
 def _run_periodic_once_with_host_cron(
     target_db_path: str,
     host_cron_log_path: str,
+    target_order_config: TargetOrderConfig | None = None,
 ) -> None:
     log_path = Path(host_cron_log_path)
     run_now = local_now()
@@ -51513,7 +53199,12 @@ def _run_periodic_once_with_host_cron(
     try:
         stream = log_path.open("a", encoding="utf-8")
     except OSError:
-        run_periodic_scrape(target_db_path, 0.0, max_runs=1)
+        run_periodic_scrape(
+            target_db_path,
+            0.0,
+            max_runs=1,
+            target_order_config=target_order_config,
+        )
         return
 
     reporter = HostCronReporter(stream)
@@ -51528,6 +53219,7 @@ def _run_periodic_once_with_host_cron(
             final_status, _failed_targets = run_batch_scrape(
                 target_db_path,
                 progress_reporter=reporter,
+                target_order_config=target_order_config,
             )
         except KeyboardInterrupt:
             reporter.note_maintenance_warning("periodic_execution_interrupted")
@@ -51553,6 +53245,7 @@ def run_periodic_scrape(
     target_db_path: str,
     interval_seconds: float,
     max_runs: int | None = None,
+    target_order_config: TargetOrderConfig | None = None,
 ) -> None:
     """Run full batch passes repeatedly with a fixed sleep interval."""
 
@@ -51567,7 +53260,13 @@ def run_periodic_scrape(
         _inside_periodic_batch = True
         try:
             try:
-                final_status, failed_targets = run_batch_scrape(target_db_path)
+                if target_order_config is not None:
+                    final_status, failed_targets = run_batch_scrape(
+                        target_db_path,
+                        target_order_config=target_order_config,
+                    )
+                else:
+                    final_status, failed_targets = run_batch_scrape(target_db_path)
             except KeyboardInterrupt:
                 print("Periodic execution interrupted. Exiting safely.")
                 return
@@ -51591,15 +53290,27 @@ def run_periodic_scrape(
             return
 
 
-def run_periodic_once(target_db_path: str) -> None:
+def run_periodic_once(
+    target_db_path: str,
+    target_order_config: TargetOrderConfig | None = None,
+) -> None:
     """Run one periodic cycle without requiring a sleep interval argument."""
 
     host_cron_log_path = os.environ.get("HOST_CRON_LOG_PATH")
     if host_cron_log_path:
-        _run_periodic_once_with_host_cron(target_db_path, host_cron_log_path)
+        _run_periodic_once_with_host_cron(
+            target_db_path,
+            host_cron_log_path,
+            target_order_config=target_order_config,
+        )
         return
 
-    run_periodic_scrape(target_db_path, 0.0, max_runs=1)
+    run_periodic_scrape(
+        target_db_path,
+        0.0,
+        max_runs=1,
+        target_order_config=target_order_config,
+    )
 
 
 def _read_optional_flag(args, flag_name, default=None):
@@ -52089,8 +53800,16 @@ def main():
         )
         print("  python main.py resolve-article <article_url_or_full_title>")
         print("  python main.py targets <target_db_path>")
-        print("  python main.py batch <target_db_path>")
-        print("  python main.py periodic-once <target_db_path>")
+        print(
+            "  python main.py batch <target_db_path> "
+            "[--target-order-mode MODE] "
+            "[--target-order-start-article-id ARTICLE_ID]"
+        )
+        print(
+            "  python main.py periodic-once <target_db_path> "
+            "[--target-order-mode MODE] "
+            "[--target-order-start-article-id ARTICLE_ID]"
+        )
         print(
             "  python main.py inspect-delete-request-feed "
             "[--archive-db PATH] [--state-path PATH] [--full-scan]"
@@ -52105,7 +53824,8 @@ def main():
         )
         print(
             "  python main.py periodic <target_db_path> <interval_seconds> "
-            "[--max-runs N]"
+            "[--max-runs N] [--target-order-mode MODE] "
+            "[--target-order-start-article-id ARTICLE_ID]"
         )
         print(
             "  python main.py export-run-telemetry-csv "
@@ -52327,10 +54047,25 @@ def main():
     if sys.argv[1] == "batch":
 
         if len(sys.argv) < 3:
-            print("Usage: batch <target_db_path>")
+            print(
+                "Usage: batch <target_db_path> [--target-order-mode MODE] "
+                "[--target-order-start-article-id ARTICLE_ID]"
+            )
             sys.exit(1)
 
-        _, failed_targets = run_batch_scrape(sys.argv[2])
+        try:
+            target_order_config = _read_target_order_config(sys.argv[3:])
+        except ValueError:
+            print(
+                "Usage: batch <target_db_path> [--target-order-mode MODE] "
+                "[--target-order-start-article-id ARTICLE_ID]"
+            )
+            sys.exit(1)
+
+        _, failed_targets = run_batch_scrape(
+            sys.argv[2],
+            target_order_config=target_order_config,
+        )
 
         if failed_targets:
             sys.exit(1)
@@ -52339,10 +54074,24 @@ def main():
     if sys.argv[1] == "periodic-once":
 
         if len(sys.argv) < 3:
-            print("Usage: periodic-once <target_db_path>")
+            print(
+                "Usage: periodic-once <target_db_path> "
+                "[--target-order-mode MODE] "
+                "[--target-order-start-article-id ARTICLE_ID]"
+            )
             sys.exit(1)
 
-        run_periodic_once(sys.argv[2])
+        try:
+            target_order_config = _read_target_order_config(sys.argv[3:])
+        except ValueError:
+            print(
+                "Usage: periodic-once <target_db_path> "
+                "[--target-order-mode MODE] "
+                "[--target-order-start-article-id ARTICLE_ID]"
+            )
+            sys.exit(1)
+
+        run_periodic_once(sys.argv[2], target_order_config=target_order_config)
         return
 
     if sys.argv[1] == "periodic":
@@ -52350,19 +54099,32 @@ def main():
         if len(sys.argv) < 4:
             print(
                 "Usage: periodic <target_db_path> <interval_seconds> "
-                "[--max-runs N]"
+                "[--max-runs N] [--target-order-mode MODE] "
+                "[--target-order-start-article-id ARTICLE_ID]"
             )
             sys.exit(1)
 
         target_db_path = sys.argv[2]
         interval_seconds = float(sys.argv[3])
 
-        max_runs = None
-        if "--max-runs" in sys.argv:
-            idx = sys.argv.index("--max-runs")
-            max_runs = int(sys.argv[idx + 1])
+        try:
+            max_runs, target_order_config = _read_periodic_cli_options(
+                sys.argv[4:]
+            )
+        except ValueError:
+            print(
+                "Usage: periodic <target_db_path> <interval_seconds> "
+                "[--max-runs N] [--target-order-mode MODE] "
+                "[--target-order-start-article-id ARTICLE_ID]"
+            )
+            sys.exit(1)
 
-        run_periodic_scrape(target_db_path, interval_seconds, max_runs=max_runs)
+        run_periodic_scrape(
+            target_db_path,
+            interval_seconds,
+            max_runs=max_runs,
+            target_order_config=target_order_config,
+        )
         return
 
     if sys.argv[1] == "web":
@@ -69678,6 +71440,280 @@ def import_targets_from_text_file(
 
 
 =============================
+FILE: cursor/target_ordering.py
+=============================
+import os
+import random
+from dataclasses import dataclass
+
+from dicopedia_urls import parse_target_identity
+
+
+DEFAULT_TARGET_ORDER_MODE = "default"
+REVERSE_TARGET_ORDER_MODE = "reverse"
+RANDOM_ROTATION_TARGET_ORDER_MODE = "random_rotation"
+
+VALID_TARGET_ORDER_MODES = {
+    DEFAULT_TARGET_ORDER_MODE,
+    REVERSE_TARGET_ORDER_MODE,
+    RANDOM_ROTATION_TARGET_ORDER_MODE,
+}
+
+
+@dataclass(frozen=True)
+class TargetOrderDecision:
+    ordered_targets: list[str]
+    requested_mode: str
+    effective_mode: str
+    target_count: int
+    requested_mode_source: str | None = None
+    requested_start_article_id: str | None = None
+    requested_start_article_id_source: str | None = None
+    start_index: int | None = None
+    start_article_id: str | None = None
+    fallback_mode: str | None = None
+    reason: str | None = None
+
+
+@dataclass(frozen=True)
+class TargetOrderConfig:
+    mode: str | None = None
+    start_article_id: str | None = None
+    mode_source: str | None = None
+    start_article_id_source: str | None = None
+
+
+def _normalized_mode(raw_mode: str | None) -> str:
+    text = (raw_mode or "").strip().lower()
+    if not text:
+        return DEFAULT_TARGET_ORDER_MODE
+    return text
+
+
+def _normalized_optional_text(raw_value: str | None) -> str | None:
+    if raw_value is None:
+        return None
+    return raw_value.strip()
+
+
+def _article_id_for_target(target_url: str) -> str | None:
+    identity = parse_target_identity(target_url)
+    if identity is None:
+        return None
+    return identity["article_id"]
+
+
+def _rotate_targets(targets: list[str], start_index: int) -> list[str]:
+    if not targets:
+        return []
+    return targets[start_index:] + targets[:start_index]
+
+
+def _article_ids_for_targets(
+    targets: list[str],
+    target_article_ids: list[str | None] | None,
+) -> list[str | None]:
+    if target_article_ids is None:
+        return [_article_id_for_target(target) for target in targets]
+    if len(target_article_ids) != len(targets):
+        raise ValueError("target_article_ids must match targets length")
+
+    article_ids: list[str | None] = []
+    for target, article_id in zip(targets, target_article_ids):
+        article_ids.append(article_id or _article_id_for_target(target))
+    return article_ids
+
+
+def resolve_target_order_config(
+    *,
+    cli_mode: str | None = None,
+    cli_start_article_id: str | None = None,
+    environ: dict[str, str] | None = None,
+) -> TargetOrderConfig:
+    env = environ or os.environ
+
+    if cli_mode is not None:
+        mode = cli_mode
+        mode_source = "cli"
+    else:
+        mode = env.get("TARGET_ORDER_MODE")
+        mode_source = "env" if mode is not None else "default"
+
+    if cli_start_article_id is not None:
+        start_article_id = cli_start_article_id
+        start_article_id_source = "cli"
+    else:
+        start_article_id = env.get("TARGET_ORDER_START_ARTICLE_ID")
+        start_article_id_source = "env" if start_article_id is not None else None
+
+    return TargetOrderConfig(
+        mode=mode,
+        start_article_id=start_article_id,
+        mode_source=mode_source,
+        start_article_id_source=start_article_id_source,
+    )
+
+
+def order_targets_for_run(
+    targets: list[str],
+    *,
+    config: TargetOrderConfig | None = None,
+    mode: str | None = None,
+    start_article_id: str | None = None,
+    target_article_ids: list[str | None] | None = None,
+    randrange_fn=None,
+) -> TargetOrderDecision:
+    active_config = config or TargetOrderConfig(
+        mode=mode,
+        start_article_id=start_article_id,
+    )
+    requested_mode = _normalized_mode(active_config.mode)
+    target_count = len(targets)
+    ordered_targets = list(targets)
+    requested_start = _normalized_optional_text(active_config.start_article_id)
+    article_ids = _article_ids_for_targets(targets, target_article_ids)
+
+    if requested_start is not None:
+        if not requested_start or not requested_start.isdigit():
+            return TargetOrderDecision(
+                ordered_targets=ordered_targets,
+                requested_mode=requested_mode,
+                effective_mode=DEFAULT_TARGET_ORDER_MODE,
+                target_count=target_count,
+                requested_mode_source=active_config.mode_source,
+                requested_start_article_id=requested_start,
+                requested_start_article_id_source=(
+                    active_config.start_article_id_source
+                ),
+                fallback_mode=DEFAULT_TARGET_ORDER_MODE,
+                reason="invalid_start_article_id",
+            )
+
+        for index, target_article_id in enumerate(article_ids):
+            if target_article_id == requested_start:
+                return TargetOrderDecision(
+                    ordered_targets=_rotate_targets(list(targets), index),
+                    requested_mode=requested_mode,
+                    effective_mode="start_article_id",
+                    target_count=target_count,
+                    requested_mode_source=active_config.mode_source,
+                    requested_start_article_id=requested_start,
+                    requested_start_article_id_source=(
+                        active_config.start_article_id_source
+                    ),
+                    start_index=index,
+                    start_article_id=requested_start,
+                )
+
+        return TargetOrderDecision(
+            ordered_targets=ordered_targets,
+            requested_mode=requested_mode,
+            effective_mode=DEFAULT_TARGET_ORDER_MODE,
+            target_count=target_count,
+            requested_mode_source=active_config.mode_source,
+            requested_start_article_id=requested_start,
+            requested_start_article_id_source=active_config.start_article_id_source,
+            fallback_mode=DEFAULT_TARGET_ORDER_MODE,
+            reason="start_article_id_not_found",
+        )
+
+    if requested_mode not in VALID_TARGET_ORDER_MODES:
+        return TargetOrderDecision(
+            ordered_targets=ordered_targets,
+            requested_mode=requested_mode,
+            effective_mode=DEFAULT_TARGET_ORDER_MODE,
+            target_count=target_count,
+            requested_mode_source=active_config.mode_source,
+            fallback_mode=DEFAULT_TARGET_ORDER_MODE,
+            reason="unknown_mode",
+        )
+
+    if requested_mode == REVERSE_TARGET_ORDER_MODE:
+        return TargetOrderDecision(
+            ordered_targets=list(reversed(targets)),
+            requested_mode=requested_mode,
+            effective_mode=REVERSE_TARGET_ORDER_MODE,
+            target_count=target_count,
+            requested_mode_source=active_config.mode_source,
+        )
+
+    if requested_mode == RANDOM_ROTATION_TARGET_ORDER_MODE and targets:
+        chooser = randrange_fn or random.randrange
+        start_index = chooser(len(targets))
+        return TargetOrderDecision(
+            ordered_targets=_rotate_targets(list(targets), start_index),
+            requested_mode=requested_mode,
+            effective_mode=RANDOM_ROTATION_TARGET_ORDER_MODE,
+            target_count=target_count,
+            requested_mode_source=active_config.mode_source,
+            start_index=start_index,
+            start_article_id=article_ids[start_index],
+        )
+
+    return TargetOrderDecision(
+        ordered_targets=ordered_targets,
+        requested_mode=requested_mode,
+        effective_mode=DEFAULT_TARGET_ORDER_MODE,
+        target_count=target_count,
+        requested_mode_source=active_config.mode_source,
+    )
+
+
+def order_targets_for_run_from_env(
+    targets: list[str],
+    *,
+    environ: dict[str, str] | None = None,
+    target_article_ids: list[str | None] | None = None,
+    randrange_fn=None,
+) -> TargetOrderDecision:
+    config = resolve_target_order_config(environ=environ)
+    return order_targets_for_run(
+        targets,
+        config=config,
+        target_article_ids=target_article_ids,
+        randrange_fn=randrange_fn,
+    )
+
+
+def format_target_order_log_line(decision: TargetOrderDecision) -> str:
+    parts = [
+        "[TARGET ORDER]",
+        f"mode={decision.requested_mode}",
+    ]
+
+    if decision.requested_mode_source is not None:
+        parts.append(f"mode_source={decision.requested_mode_source}")
+
+    if decision.requested_start_article_id is not None:
+        parts.append(
+            "requested_start_article_id="
+            f"{decision.requested_start_article_id}"
+        )
+        if decision.requested_start_article_id_source is not None:
+            parts.append(
+                "requested_start_article_id_source="
+                f"{decision.requested_start_article_id_source}"
+            )
+
+    parts.append(f"targets={decision.target_count}")
+    parts.append(f"effective={decision.effective_mode}")
+
+    if decision.start_index is not None:
+        parts.append(f"start_index={decision.start_index}")
+
+    if decision.start_article_id is not None:
+        parts.append(f"start_article_id={decision.start_article_id}")
+
+    if decision.fallback_mode is not None:
+        parts.append(f"fallback={decision.fallback_mode}")
+
+    if decision.reason is not None:
+        parts.append(f"reason={decision.reason}")
+
+    return " ".join(parts)
+
+
+=============================
 FILE: cursor/tests/conftest.py
 =============================
 """Pytest config: ensure project root is on path so main/orchestrator are importable."""
@@ -74349,6 +76385,287 @@ def test_main_batch_without_path_exits_with_usage(capsys):
         "invalid_targets": 0,
     },
 )
+@patch(
+    "main.list_registered_targets",
+    return_value=[
+        {"canonical_url": "https://dic.nicovideo.jp/a/1", "article_id": "1"},
+        {"canonical_url": "https://dic.nicovideo.jp/a/2", "article_id": "2"},
+        {"canonical_url": "https://dic.nicovideo.jp/a/3", "article_id": "3"},
+    ],
+)
+@patch(
+    "main.list_active_target_urls",
+    return_value=[
+        "https://dic.nicovideo.jp/a/1",
+        "https://dic.nicovideo.jp/a/2",
+        "https://dic.nicovideo.jp/a/3",
+    ],
+)
+@patch(
+    "main.run_scrape",
+    side_effect=[
+        ScrapeResult(True, "ok", article_title="Third Title"),
+        ScrapeResult(True, "ok", article_title="Second Title"),
+        ScrapeResult(True, "ok", article_title="First Title"),
+    ],
+)
+def test_run_batch_scrape_applies_reverse_target_order(
+    mock_run_scrape,
+    mock_load_targets,
+    mock_list_registered_targets,
+    mock_run_delete_request_feeder,
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
+    config = main_module.resolve_target_order_config(
+        cli_mode="reverse",
+        environ={},
+    )
+
+    final_status, failed_targets = main_module.run_batch_scrape(
+        "targets.db",
+        target_order_config=config,
+    )
+
+    assert final_status == "success"
+    assert failed_targets == 0
+    assert [call.args[0] for call in mock_run_scrape.call_args_list] == [
+        "https://dic.nicovideo.jp/a/3",
+        "https://dic.nicovideo.jp/a/2",
+        "https://dic.nicovideo.jp/a/1",
+    ]
+
+    out = capsys.readouterr().out
+    assert (
+        "[TARGET ORDER] mode=reverse mode_source=cli targets=3 "
+        "effective=reverse" in out
+    )
+
+    logs = list(Path(tmp_path).glob("batch_*.log"))
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    assert (
+        "[TARGET ORDER] mode=reverse mode_source=cli targets=3 "
+        "effective=reverse" in text
+    )
+
+
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
+@patch(
+    "main.list_registered_targets",
+    return_value=[
+        {"canonical_url": "https://dic.nicovideo.jp/a/1", "article_id": "1"},
+        {"canonical_url": "https://dic.nicovideo.jp/a/2", "article_id": "2"},
+    ],
+)
+@patch(
+    "main.list_active_target_urls",
+    return_value=[
+        "https://dic.nicovideo.jp/a/1",
+        "https://dic.nicovideo.jp/a/2",
+    ],
+)
+@patch(
+    "main.run_scrape",
+    side_effect=[
+        ScrapeResult(True, "ok", article_title="First Title"),
+        ScrapeResult(True, "ok", article_title="Second Title"),
+    ],
+)
+def test_run_batch_scrape_invalid_start_override_falls_back_to_default_order(
+    mock_run_scrape,
+    mock_load_targets,
+    mock_list_registered_targets,
+    mock_run_delete_request_feeder,
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
+    monkeypatch.setenv("TARGET_ORDER_MODE", "random_rotation")
+    monkeypatch.setenv("TARGET_ORDER_START_ARTICLE_ID", "999999999")
+
+    final_status, failed_targets = main_module.run_batch_scrape("targets.db")
+
+    assert final_status == "success"
+    assert failed_targets == 0
+    assert [call.args[0] for call in mock_run_scrape.call_args_list] == [
+        "https://dic.nicovideo.jp/a/1",
+        "https://dic.nicovideo.jp/a/2",
+    ]
+
+    out = capsys.readouterr().out
+    assert "requested_start_article_id=999999999" in out
+    assert "requested_start_article_id_source=env" in out
+    assert "effective=default" in out
+    assert "fallback=default" in out
+    assert "reason=start_article_id_not_found" in out
+
+
+@patch("main.run_batch_scrape", return_value=("success", 0))
+def test_main_batch_cli_target_order_mode_is_passed_to_run_batch_scrape(
+    mock_run_batch_scrape,
+):
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "batch",
+            "targets.db",
+            "--target-order-mode",
+            "reverse",
+        ],
+    ):
+        main_module.main()
+
+    target_order_config = mock_run_batch_scrape.call_args.kwargs["target_order_config"]
+    assert target_order_config.mode == "reverse"
+    assert target_order_config.mode_source == "cli"
+
+
+@patch("main.run_batch_scrape", return_value=("success", 0))
+def test_main_batch_cli_target_order_overrides_environment(
+    mock_run_batch_scrape,
+    monkeypatch,
+):
+    monkeypatch.setenv("TARGET_ORDER_MODE", "default")
+
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "batch",
+            "targets.db",
+            "--target-order-mode",
+            "reverse",
+        ],
+    ):
+        main_module.main()
+
+    target_order_config = mock_run_batch_scrape.call_args.kwargs["target_order_config"]
+    assert target_order_config.mode == "reverse"
+    assert target_order_config.mode_source == "cli"
+
+
+@patch(
+    "main.list_registered_targets",
+    return_value=[
+        {
+            "canonical_url": "https://dic.nicovideo.jp/a/%E3%83%86%E3%82%B9%E3%83%88",
+            "article_id": "5400838",
+        },
+        {"canonical_url": "https://dic.nicovideo.jp/a/other", "article_id": "2"},
+    ],
+)
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
+@patch(
+    "main.run_scrape",
+    side_effect=[
+        ScrapeResult(True, "ok", article_title="Stored Numeric Match"),
+        ScrapeResult(True, "ok", article_title="Second Title"),
+    ],
+)
+def test_run_batch_scrape_start_override_matches_stored_article_id_for_slug_url(
+    mock_run_scrape,
+    mock_run_delete_request_feeder,
+    mock_list_registered_targets,
+    tmp_path,
+    monkeypatch,
+    capsys,
+):
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
+    config = main_module.resolve_target_order_config(
+        cli_start_article_id="5400838",
+        environ={},
+    )
+
+    final_status, failed_targets = main_module.run_batch_scrape(
+        "targets.db",
+        target_order_config=config,
+    )
+
+    assert final_status == "success"
+    assert failed_targets == 0
+    assert [call.args[0] for call in mock_run_scrape.call_args_list] == [
+        "https://dic.nicovideo.jp/a/%E3%83%86%E3%82%B9%E3%83%88",
+        "https://dic.nicovideo.jp/a/other",
+    ]
+
+    out = capsys.readouterr().out
+    assert "requested_start_article_id=5400838" in out
+    assert "requested_start_article_id_source=cli" in out
+    assert "effective=start_article_id" in out
+
+
+@patch("main.run_batch_scrape", return_value=("success", 0))
+def test_main_batch_cli_random_rotation_is_passed_to_run_batch_scrape(
+    mock_run_batch_scrape,
+):
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "batch",
+            "targets.db",
+            "--target-order-mode",
+            "random_rotation",
+        ],
+    ):
+        main_module.main()
+
+    target_order_config = mock_run_batch_scrape.call_args.kwargs["target_order_config"]
+    assert target_order_config.mode == "random_rotation"
+    assert target_order_config.mode_source == "cli"
+
+
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
 @patch("main.list_active_target_urls", return_value=[
     "https://dic.nicovideo.jp/a/1",
     "https://dic.nicovideo.jp/a/2",
@@ -74576,10 +76893,26 @@ def test_run_batch_scrape_duration_limit_stops_after_current_target(
 
 @patch("main.run_periodic_once")
 def test_main_periodic_once_calls_run_periodic_once(mock_run_periodic_once):
-    with patch("sys.argv", ["main.py", "periodic-once", "targets.db"]):
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "periodic-once",
+            "targets.db",
+            "--target-order-mode",
+            "reverse",
+            "--target-order-start-article-id",
+            "5400838",
+        ],
+    ):
         main_module.main()
 
-    mock_run_periodic_once.assert_called_once_with("targets.db")
+    target_order_config = mock_run_periodic_once.call_args.kwargs["target_order_config"]
+    assert mock_run_periodic_once.call_args.args == ("targets.db",)
+    assert target_order_config.mode == "reverse"
+    assert target_order_config.mode_source == "cli"
+    assert target_order_config.start_article_id == "5400838"
+    assert target_order_config.start_article_id_source == "cli"
 
 
 def test_main_periodic_once_without_path_exits_with_usage(capsys):
@@ -74590,18 +76923,27 @@ def test_main_periodic_once_without_path_exits_with_usage(capsys):
     assert exc_info.value.code == 1
     out = capsys.readouterr().out
     assert "Usage: periodic-once <target_db_path>" in out
+    assert "--target-order-mode MODE" in out
 
 
 @patch("main.run_periodic_scrape")
 def test_run_periodic_once_delegates_to_single_periodic_cycle(
     mock_run_periodic_scrape,
 ):
-    main_module.run_periodic_once("targets.db")
+    target_order_config = main_module.resolve_target_order_config(
+        cli_mode="reverse",
+        environ={},
+    )
+    main_module.run_periodic_once(
+        "targets.db",
+        target_order_config=target_order_config,
+    )
 
     mock_run_periodic_scrape.assert_called_once_with(
         "targets.db",
         0.0,
         max_runs=1,
+        target_order_config=target_order_config,
     )
 
 
@@ -74614,13 +76956,49 @@ def test_run_periodic_once_uses_host_cron_log_path_when_configured(
 ):
     monkeypatch.setenv("HOST_CRON_LOG_PATH", "/runtime/logs/host_cron.log")
 
-    main_module.run_periodic_once("targets.db")
+    target_order_config = main_module.resolve_target_order_config(
+        cli_mode="reverse",
+        environ={},
+    )
+
+    main_module.run_periodic_once(
+        "targets.db",
+        target_order_config=target_order_config,
+    )
 
     mock_host_cron_run.assert_called_once_with(
         "targets.db",
         "/runtime/logs/host_cron.log",
+        target_order_config=target_order_config,
     )
     mock_run_periodic_scrape.assert_not_called()
+
+
+@patch("main.run_batch_scrape", return_value=("success", 0))
+@patch("main.time.sleep")
+def test_main_periodic_accepts_target_order_cli_options(
+    mock_sleep,
+    mock_run_batch,
+):
+    with patch(
+        "sys.argv",
+        [
+            "main.py",
+            "periodic",
+            "targets.db",
+            "30",
+            "--max-runs",
+            "1",
+            "--target-order-mode",
+            "reverse",
+        ],
+    ):
+        main_module.main()
+
+    target_order_config = mock_run_batch.call_args.kwargs["target_order_config"]
+    assert target_order_config.mode == "reverse"
+    assert target_order_config.mode_source == "cli"
+    mock_sleep.assert_not_called()
 
 
 @patch(
@@ -77843,6 +80221,10 @@ def test_runtime_local_example_contains_expected_keys():
     assert "WEB_PORT=" in text
     assert "LOCAL_UID=" in text
     assert "LOCAL_GID=" in text
+    assert "TARGET_ORDER_MODE=default" in text
+    assert "# TARGET_ORDER_MODE=random_rotation" in text
+    assert "# TARGET_ORDER_MODE=reverse" in text
+    assert "# TARGET_ORDER_START_ARTICLE_ID=" in text
 
 
 def test_gitignore_treats_runtime_local_env_as_local_only():
@@ -77876,6 +80258,10 @@ def test_personal_runtime_doc_mentions_local_env_and_wrapper():
     assert "tools/runtime_up.sh" in text
     assert "LOCAL_UID" in text
     assert "WEB_PORT" in text
+    assert "TARGET_ORDER_MODE" in text
+    assert "TARGET_ORDER_START_ARTICLE_ID" in text
+    assert "--target-order-mode reverse" in text
+    assert "--target-order-start-article-id 5400838" in text
 
 
 =============================
@@ -78921,6 +81307,38 @@ def test_list_registered_targets_includes_inactive_entries_when_requested(tmp_pa
     assert active_entries == []
 
 
+def test_list_registered_targets_active_order_matches_active_target_urls(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+
+    with patch(
+        "target_list.resolve_article_input",
+        side_effect=[
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/100",
+                "100",
+            ),
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/200",
+                "200",
+            ),
+            _mock_resolve_for_slug_numeric_pair(
+                "https://dic.nicovideo.jp/a/300",
+                "300",
+            ),
+        ],
+    ):
+        register_target_url("https://dic.nicovideo.jp/a/100", str(target_db_path))
+        register_target_url("https://dic.nicovideo.jp/id/200", str(target_db_path))
+        register_target_url("https://dic.nicovideo.jp/a/300", str(target_db_path))
+
+    deactivate_target("200", "a", str(target_db_path))
+
+    active_urls = list_active_target_urls(str(target_db_path))
+    active_entries = list_registered_targets(str(target_db_path), active_only=True)
+
+    assert [entry["canonical_url"] for entry in active_entries] == active_urls
+
+
 def test_inspect_registered_target_returns_entry_by_identity(tmp_path):
     target_db_path = tmp_path / "targets.db"
     with patch(
@@ -79029,6 +81447,199 @@ def test_handoff_redirected_target_suppresses_duplicate_new_target(tmp_path):
     assert list_active_target_urls(str(target_db_path)) == [
         "https://dic.nicovideo.jp/a/67890",
     ]
+
+
+=============================
+FILE: cursor/tests/test_target_ordering.py
+=============================
+from target_ordering import format_target_order_log_line
+from target_ordering import resolve_target_order_config
+from target_ordering import order_targets_for_run
+
+
+TARGETS = [
+    "https://dic.nicovideo.jp/a/1",
+    "https://dic.nicovideo.jp/a/2",
+    "https://dic.nicovideo.jp/a/3",
+    "https://dic.nicovideo.jp/a/4",
+    "https://dic.nicovideo.jp/a/5",
+]
+
+
+def test_default_mode_preserves_input_order():
+    decision = order_targets_for_run(TARGETS, mode="default")
+
+    assert decision.ordered_targets == TARGETS
+    assert decision.effective_mode == "default"
+    assert decision.requested_mode == "default"
+
+
+def test_reverse_mode_reverses_input_order():
+    decision = order_targets_for_run(TARGETS, mode="reverse")
+
+    assert decision.ordered_targets == list(reversed(TARGETS))
+    assert decision.effective_mode == "reverse"
+
+
+def test_random_rotation_rotates_without_shuffle_or_duplicates():
+    chooser_calls: list[int] = []
+
+    def chooser(limit: int) -> int:
+        chooser_calls.append(limit)
+        return 2
+
+    decision = order_targets_for_run(
+        TARGETS,
+        mode="random_rotation",
+        randrange_fn=chooser,
+    )
+
+    assert chooser_calls == [5]
+    assert decision.ordered_targets == [
+        "https://dic.nicovideo.jp/a/3",
+        "https://dic.nicovideo.jp/a/4",
+        "https://dic.nicovideo.jp/a/5",
+        "https://dic.nicovideo.jp/a/1",
+        "https://dic.nicovideo.jp/a/2",
+    ]
+    assert sorted(decision.ordered_targets) == sorted(TARGETS)
+    assert len(set(decision.ordered_targets)) == len(TARGETS)
+    assert decision.effective_mode == "random_rotation"
+    assert decision.start_index == 2
+    assert decision.start_article_id == "3"
+
+
+def test_start_article_override_rotates_to_matching_article_id():
+    decision = order_targets_for_run(
+        TARGETS,
+        mode="default",
+        start_article_id="4",
+    )
+
+    assert decision.ordered_targets == [
+        "https://dic.nicovideo.jp/a/4",
+        "https://dic.nicovideo.jp/a/5",
+        "https://dic.nicovideo.jp/a/1",
+        "https://dic.nicovideo.jp/a/2",
+        "https://dic.nicovideo.jp/a/3",
+    ]
+    assert decision.effective_mode == "start_article_id"
+    assert decision.start_index == 3
+    assert decision.start_article_id == "4"
+
+
+def test_start_article_override_takes_precedence_over_reverse_and_random():
+    decision = order_targets_for_run(
+        TARGETS,
+        mode="reverse",
+        start_article_id="2",
+        randrange_fn=lambda _limit: 4,
+    )
+
+    assert decision.ordered_targets == [
+        "https://dic.nicovideo.jp/a/2",
+        "https://dic.nicovideo.jp/a/3",
+        "https://dic.nicovideo.jp/a/4",
+        "https://dic.nicovideo.jp/a/5",
+        "https://dic.nicovideo.jp/a/1",
+    ]
+    assert decision.effective_mode == "start_article_id"
+
+
+def test_invalid_start_article_override_falls_back_to_default_order():
+    decision = order_targets_for_run(
+        TARGETS,
+        mode="random_rotation",
+        start_article_id="999999999",
+        randrange_fn=lambda _limit: 3,
+    )
+
+    assert decision.ordered_targets == TARGETS
+    assert decision.effective_mode == "default"
+    assert decision.fallback_mode == "default"
+    assert decision.reason == "start_article_id_not_found"
+
+
+def test_unknown_mode_falls_back_to_default_order():
+    decision = order_targets_for_run(TARGETS, mode="unknown")
+
+    assert decision.ordered_targets == TARGETS
+    assert decision.effective_mode == "default"
+    assert decision.fallback_mode == "default"
+    assert decision.reason == "unknown_mode"
+
+
+def test_empty_target_list_is_safe():
+    decision = order_targets_for_run([], mode="random_rotation")
+
+    assert decision.ordered_targets == []
+    assert decision.target_count == 0
+    assert decision.effective_mode == "default"
+
+
+def test_log_line_includes_effective_target_order_decision_fields():
+    config = resolve_target_order_config(cli_mode="random_rotation")
+    decision = order_targets_for_run(
+        TARGETS,
+        config=config,
+        randrange_fn=lambda _limit: 1,
+    )
+
+    line = format_target_order_log_line(decision)
+
+    assert line.startswith("[TARGET ORDER]")
+    assert "mode=random_rotation" in line
+    assert "mode_source=cli" in line
+    assert "targets=5" in line
+    assert "effective=random_rotation" in line
+    assert "start_index=1" in line
+    assert "start_article_id=2" in line
+
+
+def test_start_article_override_matches_stored_numeric_article_id():
+    targets = [
+        "https://dic.nicovideo.jp/a/%E3%83%86%E3%82%B9%E3%83%88",
+        "https://dic.nicovideo.jp/a/other",
+    ]
+    decision = order_targets_for_run(
+        targets,
+        start_article_id="5400838",
+        target_article_ids=["5400838", "200"],
+    )
+
+    assert decision.ordered_targets == targets
+    assert decision.effective_mode == "start_article_id"
+    assert decision.start_article_id == "5400838"
+
+
+def test_cli_values_override_environment_values_in_resolved_config():
+    config = resolve_target_order_config(
+        cli_mode="reverse",
+        cli_start_article_id="5400838",
+        environ={
+            "TARGET_ORDER_MODE": "random_rotation",
+            "TARGET_ORDER_START_ARTICLE_ID": "11111",
+        },
+    )
+
+    assert config.mode == "reverse"
+    assert config.mode_source == "cli"
+    assert config.start_article_id == "5400838"
+    assert config.start_article_id_source == "cli"
+
+
+def test_env_values_are_used_when_cli_values_are_absent():
+    config = resolve_target_order_config(
+        environ={
+            "TARGET_ORDER_MODE": "reverse",
+            "TARGET_ORDER_START_ARTICLE_ID": "12345",
+        }
+    )
+
+    assert config.mode == "reverse"
+    assert config.mode_source == "env"
+    assert config.start_article_id == "12345"
+    assert config.start_article_id_source == "env"
 
 
 =============================

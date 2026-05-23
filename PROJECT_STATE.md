@@ -2379,3 +2379,81 @@ Runtime reflection for SubTask-zero-response-board-scraped-state was completed.
 - Runtime smoke should continue through normal cron observation, especially for
   Registered Articles rows with saved responses = 0, Max Res No = 0, and
   populated Last Scraped.
+
+## MainTask completed: target order modes
+
+MainTask-target-order-modes was completed.
+
+Purpose:
+
+- avoid always starting periodic / batch runs from the beginning of the active
+  target list
+- make it possible to reach newer / Delete Feeder appended targets earlier
+- provide random_rotation for long-term target traversal spreading
+- provide a focused start article override for verification
+
+Adopted implementation:
+
+- Copilot implementation was selected.
+- Added a bounded target_ordering.py boundary.
+- Added TARGET_ORDER_MODE with supported values:
+  - default
+  - reverse
+  - random_rotation
+- Added TARGET_ORDER_START_ARTICLE_ID.
+- Added CLI options for batch, periodic-once, and periodic:
+  - --target-order-mode
+  - --target-order-start-article-id
+- CLI values override environment values.
+- Environment values override default behavior.
+- Invalid or unknown configuration falls back to default order without aborting.
+- Invalid or not-found start article override falls back to default order.
+- Stored numeric article_id values are used for start override, so numeric
+  article_id matching works even when canonical_url is /a/<encoded title>.
+- One compact [TARGET ORDER] line is emitted near run start and written to
+  batch / host-cron-visible logs.
+
+Validation:
+
+- validate_helix.sh passed before adoption.
+- Copilot branch reported 437 tests passed.
+- Cursor comparison branch reported 429 tests passed.
+- After merge, copilot and cursor should be synced to main and full validation
+  should be rerun.
+
+Runtime note:
+
+- Runtime reflection is a separate step.
+- This task does not change crontab.
+- This task does not choose the final scheduling policy.
+- Future runtime-operation tuning may use frequent random_rotation runs plus
+  occasional reverse runs to reach newly appended targets sooner.
+
+Review log:
+
+- Added META/review_log/MainTask_target_order_modes_20260523.md.
+
+Non-goals preserved:
+
+- No cron changes.
+- No Docker compose changes.
+- No DB schema changes.
+- No scrape semantics changes.
+- No response storage changes.
+- No Delete Feeder semantics changes.
+- No persistent resume cursor.
+- No per-target shuffle.
+- No scrape_id / run mark.
+
+## Runtime reflected: target order modes
+
+Runtime reflection for MainTask-target-order-modes was completed.
+
+- reflect_runtime.sh was run after confirming no active periodic_once lock and
+  no active scrape process.
+- runtime checkout was fast-forwarded to the adopted product main.
+- runtime container was rebuilt/recreated through the standard reflection flow.
+- Current crontab was not changed by this task.
+- Existing runtime scheduling policy remains in effect.
+- Future scheduling changes such as daily reverse plus frequent random_rotation
+  should be handled as a separate runtime-operation task.
