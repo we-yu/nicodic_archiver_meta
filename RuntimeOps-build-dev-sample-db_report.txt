@@ -1,0 +1,47 @@
+Editor AI model: GitHub Copilot Chat / GPT-5.4
+
+Summary
+- Added a root/meta helper for building a small development sample SQLite DB
+  from the provisional runtime DB.
+- Added a thin root wrapper, a Python implementation under META/scripts, and
+  documentation for safety, staging, validation, and future distribution flow.
+
+Files changed
+- build_dev_sample_db.sh
+- META/scripts/build_dev_sample_db.py
+- META/DEV_SAMPLE_DB.md
+- RuntimeOps-build-dev-sample-db_report.txt
+
+Safety boundaries preserved
+- Root/meta-owned files only were edited.
+- Existing files under copilot/ were not edited.
+- Existing files under cursor/ were not edited.
+- Runtime product code was not edited.
+- The runtime DB is treated as read-only input.
+- No scraping, cron, docker, or runtime container changes were performed.
+
+How the helper is intended to be run
+- Build into the default staging/output path:
+  ./build_dev_sample_db.sh --overwrite
+- Build and explicitly distribute the published sample DB to both child repos:
+  ./build_dev_sample_db.sh --overwrite --distribute-to-children
+- Run the temporary self-check only:
+  ./build_dev_sample_db.sh --self-check
+
+Validation or self-check status
+- Helper implementation includes a lightweight temporary self-check mode.
+- Validation in normal build mode is performed by the helper itself against the
+  temporary DB before publish.
+- Editor-session validation status: `bash ./build_dev_sample_db.sh --self-check`
+  passed in this workspace.
+
+Known limitations
+- The helper depends on an explicit readable source DB path.
+- The helper assumes current schema creation remains compatible through
+  storage.init_db loaded from the selected product checkout.
+- Child distribution copies only the published sample DB, not an extra manifest,
+  into child runtime/data paths.
+- This task does not address runtime observation DB lock tolerance.
+
+Confirmation
+- Existing files under copilot/ and cursor/ were not edited.
