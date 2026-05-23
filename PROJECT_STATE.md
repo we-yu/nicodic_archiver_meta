@@ -2620,3 +2620,78 @@ Later candidate:
   - review and harden SQLite connection timeout / busy_timeout / read/write
     access patterns across storage, archive_read, web_app, target_list, and
     related runtime paths.
+
+## RuntimeOps-build-dev-sample-db completed
+
+RuntimeOps-build-dev-sample-db was completed as a root/meta workflow helper
+task.
+
+Added files:
+
+- `build_dev_sample_db.sh`
+- `META/scripts/build_dev_sample_db.py`
+- `META/DEV_SAMPLE_DB.md`
+- `RuntimeOps-build-dev-sample-db_report.txt`
+
+Updated files:
+
+- `.gitignore`
+- `project_snapshot.txt`
+- `project_knowledge_snapshot.txt`
+
+Purpose:
+
+- avoid copying the full 8GB+ runtime DB into development checkouts
+- create a compact Dev sample DB from fixed selected runtime articles
+- support explicit distribution to:
+  - `copilot/runtime/data/nicodic.db`
+  - `cursor/runtime/data/nicodic.db`
+
+Validation:
+
+- helper self-check passed
+- Python compile check passed
+- staging build from the real runtime DB succeeded
+- generated sample DB was about 744 KiB
+- generated sample DB contained 17 `article_type='a'` articles
+- generated sample DB contained 752 responses
+- hard exclusion for `article_id='5511090'`, `article_type='a'` responses
+  was confirmed with count zero
+- no per-article response cap violations were found
+- explicit child distribution succeeded
+- child product repositories remained clean after distribution
+
+Safety boundaries:
+
+- runtime DB was treated as read-only input
+- no live scraping was performed
+- no crontab change was performed
+- no Docker or runtime container state change was performed
+- existing files under `copilot/` and `cursor/` were not edited
+
+Review log:
+
+- `META/review_log/RuntimeOps_build_dev_sample_db_20260523.md`
+
+Immediate follow-up candidate:
+
+- `SubTask-BugFix-observation-db-lock-tolerance`
+
+Goal:
+
+- keep archive-critical writes fatal
+- add bounded retry/warn behavior only for scrape-run observation telemetry
+  lock failures
+- avoid turning telemetry-only `database is locked` failures into whole-run
+  failures
+- preserve response storage integrity
+
+Later candidate:
+
+- `MainTask-sqlite-access-hardening`
+
+Goal:
+
+- review and harden SQLite timeout / busy-timeout / read-write access patterns
+  across storage, archive read, Web, target registry, and runtime paths.
+
