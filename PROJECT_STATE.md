@@ -2457,3 +2457,57 @@ Runtime reflection for MainTask-target-order-modes was completed.
 - Existing runtime scheduling policy remains in effect.
 - Future scheduling changes such as daily reverse plus frequent random_rotation
   should be handled as a separate runtime-operation task.
+
+## SubTask-BugFix completed: target order runtime wrapper follow-up
+
+SubTask-BugFix-forward-target-order-env-to-runtime-wrapper-followup was completed.
+
+Purpose:
+
+- fix the remaining target-order wrapper issue found during runtime smoke
+- ensure empty TARGET_ORDER_START_ARTICLE_ID is treated as no override
+- allow TARGET_ORDER_MODE=reverse and TARGET_ORDER_MODE=random_rotation to work
+  when no start article override is provided
+
+Root cause:
+
+- TARGET_ORDER_MODE was successfully forwarded to the container.
+- However, an empty TARGET_ORDER_START_ARTICLE_ID was also treated as an explicit
+  invalid start override.
+- This caused reverse/random_rotation runs to fall back to default with
+  reason=invalid_start_article_id.
+
+Adopted behavior:
+
+- Empty or whitespace-only TARGET_ORDER_START_ARTICLE_ID is normalized to absent.
+- Non-empty invalid start article id still falls back to default.
+- Valid stored article_id override still works.
+- Host inline TARGET_ORDER_MODE remains effective through runtime/periodic_once.sh.
+
+Runtime branch smoke:
+
+- TARGET_ORDER_MODE=reverse produced effective=reverse.
+- TARGET_ORDER_MODE=random_rotation produced effective=random_rotation.
+- TARGET_ORDER_START_ARTICLE_ID=5400838 produced effective=start_article_id.
+- This confirmed that stored article_id matching and target list start_index are
+  separate and not confused.
+
+Validation:
+
+- Focused tests reported 22 passed.
+- Full child repo pytest reported 442 passed.
+- flake8 reported no output.
+- After merge, validate_helix.sh should be rerun from the root meta workspace.
+
+Review log:
+
+- Added META/review_log/SubTask_BugFix_forward_target_order_env_to_runtime_wrapper_followup_20260523.md.
+
+Non-goals preserved:
+
+- No crontab changes.
+- No scheduling policy changes.
+- No Docker compose topology changes.
+- No DB/schema changes.
+- No scrape semantics changes.
+- No target ordering algorithm changes.

@@ -3458,6 +3458,60 @@ Runtime reflection for MainTask-target-order-modes was completed.
 - Future scheduling changes such as daily reverse plus frequent random_rotation
   should be handled as a separate runtime-operation task.
 
+## SubTask-BugFix completed: target order runtime wrapper follow-up
+
+SubTask-BugFix-forward-target-order-env-to-runtime-wrapper-followup was completed.
+
+Purpose:
+
+- fix the remaining target-order wrapper issue found during runtime smoke
+- ensure empty TARGET_ORDER_START_ARTICLE_ID is treated as no override
+- allow TARGET_ORDER_MODE=reverse and TARGET_ORDER_MODE=random_rotation to work
+  when no start article override is provided
+
+Root cause:
+
+- TARGET_ORDER_MODE was successfully forwarded to the container.
+- However, an empty TARGET_ORDER_START_ARTICLE_ID was also treated as an explicit
+  invalid start override.
+- This caused reverse/random_rotation runs to fall back to default with
+  reason=invalid_start_article_id.
+
+Adopted behavior:
+
+- Empty or whitespace-only TARGET_ORDER_START_ARTICLE_ID is normalized to absent.
+- Non-empty invalid start article id still falls back to default.
+- Valid stored article_id override still works.
+- Host inline TARGET_ORDER_MODE remains effective through runtime/periodic_once.sh.
+
+Runtime branch smoke:
+
+- TARGET_ORDER_MODE=reverse produced effective=reverse.
+- TARGET_ORDER_MODE=random_rotation produced effective=random_rotation.
+- TARGET_ORDER_START_ARTICLE_ID=5400838 produced effective=start_article_id.
+- This confirmed that stored article_id matching and target list start_index are
+  separate and not confused.
+
+Validation:
+
+- Focused tests reported 22 passed.
+- Full child repo pytest reported 442 passed.
+- flake8 reported no output.
+- After merge, validate_helix.sh should be rerun from the root meta workspace.
+
+Review log:
+
+- Added META/review_log/SubTask_BugFix_forward_target_order_env_to_runtime_wrapper_followup_20260523.md.
+
+Non-goals preserved:
+
+- No crontab changes.
+- No scheduling policy changes.
+- No Docker compose topology changes.
+- No DB/schema changes.
+- No scrape semantics changes.
+- No target ordering algorithm changes.
+
 
 ===== WORKSPACE =====
 # Workspace
@@ -6100,6 +6154,106 @@ This task did not:
 - introduce a new scheduler
 
 
+
+
+===== REVIEW LOG: META/review_log/SubTask_BugFix_forward_target_order_env_to_runtime_wrapper_followup_20260523.md =====
+# SubTask-BugFix: forward target order env to runtime wrapper follow-up
+
+## Summary
+
+SubTask-BugFix-forward-target-order-env-to-runtime-wrapper-followup was
+completed.
+
+This follow-up fixed the remaining runtime target-order wrapper issue where an
+empty TARGET_ORDER_START_ARTICLE_ID was treated as an explicit invalid start
+override.
+
+## Background
+
+The first wrapper fix made TARGET_ORDER_MODE and TARGET_ORDER_START_ARTICLE_ID
+reach the container periodic-once process.
+
+Runtime smoke then revealed a remaining issue:
+
+- TARGET_ORDER_MODE=reverse reached the container
+- but empty TARGET_ORDER_START_ARTICLE_ID was also forwarded
+- the empty value was treated as invalid_start_article_id
+- the run fell back to default order
+
+## Adopted behavior
+
+- Empty or whitespace-only TARGET_ORDER_START_ARTICLE_ID is treated as absent.
+- TARGET_ORDER_MODE=reverse remains effective when no start article override is
+  provided.
+- TARGET_ORDER_MODE=random_rotation remains effective when no start article
+  override is provided.
+- Non-empty invalid start article id still falls back to default.
+- Valid stored article_id override still works.
+
+## Runtime branch smoke
+
+Runtime branch smoke was performed before PR merge.
+
+Observed successful target-order log lines:
+
+- TARGET_ORDER_MODE=reverse produced effective=reverse.
+- TARGET_ORDER_MODE=random_rotation produced effective=random_rotation.
+- TARGET_ORDER_START_ARTICLE_ID=5400838 produced effective=start_article_id.
+
+This confirmed that article_id and list index are not being confused:
+
+- start_article_id=5400838 is the stored Nicopedia article_id.
+- start_index=12192 is the target list offset.
+
+## Files touched
+
+- target_ordering.py
+- tests/test_target_ordering.py
+- SubTask-BugFix-forward-target-order-env-to-runtime-wrapper_report.txt
+
+Earlier wrapper fix files remained part of the overall bugfix context:
+
+- tools/runtime_env.sh
+- runtime/periodic_once.sh
+- tests/test_runtime_local_ops.py
+- docs/PERSONAL_RUNTIME.md
+
+## Validation
+
+Reported validation before adoption:
+
+- focused target-order/runtime wrapper tests: 22 passed
+- full child repo pytest: 442 passed
+- flake8: no output
+
+After merge, child repos should be synced to main and validate_helix.sh should
+be rerun.
+
+## Runtime status
+
+After merge, runtime should be returned from detached branch-smoke HEAD to
+official main and rebuilt/recreated through the standard runtime reflection
+flow.
+
+Final smoke should confirm:
+
+- effective=reverse
+- effective=random_rotation
+- effective=start_article_id
+
+## Non-goals
+
+This task intentionally did not introduce:
+
+- crontab changes
+- scheduling policy changes
+- Docker compose topology changes
+- DB/schema changes
+- scrape semantics changes
+- target ordering algorithm changes
+- Delete Feeder behavior changes
+- persistent resume cursor
+- scrape_id / run mark
 
 
 ===== REVIEW LOG: META/review_log/SubTask_compact_scrape_logging_20260517.md =====
@@ -12449,7 +12603,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Sat May 23 09:01:24 UTC 2026
+generated: Sat May 23 10:40:29 UTC 2026
 mode: full
 
 
@@ -17901,6 +18055,63 @@ See docs/PERSONAL_RUNTIME.md for runtime-container-specific notes.
 
 
 =============================
+FILE: copilot/SubTask-BugFix-forward-target-order-env-to-runtime-wrapper_report.txt
+=============================
+summary
+- Fixed runtime wrapper env plumbing so host inline target-order settings reach the container periodic-once process.
+- Preserved `.env.runtime.local` as the normal default source while allowing single-invocation host env override.
+- Fixed empty `TARGET_ORDER_START_ARTICLE_ID` normalization so blank env values no longer force `invalid_start_article_id` fallback.
+
+files touched
+- tools/runtime_env.sh
+- runtime/periodic_once.sh
+- target_ordering.py
+- tests/test_target_ordering.py
+- tests/test_runtime_local_ops.py
+- docs/PERSONAL_RUNTIME.md
+
+root cause
+- `runtime_local_load` sourced `.env.runtime.local` directly and overwrote already-exported host variables.
+- `runtime/periodic_once.sh` forwarded `HOST_CRON_LOG_PATH`, `SOFT_TERMINATE_FILE`, and `ONESHOT_LIMIT_DURATION_SECONDS`, but not `TARGET_ORDER_MODE` or `TARGET_ORDER_START_ARTICLE_ID`.
+- Runtime smoke then showed one remaining issue: an empty forwarded `TARGET_ORDER_START_ARTICLE_ID` was treated as an explicit invalid override instead of as “no start override”.
+
+behavior after fix
+- `TARGET_ORDER_MODE=reverse ./runtime/periodic_once.sh` now reaches the container process as `TARGET_ORDER_MODE=reverse`.
+- `TARGET_ORDER_START_ARTICLE_ID=5400838 ./runtime/periodic_once.sh` now reaches the container process as `TARGET_ORDER_START_ARTICLE_ID=5400838`.
+- Empty or whitespace-only `TARGET_ORDER_START_ARTICLE_ID` is now normalized to no override at the target-order config boundary.
+- `TARGET_ORDER_MODE=reverse` or `TARGET_ORDER_MODE=random_rotation` now stays effective when start article id is empty or unset.
+- `.env.runtime.local` still provides runtime defaults when host inline env is absent.
+- Host inline env now overrides `.env.runtime.local` for one invocation.
+- Existing `ONESHOT_LIMIT_DURATION_SECONDS`, `SOFT_TERMINATE_FILE`, lock handling, and host cron log flow remain in place.
+
+validation attempted
+- Focused runtime wrapper checks:
+	- `docker compose run --rm --entrypoint "" scraper pytest -q tests/test_target_ordering.py tests/test_runtime_local_ops.py`
+	- result: `22 passed in 0.05s`
+	- `bash -n tools/runtime_env.sh runtime/periodic_once.sh`
+	- result: no output
+- Existing repo validation workflow:
+	- `docker compose run --rm --entrypoint "" scraper pytest -q`
+	- result: `442 passed in 11.62s`
+	- `docker compose run --rm --entrypoint "" scraper flake8 .`
+	- result: no output
+- `validate_helix.sh` is not present in this child product repository, so no PASS claim was made against that script.
+
+tests added or updated
+- Added focused target-order tests proving empty env `TARGET_ORDER_START_ARTICLE_ID` is treated as absent.
+- Covered `TARGET_ORDER_MODE=reverse` plus empty start id and `TARGET_ORDER_MODE=random_rotation` plus empty start id.
+- Preserved the existing non-empty invalid-id fallback test and valid-id success coverage.
+
+known limitations
+- This task does not change crontab or scheduling policy.
+- This task does not verify live host-to-container forwarding against an already-running runtime service outside the existing test workflow.
+
+editor AI model/tool info if available
+- Agent: GitHub Copilot
+- Model: GPT-5.4
+- Tools used: workspace file reads/search, apply_patch, terminal validation
+
+=============================
 FILE: copilot/SubTask-BugFix-registered-search-encoded-target_report.txt
 =============================
 SubTask-BugFix: registered-search-encoded-target
@@ -21888,6 +22099,11 @@ starting from the earliest registered targets.
 Use `reverse` for occasional newer-target-first runs when you want recently
 registered or Delete Feeder-appended targets to be reached sooner.
 
+For one wrapper invocation, host inline env overrides `.env.runtime.local`, for
+example:
+
+`TARGET_ORDER_MODE=reverse ./runtime/periodic_once.sh`
+
 `TARGET_ORDER_START_ARTICLE_ID` is an optional debug override. When it matches
 an active loaded target, the run rotates the current target list so that
 article starts first. If it is empty, invalid, or not found in the active
@@ -21896,6 +22112,10 @@ warning line near run start.
 
 Use `--target-order-start-article-id` for focused verification around a known
 numeric article ID without editing the env file.
+
+The same single-shot override also works through the wrapper path, for example:
+
+`TARGET_ORDER_START_ARTICLE_ID=5400838 ./runtime/periodic_once.sh`
 
 `SOFT_TERMINATE_FILE` controls the file-based stop-after-current flag path.
 If it is unset or empty, the runtime uses
@@ -28355,6 +28575,8 @@ echo "[periodic-once] bash tools/runtime_up.sh"
 
 docker compose -f "$COMPOSE_FILE_PATH" exec -T "$COMPOSE_SERVICE_NAME" \
   env HOST_CRON_LOG_PATH="$HOST_CRON_LOG_PATH" \
+  TARGET_ORDER_MODE="${TARGET_ORDER_MODE:-}" \
+  TARGET_ORDER_START_ARTICLE_ID="${TARGET_ORDER_START_ARTICLE_ID:-}" \
   SOFT_TERMINATE_FILE="${SOFT_TERMINATE_FILE:-runtime/control/stop_after_current}" \
   ONESHOT_LIMIT_DURATION_SECONDS="${ONESHOT_LIMIT_DURATION_SECONDS:-}" \
   python main.py periodic-once "$TARGET_DB_PATH"
@@ -29576,7 +29798,10 @@ def _normalized_mode(raw_mode: str | None) -> str:
 def _normalized_optional_text(raw_value: str | None) -> str | None:
     if raw_value is None:
         return None
-    return raw_value.strip()
+    text = raw_value.strip()
+    if not text:
+        return None
+    return text
 
 
 def _article_id_for_target(target_url: str) -> str | None:
@@ -29623,10 +29848,14 @@ def resolve_target_order_config(
         mode_source = "env" if mode is not None else "default"
 
     if cli_start_article_id is not None:
-        start_article_id = cli_start_article_id
-        start_article_id_source = "cli"
+        start_article_id = _normalized_optional_text(cli_start_article_id)
+        start_article_id_source = (
+            "cli" if start_article_id is not None else None
+        )
     else:
-        start_article_id = env.get("TARGET_ORDER_START_ARTICLE_ID")
+        start_article_id = _normalized_optional_text(
+            env.get("TARGET_ORDER_START_ARTICLE_ID")
+        )
         start_article_id_source = "env" if start_article_id is not None else None
 
     return TargetOrderConfig(
@@ -38334,6 +38563,33 @@ def test_periodic_wrapper_loads_shared_runtime_env_helper():
     assert "runtime_local_validate" in text
 
 
+def test_runtime_env_helper_preserves_host_inline_target_order_overrides():
+    text = Path("tools/runtime_env.sh").read_text(encoding="utf-8")
+
+    assert "TARGET_ORDER_MODE" in text
+    assert "TARGET_ORDER_START_ARTICLE_ID" in text
+    assert "preserved_assignments" in text
+
+
+def test_periodic_wrapper_forwards_target_order_env_into_container_exec():
+    text = Path("runtime/periodic_once.sh").read_text(encoding="utf-8")
+
+    assert 'TARGET_ORDER_MODE="${TARGET_ORDER_MODE:-}"' in text
+    assert (
+        'TARGET_ORDER_START_ARTICLE_ID="${TARGET_ORDER_START_ARTICLE_ID:-}"'
+        in text
+    )
+    assert (
+        'ONESHOT_LIMIT_DURATION_SECONDS='
+        '"${ONESHOT_LIMIT_DURATION_SECONDS:-}"' in text
+    )
+    assert (
+        'SOFT_TERMINATE_FILE='
+        '"${SOFT_TERMINATE_FILE:-runtime/control/stop_after_current}"'
+        in text
+    )
+
+
 def test_personal_runtime_doc_mentions_local_env_and_wrapper():
     text = Path("docs/PERSONAL_RUNTIME.md").read_text(encoding="utf-8")
 
@@ -39592,6 +39848,50 @@ def test_random_rotation_rotates_without_shuffle_or_duplicates():
     assert decision.start_article_id == "3"
 
 
+def test_blank_env_start_article_id_allows_reverse_mode():
+    config = resolve_target_order_config(
+        environ={
+            "TARGET_ORDER_MODE": "reverse",
+            "TARGET_ORDER_START_ARTICLE_ID": "",
+        }
+    )
+
+    decision = order_targets_for_run(TARGETS, config=config)
+
+    assert config.start_article_id is None
+    assert config.start_article_id_source is None
+    assert decision.ordered_targets == list(reversed(TARGETS))
+    assert decision.effective_mode == "reverse"
+    assert decision.reason is None
+
+
+def test_blank_env_start_article_id_allows_random_rotation_mode():
+    config = resolve_target_order_config(
+        environ={
+            "TARGET_ORDER_MODE": "random_rotation",
+            "TARGET_ORDER_START_ARTICLE_ID": "   ",
+        }
+    )
+
+    decision = order_targets_for_run(
+        TARGETS,
+        config=config,
+        randrange_fn=lambda _limit: 2,
+    )
+
+    assert config.start_article_id is None
+    assert config.start_article_id_source is None
+    assert decision.ordered_targets == [
+        "https://dic.nicovideo.jp/a/3",
+        "https://dic.nicovideo.jp/a/4",
+        "https://dic.nicovideo.jp/a/5",
+        "https://dic.nicovideo.jp/a/1",
+        "https://dic.nicovideo.jp/a/2",
+    ]
+    assert decision.effective_mode == "random_rotation"
+    assert decision.reason is None
+
+
 def test_start_article_override_rotates_to_matching_article_id():
     decision = order_targets_for_run(
         TARGETS,
@@ -39723,6 +40023,20 @@ def test_env_values_are_used_when_cli_values_are_absent():
     assert config.mode_source == "env"
     assert config.start_article_id == "12345"
     assert config.start_article_id_source == "env"
+
+
+def test_blank_env_start_article_id_is_treated_as_absent():
+    config = resolve_target_order_config(
+        environ={
+            "TARGET_ORDER_MODE": "reverse",
+            "TARGET_ORDER_START_ARTICLE_ID": "",
+        }
+    )
+
+    assert config.mode == "reverse"
+    assert config.mode_source == "env"
+    assert config.start_article_id is None
+    assert config.start_article_id_source is None
 
 
 =============================
@@ -43125,12 +43439,35 @@ runtime_local_env_file() {
 
 runtime_local_load() {
   local env_file
+  local var_name
+  local -a preserved_assignments=()
   env_file=$(runtime_local_env_file)
 
   if [[ -f "$env_file" ]]; then
+    for var_name in \
+      WEB_BIND_HOST \
+      WEB_PORT \
+      LOCAL_UID \
+      LOCAL_GID \
+      SCRAPE_PAGE_DELAY_SECONDS \
+      BBS_RESPONSES_PER_PAGE \
+      TARGET_ORDER_MODE \
+      TARGET_ORDER_START_ARTICLE_ID \
+      SOFT_TERMINATE_FILE \
+      ONESHOT_LIMIT_DURATION_SECONDS; do
+      if [[ -n "${!var_name+x}" ]]; then
+        preserved_assignments+=("$var_name=${!var_name}")
+      fi
+    done
+
     set -a
     . "$env_file"
     set +a
+
+    for var_name in "${preserved_assignments[@]}"; do
+      export "$var_name"
+    done
+
     echo "[runtime-env] Loaded $env_file"
   else
     echo "[runtime-env] Local runtime env not found: $env_file"
@@ -45870,6 +46207,63 @@ the read-first verification flow.
 
 See docs/PERSONAL_RUNTIME.md for runtime-container-specific notes.
 
+
+=============================
+FILE: cursor/SubTask-BugFix-forward-target-order-env-to-runtime-wrapper_report.txt
+=============================
+summary
+- Fixed runtime wrapper env plumbing so host inline target-order settings reach the container periodic-once process.
+- Preserved `.env.runtime.local` as the normal default source while allowing single-invocation host env override.
+- Fixed empty `TARGET_ORDER_START_ARTICLE_ID` normalization so blank env values no longer force `invalid_start_article_id` fallback.
+
+files touched
+- tools/runtime_env.sh
+- runtime/periodic_once.sh
+- target_ordering.py
+- tests/test_target_ordering.py
+- tests/test_runtime_local_ops.py
+- docs/PERSONAL_RUNTIME.md
+
+root cause
+- `runtime_local_load` sourced `.env.runtime.local` directly and overwrote already-exported host variables.
+- `runtime/periodic_once.sh` forwarded `HOST_CRON_LOG_PATH`, `SOFT_TERMINATE_FILE`, and `ONESHOT_LIMIT_DURATION_SECONDS`, but not `TARGET_ORDER_MODE` or `TARGET_ORDER_START_ARTICLE_ID`.
+- Runtime smoke then showed one remaining issue: an empty forwarded `TARGET_ORDER_START_ARTICLE_ID` was treated as an explicit invalid override instead of as “no start override”.
+
+behavior after fix
+- `TARGET_ORDER_MODE=reverse ./runtime/periodic_once.sh` now reaches the container process as `TARGET_ORDER_MODE=reverse`.
+- `TARGET_ORDER_START_ARTICLE_ID=5400838 ./runtime/periodic_once.sh` now reaches the container process as `TARGET_ORDER_START_ARTICLE_ID=5400838`.
+- Empty or whitespace-only `TARGET_ORDER_START_ARTICLE_ID` is now normalized to no override at the target-order config boundary.
+- `TARGET_ORDER_MODE=reverse` or `TARGET_ORDER_MODE=random_rotation` now stays effective when start article id is empty or unset.
+- `.env.runtime.local` still provides runtime defaults when host inline env is absent.
+- Host inline env now overrides `.env.runtime.local` for one invocation.
+- Existing `ONESHOT_LIMIT_DURATION_SECONDS`, `SOFT_TERMINATE_FILE`, lock handling, and host cron log flow remain in place.
+
+validation attempted
+- Focused runtime wrapper checks:
+	- `docker compose run --rm --entrypoint "" scraper pytest -q tests/test_target_ordering.py tests/test_runtime_local_ops.py`
+	- result: `22 passed in 0.05s`
+	- `bash -n tools/runtime_env.sh runtime/periodic_once.sh`
+	- result: no output
+- Existing repo validation workflow:
+	- `docker compose run --rm --entrypoint "" scraper pytest -q`
+	- result: `442 passed in 11.62s`
+	- `docker compose run --rm --entrypoint "" scraper flake8 .`
+	- result: no output
+- `validate_helix.sh` is not present in this child product repository, so no PASS claim was made against that script.
+
+tests added or updated
+- Added focused target-order tests proving empty env `TARGET_ORDER_START_ARTICLE_ID` is treated as absent.
+- Covered `TARGET_ORDER_MODE=reverse` plus empty start id and `TARGET_ORDER_MODE=random_rotation` plus empty start id.
+- Preserved the existing non-empty invalid-id fallback test and valid-id success coverage.
+
+known limitations
+- This task does not change crontab or scheduling policy.
+- This task does not verify live host-to-container forwarding against an already-running runtime service outside the existing test workflow.
+
+editor AI model/tool info if available
+- Agent: GitHub Copilot
+- Model: GPT-5.4
+- Tools used: workspace file reads/search, apply_patch, terminal validation
 
 =============================
 FILE: cursor/SubTask-BugFix-registered-search-encoded-target_report.txt
@@ -49859,6 +50253,11 @@ starting from the earliest registered targets.
 Use `reverse` for occasional newer-target-first runs when you want recently
 registered or Delete Feeder-appended targets to be reached sooner.
 
+For one wrapper invocation, host inline env overrides `.env.runtime.local`, for
+example:
+
+`TARGET_ORDER_MODE=reverse ./runtime/periodic_once.sh`
+
 `TARGET_ORDER_START_ARTICLE_ID` is an optional debug override. When it matches
 an active loaded target, the run rotates the current target list so that
 article starts first. If it is empty, invalid, or not found in the active
@@ -49867,6 +50266,10 @@ warning line near run start.
 
 Use `--target-order-start-article-id` for focused verification around a known
 numeric article ID without editing the env file.
+
+The same single-shot override also works through the wrapper path, for example:
+
+`TARGET_ORDER_START_ARTICLE_ID=5400838 ./runtime/periodic_once.sh`
 
 `SOFT_TERMINATE_FILE` controls the file-based stop-after-current flag path.
 If it is unset or empty, the runtime uses
@@ -70272,6 +70675,8 @@ echo "[periodic-once] bash tools/runtime_up.sh"
 
 docker compose -f "$COMPOSE_FILE_PATH" exec -T "$COMPOSE_SERVICE_NAME" \
   env HOST_CRON_LOG_PATH="$HOST_CRON_LOG_PATH" \
+  TARGET_ORDER_MODE="${TARGET_ORDER_MODE:-}" \
+  TARGET_ORDER_START_ARTICLE_ID="${TARGET_ORDER_START_ARTICLE_ID:-}" \
   SOFT_TERMINATE_FILE="${SOFT_TERMINATE_FILE:-runtime/control/stop_after_current}" \
   ONESHOT_LIMIT_DURATION_SECONDS="${ONESHOT_LIMIT_DURATION_SECONDS:-}" \
   python main.py periodic-once "$TARGET_DB_PATH"
@@ -71493,7 +71898,10 @@ def _normalized_mode(raw_mode: str | None) -> str:
 def _normalized_optional_text(raw_value: str | None) -> str | None:
     if raw_value is None:
         return None
-    return raw_value.strip()
+    text = raw_value.strip()
+    if not text:
+        return None
+    return text
 
 
 def _article_id_for_target(target_url: str) -> str | None:
@@ -71540,10 +71948,14 @@ def resolve_target_order_config(
         mode_source = "env" if mode is not None else "default"
 
     if cli_start_article_id is not None:
-        start_article_id = cli_start_article_id
-        start_article_id_source = "cli"
+        start_article_id = _normalized_optional_text(cli_start_article_id)
+        start_article_id_source = (
+            "cli" if start_article_id is not None else None
+        )
     else:
-        start_article_id = env.get("TARGET_ORDER_START_ARTICLE_ID")
+        start_article_id = _normalized_optional_text(
+            env.get("TARGET_ORDER_START_ARTICLE_ID")
+        )
         start_article_id_source = "env" if start_article_id is not None else None
 
     return TargetOrderConfig(
@@ -80251,6 +80663,33 @@ def test_periodic_wrapper_loads_shared_runtime_env_helper():
     assert "runtime_local_validate" in text
 
 
+def test_runtime_env_helper_preserves_host_inline_target_order_overrides():
+    text = Path("tools/runtime_env.sh").read_text(encoding="utf-8")
+
+    assert "TARGET_ORDER_MODE" in text
+    assert "TARGET_ORDER_START_ARTICLE_ID" in text
+    assert "preserved_assignments" in text
+
+
+def test_periodic_wrapper_forwards_target_order_env_into_container_exec():
+    text = Path("runtime/periodic_once.sh").read_text(encoding="utf-8")
+
+    assert 'TARGET_ORDER_MODE="${TARGET_ORDER_MODE:-}"' in text
+    assert (
+        'TARGET_ORDER_START_ARTICLE_ID="${TARGET_ORDER_START_ARTICLE_ID:-}"'
+        in text
+    )
+    assert (
+        'ONESHOT_LIMIT_DURATION_SECONDS='
+        '"${ONESHOT_LIMIT_DURATION_SECONDS:-}"' in text
+    )
+    assert (
+        'SOFT_TERMINATE_FILE='
+        '"${SOFT_TERMINATE_FILE:-runtime/control/stop_after_current}"'
+        in text
+    )
+
+
 def test_personal_runtime_doc_mentions_local_env_and_wrapper():
     text = Path("docs/PERSONAL_RUNTIME.md").read_text(encoding="utf-8")
 
@@ -81509,6 +81948,50 @@ def test_random_rotation_rotates_without_shuffle_or_duplicates():
     assert decision.start_article_id == "3"
 
 
+def test_blank_env_start_article_id_allows_reverse_mode():
+    config = resolve_target_order_config(
+        environ={
+            "TARGET_ORDER_MODE": "reverse",
+            "TARGET_ORDER_START_ARTICLE_ID": "",
+        }
+    )
+
+    decision = order_targets_for_run(TARGETS, config=config)
+
+    assert config.start_article_id is None
+    assert config.start_article_id_source is None
+    assert decision.ordered_targets == list(reversed(TARGETS))
+    assert decision.effective_mode == "reverse"
+    assert decision.reason is None
+
+
+def test_blank_env_start_article_id_allows_random_rotation_mode():
+    config = resolve_target_order_config(
+        environ={
+            "TARGET_ORDER_MODE": "random_rotation",
+            "TARGET_ORDER_START_ARTICLE_ID": "   ",
+        }
+    )
+
+    decision = order_targets_for_run(
+        TARGETS,
+        config=config,
+        randrange_fn=lambda _limit: 2,
+    )
+
+    assert config.start_article_id is None
+    assert config.start_article_id_source is None
+    assert decision.ordered_targets == [
+        "https://dic.nicovideo.jp/a/3",
+        "https://dic.nicovideo.jp/a/4",
+        "https://dic.nicovideo.jp/a/5",
+        "https://dic.nicovideo.jp/a/1",
+        "https://dic.nicovideo.jp/a/2",
+    ]
+    assert decision.effective_mode == "random_rotation"
+    assert decision.reason is None
+
+
 def test_start_article_override_rotates_to_matching_article_id():
     decision = order_targets_for_run(
         TARGETS,
@@ -81640,6 +82123,20 @@ def test_env_values_are_used_when_cli_values_are_absent():
     assert config.mode_source == "env"
     assert config.start_article_id == "12345"
     assert config.start_article_id_source == "env"
+
+
+def test_blank_env_start_article_id_is_treated_as_absent():
+    config = resolve_target_order_config(
+        environ={
+            "TARGET_ORDER_MODE": "reverse",
+            "TARGET_ORDER_START_ARTICLE_ID": "",
+        }
+    )
+
+    assert config.mode == "reverse"
+    assert config.mode_source == "env"
+    assert config.start_article_id is None
+    assert config.start_article_id_source is None
 
 
 =============================
@@ -85042,12 +85539,35 @@ runtime_local_env_file() {
 
 runtime_local_load() {
   local env_file
+  local var_name
+  local -a preserved_assignments=()
   env_file=$(runtime_local_env_file)
 
   if [[ -f "$env_file" ]]; then
+    for var_name in \
+      WEB_BIND_HOST \
+      WEB_PORT \
+      LOCAL_UID \
+      LOCAL_GID \
+      SCRAPE_PAGE_DELAY_SECONDS \
+      BBS_RESPONSES_PER_PAGE \
+      TARGET_ORDER_MODE \
+      TARGET_ORDER_START_ARTICLE_ID \
+      SOFT_TERMINATE_FILE \
+      ONESHOT_LIMIT_DURATION_SECONDS; do
+      if [[ -n "${!var_name+x}" ]]; then
+        preserved_assignments+=("$var_name=${!var_name}")
+      fi
+    done
+
     set -a
     . "$env_file"
     set +a
+
+    for var_name in "${preserved_assignments[@]}"; do
+      export "$var_name"
+    done
+
     echo "[runtime-env] Loaded $env_file"
   else
     echo "[runtime-env] Local runtime env not found: $env_file"
