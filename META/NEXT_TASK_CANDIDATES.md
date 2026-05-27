@@ -1,252 +1,273 @@
 # Next Task Candidates
 
-This file is planning memory for near-term development.
+This file tracks current unfinished task candidates.
 
-It is not a fixed task order and does not replace PROJECT_STATE.md, WORKSPACE.md, or review logs.
+It is planning memory, not authoritative product state.
+When a candidate is completed and recorded in `PROJECT_STATE.md` plus
+`META/review_log/`, remove it from this list.
 
-## Recommended order
+## Current completed-and-removed context
 
-1. SubTask-meta-record-cleanup-after-ui-polish
-2. MainTask-codex-adoption-planning
-3. MainTask-workflow-tooling-independence
-4. SubTask-compact-shot-heartbeat-log
-5. SubTask-import-and-feeder-resilience
-6. SubTask-download-export-lazy-cache
-7. MainTask-scrape-run-identity-and-target-state
-8. Later polish / maintenance tasks
+The following previously listed candidates are now completed and should not
+remain as active candidates here:
 
-## 1. SubTask-meta-record-cleanup-after-ui-polish
+- `RuntimeOps-build-dev-sample-db`
+- `SubTask-BugFix-observation-db-lock-tolerance`
+- `RuntimeOps-target-order-cron-policy-reenable`
 
-Type:
+Current completion records include:
 
-- SubTask / meta cleanup
+- `META/review_log/RuntimeOps_build_dev_sample_db_20260523.md`
+- `META/review_log/SubTask_BugFix_observation_db_lock_tolerance_20260527.md`
+- `META/review_log/SubTask_improve_periodic_once_host_cron_log_guidance_20260527.md`
+- `META/review_log/Runtime_periodic_recovery_20260527.md`
+
+## Priority A: near-term operational candidates
+
+### Runtime reflection for periodic-once host-log guidance
 
 Purpose:
-
-- Repair malformed meta records after the Registered Articles UI polish closeout.
-- Remove broken Markdown fenced-block artifacts, EOF remnants, and pasted command debris.
-- Keep the authoritative state readable for the next AI session.
+- Reflect the already-adopted periodic-once host-log guidance change into the
+  sibling runtime checkout.
 
 Method:
-
-- Rewrite the affected review log into clean Markdown without fenced code blocks.
-- Replace the UI polish section in PROJECT_STATE.md with a clean summary.
-- Regenerate project snapshots.
+- Wait until no active scrape-like runtime process is running.
+- Use the established runtime reflection safety flow.
+- Do not interrupt an active periodic run just for this guidance-only change.
 
 Expected benefit:
+- Manual `periodic_once.sh` runs will clearly tell the operator that detailed
+  progress is written to `host_cron.log`.
 
-- Future AI context restoration becomes safer.
-- The next task starts from clean project memory.
+Status:
+- Product change is already merged.
+- Runtime reflection is deferred until a safe maintenance point.
 
-## 2. MainTask-codex-adoption-planning
-
-Type:
-
-- MainTask / process
+### RuntimeOps-clean-runtime-data-artifacts
 
 Purpose:
-
-- Decide how Codex should be introduced without disrupting the current Human + Advisor + Copilot/Cursor + Mac Terminal workflow.
-- Preserve the purpose of DHM while allowing tool substitution where useful.
+- Reduce confusion from old runtime DB backups, temporary files, and historic
+  task artifacts under runtime data directories.
 
 Method:
-
-- Define what Codex may and may not do.
-- Draft AGENTS.md.
-- Decide first safe trial surface:
-  - Chrome / in-app browser
-  - IDE extension
-  - Cloud task
-- Define how Codex can support or partially replace DHM.
-- Keep runtime DB, cron, docker, long scrape decisions, and merge adoption judgment under Human + Advisor control for now.
+- First inventory runtime data artifacts.
+- Do not delete immediately.
+- Prefer quarantine such as `_quarantine_YYYYMMDD/`.
+- Preserve active runtime files such as `nicodic.db`, `web_action.log`, and
+  current feeder state unless explicitly reviewed.
 
 Expected benefit:
+- Future DB, runtime, and smoke work is less likely to accidentally inspect or
+  use stale artifacts.
 
-- Reduces repeated prompt overhead.
-- Makes future AI execution more consistent.
-- Allows safe experimentation with Codex before product semantics are entrusted to it.
+Status:
+- Not started.
+- Should be done only when runtime state is quiet enough to inspect safely.
 
-## 3. MainTask-workflow-tooling-independence
-
-Type:
-
-- MainTask / workflow tooling
+### Dev Web smoke DB sync improvement
 
 Purpose:
-
-- Make validation and review tooling more repository-local and editor-safe.
-- Reduce cases where editor AIs try to create virtual environments or run inappropriate ad-hoc tests.
-- Make SubTask-only work easier to validate without always running the full Double Helix path.
+- Make child-repo development Web smoke checks use realistic lightweight data
+  instead of stale or mismatched DB state.
 
 Method:
-
-- Add child-repo-local helper scripts such as:
-  - tools/validate_local.sh
-  - tools/collect_local.sh
-  - tools/editor_safe_check.sh
-- Make root wrappers call those child-local helpers.
-- Add options for copilot-only, cursor-only, or all-repo validation.
-- Add short AI-facing reminders to frequently pasted helper output.
+- Build on `RuntimeOps-build-dev-sample-db`.
+- Document or helperize the expected sample DB refresh path for Copilot/Cursor
+  development Web checks.
 
 Expected benefit:
+- Web UI review and DB-facing BugFix checks become more reliable and cheaper.
 
-- Better tool independence.
-- Lower Human monitoring load.
-- Fewer editor-AI interruptions.
-- Easier Codex adoption later.
+Status:
+- Not started.
+- Now unblocked by the completed Dev sample DB helper.
 
-Merged prior ideas:
+## Priority B: stability / observability candidates
 
-- SubTask-tool-independent
-- add editor-safe validation tool
-- AI reminder output in collect/validation helpers
-
-## 4. SubTask-compact-shot-heartbeat-log
-
-Type:
-
-- SubTask / product log polish
+### MainTask-sqlite-access-hardening
 
 Purpose:
-
-- Make batch and host cron logs easier to scan while preserving useful information.
-- Keep long scrape shots readable without hiding failure detail.
+- Review and harden SQLite connection timeout, busy timeout, read/write access,
+  and transaction boundaries across runtime-like operation.
 
 Method:
-
-- Add STEP START / STEP END style log blocks.
-- Keep START / END index and total aligned.
-- Use compact heartbeat groups for normal page success.
-- Preserve WARN and ERROR detail.
-- Do not change scrape behavior.
-- Do not introduce a logging platform.
-
-Desired shape:
-
-- STEP START line at the beginning of each target.
-- Indented heartbeat INFO lines during page progress.
-- WARN / ERROR detail lines retained.
-- STEP END line with status, title, saved response count, observed max response number, and duration.
+- Treat as a DHM MainTask or carefully scoped architecture/stability task.
+- Review at least storage, archive read, Web, target registry, periodic flow,
+  and Delete Feeder access patterns.
+- Avoid broad behavior redesign unless explicitly scoped.
 
 Expected benefit:
+- Better long-running scrape plus Web UI coexistence.
+- Fewer unexpected SQLite lock or timeout failures.
 
-- Easier runtime monitoring.
-- Better debugging when a long shot partially fails.
-- Safe first Codex product SubTask candidate.
+Status:
+- Not started.
+- Better after some runtime observation under the recovered cron policy.
 
-## 5. SubTask-import-and-feeder-resilience
-
-Type:
-
-- SubTask / product resilience
+### SubTask-BugFix-periodic-lock-cleanup-hardening
 
 Purpose:
-
-- Prevent one transient resolution/fetch/registration failure from aborting a large import or feeder-like registration process.
+- Confirm periodic lock cleanup behavior remains robust after abnormal exits,
+  soft terminate, and duration-limit exits.
 
 Method:
-
-- Keep per-candidate failures local.
-- Continue processing later candidates.
-- Report registered, skipped, failed, and retryable counts.
-- Preserve enough failed-candidate information for later manual retry.
+- Review wrapper trap / cleanup behavior and process lifecycle.
+- Keep this narrow if separated from broader SQLite hardening.
 
 Expected benefit:
+- Fewer stale `periodic_once.lock` incidents and easier recovery.
 
-- Safer DB rebuild and target import workflows.
-- Less operator babysitting.
-- Better behavior when NicoNicoPedia returns transient 500 responses.
+Status:
+- Not started as a standalone task.
+- May be folded into another runtime hardening task if evidence warrants it.
 
-## 6. SubTask-download-export-lazy-cache
-
-Type:
-
-- SubTask / product performance
+### Delete Feeder progress logging
 
 Purpose:
-
-- Avoid re-reading and re-rendering very large saved articles on repeated TXT/MD/CSV downloads.
+- Reduce silent periods during Delete Feeder scanning and handoff.
 
 Method:
-
-- Keep DB as source of truth.
-- On first download, generate export from DB and write cache.
-- On later download, compare lightweight DB summary with cache metadata.
-- If response_count, max_res_no, latest scraped reference, and export version match, return cached file.
-- If metadata differs, regenerate cache on demand.
-- Do not make scrape/save flow responsible for cache deletion.
+- Add bounded, grep-friendly progress or phase logs.
+- Avoid verbose per-candidate output in normal runtime operation.
 
 Expected benefit:
+- It becomes easier to tell whether periodic startup is making progress before
+  target scraping begins.
 
-- Lower repeat-download load for huge articles.
-- Keeps scrape path simpler.
-- Avoids eager generation for rarely downloaded articles.
+Status:
+- Not started.
+- Not an immediate blocker after current runtime recovery.
 
-## 7. MainTask-scrape-run-identity-and-target-state
+## Priority C: later product semantics candidates
 
-Type:
-
-- MainTask / product semantics and schema
+### scrape_id / run mark
 
 Purpose:
-
-- Add a clear run identity / short run mark so operators can see which scrape shot updated which rows.
-- Redesign Max Res No semantics so it can represent observed live board state rather than only locally saved response count.
-- Add target state tracking for invalid or failing targets.
+- Give scrape runs a short visual identifier for logs and Web readout.
 
 Method:
-
-- Consider adding scrape run table or equivalent run record.
-- Consider target state fields such as:
-  - last_attempted_at
-  - last_success_at
-  - last_error_code
-  - invalid_reason
-  - observed_max_res_no
-  - last_changed_run_uid
-- Consider a short two-symbol run mark.
-- Keep the mark human-facing and non-critical.
-- Candidate run mark set:
-  - zodiac animals: 🐭 🐮 🐯 🐰 🐲 🐍 🐴 🐑 🐵 🐔 🐶 🐷
-  - five elements: 🌳 🔥 🪨 🥇 💧
-  - 12 x 5 = 60 patterns
+- Design alongside scrape-run observation and Web registered-list semantics.
 
 Expected benefit:
+- Easier to see which rows were touched by a recent run.
 
-- Better runtime debugging.
-- Easier visual grouping in Registered Articles.
-- Corrects the deeper Max Res No meaning mismatch.
-- Supports future invalid-target and retry policy work.
+Status:
+- Not started.
 
-## Later candidates
-
-### SubTask-target-denylist-externalization
+### Max Res No semantic redesign
 
 Purpose:
+- Clarify the difference between saved max response number and observed board
+  max response number.
 
-- Move denylist policy from hardcoded Python seam toward a repo-managed policy file or similarly bounded operator-editable source.
+Method:
+- Design together with observed max response number and target state tracking.
 
 Expected benefit:
+- Registered Articles columns become less ambiguous.
 
-- Easier maintenance of known excluded articles.
+Status:
+- Not started.
 
-### SubTask-meta-snapshot-policy
+### Observed max response number
 
 Purpose:
+- Persist board-side observed maximum response number separately from saved
+  response count and saved max response number.
 
-- Decide how generated project_snapshot.txt and project_knowledge_snapshot.txt should be tracked, ignored, or regenerated.
+Method:
+- Likely schema / telemetry / Web readout work.
+- Consider zero-response, unavailable-board, deleted-response, and partial
+  scrape cases.
 
 Expected benefit:
+- Better distinction between archive completeness and board state.
 
-- Reduces recurring AI confusion around generated snapshot diffs.
+Status:
+- Not started.
 
-### Further Registered Articles UI polish
+### Target state tracking
 
 Purpose:
+- Make target state explicit instead of inferring from response count and last
+  scraped timestamp.
 
-- Continue minor UI refinements only after semantic tasks settle.
+Possible states:
+- pending
+- scraped
+- invalid
+- denied
+- unavailable
 
 Expected benefit:
+- Registered Articles and operator tooling become easier to reason about.
 
-- Avoids endless visual tweaking before core operational semantics are clear.
+Status:
+- Not started.
+
+### Invalid target state
+
+Purpose:
+- Avoid repeatedly treating permanently invalid or unresolvable targets as
+  ordinary pending targets.
+
+Method:
+- Consider as part of target state tracking.
+- Do not introduce fuzzy search or automatic title correction.
+
+Expected benefit:
+- Cleaner runtime traversal and clearer user/operator feedback.
+
+Status:
+- Not started.
+
+## Priority D: meta / workflow candidates
+
+### PROJECT_STATE slimming
+
+Purpose:
+- Separate current state from long historical memory.
+
+Method:
+- Use `META/METADATA_INDEX.md` as guidance.
+- Prefer bounded reorganization over destructive deletion.
+- Keep authoritative restore behavior intact.
+
+Expected benefit:
+- Faster context recovery and less duplicated state memory.
+
+Status:
+- Not started.
+
+### AGENTS_DRAFT promotion
+
+Purpose:
+- Decide whether `META/AGENTS_DRAFT.md` is ready to become active `AGENTS.md`.
+
+Method:
+- Promote only after more Codex / editor-agent trial evidence.
+- Preserve runtime DB, cron, Docker, and merge authority guardrails.
+
+Expected benefit:
+- Clearer default behavior for Codex-style agents.
+
+Status:
+- Deferred.
+
+### Codex trial continuation
+
+Purpose:
+- Continue evaluating Codex/Copilot-style assistant usage for bounded review,
+  small BugFixes, and Web smoke support.
+
+Method:
+- Keep Human + Advisor as final judgment.
+- Do not grant runtime DB, cron, Docker, or merge/adoption authority.
+- Prefer established project helpers over ad-hoc host Python or venv workflows.
+
+Expected benefit:
+- Lower prompt/review overhead without weakening safety boundaries.
+
+Status:
+- Ongoing background practice, not a standalone implementation task.
 
