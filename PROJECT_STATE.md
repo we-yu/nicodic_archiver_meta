@@ -2695,3 +2695,79 @@ Goal:
 - review and harden SQLite timeout / busy-timeout / read-write access patterns
   across storage, archive read, Web, target registry, and runtime paths.
 
+## 2026-05-27 runtime recovery and periodic-once guidance
+
+Runtime periodic operation was recovered after the observation DB lock incident.
+
+Completed product work:
+
+- `SubTask-BugFix-observation-db-lock-tolerance`
+- `SubTask-Improve-periodic-once-host-cron-log-guidance`
+
+Observation DB lock tolerance:
+
+- product main includes `SubTask-BugFix: tolerate observation DB locks (#74)`
+- telemetry-only scrape-run observation lock / busy failures are now bounded
+  and non-fatal
+- archive-critical writes remain fatal
+- target registry writes remain fatal
+- scrape and response storage semantics were preserved
+
+Periodic-once host log guidance:
+
+- product main includes
+  `SubTask: improve periodic-once host log guidance (#75)`
+- `runtime/periodic_once.sh` now prints where progress is written before
+  Docker Compose exec starts
+- the wrapper guidance points to the effective `$HOST_CRON_LOG_PATH`
+- the wrapper suggests:
+  `tail -f $HOST_CRON_LOG_PATH`
+- no automatic tailing was added
+- host_cron log format was not changed
+- scrape, DB, cron, Docker, and runtime semantics were not changed
+
+Validation:
+
+- both child product repositories were synced to product main
+- `./compare_helix.sh` confirmed convergence
+- `./validate_helix.sh` passed after adoption
+- final observed validation:
+  - Copilot: 445 tests passed
+  - Cursor: 445 tests passed
+
+Runtime recovery:
+
+- runtime checkout was confirmed clean on main before smoke
+- no `runtime/logs/periodic_once.lock` was present
+- no scrape-like process was present before smoke
+- `bash tools/runtime_up.sh` completed successfully
+- a short `periodic_once.sh` smoke completed normally
+- `host_cron.log` showed normal run progress and completion
+- the three target-order cron patterns were restored:
+  - daily default
+  - daily reverse
+  - frequent random_rotation
+- a manual background reverse run was started with:
+  - `ONESHOT_LIMIT_DURATION_SECONDS=8500`
+  - `TARGET_ORDER_MODE=reverse`
+- `host_cron.log` showed reverse-mode scraping progress
+
+Runtime reflection note:
+
+- runtime reflection for the host-log guidance change was intentionally
+  deferred because runtime periodic work was active
+- this is acceptable because the change is terminal guidance only
+- reflect runtime later at a safe maintenance point after the active run ends
+
+Review logs:
+
+- `META/review_log/SubTask_BugFix_observation_db_lock_tolerance_20260527.md`
+- `META/review_log/SubTask_improve_periodic_once_host_cron_log_guidance_20260527.md`
+- `META/review_log/Runtime_periodic_recovery_20260527.md`
+
+Next likely task:
+
+- Decide whether to do a small runtime reflection later for the wrapper
+  guidance after the current active run completes.
+- Longer-term SQLite access hardening remains a later candidate, not an
+  immediate blocker.

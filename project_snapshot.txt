@@ -3695,6 +3695,82 @@ Goal:
 - review and harden SQLite timeout / busy-timeout / read-write access patterns
   across storage, archive read, Web, target registry, and runtime paths.
 
+## 2026-05-27 runtime recovery and periodic-once guidance
+
+Runtime periodic operation was recovered after the observation DB lock incident.
+
+Completed product work:
+
+- `SubTask-BugFix-observation-db-lock-tolerance`
+- `SubTask-Improve-periodic-once-host-cron-log-guidance`
+
+Observation DB lock tolerance:
+
+- product main includes `SubTask-BugFix: tolerate observation DB locks (#74)`
+- telemetry-only scrape-run observation lock / busy failures are now bounded
+  and non-fatal
+- archive-critical writes remain fatal
+- target registry writes remain fatal
+- scrape and response storage semantics were preserved
+
+Periodic-once host log guidance:
+
+- product main includes
+  `SubTask: improve periodic-once host log guidance (#75)`
+- `runtime/periodic_once.sh` now prints where progress is written before
+  Docker Compose exec starts
+- the wrapper guidance points to the effective `$HOST_CRON_LOG_PATH`
+- the wrapper suggests:
+  `tail -f $HOST_CRON_LOG_PATH`
+- no automatic tailing was added
+- host_cron log format was not changed
+- scrape, DB, cron, Docker, and runtime semantics were not changed
+
+Validation:
+
+- both child product repositories were synced to product main
+- `./compare_helix.sh` confirmed convergence
+- `./validate_helix.sh` passed after adoption
+- final observed validation:
+  - Copilot: 445 tests passed
+  - Cursor: 445 tests passed
+
+Runtime recovery:
+
+- runtime checkout was confirmed clean on main before smoke
+- no `runtime/logs/periodic_once.lock` was present
+- no scrape-like process was present before smoke
+- `bash tools/runtime_up.sh` completed successfully
+- a short `periodic_once.sh` smoke completed normally
+- `host_cron.log` showed normal run progress and completion
+- the three target-order cron patterns were restored:
+  - daily default
+  - daily reverse
+  - frequent random_rotation
+- a manual background reverse run was started with:
+  - `ONESHOT_LIMIT_DURATION_SECONDS=8500`
+  - `TARGET_ORDER_MODE=reverse`
+- `host_cron.log` showed reverse-mode scraping progress
+
+Runtime reflection note:
+
+- runtime reflection for the host-log guidance change was intentionally
+  deferred because runtime periodic work was active
+- this is acceptable because the change is terminal guidance only
+- reflect runtime later at a safe maintenance point after the active run ends
+
+Review logs:
+
+- `META/review_log/SubTask_BugFix_observation_db_lock_tolerance_20260527.md`
+- `META/review_log/SubTask_improve_periodic_once_host_cron_log_guidance_20260527.md`
+- `META/review_log/Runtime_periodic_recovery_20260527.md`
+
+Next likely task:
+
+- Decide whether to do a small runtime reflection later for the wrapper
+  guidance after the current active run completes.
+- Longer-term SQLite access hardening remains a later candidate, not an
+  immediate blocker.
 
 
 ===== WORKSPACE =====
@@ -5277,6 +5353,114 @@ A broader later candidate is:
 
 
 
+===== REVIEW LOG: META/review_log/Runtime_periodic_recovery_20260527.md =====
+# Runtime periodic recovery note
+
+## Summary
+
+Runtime periodic operation was recovered after investigation of a
+`sqlite3.OperationalError: database is locked` incident and subsequent
+periodic-once confusion.
+
+This is an operational review note, not a product implementation task.
+
+## Incident summary
+
+A runtime periodic-once run previously failed at the scrape-run observation
+telemetry append boundary with:
+
+- `sqlite3.OperationalError: database is locked`
+
+After that failure, runtime operation appeared stalled or stuck around the
+periodic-once startup messages.
+
+Investigation separated three issues:
+
+1. telemetry-only DB lock failure
+2. stale periodic_once lock / skipped re-entry
+3. terminal quietness while detailed progress was actually written to
+   `host_cron.log`
+
+## Corrective product tasks
+
+Two small product fixes were completed and adopted before final recovery:
+
+- `SubTask-BugFix-observation-db-lock-tolerance`
+- `SubTask-Improve-periodic-once-host-cron-log-guidance`
+
+## Runtime state checks
+
+Before restoring scheduled operation, the operator confirmed:
+
+- no `runtime/logs/periodic_once.lock`
+- no scrape-like process
+- runtime checkout clean on main
+- `tools/runtime_up.sh` completed successfully
+- a short periodic-once smoke run completed normally
+- `host_cron.log` showed normal progress and run completion
+
+## Crontab restoration
+
+The three target-order cron patterns were restored:
+
+- daily default run
+- daily reverse run
+- frequent random_rotation runs
+
+Restored schedule shape:
+
+- `00:05` default
+- `03:05` reverse
+- `06:05,09:05,12:05,15:05,18:05,21:05` random_rotation
+
+Each uses:
+
+- `ONESHOT_LIMIT_DURATION_SECONDS=8500`
+- `./runtime/periodic_once.sh`
+- append output to `runtime/logs/host_cron.log`
+
+## Manual reverse run
+
+After cron restoration, a manual background reverse periodic-one-shot was
+started with:
+
+- `ONESHOT_LIMIT_DURATION_SECONDS=8500`
+- `TARGET_ORDER_MODE=reverse`
+
+Observed `host_cron.log` behavior showed:
+
+- `[RUN START]`
+- `[FEEDER SUMMARY]`
+- `[TARGET ORDER] mode=reverse`
+- `[SCRAPE START]`
+- normal `[STEP START]` / `[STEP END OK]` progress
+- occasional platform-side HTTP 500 cases treated as WARN / FAIL / partial
+  outcomes while the run continued
+
+The reverse run appeared to process newly registered / recent targets as
+intended.
+
+## Interpretation
+
+Runtime operation should currently be treated as active and recovering normally.
+
+The original `database is locked` failure was addressed at the telemetry
+tolerance boundary.
+
+The later "stalled" perception was primarily a host-log visibility issue:
+normal progress is written to `host_cron.log`, not continuously to the wrapper
+terminal.
+
+## Deferred action
+
+The sibling runtime checkout should not be reflected while an active periodic
+run is in progress.
+
+The host-log guidance change can be reflected later at a safe maintenance
+point because it is terminal guidance only and does not affect scrape behavior.
+
+
+
 ===== REVIEW LOG: META/review_log/SUBTASK001_kgs_builtin_trim_fix.md =====
 # SUBTASK001 KGS Builtin Trim Fix
 
@@ -6603,6 +6787,103 @@ This task intentionally did not introduce:
 - scrape_id / run mark
 
 
+===== REVIEW LOG: META/review_log/SubTask_BugFix_observation_db_lock_tolerance_20260527.md =====
+# SubTask-BugFix: observation DB lock tolerance
+
+## Summary
+
+SubTask-BugFix-observation-db-lock-tolerance was completed and adopted into
+product main.
+
+The task corrected a runtime failure mode where append-only scrape-run
+observation telemetry could raise:
+
+- `sqlite3.OperationalError: database is locked`
+
+and abort an otherwise successful periodic / batch run.
+
+## Task type
+
+- Copilot-only bounded product BugFix SubTask
+- Not a DHM MainTask
+- Not a root/meta task
+
+## Background
+
+Runtime periodic-once encountered a DB lock failure at the scrape-run
+observation telemetry boundary:
+
+- `main.py` `_record_scrape_run_observation(...)`
+- `storage.py` `append_scrape_run_observation(...)`
+- failure at `conn.commit()`
+
+The failure was in auxiliary run observation / telemetry persistence, not in
+archive-critical response storage.
+
+## Adopted behavior
+
+- Archive-critical persistence remains fatal.
+- Target registry writes remain fatal.
+- Scrape-run observation telemetry lock / busy failures are bounded and
+  non-fatal.
+- Lock-style observation failures are surfaced as warnings rather than silently
+  swallowed.
+- Non-lock observation `sqlite3.OperationalError` cases remain fatal when they
+  are not part of the bounded lock / busy tolerance.
+
+## Safety boundary
+
+The task intentionally did not change:
+
+- response archive save semantics
+- target registry write semantics
+- scrape collection semantics
+- SQLite schema
+- cron configuration
+- Docker configuration
+- runtime DB contents
+
+## Validation
+
+The adopted product state was merged into product main as:
+
+- `SubTask-BugFix: tolerate observation DB locks (#74)`
+
+After adoption, both child product repos were synced to main.
+
+Observed validation after synchronization:
+
+- `./compare_helix.sh` confirmed child repo convergence.
+- `./validate_helix.sh` passed.
+- Copilot validation passed.
+- Cursor validation passed.
+
+## Runtime interpretation
+
+This task addressed the specific failure mode where telemetry-only observation
+append locks could turn into whole-run failures.
+
+It did not by itself change periodic console visibility or runtime wrapper
+operator guidance. That was handled later by:
+
+- `SubTask-Improve-periodic-once-host-cron-log-guidance`
+
+## Non-goals
+
+This task did not introduce:
+
+- broad SQLite access redesign
+- WAL migration
+- global busy-timeout redesign
+- DB schema migration
+- runtime DB repair
+- cron restart
+- Docker restart
+- scrape behavior changes
+- Delete Feeder behavior changes
+
+
+
 ===== REVIEW LOG: META/review_log/SubTask_compact_scrape_logging_20260517.md =====
 # SubTask: compact scrape logging and OK0 host-log compression
 
@@ -6801,6 +7082,118 @@ The current runtime logging baseline should be read as:
 
 Future related work should build on this boundary instead of scattering new
 print statements.
+
+
+===== REVIEW LOG: META/review_log/SubTask_improve_periodic_once_host_cron_log_guidance_20260527.md =====
+# SubTask: improve periodic-once host cron log guidance
+
+## Summary
+
+SubTask-Improve-periodic-once-host-cron-log-guidance was completed and adopted
+into product main.
+
+The task added small operator-facing guidance to the runtime periodic-once
+wrapper so the command no longer appears stalled after the initial terminal
+messages.
+
+## Task type
+
+- Copilot-only bounded product SubTask
+- Not a DHM MainTask
+- Not a root/meta task
+
+## Background
+
+Runtime investigation showed that `runtime/periodic_once.sh` prints the initial
+terminal banner, then runs `python main.py periodic-once` through Docker
+Compose.
+
+When `HOST_CRON_LOG_PATH` is set, detailed periodic progress is intentionally
+written through the host cron reporter into `host_cron.log`.
+
+This means terminal output can become quiet while the run is actually
+progressing normally.
+
+## Root cause of operator confusion
+
+The runtime was not necessarily stalled.
+
+The wrapper did not explicitly hand off the operator from:
+
+- terminal startup messages
+
+to:
+
+- `runtime/logs/host_cron.log` / the effective host cron log path
+
+where `[RUN START]`, `[TARGET ORDER]`, `[SCRAPE START]`, `[STEP OK0]`,
+`[STEP START]`, `[STEP END ...]`, and `[RUN END ...]` are emitted.
+
+## Adopted behavior
+
+`runtime/periodic_once.sh` now prints two guidance lines before Docker Compose
+executes the periodic-once process:
+
+- `[periodic-once] Progress is written to $HOST_CRON_LOG_PATH`
+- `[periodic-once] Follow progress with: tail -f $HOST_CRON_LOG_PATH`
+
+The path is printed from the effective wrapper variable rather than being
+hard-coded.
+
+## Files changed
+
+- `runtime/periodic_once.sh`
+- `tests/test_runtime_local_ops.py`
+- `SubTask-Improve-periodic-once-host-cron-log-guidance_report.txt`
+
+## Validation
+
+The adopted product change was merged into product main as:
+
+- `SubTask: improve periodic-once host log guidance (#75)`
+
+After merge:
+
+- `copilot/` was fast-forwarded to product main.
+- `cursor/` was fast-forwarded to product main.
+- `./compare_helix.sh` confirmed convergence.
+- `./validate_helix.sh` passed.
+- Copilot reported `445 passed`.
+- Cursor reported `445 passed`.
+
+## Runtime reflection
+
+Runtime reflection was intentionally not performed immediately after this
+task because the sibling runtime checkout had an active periodic run.
+
+This is acceptable because the change is terminal guidance only and does not
+change scrape, DB, cron, Docker, or host-cron log semantics.
+
+Runtime reflection can be deferred to a safe maintenance point after the
+active run completes.
+
+## Non-goals
+
+This task intentionally did not introduce:
+
+- automatic log tailing
+- host_cron log format changes
+- scrape behavior changes
+- DB changes
+- cron changes
+- Docker compose changes
+- runtime DB edits
+- observability platform work
+
+## Current interpretation
+
+The current product baseline should be read as:
+
+- `host_cron.log` remains the compact live/tail operations log.
+- `batch_*.log` remains the detailed audit/postmortem log.
+- `runtime/periodic_once.sh` now tells the operator where live progress is
+  being written.
+
 
 
 ===== REVIEW LOG: META/review_log/SubTask_registered_articles_ui_polish_adoption.md =====
@@ -12950,7 +13343,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Sat May 23 18:47:26 UTC 2026
+generated: Wed May 27 16:51:49 UTC 2026
 mode: full
 
 
@@ -19445,6 +19838,69 @@ editor AI model/tool info if available
 - Tools used: workspace file reads/search, apply_patch, terminal validation
 
 =============================
+FILE: copilot/SubTask-BugFix-observation-db-lock-tolerance_report.txt
+=============================
+Editor AI model: GitHub Copilot GPT-5.4
+
+Summary
+- Added bounded lock-tolerance around scrape-run observation persistence.
+- Only lock-style sqlite3.OperationalError cases for scrape_run_observation
+  append are downgraded to warnings.
+- Archive-critical persistence, target registry writes, and scrape execution
+  semantics remain unchanged.
+
+Files changed
+- main.py
+- tests/test_main.py
+- SubTask-BugFix-observation-db-lock-tolerance_report.txt
+
+Behavior change
+- Batch and periodic target processing now continue when
+  append_scrape_run_observation(...) hits a SQLite lock or busy style
+  OperationalError.
+- The skipped telemetry append emits a bounded warning to the existing
+  human-visible path and is also recorded in the batch log as a
+  TELEMETRY_WARNING block.
+- Non-lock sqlite3.OperationalError cases in this telemetry path remain fatal.
+
+Why archive-critical writes remain fatal
+- The tolerance is applied only at the main.py observation recording boundary.
+- storage.save_to_db(...) and the scrape/archive persistence path were not
+  changed.
+- Target registry and redirect handoff write paths were not changed.
+- Non-lock OperationalError in observation recording is still re-raised.
+
+How telemetry lock failures are surfaced
+- A short warning line is emitted through stdout batch logging, or through the
+  progress reporter warning path when present.
+- The batch log receives a TELEMETRY_WARNING detail block with run kind,
+  article identity, and the SQLite error detail.
+- No traceback spam is added for expected lock-style skips.
+
+Tests added or updated
+- Added a focused test proving non-lock sqlite3.OperationalError in the
+  observation path is still fatal.
+- Added a focused batch test proving telemetry append lock failure does not
+  abort otherwise successful target processing.
+- Existing batch failure coverage remains in place for scrape exceptions.
+
+Validation status if available
+- docker compose run --rm --entrypoint "" scraper pytest -q tests/test_main.py
+  -k "observation or telemetry_once_per_target or
+  exception_sets_nonzero_exit_and_continues"
+  -> 4 passed, 75 deselected in 0.83s
+- docker compose run --rm --entrypoint "" scraper flake8 main.py
+  tests/test_main.py
+  -> passed with no output
+
+Known limitations
+- This change does not retry telemetry writes.
+- This change does not alter SQLite connection timeout, journal mode,
+  busy_timeout, or schema behavior.
+- Only lock or busy style OperationalError cases are downgraded in the
+  observation append path.
+
+=============================
 FILE: copilot/SubTask-BugFix-registered-search-encoded-target_report.txt
 =============================
 SubTask-BugFix: registered-search-encoded-target
@@ -19637,6 +20093,48 @@ Production apply statement:
 Large rehearsal DB statement:
 - Large rehearsal DB files were not deleted by this task.
 
+
+=============================
+FILE: copilot/SubTask-Improve-periodic-once-host-cron-log-guidance_report.txt
+=============================
+Editor AI model: GitHub Copilot GPT-5.4
+
+Summary
+- Added operator-facing guidance in runtime/periodic_once.sh so the wrapper
+  points to the host cron log before docker compose exec runs.
+- Added focused coverage in tests/test_runtime_local_ops.py for the new
+  periodic_once guidance text.
+
+Files changed
+- runtime/periodic_once.sh
+- tests/test_runtime_local_ops.py
+- SubTask-Improve-periodic-once-host-cron-log-guidance_report.txt
+
+Exact guidance text added
+- [periodic-once] Progress is written to $HOST_CRON_LOG_PATH
+- [periodic-once] Follow progress with: tail -f $HOST_CRON_LOG_PATH
+
+Why behavior is unchanged except terminal guidance
+- The change only adds two echo lines in the host-side wrapper before the
+  existing docker compose exec call.
+- The wrapper still passes HOST_CRON_LOG_PATH and the existing periodic
+  environment variables into python main.py periodic-once unchanged.
+- No scrape logic, host_cron log format, Docker compose behavior, runtime DB,
+  or cron configuration was modified.
+
+Tests added or updated
+- Updated tests/test_runtime_local_ops.py with a focused assertion that the
+  wrapper prints the host cron log path guidance and suggested tail command.
+
+Validation status
+- Passed: docker compose run --rm --entrypoint "" scraper pytest -q
+  tests/test_runtime_local_ops.py
+
+Known limitations
+- The guidance prints the effective host-side path available to the wrapper,
+  but it does not verify that the operator has already opened or tailed the
+  file.
+- The wrapper still does not auto-tail the log by design.
 
 =============================
 FILE: copilot/SubTask-compact-ok0-host-log_report.txt
@@ -25680,6 +26178,7 @@ FILE: copilot/main.py
 =============================
 import math
 import os
+import sqlite3
 import sys
 import uuid
 import time
@@ -25774,6 +26273,91 @@ def _record_scrape_run_observation(
         )
     finally:
         conn.close()
+
+
+def _is_locking_sqlite_operational_error(exc: sqlite3.OperationalError) -> bool:
+    error_text = " ".join(str(part) for part in exc.args if part)
+    lowered = error_text.lower()
+    return "locked" in lowered or "busy" in lowered
+
+
+def _append_batch_telemetry_warning(
+    log_path: Path,
+    run_kind: str,
+    identity: dict,
+    exc: sqlite3.OperationalError,
+) -> None:
+    _append_batch_log_lines(
+        log_path,
+        [
+            "  TELEMETRY_WARNING",
+            f"    run_kind={run_kind}",
+            f"    article_id={identity['article_id']}",
+            f"    article_type={identity['article_type']}",
+            "    warning=scrape_run_observation_skipped",
+            f"    detail={type(exc).__name__}:{exc}",
+        ],
+    )
+
+
+def _emit_telemetry_warning(
+    progress_reporter,
+    log_path: Path,
+    run_kind: str,
+    identity: dict,
+    exc: sqlite3.OperationalError,
+) -> None:
+    article_ref = f"{identity['article_id']}/{identity['article_type']}"
+    message = (
+        "scrape_run_observation_skipped "
+        f"run_kind={run_kind} article={article_ref} "
+        f"reason={type(exc).__name__}:{exc}"
+    )
+
+    if progress_reporter is None:
+        print(f"[WARN] {message}")
+    else:
+        note_warning = getattr(progress_reporter, "note_maintenance_warning", None)
+        if callable(note_warning):
+            note_warning(message)
+        else:
+            emit = getattr(progress_reporter, "emit", None)
+            if callable(emit):
+                emit("WARN", message, indent_level=1)
+
+    _append_batch_telemetry_warning(log_path, run_kind, identity, exc)
+
+
+def _record_scrape_run_observation_with_lock_tolerance(
+    archive_db_path: str,
+    run_id: str,
+    run_started_at: str,
+    run_kind: str,
+    identity: dict,
+    scrape_outcome: str,
+    *,
+    progress_reporter,
+    log_path: Path,
+) -> None:
+    try:
+        _record_scrape_run_observation(
+            archive_db_path,
+            run_id,
+            run_started_at,
+            run_kind,
+            identity,
+            scrape_outcome,
+        )
+    except sqlite3.OperationalError as exc:
+        if not _is_locking_sqlite_operational_error(exc):
+            raise
+        _emit_telemetry_warning(
+            progress_reporter,
+            log_path,
+            run_kind,
+            identity,
+            exc,
+        )
 
 
 # ============================================================
@@ -26413,13 +26997,15 @@ def run_batch_scrape(
                 None,
                 short_reason,
             )
-            _record_scrape_run_observation(
+            _record_scrape_run_observation_with_lock_tolerance(
                 archive_db_path,
                 run_id,
                 started_at,
                 run_kind,
                 identity,
                 scrape_outcome,
+                progress_reporter=progress_reporter,
+                log_path=log_path,
             )
             continue
 
@@ -26502,13 +27088,15 @@ def run_batch_scrape(
                     None,
                     redirect_status,
                 )
-                _record_scrape_run_observation(
+                _record_scrape_run_observation_with_lock_tolerance(
                     archive_db_path,
                     run_id,
                     started_at,
                     run_kind,
                     identity,
                     scrape_outcome,
+                    progress_reporter=progress_reporter,
+                    log_path=log_path,
                 )
                 continue
 
@@ -26571,13 +27159,15 @@ def run_batch_scrape(
                 redirect_status,
                 register_status,
             )
-            _record_scrape_run_observation(
+            _record_scrape_run_observation_with_lock_tolerance(
                 archive_db_path,
                 run_id,
                 started_at,
                 run_kind,
                 identity,
                 scrape_outcome,
+                progress_reporter=progress_reporter,
+                log_path=log_path,
             )
             continue
 
@@ -26680,13 +27270,15 @@ def run_batch_scrape(
                 getattr(scrape_result, "observed_max_res_no", None),
             )
 
-        _record_scrape_run_observation(
+        _record_scrape_run_observation_with_lock_tolerance(
             archive_db_path,
             run_id,
             started_at,
             run_kind,
             identity,
             scrape_outcome,
+            progress_reporter=progress_reporter,
+            log_path=log_path,
         )
 
     ended_at = datetime.now(timezone.utc).isoformat()
@@ -29905,6 +30497,8 @@ echo "[periodic-once] Starting one periodic cycle"
 echo "[periodic-once] target_db_path=$TARGET_DB_PATH"
 echo "[periodic-once] If the runtime code looks stale, recreate with"
 echo "[periodic-once] bash tools/runtime_up.sh"
+echo "[periodic-once] Progress is written to $HOST_CRON_LOG_PATH"
+echo "[periodic-once] Follow progress with: tail -f $HOST_CRON_LOG_PATH"
 
 docker compose -f "$COMPOSE_FILE_PATH" exec -T "$COMPOSE_SERVICE_NAME" \
   env HOST_CRON_LOG_PATH="$HOST_CRON_LOG_PATH" \
@@ -34833,6 +35427,7 @@ FILE: copilot/tests/test_main.py
 from unittest.mock import call, patch
 
 from pathlib import Path
+import sqlite3
 
 import pytest
 
@@ -35584,6 +36179,108 @@ def test_main_batch_records_telemetry_once_per_target(
         main_module.main()
 
     assert mock_record.call_count == 1
+
+
+def test_record_scrape_run_observation_re_raises_non_lock_operational_error(
+    tmp_path,
+):
+    log_path = tmp_path / "batch.log"
+    mock_conn = type("Conn", (), {"close": lambda self: None})()
+    identity = {
+        "article_id": "1",
+        "article_type": "a",
+        "canonical_url": "https://dic.nicovideo.jp/a/1",
+    }
+
+    with patch("main.init_db", return_value=mock_conn):
+        with patch(
+            "main.append_scrape_run_observation",
+            side_effect=sqlite3.OperationalError(
+                "attempt to write a readonly database"
+            ),
+        ):
+            with pytest.raises(sqlite3.OperationalError):
+                main_module._record_scrape_run_observation_with_lock_tolerance(
+                    "archive.db",
+                    "run-1",
+                    "2026-05-23T00:00:00+00:00",
+                    "batch",
+                    identity,
+                    "ok",
+                    progress_reporter=None,
+                    log_path=log_path,
+                )
+
+    assert not log_path.exists()
+
+
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
+@patch(
+    "main.list_active_target_urls",
+    return_value=[
+        "https://dic.nicovideo.jp/a/1",
+        "https://dic.nicovideo.jp/a/2",
+    ],
+)
+@patch(
+    "main.run_scrape",
+    side_effect=[
+        ScrapeResult(True, "ok", article_title="First Title"),
+        ScrapeResult(True, "ok", article_title="Second Title"),
+    ],
+)
+def test_main_batch_continues_when_observation_append_hits_db_lock(
+    mock_run_scrape,
+    mock_load_targets,
+    mock_run_delete_request_feeder,
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
+    mock_conn = type("Conn", (), {"close": lambda self: None})()
+
+    with patch("main.init_db", return_value=mock_conn):
+        with patch(
+            "main.append_scrape_run_observation",
+            side_effect=[
+                sqlite3.OperationalError("database is locked"),
+                None,
+            ],
+        ):
+            with patch("sys.argv", ["main.py", "batch", "targets.db"]):
+                main_module.main()
+
+    assert mock_run_scrape.call_count == 2
+    out = capsys.readouterr().out
+    assert "[WARN] scrape_run_observation_skipped" in out
+    assert "article=1/a" in out
+    assert "database is locked" in out
+    assert "[OK] https://dic.nicovideo.jp/a/2" in out
+
+    logs = list(Path(tmp_path).glob("batch_*.log"))
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    assert "TELEMETRY_WARNING" in text
+    assert "run_kind=batch" in text
+    assert "article_id=1" in text
+    assert "warning=scrape_run_observation_skipped" in text
+    assert "detail=OperationalError:database is locked" in text
 
 
 def test_main_export_run_telemetry_csv_prints_header(capsys, tmp_path, monkeypatch):
@@ -39921,6 +40618,20 @@ def test_periodic_wrapper_forwards_target_order_env_into_container_exec():
         '"${SOFT_TERMINATE_FILE:-runtime/control/stop_after_current}"'
         in text
     )
+
+
+def test_periodic_wrapper_prints_host_cron_log_guidance_before_exec():
+    text = Path("runtime/periodic_once.sh").read_text(encoding="utf-8")
+
+    assert (
+        'echo "[periodic-once] Progress is written '
+        'to $HOST_CRON_LOG_PATH"' in text
+    )
+    assert (
+        'echo "[periodic-once] Follow progress with: '
+        'tail -f $HOST_CRON_LOG_PATH"' in text
+    )
+    assert 'env HOST_CRON_LOG_PATH="$HOST_CRON_LOG_PATH"' in text
 
 
 def test_personal_runtime_doc_mentions_local_env_and_wrapper():
@@ -47599,6 +48310,69 @@ editor AI model/tool info if available
 - Tools used: workspace file reads/search, apply_patch, terminal validation
 
 =============================
+FILE: cursor/SubTask-BugFix-observation-db-lock-tolerance_report.txt
+=============================
+Editor AI model: GitHub Copilot GPT-5.4
+
+Summary
+- Added bounded lock-tolerance around scrape-run observation persistence.
+- Only lock-style sqlite3.OperationalError cases for scrape_run_observation
+  append are downgraded to warnings.
+- Archive-critical persistence, target registry writes, and scrape execution
+  semantics remain unchanged.
+
+Files changed
+- main.py
+- tests/test_main.py
+- SubTask-BugFix-observation-db-lock-tolerance_report.txt
+
+Behavior change
+- Batch and periodic target processing now continue when
+  append_scrape_run_observation(...) hits a SQLite lock or busy style
+  OperationalError.
+- The skipped telemetry append emits a bounded warning to the existing
+  human-visible path and is also recorded in the batch log as a
+  TELEMETRY_WARNING block.
+- Non-lock sqlite3.OperationalError cases in this telemetry path remain fatal.
+
+Why archive-critical writes remain fatal
+- The tolerance is applied only at the main.py observation recording boundary.
+- storage.save_to_db(...) and the scrape/archive persistence path were not
+  changed.
+- Target registry and redirect handoff write paths were not changed.
+- Non-lock OperationalError in observation recording is still re-raised.
+
+How telemetry lock failures are surfaced
+- A short warning line is emitted through stdout batch logging, or through the
+  progress reporter warning path when present.
+- The batch log receives a TELEMETRY_WARNING detail block with run kind,
+  article identity, and the SQLite error detail.
+- No traceback spam is added for expected lock-style skips.
+
+Tests added or updated
+- Added a focused test proving non-lock sqlite3.OperationalError in the
+  observation path is still fatal.
+- Added a focused batch test proving telemetry append lock failure does not
+  abort otherwise successful target processing.
+- Existing batch failure coverage remains in place for scrape exceptions.
+
+Validation status if available
+- docker compose run --rm --entrypoint "" scraper pytest -q tests/test_main.py
+  -k "observation or telemetry_once_per_target or
+  exception_sets_nonzero_exit_and_continues"
+  -> 4 passed, 75 deselected in 0.83s
+- docker compose run --rm --entrypoint "" scraper flake8 main.py
+  tests/test_main.py
+  -> passed with no output
+
+Known limitations
+- This change does not retry telemetry writes.
+- This change does not alter SQLite connection timeout, journal mode,
+  busy_timeout, or schema behavior.
+- Only lock or busy style OperationalError cases are downgraded in the
+  observation append path.
+
+=============================
 FILE: cursor/SubTask-BugFix-registered-search-encoded-target_report.txt
 =============================
 SubTask-BugFix: registered-search-encoded-target
@@ -47791,6 +48565,48 @@ Production apply statement:
 Large rehearsal DB statement:
 - Large rehearsal DB files were not deleted by this task.
 
+
+=============================
+FILE: cursor/SubTask-Improve-periodic-once-host-cron-log-guidance_report.txt
+=============================
+Editor AI model: GitHub Copilot GPT-5.4
+
+Summary
+- Added operator-facing guidance in runtime/periodic_once.sh so the wrapper
+  points to the host cron log before docker compose exec runs.
+- Added focused coverage in tests/test_runtime_local_ops.py for the new
+  periodic_once guidance text.
+
+Files changed
+- runtime/periodic_once.sh
+- tests/test_runtime_local_ops.py
+- SubTask-Improve-periodic-once-host-cron-log-guidance_report.txt
+
+Exact guidance text added
+- [periodic-once] Progress is written to $HOST_CRON_LOG_PATH
+- [periodic-once] Follow progress with: tail -f $HOST_CRON_LOG_PATH
+
+Why behavior is unchanged except terminal guidance
+- The change only adds two echo lines in the host-side wrapper before the
+  existing docker compose exec call.
+- The wrapper still passes HOST_CRON_LOG_PATH and the existing periodic
+  environment variables into python main.py periodic-once unchanged.
+- No scrape logic, host_cron log format, Docker compose behavior, runtime DB,
+  or cron configuration was modified.
+
+Tests added or updated
+- Updated tests/test_runtime_local_ops.py with a focused assertion that the
+  wrapper prints the host cron log path guidance and suggested tail command.
+
+Validation status
+- Passed: docker compose run --rm --entrypoint "" scraper pytest -q
+  tests/test_runtime_local_ops.py
+
+Known limitations
+- The guidance prints the effective host-side path available to the wrapper,
+  but it does not verify that the operator has already opened or tailed the
+  file.
+- The wrapper still does not auto-tail the log by design.
 
 =============================
 FILE: cursor/SubTask-compact-ok0-host-log_report.txt
@@ -53834,6 +54650,7 @@ FILE: cursor/main.py
 =============================
 import math
 import os
+import sqlite3
 import sys
 import uuid
 import time
@@ -53928,6 +54745,91 @@ def _record_scrape_run_observation(
         )
     finally:
         conn.close()
+
+
+def _is_locking_sqlite_operational_error(exc: sqlite3.OperationalError) -> bool:
+    error_text = " ".join(str(part) for part in exc.args if part)
+    lowered = error_text.lower()
+    return "locked" in lowered or "busy" in lowered
+
+
+def _append_batch_telemetry_warning(
+    log_path: Path,
+    run_kind: str,
+    identity: dict,
+    exc: sqlite3.OperationalError,
+) -> None:
+    _append_batch_log_lines(
+        log_path,
+        [
+            "  TELEMETRY_WARNING",
+            f"    run_kind={run_kind}",
+            f"    article_id={identity['article_id']}",
+            f"    article_type={identity['article_type']}",
+            "    warning=scrape_run_observation_skipped",
+            f"    detail={type(exc).__name__}:{exc}",
+        ],
+    )
+
+
+def _emit_telemetry_warning(
+    progress_reporter,
+    log_path: Path,
+    run_kind: str,
+    identity: dict,
+    exc: sqlite3.OperationalError,
+) -> None:
+    article_ref = f"{identity['article_id']}/{identity['article_type']}"
+    message = (
+        "scrape_run_observation_skipped "
+        f"run_kind={run_kind} article={article_ref} "
+        f"reason={type(exc).__name__}:{exc}"
+    )
+
+    if progress_reporter is None:
+        print(f"[WARN] {message}")
+    else:
+        note_warning = getattr(progress_reporter, "note_maintenance_warning", None)
+        if callable(note_warning):
+            note_warning(message)
+        else:
+            emit = getattr(progress_reporter, "emit", None)
+            if callable(emit):
+                emit("WARN", message, indent_level=1)
+
+    _append_batch_telemetry_warning(log_path, run_kind, identity, exc)
+
+
+def _record_scrape_run_observation_with_lock_tolerance(
+    archive_db_path: str,
+    run_id: str,
+    run_started_at: str,
+    run_kind: str,
+    identity: dict,
+    scrape_outcome: str,
+    *,
+    progress_reporter,
+    log_path: Path,
+) -> None:
+    try:
+        _record_scrape_run_observation(
+            archive_db_path,
+            run_id,
+            run_started_at,
+            run_kind,
+            identity,
+            scrape_outcome,
+        )
+    except sqlite3.OperationalError as exc:
+        if not _is_locking_sqlite_operational_error(exc):
+            raise
+        _emit_telemetry_warning(
+            progress_reporter,
+            log_path,
+            run_kind,
+            identity,
+            exc,
+        )
 
 
 # ============================================================
@@ -54567,13 +55469,15 @@ def run_batch_scrape(
                 None,
                 short_reason,
             )
-            _record_scrape_run_observation(
+            _record_scrape_run_observation_with_lock_tolerance(
                 archive_db_path,
                 run_id,
                 started_at,
                 run_kind,
                 identity,
                 scrape_outcome,
+                progress_reporter=progress_reporter,
+                log_path=log_path,
             )
             continue
 
@@ -54656,13 +55560,15 @@ def run_batch_scrape(
                     None,
                     redirect_status,
                 )
-                _record_scrape_run_observation(
+                _record_scrape_run_observation_with_lock_tolerance(
                     archive_db_path,
                     run_id,
                     started_at,
                     run_kind,
                     identity,
                     scrape_outcome,
+                    progress_reporter=progress_reporter,
+                    log_path=log_path,
                 )
                 continue
 
@@ -54725,13 +55631,15 @@ def run_batch_scrape(
                 redirect_status,
                 register_status,
             )
-            _record_scrape_run_observation(
+            _record_scrape_run_observation_with_lock_tolerance(
                 archive_db_path,
                 run_id,
                 started_at,
                 run_kind,
                 identity,
                 scrape_outcome,
+                progress_reporter=progress_reporter,
+                log_path=log_path,
             )
             continue
 
@@ -54834,13 +55742,15 @@ def run_batch_scrape(
                 getattr(scrape_result, "observed_max_res_no", None),
             )
 
-        _record_scrape_run_observation(
+        _record_scrape_run_observation_with_lock_tolerance(
             archive_db_path,
             run_id,
             started_at,
             run_kind,
             identity,
             scrape_outcome,
+            progress_reporter=progress_reporter,
+            log_path=log_path,
         )
 
     ended_at = datetime.now(timezone.utc).isoformat()
@@ -72005,6 +72915,8 @@ echo "[periodic-once] Starting one periodic cycle"
 echo "[periodic-once] target_db_path=$TARGET_DB_PATH"
 echo "[periodic-once] If the runtime code looks stale, recreate with"
 echo "[periodic-once] bash tools/runtime_up.sh"
+echo "[periodic-once] Progress is written to $HOST_CRON_LOG_PATH"
+echo "[periodic-once] Follow progress with: tail -f $HOST_CRON_LOG_PATH"
 
 docker compose -f "$COMPOSE_FILE_PATH" exec -T "$COMPOSE_SERVICE_NAME" \
   env HOST_CRON_LOG_PATH="$HOST_CRON_LOG_PATH" \
@@ -76933,6 +77845,7 @@ FILE: cursor/tests/test_main.py
 from unittest.mock import call, patch
 
 from pathlib import Path
+import sqlite3
 
 import pytest
 
@@ -77684,6 +78597,108 @@ def test_main_batch_records_telemetry_once_per_target(
         main_module.main()
 
     assert mock_record.call_count == 1
+
+
+def test_record_scrape_run_observation_re_raises_non_lock_operational_error(
+    tmp_path,
+):
+    log_path = tmp_path / "batch.log"
+    mock_conn = type("Conn", (), {"close": lambda self: None})()
+    identity = {
+        "article_id": "1",
+        "article_type": "a",
+        "canonical_url": "https://dic.nicovideo.jp/a/1",
+    }
+
+    with patch("main.init_db", return_value=mock_conn):
+        with patch(
+            "main.append_scrape_run_observation",
+            side_effect=sqlite3.OperationalError(
+                "attempt to write a readonly database"
+            ),
+        ):
+            with pytest.raises(sqlite3.OperationalError):
+                main_module._record_scrape_run_observation_with_lock_tolerance(
+                    "archive.db",
+                    "run-1",
+                    "2026-05-23T00:00:00+00:00",
+                    "batch",
+                    identity,
+                    "ok",
+                    progress_reporter=None,
+                    log_path=log_path,
+                )
+
+    assert not log_path.exists()
+
+
+@patch(
+    "main.run_delete_request_feeder",
+    return_value={
+        "checked_from_res_no": 1,
+        "checked_to_res_no": None,
+        "responses_checked": 0,
+        "extracted_candidates": 0,
+        "handed_off_candidates": 0,
+        "updated_last_processed_res_no": 0,
+        "queued_target_urls": [],
+        "added_targets": 0,
+        "reactivated_targets": 0,
+        "duplicate_targets": 0,
+        "invalid_targets": 0,
+    },
+)
+@patch(
+    "main.list_active_target_urls",
+    return_value=[
+        "https://dic.nicovideo.jp/a/1",
+        "https://dic.nicovideo.jp/a/2",
+    ],
+)
+@patch(
+    "main.run_scrape",
+    side_effect=[
+        ScrapeResult(True, "ok", article_title="First Title"),
+        ScrapeResult(True, "ok", article_title="Second Title"),
+    ],
+)
+def test_main_batch_continues_when_observation_append_hits_db_lock(
+    mock_run_scrape,
+    mock_load_targets,
+    mock_run_delete_request_feeder,
+    tmp_path,
+    capsys,
+    monkeypatch,
+):
+    monkeypatch.setenv("BATCH_LOG_DIR", str(tmp_path))
+    mock_conn = type("Conn", (), {"close": lambda self: None})()
+
+    with patch("main.init_db", return_value=mock_conn):
+        with patch(
+            "main.append_scrape_run_observation",
+            side_effect=[
+                sqlite3.OperationalError("database is locked"),
+                None,
+            ],
+        ):
+            with patch("sys.argv", ["main.py", "batch", "targets.db"]):
+                main_module.main()
+
+    assert mock_run_scrape.call_count == 2
+    out = capsys.readouterr().out
+    assert "[WARN] scrape_run_observation_skipped" in out
+    assert "article=1/a" in out
+    assert "database is locked" in out
+    assert "[OK] https://dic.nicovideo.jp/a/2" in out
+
+    logs = list(Path(tmp_path).glob("batch_*.log"))
+    assert len(logs) == 1
+    text = logs[0].read_text(encoding="utf-8")
+    assert "TELEMETRY_WARNING" in text
+    assert "run_kind=batch" in text
+    assert "article_id=1" in text
+    assert "warning=scrape_run_observation_skipped" in text
+    assert "detail=OperationalError:database is locked" in text
 
 
 def test_main_export_run_telemetry_csv_prints_header(capsys, tmp_path, monkeypatch):
@@ -82021,6 +83036,20 @@ def test_periodic_wrapper_forwards_target_order_env_into_container_exec():
         '"${SOFT_TERMINATE_FILE:-runtime/control/stop_after_current}"'
         in text
     )
+
+
+def test_periodic_wrapper_prints_host_cron_log_guidance_before_exec():
+    text = Path("runtime/periodic_once.sh").read_text(encoding="utf-8")
+
+    assert (
+        'echo "[periodic-once] Progress is written '
+        'to $HOST_CRON_LOG_PATH"' in text
+    )
+    assert (
+        'echo "[periodic-once] Follow progress with: '
+        'tail -f $HOST_CRON_LOG_PATH"' in text
+    )
+    assert 'env HOST_CRON_LOG_PATH="$HOST_CRON_LOG_PATH"' in text
 
 
 def test_personal_runtime_doc_mentions_local_env_and_wrapper():
