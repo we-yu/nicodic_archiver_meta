@@ -2834,3 +2834,59 @@ Autonomous Copilot pilot note:
 Review log:
 
 - `META/review_log/SubTask_runtime_stop_and_lock_ops_helper_20260531.md`
+
+## 2026-05-31 editor-agent validation and helper guidance
+
+WorkflowTask-editor-agent-validation-and-helper-guidance was completed.
+
+Purpose:
+
+- make validation and review collection more loosely coupled
+- help editor AIs validate or inspect a single child repository
+- preserve existing root helper no-argument behavior
+- add short AI-facing reminders to common review output
+
+Root/meta changes:
+
+- `META/scripts/validate_helix.sh` now accepts an optional target:
+  - no argument: validate both child repos as before
+  - `copilot`: validate only `copilot/`
+  - `cursor`: validate only `cursor/`
+- `META/scripts/collect_task_review.sh` now accepts an optional target:
+  - no argument: collect both child repos as before
+  - `copilot`: collect only `copilot/`
+  - `cursor`: collect only `cursor/`
+- root collect output now includes short `AI-HINT` reminders
+- `NO_AI_HINT=1` suppresses those hints
+
+Child helper additions:
+
+- `validate.sh`
+- `collect_repo_review.sh`
+
+The helper scripts are child-repo-local and can be run inside either product
+repository after main synchronization.
+
+Validation behavior:
+
+- child-local validation uses the established container-oriented validation
+  path
+- editor AIs are reminded not to invent host venv or pip-install flows
+
+Adoption / synchronization:
+
+- Copilot received the helper files first through a product PR
+- Cursor received the same helper files by pulling product main after adoption
+- root/meta helper behavior preserves fallback behavior for child repos without
+  local helper scripts
+
+Safety boundaries:
+
+- no product runtime behavior was changed
+- no scrape behavior was changed
+- no DB, cron, Docker, or runtime checkout was modified
+- no existing product code was edited for this workflow task
+
+Review log:
+
+- `META/review_log/WorkflowTask_editor_agent_validation_and_helper_guidance_20260531.md`

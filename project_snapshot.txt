@@ -3835,6 +3835,62 @@ Review log:
 
 - `META/review_log/SubTask_runtime_stop_and_lock_ops_helper_20260531.md`
 
+## 2026-05-31 editor-agent validation and helper guidance
+
+WorkflowTask-editor-agent-validation-and-helper-guidance was completed.
+
+Purpose:
+
+- make validation and review collection more loosely coupled
+- help editor AIs validate or inspect a single child repository
+- preserve existing root helper no-argument behavior
+- add short AI-facing reminders to common review output
+
+Root/meta changes:
+
+- `META/scripts/validate_helix.sh` now accepts an optional target:
+  - no argument: validate both child repos as before
+  - `copilot`: validate only `copilot/`
+  - `cursor`: validate only `cursor/`
+- `META/scripts/collect_task_review.sh` now accepts an optional target:
+  - no argument: collect both child repos as before
+  - `copilot`: collect only `copilot/`
+  - `cursor`: collect only `cursor/`
+- root collect output now includes short `AI-HINT` reminders
+- `NO_AI_HINT=1` suppresses those hints
+
+Child helper additions:
+
+- `validate.sh`
+- `collect_repo_review.sh`
+
+The helper scripts are child-repo-local and can be run inside either product
+repository after main synchronization.
+
+Validation behavior:
+
+- child-local validation uses the established container-oriented validation
+  path
+- editor AIs are reminded not to invent host venv or pip-install flows
+
+Adoption / synchronization:
+
+- Copilot received the helper files first through a product PR
+- Cursor received the same helper files by pulling product main after adoption
+- root/meta helper behavior preserves fallback behavior for child repos without
+  local helper scripts
+
+Safety boundaries:
+
+- no product runtime behavior was changed
+- no scrape behavior was changed
+- no DB, cron, Docker, or runtime checkout was modified
+- no existing product code was edited for this workflow task
+
+Review log:
+
+- `META/review_log/WorkflowTask_editor_agent_validation_and_helper_guidance_20260531.md`
+
 
 ===== WORKSPACE =====
 # Workspace
@@ -13137,6 +13193,91 @@ Cron remains disabled until runtime reflection and smoke checks are complete.
 
 
 
+===== REVIEW LOG: META/review_log/WorkflowTask_editor_agent_validation_and_helper_guidance_20260531.md =====
+# WorkflowTask-editor-agent-validation-and-helper-guidance
+
+## Summary
+
+- Added target selection to root validation and review helpers while preserving
+  existing no-argument behavior.
+- Added repo-local validation and review helper entrypoints under copilot only.
+- Added short AI-HINT reminders to root review collection output with
+  NO_AI_HINT=1 suppression.
+
+## Root/meta files changed
+
+- META/scripts/validate_helix.sh
+- META/scripts/collect_task_review.sh
+
+## Copilot files added
+
+- copilot/validate.sh
+- copilot/collect_repo_review.sh
+
+## Cursor files intentionally untouched
+
+- No files under cursor/ were modified.
+- Root helpers retain fallback behavior for cursor because cursor does not yet
+  have repo-local helper scripts.
+
+## Existing no-argument behavior preservation
+
+- ./validate_helix.sh still validates both copilot and cursor when no target is
+  provided.
+- ./collect_task_review.sh still collects review output for both copilot and
+  cursor when no target is provided.
+
+## New target-argument behavior
+
+- ./validate_helix.sh copilot validates only copilot.
+- ./validate_helix.sh cursor validates only cursor.
+- ./collect_task_review.sh copilot collects only copilot review output.
+- ./collect_task_review.sh cursor collects only cursor review output.
+- Unknown targets fail with usage text.
+
+## Child-local helper behavior
+
+- copilot/validate.sh is executable, runs from within copilot, prints repo path
+  and scope, reminds editor AIs to prefer the container-oriented workflow, and
+  runs flake8 plus pytest through docker compose in the current repo only.
+- copilot/collect_repo_review.sh is executable, runs from within copilot, and
+  prints repo-local branch, status, diff stats, and recent log only.
+- Root helpers delegate to repo-local scripts when present and otherwise use the
+  existing root-side behavior.
+
+## AI-HINT behavior and suppression
+
+- Root collect output now prints short AI-HINT lines once per invocation.
+- Setting NO_AI_HINT=1 suppresses those lines.
+- Child-local collect output does not print the root AI-HINT lines.
+
+## Safety boundaries preserved
+
+- No edits were made under cursor/.
+- No runtime checkout files were touched.
+- No scraping, Docker restart, DB modification, crontab modification, or runtime
+  reflection was performed.
+- No virtual environments or dependency installation steps were added.
+
+## Validation or syntax checks performed
+
+- Ran bash -n META/scripts/validate_helix.sh META/scripts/collect_task_review.sh
+- Additional shell syntax and helper behavior checks were run after file
+  creation.
+
+## Known limitations
+
+- copilot/validate.sh still depends on docker compose availability in the local
+  environment because the established validation path is container-oriented.
+- The root validation fallback for cursor remains the existing root-side docker
+  compose invocation until cursor adopts matching repo-local helpers.
+
+## Recommended next steps
+
+- Add matching repo-local helper scripts to cursor after product-main adoption.
+- Optionally align help text or docs in child repos if these helper entrypoints
+  should be operator-visible.
+
 ===== REVIEW LOG: META/review_log/subtask_bbs_page_boundary_resume_20260429.md =====
 # SubTask adoption log
 
@@ -13536,7 +13677,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Sun May 31 10:59:41 UTC 2026
+generated: Sun May 31 12:34:52 UTC 2026
 mode: full
 
 
@@ -17877,11 +18018,13 @@ usage() {
   cat <<'EOF'
 Usage:
   ./collect_task_review.sh
+  ./collect_task_review.sh <copilot|cursor>
 
 Behavior:
   - Prints review-friendly git information for:
       ./copilot
       ./cursor
+  - With a target argument, collects only that repo
   - Includes:
       current branch
       git status --short
@@ -17901,6 +18044,37 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 COPILOT_DIR="${ROOT_DIR}/copilot"
 CURSOR_DIR="${ROOT_DIR}/cursor"
 
+select_targets() {
+  case "${1:-all}" in
+    all)
+      SELECTED_TARGETS=("copilot" "cursor")
+      ;;
+    copilot|c)
+      SELECTED_TARGETS=("copilot")
+      ;;
+    cursor)
+      SELECTED_TARGETS=("cursor")
+      ;;
+    *)
+      echo "ERROR: unknown target: ${1}" >&2
+      echo >&2
+      usage >&2
+      return 1
+      ;;
+  esac
+}
+
+print_ai_hints() {
+  if [[ "${NO_AI_HINT:-0}" == "1" ]]; then
+    return 0
+  fi
+
+  echo "AI-HINT: after merge/adoption, sync both child repos, then run compare_helix.sh --all and validate_helix.sh"
+  echo "AI-HINT: if project state changed, update META/review_log and PROJECT_STATE.md, then run export_snapshot.sh"
+  echo "AI-HINT: before runtime reflection, confirm no periodic lock and no scrape-like process"
+  echo
+}
+
 if [[ ! -d "${COPILOT_DIR}/.git" ]]; then
   echo "ERROR: copilot repo not found: ${COPILOT_DIR}" >&2
   exit 1
@@ -17914,6 +18088,12 @@ fi
 print_section() {
   local repo_name="$1"
   local repo_dir="$2"
+  local repo_collect_script="${repo_dir}/collect_repo_review.sh"
+
+  if [[ -x "${repo_collect_script}" ]]; then
+    (cd "${repo_dir}" && ./collect_repo_review.sh)
+    return 0
+  fi
 
   echo "============================================================"
   echo "REVIEW SNAPSHOT: ${repo_name}"
@@ -17935,8 +18115,23 @@ print_section() {
   echo
 }
 
-print_section "copilot" "${COPILOT_DIR}"
-print_section "cursor" "${CURSOR_DIR}"
+SELECTED_TARGETS=()
+if ! select_targets "${1:-all}"; then
+  exit 1
+fi
+
+print_ai_hints
+
+for target in "${SELECTED_TARGETS[@]}"; do
+  case "${target}" in
+    copilot)
+      print_section "copilot" "${COPILOT_DIR}"
+      ;;
+    cursor)
+      print_section "cursor" "${CURSOR_DIR}"
+      ;;
+  esac
+done
 
 
 =============================
@@ -19197,11 +19392,13 @@ usage() {
   cat <<'EOF'
 Usage:
   ./validate_helix.sh
+  ./validate_helix.sh <copilot|cursor>
 
 Behavior:
   - Runs flake8 and pytest in both:
       ./copilot
       ./cursor
+  - With a target argument, validates only that repo
   - Continues even if one side fails
   - Prints per-repo summary
   - Returns non-zero if either repo fails
@@ -19217,6 +19414,26 @@ ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 COPILOT_DIR="${ROOT_DIR}/copilot"
 CURSOR_DIR="${ROOT_DIR}/cursor"
 
+select_targets() {
+  case "${1:-all}" in
+    all)
+      SELECTED_TARGETS=("copilot" "cursor")
+      ;;
+    copilot|c)
+      SELECTED_TARGETS=("copilot")
+      ;;
+    cursor)
+      SELECTED_TARGETS=("cursor")
+      ;;
+    *)
+      echo "ERROR: unknown target: ${1}" >&2
+      echo >&2
+      usage >&2
+      return 1
+      ;;
+  esac
+}
+
 if [[ ! -d "${COPILOT_DIR}/.git" ]]; then
   echo "ERROR: copilot repo not found: ${COPILOT_DIR}" >&2
   exit 1
@@ -19231,6 +19448,7 @@ run_validation() {
   local repo_name="$1"
   local repo_dir="$2"
   local status=0
+  local repo_validate_script="${repo_dir}/validate.sh"
 
   echo "============================================================"
   echo "VALIDATE: ${repo_name}"
@@ -19238,7 +19456,17 @@ run_validation() {
   echo "branch : $(git -C "${repo_dir}" branch --show-current)"
   echo "============================================================"
 
-  if (cd "${repo_dir}" && docker compose run --rm scraper sh -lc 'flake8 . && pytest'); then
+  if [[ -x "${repo_validate_script}" ]]; then
+    if (cd "${repo_dir}" && ./validate.sh); then
+      echo
+      echo "[${repo_name}] RESULT: PASS"
+      status=0
+    else
+      echo
+      echo "[${repo_name}] RESULT: FAIL"
+      status=1
+    fi
+  elif (cd "${repo_dir}" && docker compose run --rm scraper sh -lc 'flake8 . && pytest'); then
     echo
     echo "[${repo_name}] RESULT: PASS"
     status=0
@@ -19252,20 +19480,36 @@ run_validation() {
   return "${status}"
 }
 
+SELECTED_TARGETS=()
+if ! select_targets "${1:-all}"; then
+  exit 1
+fi
+
 COPILOT_STATUS=0
 CURSOR_STATUS=0
 
-if ! run_validation "copilot" "${COPILOT_DIR}"; then
-  COPILOT_STATUS=1
-fi
-
-if ! run_validation "cursor" "${CURSOR_DIR}"; then
-  CURSOR_STATUS=1
-fi
+for target in "${SELECTED_TARGETS[@]}"; do
+  case "${target}" in
+    copilot)
+      if ! run_validation "copilot" "${COPILOT_DIR}"; then
+        COPILOT_STATUS=1
+      fi
+      ;;
+    cursor)
+      if ! run_validation "cursor" "${CURSOR_DIR}"; then
+        CURSOR_STATUS=1
+      fi
+      ;;
+  esac
+done
 
 echo "==================== SUMMARY ===================="
-echo "copilot: $([[ ${COPILOT_STATUS} -eq 0 ]] && echo PASS || echo FAIL)"
-echo "cursor : $([[ ${CURSOR_STATUS} -eq 0 ]] && echo PASS || echo FAIL)"
+if [[ " ${SELECTED_TARGETS[*]} " == *" copilot "* ]]; then
+  echo "copilot: $([[ ${COPILOT_STATUS} -eq 0 ]] && echo PASS || echo FAIL)"
+fi
+if [[ " ${SELECTED_TARGETS[*]} " == *" cursor "* ]]; then
+  echo "cursor : $([[ ${CURSOR_STATUS} -eq 0 ]] && echo PASS || echo FAIL)"
+fi
 echo "================================================="
 
 if [[ ${COPILOT_STATUS} -ne 0 || ${CURSOR_STATUS} -ne 0 ]]; then
@@ -19430,6 +19674,93 @@ Known limitations
 
 Confirmation
 - Existing files under copilot/ and cursor/ were not edited.
+
+=============================
+FILE: WorkflowTask-editor-agent-validation-and-helper-guidance_report.md
+=============================
+# WorkflowTask-editor-agent-validation-and-helper-guidance
+
+## Summary
+
+- Added target selection to root validation and review helpers while preserving
+  existing no-argument behavior.
+- Added repo-local validation and review helper entrypoints under copilot only.
+- Added short AI-HINT reminders to root review collection output with
+  NO_AI_HINT=1 suppression.
+
+## Root/meta files changed
+
+- META/scripts/validate_helix.sh
+- META/scripts/collect_task_review.sh
+
+## Copilot files added
+
+- copilot/validate.sh
+- copilot/collect_repo_review.sh
+
+## Cursor files intentionally untouched
+
+- No files under cursor/ were modified.
+- Root helpers retain fallback behavior for cursor because cursor does not yet
+  have repo-local helper scripts.
+
+## Existing no-argument behavior preservation
+
+- ./validate_helix.sh still validates both copilot and cursor when no target is
+  provided.
+- ./collect_task_review.sh still collects review output for both copilot and
+  cursor when no target is provided.
+
+## New target-argument behavior
+
+- ./validate_helix.sh copilot validates only copilot.
+- ./validate_helix.sh cursor validates only cursor.
+- ./collect_task_review.sh copilot collects only copilot review output.
+- ./collect_task_review.sh cursor collects only cursor review output.
+- Unknown targets fail with usage text.
+
+## Child-local helper behavior
+
+- copilot/validate.sh is executable, runs from within copilot, prints repo path
+  and scope, reminds editor AIs to prefer the container-oriented workflow, and
+  runs flake8 plus pytest through docker compose in the current repo only.
+- copilot/collect_repo_review.sh is executable, runs from within copilot, and
+  prints repo-local branch, status, diff stats, and recent log only.
+- Root helpers delegate to repo-local scripts when present and otherwise use the
+  existing root-side behavior.
+
+## AI-HINT behavior and suppression
+
+- Root collect output now prints short AI-HINT lines once per invocation.
+- Setting NO_AI_HINT=1 suppresses those lines.
+- Child-local collect output does not print the root AI-HINT lines.
+
+## Safety boundaries preserved
+
+- No edits were made under cursor/.
+- No runtime checkout files were touched.
+- No scraping, Docker restart, DB modification, crontab modification, or runtime
+  reflection was performed.
+- No virtual environments or dependency installation steps were added.
+
+## Validation or syntax checks performed
+
+- Ran bash -n META/scripts/validate_helix.sh META/scripts/collect_task_review.sh
+- Additional shell syntax and helper behavior checks were run after file
+  creation.
+
+## Known limitations
+
+- copilot/validate.sh still depends on docker compose availability in the local
+  environment because the established validation path is container-oriented.
+- The root validation fallback for cursor remains the existing root-side docker
+  compose invocation until cursor adopts matching repo-local helpers.
+
+## Recommended next steps
+
+- Add matching repo-local helper scripts to cursor after product-main adoption.
+- Optionally align help text or docs in child repos if these helper entrypoints
+  should be operator-visible.
 
 =============================
 FILE: build_dev_sample_db.sh
@@ -23282,6 +23613,33 @@ def inspect_article(article_id, article_type, last_n=None):
         print(content_text or "")
         print("----")
 
+
+=============================
+FILE: copilot/collect_repo_review.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+echo "============================================================"
+echo "REVIEW SNAPSHOT: copilot"
+echo "repo   : ${REPO_DIR}"
+echo "branch : $(git -C "${REPO_DIR}" branch --show-current)"
+echo "============================================================"
+echo
+echo "-- git status --short"
+git -C "${REPO_DIR}" status --short || true
+echo
+echo "-- staged diff stat"
+git -C "${REPO_DIR}" diff --cached --stat || true
+echo
+echo "-- unstaged diff stat"
+git -C "${REPO_DIR}" diff --stat || true
+echo
+echo "-- recent log"
+git -C "${REPO_DIR}" log --oneline --decorate --graph -5 || true
+echo
 
 =============================
 FILE: copilot/collection_policy.py
@@ -47353,6 +47711,35 @@ python main.py verify "$@"
 
 
 =============================
+FILE: copilot/validate.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+echo "============================================================"
+echo "VALIDATE: copilot"
+echo "repo   : ${REPO_DIR}"
+echo "scope  : repo-local lint and test only"
+echo "============================================================"
+echo "AI-REMINDER: container-oriented repo; do not invent host venv or pip install flows"
+echo
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "ERROR: docker is required for repo-local validation." >&2
+  exit 1
+fi
+
+if [[ ! -f "${REPO_DIR}/docker-compose.yml" ]]; then
+  echo "ERROR: docker-compose.yml not found in ${REPO_DIR}." >&2
+  exit 1
+fi
+
+cd "${REPO_DIR}"
+docker compose run --rm scraper sh -lc 'flake8 . && pytest'
+
+=============================
 FILE: copilot/verification_cli.py
 =============================
 import os
@@ -53254,6 +53641,33 @@ def inspect_article(article_id, article_type, last_n=None):
         print(content_text or "")
         print("----")
 
+
+=============================
+FILE: cursor/collect_repo_review.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+echo "============================================================"
+echo "REVIEW SNAPSHOT: copilot"
+echo "repo   : ${REPO_DIR}"
+echo "branch : $(git -C "${REPO_DIR}" branch --show-current)"
+echo "============================================================"
+echo
+echo "-- git status --short"
+git -C "${REPO_DIR}" status --short || true
+echo
+echo "-- staged diff stat"
+git -C "${REPO_DIR}" diff --cached --stat || true
+echo
+echo "-- unstaged diff stat"
+git -C "${REPO_DIR}" diff --stat || true
+echo
+echo "-- recent log"
+git -C "${REPO_DIR}" log --oneline --decorate --graph -5 || true
+echo
 
 =============================
 FILE: cursor/collection_policy.py
@@ -91269,6 +91683,35 @@ REPO_ROOT=$(CDPATH= cd -- "$SCRIPT_DIR/.." && pwd)
 cd "$REPO_ROOT"
 python main.py verify "$@"
 
+
+=============================
+FILE: cursor/validate.sh
+=============================
+#!/usr/bin/env bash
+set -euo pipefail
+
+REPO_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+echo "============================================================"
+echo "VALIDATE: copilot"
+echo "repo   : ${REPO_DIR}"
+echo "scope  : repo-local lint and test only"
+echo "============================================================"
+echo "AI-REMINDER: container-oriented repo; do not invent host venv or pip install flows"
+echo
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "ERROR: docker is required for repo-local validation." >&2
+  exit 1
+fi
+
+if [[ ! -f "${REPO_DIR}/docker-compose.yml" ]]; then
+  echo "ERROR: docker-compose.yml not found in ${REPO_DIR}." >&2
+  exit 1
+fi
+
+cd "${REPO_DIR}"
+docker compose run --rm scraper sh -lc 'flake8 . && pytest'
 
 =============================
 FILE: cursor/verification_cli.py
