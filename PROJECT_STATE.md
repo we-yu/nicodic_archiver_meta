@@ -2771,3 +2771,66 @@ Next likely task:
   guidance after the current active run completes.
 - Longer-term SQLite access hardening remains a later candidate, not an
   immediate blocker.
+
+## 2026-05-31 runtime stop and lock ops helper
+
+SubTask-runtime-stop-and-lock-ops-helper was completed and adopted.
+
+Product main includes:
+
+- `SubTask: add runtime stop and lock ops helper (#76)`
+
+Adopted behavior:
+
+- `runtime/control/stop_after_current` keeps the existing safe article-boundary
+  soft-terminate behavior.
+- Empty, malformed, `0`, or `1` stop-file content is consumed as one soft stop
+  and then removed.
+- Natural numbers `N >= 2` are consumed once and rewritten as `N - 1`.
+- Large stop counts are clamped to `255`.
+- Missing stop file preserves the existing non-stop behavior.
+
+New helper:
+
+- `tools/runtime_periodic_ops.sh`
+
+The helper supports bounded operator commands for:
+
+- runtime status
+- stop-once
+- stop-count
+- show-stop
+- clear-stop
+- guarded clear-lock
+
+Validation:
+
+- both child product repositories were synced to product main
+- `./validate_helix.sh` passed after adoption
+- final observed validation:
+  - Copilot: 456 tests passed
+  - Cursor: 456 tests passed
+
+Runtime:
+
+- a live runtime run consumed `runtime/control/stop_after_current`
+- the current article was allowed to finish
+- the run ended without leaving the stop file behind
+- runtime reflection can proceed after confirming no active scrape-like process
+  and no `periodic_once.lock`
+
+Autonomous Copilot pilot note:
+
+- this task tested allowing Copilot to create a branch, implement, report,
+  commit, and push
+- the pilot was mostly successful
+- Copilot temporarily created `.vscode/settings.json`; it was removed before
+  adoption
+- future autonomous prompts should forbid leaving `.vscode/` workspace settings
+  behind
+- future prompts should prefer container-aware validation for runtime-like
+  Python behavior when available
+
+Review log:
+
+- `META/review_log/SubTask_runtime_stop_and_lock_ops_helper_20260531.md`
