@@ -2890,3 +2890,64 @@ Safety boundaries:
 Review log:
 
 - `META/review_log/WorkflowTask_editor_agent_validation_and_helper_guidance_20260531.md`
+
+## 2026-06-03 dev web smoke sample DB entrypoint
+
+SubTask-dev-web-smoke-sample-db-entrypoint was completed and adopted.
+
+Product main includes:
+
+- `SubTask: add dev web smoke sample DB check (#79)`
+
+Purpose:
+
+- add a child-repo-local read-only helper for checking whether the distributed
+  Dev sample DB is suitable for lightweight Web smoke checks
+- reduce confusion from stale, missing, oversized, or wrong DBs during
+  Web/DB-facing development review
+- keep sample DB extraction and distribution owned by root/meta
+  `RuntimeOps-build-dev-sample-db`
+
+Adopted helper:
+
+- `tools/dev_web_smoke.sh`
+
+Default DB path:
+
+- `runtime/data/nicodic.db`
+
+Behavior:
+
+- opens the DB read-only
+- checks required Web-facing tables
+- checks non-zero article, response, target, active target, and titled article
+  counts
+- checks that `article_id=5511090`, `article_type=a` responses are absent
+- checks the per-article response cap expectation
+- prints `smoke_ready=yes` when the DB is suitable for smoke checks
+- fails with guidance pointing back to root/meta sample DB builder when the DB
+  is missing or unsuitable
+
+Safety boundaries:
+
+- no full runtime DB copy
+- no production DB backup
+- no live scraping
+- no schema migration
+- no Web behavior redesign
+- no runtime checkout edits
+- no cron, Docker, or DB modification
+
+Validation:
+
+- Copilot and Cursor were synced to product main after merge
+- `./validate_helix.sh` passed
+- final observed validation:
+  - Copilot: 458 tests passed
+  - Cursor: 458 tests passed
+- Copilot-side `tools/dev_web_smoke.sh` passed against
+  `runtime/data/nicodic.db` with `smoke_ready=yes`
+
+Review log:
+
+- `META/review_log/SubTask_dev_web_smoke_sample_db_entrypoint_20260603.md`
