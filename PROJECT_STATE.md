@@ -2951,3 +2951,69 @@ Validation:
 Review log:
 
 - `META/review_log/SubTask_dev_web_smoke_sample_db_entrypoint_20260603.md`
+
+## 2026-06-10 sqlite read boundary and response semantics
+
+MainTask-sqlite-read-boundary-and-response-semantics was completed.
+
+Adopted implementation:
+
+- Cursor
+
+Non-adopted implementation:
+
+- Copilot retained as comparison evidence and pushed to remote branch
+
+Hybrid:
+
+- Not selected because Cursor's final implementation passed validation and no
+  Copilot change had a clear additional benefit worth manual integration risk.
+
+Product main includes:
+
+- `MainTask: clarify SQLite read boundaries (#80)`
+
+Purpose:
+
+- clarify SQLite read/write boundaries
+- reduce logically read-only paths that call schema-initializing `init_db(...)`
+- preserve strict archive-critical writes
+- preserve existing telemetry lock-tolerance behavior
+- make current Registered Articles response-count semantics honest
+
+Adopted behavior:
+
+- selected read-like paths now use a read-only SQLite helper
+- write paths remain on `init_db(...)`
+- current Registered Articles saved-row `MAX(res_no)` is labeled
+  `Saved Max Res No`
+- current `Saved Max Res No` remains derived from saved `responses` rows
+- true board-observed Max Res No persistence is deferred
+
+Important semantic note:
+
+The future desired user-facing model is:
+
+- `Saved Responses`: how far the archive has actually saved board responses
+- `Max Res No`: the latest/final response number observed on the board when the
+  article top or scrape path observed board state
+
+That future `Max Res No` is not yet implemented because it needs an explicit
+persistence seam and likely schema evolution.
+
+Validation completed:
+
+- `compare_helix.sh --all`: PASS
+- `validate_helix.sh`: PASS
+- Copilot: 464 tests passed
+- Cursor: 464 tests passed
+- Copilot and Cursor converged on product main commit `05777fa`
+
+Review log:
+
+- `META/review_log/MainTask_sqlite_read_boundary_and_response_semantics_20260610.md`
+
+Runtime reflection:
+
+- allowed after confirming no periodic lock, no soft stop file, and no
+  scrape-like process
