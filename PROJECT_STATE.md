@@ -3074,3 +3074,32 @@ Follow-up:
 
 - materialized saved response summary remains a future DB task
 - Registered Articles latency should continue to be improved
+
+## 2026-06-23 runtime scrape cron tuning
+
+Runtime scrape cron schedule was adjusted after the archive had largely
+converged.
+
+New schedule:
+
+- 00:05 default, 1200 seconds
+- 01:05 reverse, 8400 seconds
+- 04/07/10/13/16/19:05 random_rotation, 8400 seconds
+
+Reasoning:
+
+- default pass is now a light daily check
+- reverse pass is used to pick up recently registered targets
+- random_rotation continues smoothing the archive through the day
+- 03:05 random was avoided because 01:05 reverse may run until about 03:25
+
+No product code or runtime DB changes were made.
+
+Review log:
+
+- `META/review_log/Runtime_cron_scrape_schedule_tuning_20260623.md`
+
+Future candidate:
+
+- DeleteFeeder-prioritized scrape mode for existing articles that receive delete
+  requests
