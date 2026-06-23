@@ -3017,3 +3017,60 @@ Runtime reflection:
 
 - allowed after confirming no periodic lock, no soft stop file, and no
   scrape-like process
+
+## 2026-06-23 registered list page-first query
+
+SubTask-BugFix-registered-list-page-first-query was completed and adopted.
+
+Product main includes:
+
+- `294fdfc SubTask-BugFix: speed up registered list page query (#81)`
+
+Purpose:
+
+- fix production-sized DB latency on `/registered`
+- avoid full `responses` aggregation before pagination for non-aggregate sorts
+- restore runtime usability of Registered Articles without schema migration
+
+Adopted behavior:
+
+- `created_at`, `last_scraped_at`, `title`, and `article_id` sorts use a
+  page-first query shape
+- response stats are fetched only for displayed page identities on fast-path
+  sorts
+- `saved_response_count` and `saved_max_res_no` sorts remain correctness-first
+  aggregate sorts
+- true observed-board Max Res No remains deferred
+
+Validation:
+
+- `compare_helix.sh --all`: PASS
+- `validate_helix.sh`: PASS
+- Copilot: 468 tests passed
+- Cursor: 468 tests passed
+
+Runtime reflection:
+
+- soft terminate succeeded before reflection
+- runtime checkout updated to `294fdfc`
+- runtime container recreated
+- web root `/` returned HTTP 200
+- text download succeeded
+- `/registered` rendered in browser
+- Registered Articles page showed count 12235 and rows 1-100
+
+Known limitation:
+
+- local curl with 30 second timeout still timed out during immediate
+  post-reflection probes
+- browser rendering remains slow
+- this is a successful usability recovery, not the final DB performance solution
+
+Review log:
+
+- `META/review_log/SubTask_BugFix_registered_list_page_first_query_20260623.md`
+
+Follow-up:
+
+- materialized saved response summary remains a future DB task
+- Registered Articles latency should continue to be improved
