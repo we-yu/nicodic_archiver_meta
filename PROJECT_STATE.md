@@ -3103,3 +3103,32 @@ Future candidate:
 
 - DeleteFeeder-prioritized scrape mode for existing articles that receive delete
   requests
+
+## 2026-06-24 WorkflowTask: streamline adoption-runtime-meta-ops procedure
+
+Purpose:
+
+- reduce recurring operational mistakes in the adoption → runtime reflection →
+  META record workflow
+- document the full end-to-end procedure in one local reference
+
+What changed:
+
+- added `META/procedures/adoption_runtime_meta_ops.md`
+  - covers Cursor-only SubTask, WorkflowTask, DHM MainTask adoption
+  - covers non-adopted candidate branch push as evidence
+  - covers child repo synchronization after product PR merge
+  - covers compare_helix / validate_helix timing
+  - covers runtime reflection pre-check
+  - covers soft terminate usage and common mistakes
+  - covers runtime checkout pull / runtime_up
+  - covers web smoke checks
+  - covers cron-only runtime operations and when to record in META
+  - covers META review log creation
+  - covers PROJECT_STATE append (root repo only)
+  - covers export_snapshot
+  - covers META commit/push
+  - covers final clean status check
+  - includes explicit warnings for all recently observed mistake patterns
+
+No product code, runtime, DB, cron, or child repo files were modified.
