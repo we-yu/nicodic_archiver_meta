@@ -1,0 +1,146 @@
+WorkflowTask: streamline-adoption-runtime-meta-ops
+Report
+======================================================
+
+Editor AI model: Cursor / Claude Sonnet 4.5 (claude-sonnet-4-5)
+
+Date: 2026-06-24
+
+------------------------------------------------------
+Summary
+------------------------------------------------------
+
+Created a concise end-to-end procedure document that consolidates the
+adoption → runtime reflection → META record workflow into one local reference.
+
+The procedure covers all steps from task-type identification through final
+clean-status check, including explicit warnings for each recently observed
+mistake pattern. No product code, runtime checkout, runtime DB, cron, child
+repo (copilot/ or cursor/) files were modified.
+
+------------------------------------------------------
+Files Changed
+------------------------------------------------------
+
+Added:
+  META/procedures/adoption_runtime_meta_ops.md
+  WorkflowTask-streamline-adoption-runtime-meta-ops_report.txt   (this file)
+
+Modified:
+  PROJECT_STATE.md   (appended one new entry via append_project_state_block.py
+                      run from root/meta repo root)
+
+Not changed (confirmed):
+  copilot/   — untouched
+  cursor/    — untouched
+  runtime checkout (/home/manage/product/nicodic_archiver_runtime)  — untouched
+  runtime DB  — untouched
+  cron        — untouched
+
+------------------------------------------------------
+What Procedure / Helper Was Added or Changed
+------------------------------------------------------
+
+Added:
+  META/procedures/adoption_runtime_meta_ops.md
+
+  A 15-step procedure document covering:
+
+  Step  1  Task adoption type identification
+            (Cursor-only SubTask / WorkflowTask / DHM MainTask)
+  Step  2  Cursor-only SubTask adoption
+  Step  3  DHM: non-adopted candidate branch push as evidence
+  Step  4  DHM: child repo synchronization after product PR merge
+  Step  5  compare_helix / validate_helix timing
+  Step  6  Runtime reflection pre-check (reflect_runtime.sh)
+  Step  7  Soft terminate usage and common mistakes
+  Step  8  Runtime checkout pull / runtime_up
+  Step  9  Web smoke checks
+  Step 10  Cron-only runtime operations and when to record in META
+  Step 11  META review log creation
+  Step 12  PROJECT_STATE append (root repo only)
+  Step 13  export_snapshot
+  Step 14  META commit/push
+  Step 15  Final clean status check
+
+  Also includes:
+  - Quick Reference — Command Checklist section at the end
+  - Seven explicit warnings (W1–W7) at the top covering all observed mistakes:
+    W1. Do not run append_project_state_block.py from runtime checkout
+    W2. runtime_periodic_ops.sh accepts exactly one subcommand
+    W3. status stop-once does NOT execute stop-once
+    W4. Do not run runtime_up.sh while periodic scraping is active
+    W5. Do not use host raw Python for runtime DB work
+    W6. Do not touch runtime DB or cron unless the task explicitly says so
+    W7. Do not modify copilot/ or cursor/ during root/meta WorkflowTasks
+        unless explicitly required
+    W7b. export_snapshot.sh snapshot-only diffs before task work begins
+
+No existing helper scripts were modified.
+
+------------------------------------------------------
+Boundaries Preserved
+------------------------------------------------------
+
+- root/meta repository only
+- no copilot/ files changed
+- no cursor/ files changed
+- no runtime checkout files changed
+- no runtime DB files changed
+- no cron files changed
+- no Docker restart
+- no scraping initiated
+- no product application code changed
+- no orchestration framework invented
+
+------------------------------------------------------
+Validation Run
+------------------------------------------------------
+
+Only Markdown and text procedure files were changed.
+No shell scripts were added or modified.
+
+git diff --check result:
+  (see below — no whitespace errors)
+
+Checked:
+- META/procedures/adoption_runtime_meta_ops.md  — Markdown only
+- PROJECT_STATE.md  — Markdown only (appended via existing helper)
+- WorkflowTask-streamline-adoption-runtime-meta-ops_report.txt  — text only
+
+All three files end with exactly one trailing newline.
+
+------------------------------------------------------
+Known Limitations
+------------------------------------------------------
+
+- The procedure document is prose + checklists, not automation.
+  It relies on the human and Advisor-AI reading and following it.
+
+- Port number for web smoke checks (Step 9) is left as <port> because
+  the actual port is environment-specific and not hardcoded in the procedure.
+
+- The procedure does not cover every edge case
+  (e.g. hybrid adoption with cross-repo cherry-pick).
+  Edge cases should be recorded in individual review logs when they occur.
+
+- The procedure will need updating if workflow helpers are significantly
+  refactored (e.g. reflect_runtime.sh interface changes).
+
+------------------------------------------------------
+Recommended Follow-Up
+------------------------------------------------------
+
+1. Include META/procedures/ in export_snapshot.sh so the procedure is
+   captured in project_snapshot.txt for AI context restore.
+   (Currently META/scripts/ is included but META/procedures/ is new.)
+
+2. Consider adding a brief reference to adoption_runtime_meta_ops.md
+   in META/TASK_CYCLE_CHECKLIST.md under the "Sibling runtime reflection"
+   section for discoverability.
+
+3. Add web smoke check port to WORKSPACE.md or a runtime-local config
+   so it can be referenced from the procedure without hardcoding.
+
+4. After a few task cycles using this procedure, review whether any steps
+   are consistently skipped or misread, and tighten accordingly.
