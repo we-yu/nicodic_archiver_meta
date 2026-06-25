@@ -260,3 +260,50 @@ TASK043 did not modify the runtime DB.
 Runtime apply should wait for a safe maintenance point, preferably after
 soft-terminate support or after the current long shot is stopped.
 
+
+## article_response_stats
+
+Introduced by:
+
+- MainTask048-materialized-article-response-summary
+
+Purpose:
+
+- materialized saved-response summary for Registered Articles
+- avoids aggregating the full `responses` table during normal list display and
+  saved-response aggregate sorts
+
+Primary key:
+
+- `(article_id, article_type)`
+
+Core fields:
+
+- `article_id`
+- `article_type`
+- `saved_response_count`
+- `saved_max_res_no`
+- `stats_updated_at`
+
+Semantics:
+
+- `saved_response_count` means the number of saved response rows for the
+  article identity.
+- `saved_max_res_no` means the raw maximum saved `res_no` for the article
+  identity.
+- If there are no saved response rows, storage-level saved max may be NULL.
+- Checked-zero display behavior is read/display policy and should not be
+  confused with observed-board max semantics.
+
+Important non-goal:
+
+- this table does not implement true observed-board Max Res No.
+- future observed-board max should use an explicit persistence seam and must not
+  be inferred from saved response rows alone.
+
+Operational note:
+
+- existing runtime DBs require explicit operator rebuild/backfill:
+  `python main.py operator stats rebuild-response-summary --db PATH --apply`
+- the rebuild is an operator-controlled maintenance action, not a normal
+  per-request Web path.

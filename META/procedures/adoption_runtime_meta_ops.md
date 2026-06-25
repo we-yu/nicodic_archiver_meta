@@ -432,3 +432,33 @@ git add <intended files>
 git commit -m "Meta: ..."
 git push origin main
 ```
+
+## Runtime DB backup / temporary DB discipline
+
+As of 2026-06, the main runtime SQLite DB is close to 20GB.
+
+Do not suggest or perform a full DB copy merely "just in case".
+
+A full DB backup is allowed, but only after considering:
+
+- whether the operation writes archive-critical tables
+- whether the operation can be safely rerun
+- whether the operation only touches derived or rebuildable tables
+- available disk space
+- expected copy time
+- whether the backup can be deleted promptly after successful verification
+
+Temporary DBs and copied DBs must be planned with cleanup from the start.
+
+Any command sequence that creates a temporary DB or backup DB must also include:
+
+- the expected temporary file path
+- the removal command
+- a verification command confirming the file no longer exists
+
+For commands that may take more than about 10 seconds, mention the duration risk
+before showing the command so the operator does not mistake normal waiting for a
+hang.
+
+A 20GB-class runtime DB backup is not forbidden, but it is not a default safety
+gesture. It is an explicit operational decision.

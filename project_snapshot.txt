@@ -4133,6 +4133,88 @@ What changed:
 
 No product code, runtime, DB, cron, or child repo files were modified.
 
+## 2026-06-25 MainTask048 materialized article response summary
+
+MainTask048-materialized-article-response-summary was completed.
+
+Adopted implementation:
+
+- Cursor
+
+Non-adopted implementation:
+
+- Copilot was retained and pushed as comparison evidence.
+
+Hybrid:
+
+- Not selected because the key difference was semantic design, not a narrow
+  isolated implementation detail.
+
+Product behavior:
+
+- added `article_response_stats` as a materialized saved-response summary table
+- Registered Articles reads saved response stats from summary data
+- `saved_response_count` and `saved_max_res_no` sorts use summary data
+- `save_to_db` maintains per-article saved response summary
+- operator rebuild/backfill command added
+
+Operator command:
+
+- `python main.py operator stats rebuild-response-summary --db PATH`
+- `python main.py operator stats rebuild-response-summary --db PATH --apply`
+
+Semantic decision:
+
+- Saved Responses = number of saved response rows
+- Saved Max Res No = raw max saved `res_no`
+- no saved rows means NULL at storage level
+- checked-zero display behavior remains read/display policy
+- true observed-board Max Res No remains deferred
+
+Validation:
+
+- sample DB rebuild dry-run/apply succeeded
+- sample rehearsal DB was removed
+- post-merge `compare_helix.sh --all` passed
+- post-merge `validate_helix.sh` passed
+- copilot: 484 tests passed
+- cursor: 484 tests passed
+
+Runtime:
+
+- runtime reflection completed after confirming no active scrape work
+- runtime checkout fast-forwarded to product main
+- runtime container recreated with `tools/runtime_up.sh`
+- runtime DB rebuild dry-run completed
+- runtime DB rebuild apply completed
+- post-apply summary rows: 12109
+- post-apply articles: 12235
+- post-apply responses: 13131174
+
+Runtime Web result:
+
+- browser verification succeeded for Registered Articles default view
+- browser verification succeeded for Saved Max Res No descending sort
+- local curl with 30 second timeout still timed out
+- browser rendering was roughly 20 to 30 seconds by human observation
+- this is functional for personal use but still a performance follow-up area
+
+Operational note:
+
+- no full runtime DB backup was created for this task
+- the operation wrote derived/rebuildable summary data only
+- no temporary rehearsal DB or backup DB remained after the work
+
+Review log:
+
+- `META/review_log/MainTask048_materialized_article_response_summary_20260625.md`
+
+Follow-up:
+
+- inspect Registered Articles query plan and possible indexes
+- add summary drift diagnostics
+- later implement true observed-board Max Res No persistence
+
 
 ===== WORKSPACE =====
 # Workspace
@@ -5289,6 +5371,195 @@ Important current interpretation:
 ## Next candidate work
 
 - Review target/import/scrape denylist behavior, especially high-volume pages such as `>>3が理解できることが不幸`.
+
+
+===== REVIEW LOG: META/review_log/MainTask048_materialized_article_response_summary_20260625.md =====
+# MainTask048: materialized article response summary
+
+## Task
+
+MainTask048-materialized-article-response-summary
+
+## Decision
+
+Adopted: Cursor
+
+Non-adopted comparison:
+
+- Copilot implementation was retained and pushed as comparison evidence.
+
+Hybrid:
+
+- Not selected.
+
+## Purpose
+
+Registered Articles was still too slow on the production-sized runtime DB.
+
+The previous page-first query fix restored practical browser usability for
+non-aggregate sorts, but aggregate sorts such as Saved Responses and Saved Max
+Res No still depended on expensive response aggregation.
+
+This task introduced a materialized saved-response summary table so Registered
+Articles can read per-article saved response stats from derived summary rows.
+
+## Adopted implementation
+
+The adopted Cursor implementation added:
+
+- `article_response_stats`
+- saved response count summary
+- saved max saved response number summary
+- summary maintenance from `save_to_db`
+- operator rebuild/backfill command
+
+Operator command:
+
+- `python main.py operator stats rebuild-response-summary --db PATH`
+- `python main.py operator stats rebuild-response-summary --db PATH --apply`
+
+## Schema
+
+New table:
+
+- `article_response_stats`
+
+Primary key:
+
+- `(article_id, article_type)`
+
+Core fields:
+
+- `article_id`
+- `article_type`
+- `saved_response_count`
+- `saved_max_res_no`
+- `stats_updated_at`
+
+## Semantic decision
+
+`Saved Responses` means the number of saved response rows.
+
+`Saved Max Res No` means the raw maximum saved `res_no`.
+
+For no saved rows, the adopted storage-level meaning keeps saved max as NULL.
+Checked-zero display behavior remains a read/display policy.
+
+True observed-board Max Res No remains deferred.
+
+## Why Cursor was adopted
+
+Cursor was adopted because it kept storage semantics closer to the actual saved
+responses data:
+
+- `saved_response_count = COUNT(saved response rows)`
+- `saved_max_res_no = MAX(saved res_no)`
+- no saved rows means NULL at storage level
+- checked-zero display policy remains outside the stored summary
+
+This is a cleaner basis for a later observed-board max implementation.
+
+## Why Copilot was not adopted
+
+Copilot was valid and passed validation.
+
+It was not adopted because its storage-level zero-response behavior used a
+0/0-style summary, which blends saved-row summary semantics with display policy.
+
+## Why Hybrid was not selected
+
+Hybrid was not selected because the key difference was semantic design rather
+than a narrow isolated implementation detail. Mixing implementations would add
+manual integration risk without a clear benefit.
+
+## Validation
+
+Before adoption:
+
+- Cursor sample DB rebuild dry-run passed.
+- Cursor sample DB rebuild apply passed.
+- Sample DB rehearsal wrote summary rows and was then removed.
+- No rehearsal DB was left behind.
+
+After adoption:
+
+- both child repos were synced to product main
+- `compare_helix.sh --all` passed
+- `validate_helix.sh` passed
+- copilot: 484 tests passed
+- cursor: 484 tests passed
+
+## Runtime reflection
+
+Runtime reflection was performed after confirming:
+
+- no periodic lock
+- no soft-stop file
+- no scrape-like process
+
+Runtime checkout was fast-forwarded to product main and runtime was recreated
+with `tools/runtime_up.sh`.
+
+## Runtime DB backfill
+
+Runtime DB dry-run:
+
+- computed articles: 12109
+- existing summary rows: unknown
+- written rows: 0
+
+Runtime DB apply:
+
+- computed articles: 12109
+- existing summary rows: 0
+- written rows: 12109
+
+Post-apply counts:
+
+- articles: 12235
+- responses: 13131174
+- article_response_stats: 12109
+- nonzero summary rows: 12109
+- zero summary rows: 0
+
+No full runtime DB backup was created for this task. This was intentional
+because the operation writes a derived/rebuildable summary table and does not
+rewrite the archive-critical `articles` or `responses` rows.
+
+No temporary rehearsal DB or backup DB remained after the work.
+
+## Runtime Web result
+
+Browser verification succeeded:
+
+- Registered Articles default view rendered.
+- Saved Max Res No descending sort rendered.
+- Summary-backed values appeared in the table.
+
+Observed performance:
+
+- local curl with a 30 second timeout still timed out
+- browser rendering was roughly 20 to 30 seconds by human observation
+- this is acceptable for a personal convenience tool but not a final
+  performance endpoint
+
+## Known limitations
+
+- Registered Articles is still not lightweight.
+- The summary table removes the most obvious per-request response aggregation,
+  but the runtime page still appears slow at current production DB scale.
+- Further query-plan, index, or rendering investigation remains useful.
+- True observed-board Max Res No is still not implemented.
+- Summary drift diagnostics are not implemented.
+
+## Follow-up candidates
+
+Recommended follow-up:
+
+- inspect Registered Articles query plan after summary adoption
+- add missing indexes if query plan indicates avoidable scans
+- add operator summary drift diagnostics
+- later implement true observed-board Max Res No persistence
 
 
 ===== REVIEW LOG: META/review_log/MainTask45_direct_article_title_resolution_20260517.md =====
@@ -14324,7 +14595,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Wed Jun 24 17:05:01 UTC 2026
+generated: Thu Jun 25 17:58:01 UTC 2026
 mode: full
 
 
@@ -15647,6 +15918,53 @@ TASK043 did not modify the runtime DB.
 Runtime apply should wait for a safe maintenance point, preferably after
 soft-terminate support or after the current long shot is stopped.
 
+
+## article_response_stats
+
+Introduced by:
+
+- MainTask048-materialized-article-response-summary
+
+Purpose:
+
+- materialized saved-response summary for Registered Articles
+- avoids aggregating the full `responses` table during normal list display and
+  saved-response aggregate sorts
+
+Primary key:
+
+- `(article_id, article_type)`
+
+Core fields:
+
+- `article_id`
+- `article_type`
+- `saved_response_count`
+- `saved_max_res_no`
+- `stats_updated_at`
+
+Semantics:
+
+- `saved_response_count` means the number of saved response rows for the
+  article identity.
+- `saved_max_res_no` means the raw maximum saved `res_no` for the article
+  identity.
+- If there are no saved response rows, storage-level saved max may be NULL.
+- Checked-zero display behavior is read/display policy and should not be
+  confused with observed-board max semantics.
+
+Important non-goal:
+
+- this table does not implement true observed-board Max Res No.
+- future observed-board max should use an explicit persistence seam and must not
+  be inferred from saved response rows alone.
+
+Operational note:
+
+- existing runtime DBs require explicit operator rebuild/backfill:
+  `python main.py operator stats rebuild-response-summary --db PATH --apply`
+- the rebuild is an operator-controlled maintenance action, not a normal
+  per-request Web path.
 
 
 =============================
@@ -18205,6 +18523,36 @@ git add <intended files>
 git commit -m "Meta: ..."
 git push origin main
 ```
+
+## Runtime DB backup / temporary DB discipline
+
+As of 2026-06, the main runtime SQLite DB is close to 20GB.
+
+Do not suggest or perform a full DB copy merely "just in case".
+
+A full DB backup is allowed, but only after considering:
+
+- whether the operation writes archive-critical tables
+- whether the operation can be safely rerun
+- whether the operation only touches derived or rebuildable tables
+- available disk space
+- expected copy time
+- whether the backup can be deleted promptly after successful verification
+
+Temporary DBs and copied DBs must be planned with cleanup from the start.
+
+Any command sequence that creates a temporary DB or backup DB must also include:
+
+- the expected temporary file path
+- the removal command
+- a verification command confirming the file no longer exists
+
+For commands that may take more than about 10 seconds, mention the duration risk
+before showing the command so the operator does not mistake normal waiting for a
+hang.
+
+A 20GB-class runtime DB backup is not forbidden, but it is not a default safety
+gesture. It is an explicit operational decision.
 
 
 =============================
@@ -21570,6 +21918,167 @@ Editor AI model/tool information if available
 - Tools used: workspace file reads/search, apply_patch, terminal validation
 
 =============================
+FILE: copilot/MainTask048-materialized-article-response-summary_report.txt
+=============================
+MainTask048-materialized-article-response-summary — implementation report
+
+Editor AI model
+---------------
+Claude (Cursor agent)
+
+Summary
+-------
+Introduced a bounded materialized per-article saved-response summary table,
+`article_response_stats`. Registered Articles now reads saved response stats
+from this summary instead of aggregating the full `responses` table on every
+request. Aggregate sorts (`saved_response_count`, `saved_max_res_no`) read the
+summary directly. Saving responses maintains the summary for the affected
+article. An operator-facing rebuild/backfill command (dry-run by default)
+recomputes the summary from `responses`.
+
+Files changed
+-------------
+- storage.py
+- archive_read.py
+- main.py
+- tests/test_storage.py
+- tests/test_archive_read.py
+- tests/test_main.py
+
+Schema/table design
+-------------------
+New table (created by `init_db`, so existing DBs migrate on next writer open):
+
+  CREATE TABLE IF NOT EXISTS article_response_stats (
+      article_id TEXT NOT NULL,
+      article_type TEXT NOT NULL,
+      saved_response_count INTEGER NOT NULL DEFAULT 0,
+      saved_max_res_no INTEGER,
+      stats_updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (article_id, article_type)
+  )
+
+PRIMARY KEY (article_id, article_type) provides the lookup/upsert index. No
+index was added on the 13M-row `responses` table.
+
+Saved response summary semantics
+--------------------------------
+- `saved_response_count` = COUNT of saved response rows for the identity.
+- `saved_max_res_no` = raw MAX(res_no) of saved rows; NULL when no saved rows.
+- Zero-response checked articles: stored as `saved_response_count=0`,
+  `saved_max_res_no=NULL`. The "checked board with 0 posts shows Saved Max Res
+  No = 0" rule remains in the read/display layer, keyed on `last_scraped_at`
+  (unchanged from prior behavior). This keeps the stored summary a faithful
+  reflection of saved rows and avoids baking display policy into storage.
+- Maintenance is recompute-from-responses (bounded to one identity), so
+  duplicate `INSERT OR IGNORE` saves never overcount.
+
+Backfill/rebuild behavior
+--------------------------
+storage.py:
+- `recompute_article_response_stats(conn, article_id, article_type)` — single
+  identity upsert; called by `save_to_db`.
+- `compute_all_article_response_stats(conn)` — full GROUP BY snapshot.
+- `rebuild_article_response_stats(conn, *, dry_run=True)` — rebuild whole table.
+- `rebuild_article_response_stats_for_db(db_path, *, apply=False)` —
+  operator seam; requires explicit existing db_path; dry-run opens read-only
+  (no writes), apply opens via init_db and replaces summary rows.
+- `format_response_stats_rebuild_lines(db_path, summary)` — operator output.
+
+main.py CLI (mirrors `operator merge canonical-url` maintenance pattern):
+  python main.py operator stats rebuild-response-summary --db PATH [--apply]
+- Requires explicit --db (refuses implicit runtime DB).
+- Dry-run by default; `--apply` performs writes.
+- Reports computed articles, existing summary rows, written rows.
+
+Registered Articles query behavior before/after
+------------------------------------------------
+Before: every request joined a global `responses` GROUP BY
+(COUNT(id), MAX(res_no)) before pagination; aggregate sorts ordered on it.
+
+After:
+- Fast-path sorts (created_at, last_scraped_at, title, article_id): paginate
+  targets first, then read summary stats for the page identities via
+  `(article_id, article_type) IN (...)` against `article_response_stats`.
+- Aggregate sorts (saved_response_count, saved_max_res_no): LEFT JOIN
+  `article_response_stats` directly (no responses aggregation) and ORDER BY the
+  summary columns.
+- Neither normal-page render nor aggregate sort performs an unbounded full
+  `responses GROUP BY` once the summary exists.
+
+Compatibility decisions
+------------------------
+- Public result shape unchanged; UI labels `Saved Responses` /
+  `Saved Max Res No` unchanged.
+- Legacy sort alias `latest_scraped_max_res_no` still maps to
+  `saved_max_res_no` (unchanged) and is covered by a test.
+- Missing summary row (not-yet-backfilled identity) on the fast path falls back
+  to a bounded responses aggregation limited to the page identities only.
+- Missing summary table entirely (old DB opened read-only before any writer
+  init): both paths fall back to the previous responses-based aggregation
+  (fast path: page-bounded; aggregate path: target-scoped subquery). No crash.
+
+Tests / validation run
+----------------------
+storage tests: init creates summary table; save updates count/max; more
+responses grow summary; duplicate saves do not overcount; zero-response checked
+stored as (0, NULL); compute_all groups by identity; rebuild dry-run writes
+nothing; rebuild apply writes expected rows; for-db dry-run default and apply.
+
+archive_read tests: fast path reads display stats from summary; aggregate sorts
+read stats from summary; fast path falls back when summary row missing; no crash
+when summary table absent (fast + aggregate). Existing sort/search/zero-board/
+legacy-alias tests retained.
+
+main tests: rebuild requires explicit --db; dry-run reports counts and writes
+nothing; apply writes expected summary rows.
+
+Checks:
+- git diff --check — passed
+- ./validate.sh — passed (484 tests, flake8 clean)
+
+Known limitations
+-----------------
+- Aggregate sort correctness at scale depends on the summary being populated.
+  Going forward `save_to_db` maintains it; existing data needs a one-time
+  backfill (`operator stats rebuild-response-summary --db PATH --apply`).
+  Until backfill, aggregate sorts on a large pre-existing DB without the summary
+  table fall back to the prior bounded target-scoped aggregation (slower but
+  correct); once the table exists but rows are absent, aggregate sort treats
+  missing as 0 (COALESCE) — backfill resolves this.
+- The rebuild itself performs a full `responses` GROUP BY; it is an explicit,
+  operator-controlled maintenance command, not a per-request path.
+- True observed-board Max Res No is still not implemented (deferred).
+
+Runtime apply notes
+-------------------
+1. Copy the runtime DB to a scratch path first.
+2. Dry-run: operator stats rebuild-response-summary --db /path/copy.db
+3. Verify reported counts.
+4. Apply on the copy: add --apply; re-check Registered Articles behavior.
+5. Only after human review, apply to the runtime DB during a safe window.
+   (This task does not modify the runtime DB.)
+
+Non-goals preserved
+-------------------
+- No observed-board Max Res No; no scrape-run identity/mark display.
+- No UI redesign; no removed columns; no Postgres; no ORM.
+- No queue/scheduler/Delete Feeder/scraping policy changes.
+- No runtime DB/checkout/cron/Docker changes; no live scraping.
+- No sibling/root/meta changes.
+- Archive-critical writes remain strict; no responses deleted/rewritten by
+  normal application paths (summary maintenance only reads responses).
+
+Recommended follow-up tasks
+---------------------------
+1. Operator runbook entry + scheduled/periodic summary integrity check.
+2. Optional: maintain summary incrementally on delete/trim paths if any are
+   added later.
+3. Future observed-board max can extend this table with an
+   `observed_board_max_res_no` column and a separate capture path.
+
+
+=============================
 FILE: copilot/Makefile
 =============================
 .PHONY: build run test lint clean inspect
@@ -24418,9 +24927,18 @@ def _registered_build_search_clause(search):
     return where_sql, where_params
 
 
-def _registered_fetch_response_stats(conn, identities):
-    """Read saved COUNT/MAX(res_no) for explicit article identities only."""
+def _registered_has_article_response_stats_table(conn):
+    """Return whether the materialized summary table exists (older DB compat)."""
 
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT name FROM sqlite_master "
+        "WHERE type='table' AND name='article_response_stats'"
+    )
+    return cur.fetchone() is not None
+
+
+def _registered_unique_identities(identities):
     unique = []
     seen = set()
     for article_id, article_type in identities:
@@ -24431,8 +24949,33 @@ def _registered_fetch_response_stats(conn, identities):
             continue
         seen.add(key)
         unique.append(key)
-    if not unique:
-        return {}
+    return unique
+
+
+def _registered_stats_from_summary(conn, unique):
+    placeholders = ",".join(["(?, ?)"] * len(unique))
+    params = [part for pair in unique for part in pair]
+    cur = conn.cursor()
+    cur.execute(
+        f"""
+        SELECT article_id, article_type, saved_response_count, saved_max_res_no
+        FROM article_response_stats
+        WHERE (article_id, article_type) IN ({placeholders})
+        """,
+        params,
+    )
+    return {
+        (row[0], row[1]): {"count": int(row[2]), "max_res": row[3]}
+        for row in cur.fetchall()
+    }
+
+
+def _registered_stats_from_responses(conn, unique):
+    """Bounded fallback: aggregate responses for the given identities only.
+
+    Bounded to the page identities (at most one page worth), so this never
+    performs an unbounded full-table aggregation.
+    """
 
     placeholders = ",".join(["(?, ?)"] * len(unique))
     params = [part for pair in unique for part in pair]
@@ -24450,6 +24993,28 @@ def _registered_fetch_response_stats(conn, identities):
         (row[0], row[1]): {"count": int(row[2]), "max_res": row[3]}
         for row in cur.fetchall()
     }
+
+
+def _registered_fetch_response_stats(conn, identities):
+    """Read saved stats for explicit page identities from the summary table.
+
+    Falls back to a bounded responses aggregation only for identities that are
+    missing from the summary (e.g. a not-yet-backfilled DB).
+    """
+
+    unique = _registered_unique_identities(identities)
+    if not unique:
+        return {}
+
+    if _registered_has_article_response_stats_table(conn):
+        stats = _registered_stats_from_summary(conn, unique)
+    else:
+        stats = {}
+
+    missing = [key for key in unique if key not in stats]
+    if missing:
+        stats.update(_registered_stats_from_responses(conn, missing))
+    return stats
 
 
 def _registered_display_saved_max_res_no(
@@ -24759,7 +25324,12 @@ def query_registered_articles(
                 for shell_row in shell_rows
             ]
         else:
-            stats_sql = _registered_target_scoped_response_stats_sql()
+            if _registered_has_article_response_stats_table(conn):
+                stats_source_sql = "article_response_stats"
+            else:
+                stats_source_sql = (
+                    "(" + _registered_target_scoped_response_stats_sql() + ")"
+                )
             data_sql = base_cte_sql + f"""
                 SELECT
                     rt.target_article_id,
@@ -24771,9 +25341,7 @@ def query_registered_articles(
                     ({max_res_sql}) AS saved_max_res_no,
                     rt.matched_last_scraped_at AS last_scraped_at
                 FROM resolved_targets AS rt
-                LEFT JOIN (
-                    {stats_sql}
-                ) AS rs
+                LEFT JOIN {stats_source_sql} AS rs
                     ON rt.matched_article_id = rs.article_id
                     AND rt.matched_article_type = rs.article_type
                 {where_sql}
@@ -29472,9 +30040,11 @@ from orchestrator import run_scrape
 from storage import (
     DEFAULT_DB_PATH,
     append_scrape_run_observation,
+    format_response_stats_rebuild_lines,
     format_run_telemetry_csv_wide,
     init_db,
     open_readonly_db,
+    rebuild_article_response_stats_for_db,
 )
 from target_ordering import TargetOrderConfig
 from target_ordering import format_target_order_log_line
@@ -30895,6 +31465,10 @@ def _print_operator_usage():
         "  python main.py operator registered-articles export-csv "
         "[--output PATH]"
     )
+    print(
+        "  python main.py operator stats rebuild-response-summary "
+        "--db PATH [--apply]"
+    )
 
 
 def _handle_show_scraped_res(args):
@@ -31159,9 +31733,55 @@ def _handle_operator_cli(args):
     if area == "registered-articles":
         _handle_operator_registered_articles(args[1:])
         return
+    if area == "stats":
+        _handle_operator_stats(args[1:])
+        return
 
     _print_operator_usage()
     sys.exit(1)
+
+
+def _handle_operator_stats(args):
+    usage = (
+        "Usage: operator stats rebuild-response-summary --db PATH [--apply]"
+    )
+    if not args or args[0] != "rebuild-response-summary":
+        print(usage, file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        db_path = _read_optional_flag(args, "--db", None)
+    except ValueError:
+        print(usage, file=sys.stderr)
+        sys.exit(1)
+
+    if not db_path:
+        print(
+            "operator stats rebuild-response-summary requires an explicit "
+            "--db PATH",
+            file=sys.stderr,
+        )
+        print(
+            "Refusing to use the runtime DB as an implicit default.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    apply_flag = "--apply" in args[1:]
+
+    try:
+        summary = rebuild_article_response_stats_for_db(
+            db_path, apply=apply_flag
+        )
+    except FileNotFoundError as exc:
+        print(f"DB path does not exist: {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        print(f"Invalid input: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    for line in format_response_stats_rebuild_lines(db_path, summary):
+        print(line)
 
 
 def _handle_operator_registered_articles(args):
@@ -34135,8 +34755,176 @@ def init_db(db_path: str = DEFAULT_DB_PATH):
     )
     """)
 
+    # Materialized per-article saved response summary.
+    # saved_max_res_no stores raw MAX(res_no); NULL when no saved rows.
+    # The checked-zero -> 0 display rule stays in the read layer.
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS article_response_stats (
+        article_id TEXT NOT NULL,
+        article_type TEXT NOT NULL,
+        saved_response_count INTEGER NOT NULL DEFAULT 0,
+        saved_max_res_no INTEGER,
+        stats_updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (article_id, article_type)
+    )
+    """)
+
     conn.commit()
     return conn
+
+
+def recompute_article_response_stats(conn, article_id, article_type):
+    """Recompute the saved response summary for one article identity.
+
+    Bounded to a single ``(article_id, article_type)`` so it uses the
+    responses UNIQUE index; safe against duplicate saves (recomputes from
+    the authoritative ``responses`` rows rather than incrementing).
+    """
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT COUNT(id), MAX(res_no)
+        FROM responses
+        WHERE article_id = ? AND article_type = ?
+        """,
+        (article_id, article_type),
+    )
+    count_row = cur.fetchone()
+    saved_response_count = int(count_row[0]) if count_row else 0
+    saved_max_res_no = count_row[1] if count_row else None
+    updated_at = datetime.now(timezone.utc).isoformat()
+
+    cur.execute(
+        """
+        INSERT INTO article_response_stats
+            (article_id, article_type, saved_response_count,
+             saved_max_res_no, stats_updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(article_id, article_type) DO UPDATE SET
+            saved_response_count = excluded.saved_response_count,
+            saved_max_res_no = excluded.saved_max_res_no,
+            stats_updated_at = excluded.stats_updated_at
+        """,
+        (
+            article_id,
+            article_type,
+            saved_response_count,
+            saved_max_res_no,
+            updated_at,
+        ),
+    )
+    return {
+        "saved_response_count": saved_response_count,
+        "saved_max_res_no": saved_max_res_no,
+    }
+
+
+def compute_all_article_response_stats(conn):
+    """Return per-article saved response stats from the responses table."""
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT article_id, article_type, COUNT(id), MAX(res_no)
+        FROM responses
+        GROUP BY article_id, article_type
+        """
+    )
+    return [
+        (row[0], row[1], int(row[2]), row[3])
+        for row in cur.fetchall()
+    ]
+
+
+def rebuild_article_response_stats(conn, *, dry_run=True):
+    """Rebuild the whole summary table from the responses table.
+
+    ``dry_run=True`` computes counts without writing. Returns a summary dict.
+    """
+
+    computed = compute_all_article_response_stats(conn)
+
+    try:
+        existing_row = conn.execute(
+            "SELECT COUNT(*) FROM article_response_stats"
+        ).fetchone()
+        existing_summary_rows = int(existing_row[0]) if existing_row else 0
+    except sqlite3.OperationalError:
+        existing_summary_rows = None
+
+    written_rows = 0
+    if not dry_run:
+        updated_at = datetime.now(timezone.utc).isoformat()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM article_response_stats")
+        cur.executemany(
+            """
+            INSERT INTO article_response_stats
+                (article_id, article_type, saved_response_count,
+                 saved_max_res_no, stats_updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            [
+                (aid, atype, count, max_res, updated_at)
+                for (aid, atype, count, max_res) in computed
+            ],
+        )
+        written_rows = cur.rowcount if cur.rowcount != -1 else len(computed)
+        conn.commit()
+
+    return {
+        "dry_run": dry_run,
+        "computed_articles": len(computed),
+        "existing_summary_rows": existing_summary_rows,
+        "written_rows": written_rows,
+    }
+
+
+def rebuild_article_response_stats_for_db(db_path, *, apply=False):
+    """Operator-facing seam to rebuild the summary from responses.
+
+    Requires an explicit DB path. ``apply=False`` (default) is a safe dry-run
+    that does not modify the database (opened read-only).
+    """
+
+    if not db_path:
+        raise ValueError(
+            "explicit db_path is required; refusing implicit default"
+        )
+    if not Path(db_path).exists():
+        raise FileNotFoundError(f"db_path does not exist: {db_path}")
+
+    if apply:
+        conn = init_db(db_path)
+        try:
+            return rebuild_article_response_stats(conn, dry_run=False)
+        finally:
+            conn.close()
+
+    conn = open_readonly_db(db_path)
+    if conn is None:
+        raise FileNotFoundError(f"db_path does not exist: {db_path}")
+    try:
+        return rebuild_article_response_stats(conn, dry_run=True)
+    finally:
+        conn.close()
+
+
+def format_response_stats_rebuild_lines(db_path, summary):
+    """Human-readable, line-oriented operator output for the rebuild."""
+
+    mode = "apply" if not summary["dry_run"] else "dry-run"
+    existing = summary["existing_summary_rows"]
+    existing_display = "unknown" if existing is None else str(existing)
+    return [
+        "=== ARTICLE RESPONSE STATS REBUILD ===",
+        f"DB: {db_path}",
+        f"Mode: {mode}",
+        f"Computed articles: {summary['computed_articles']}",
+        f"Existing summary rows: {existing_display}",
+        f"Written rows: {summary['written_rows']}",
+    ]
 
 
 def save_to_db(
@@ -34207,6 +34995,8 @@ def save_to_db(
             r.get("content"),
             r.get("content_html"),
         ))
+
+    recompute_article_response_stats(conn, article_id, article_type)
 
     conn.commit()
 
@@ -36793,6 +37583,107 @@ def test_query_registered_legacy_sort_alias_maps_to_saved_max_res_no(
     ]
 
 
+def test_query_registered_fast_path_reads_display_stats_from_summary(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    conn = init_db()
+    try:
+        conn.execute(
+            """
+            UPDATE article_response_stats
+            SET saved_response_count=99, saved_max_res_no=99
+            WHERE article_id=? AND article_type=?
+            """,
+            ("12345", "a"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    result = query_registered_articles(sort_by="created_at")
+
+    row = result["rows"][0]
+    assert row["saved_response_count"] == 99
+    assert row["saved_max_res_no"] == 99
+
+
+def test_query_registered_aggregate_sort_reads_stats_from_summary(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    conn = init_db()
+    try:
+        conn.execute(
+            """
+            UPDATE article_response_stats
+            SET saved_response_count=77, saved_max_res_no=88
+            WHERE article_id=? AND article_type=?
+            """,
+            ("12345", "a"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    count_sorted = query_registered_articles(
+        sort_by="saved_response_count",
+        paginate=False,
+    )
+    max_sorted = query_registered_articles(
+        sort_by="saved_max_res_no",
+        paginate=False,
+    )
+
+    assert count_sorted["rows"][0]["saved_response_count"] == 77
+    assert max_sorted["rows"][0]["saved_max_res_no"] == 88
+
+
+def test_query_registered_fast_path_falls_back_when_summary_row_missing(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    conn = init_db()
+    try:
+        conn.execute("DELETE FROM article_response_stats")
+        conn.commit()
+    finally:
+        conn.close()
+
+    result = query_registered_articles(sort_by="created_at")
+
+    row = result["rows"][0]
+    assert row["saved_response_count"] == 1
+    assert row["saved_max_res_no"] == 1
+
+
+def test_query_registered_does_not_crash_when_summary_table_absent(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    conn = init_db()
+    try:
+        conn.execute("DROP TABLE article_response_stats")
+        conn.commit()
+    finally:
+        conn.close()
+
+    fast = query_registered_articles(sort_by="created_at")
+    aggregate = query_registered_articles(sort_by="saved_response_count")
+
+    assert fast["rows"][0]["saved_response_count"] == 1
+    assert fast["rows"][0]["saved_max_res_no"] == 1
+    assert aggregate["rows"][0]["saved_response_count"] == 1
+
+
 def test_registered_article_columns_keys_are_consistent():
     keys = [col["key"] for col in REGISTERED_ARTICLE_COLUMNS]
     assert "article_id" in keys
@@ -39043,7 +39934,130 @@ import pytest
 
 import main as main_module
 from orchestrator import ScrapeResult
-from storage import init_db
+from storage import init_db, save_to_db
+
+
+def test_main_operator_stats_rebuild_requires_explicit_db(capsys):
+    with patch("sys.argv", ["main.py", "operator", "stats",
+                            "rebuild-response-summary"]):
+        with pytest.raises(SystemExit) as exc:
+            main_module.main()
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert "requires an explicit --db PATH" in err
+
+
+def test_main_operator_stats_rebuild_dry_run_reports_counts(
+    tmp_path, monkeypatch, capsys,
+):
+    monkeypatch.chdir(tmp_path)
+    db_path = tmp_path / "data" / "nicodic.db"
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "111",
+            "a",
+            "A",
+            "https://dic.nicovideo.jp/a/111",
+            [
+                {
+                    "res_no": 1,
+                    "id_hash": "h1",
+                    "poster_name": "P",
+                    "posted_at": "2025-01-01 00:00",
+                    "content": "c1",
+                    "content_html": "<p>c1</p>",
+                }
+            ],
+        )
+        conn.execute("DELETE FROM article_response_stats")
+        conn.commit()
+    finally:
+        conn.close()
+
+    with patch(
+        "sys.argv",
+        ["main.py", "operator", "stats", "rebuild-response-summary",
+         "--db", str(db_path)],
+    ):
+        main_module.main()
+
+    out = capsys.readouterr().out
+    assert "ARTICLE RESPONSE STATS REBUILD" in out
+    assert "Mode: dry-run" in out
+    assert "Computed articles: 1" in out
+
+    check = init_db(str(db_path))
+    try:
+        cur = check.cursor()
+        cur.execute("SELECT COUNT(*) FROM article_response_stats")
+        assert cur.fetchone()[0] == 0
+    finally:
+        check.close()
+
+
+def test_main_operator_stats_rebuild_apply_writes_summary(
+    tmp_path, monkeypatch, capsys,
+):
+    monkeypatch.chdir(tmp_path)
+    db_path = tmp_path / "data" / "nicodic.db"
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "111",
+            "a",
+            "A",
+            "https://dic.nicovideo.jp/a/111",
+            [
+                {
+                    "res_no": 1,
+                    "id_hash": "h1",
+                    "poster_name": "P",
+                    "posted_at": "2025-01-01 00:00",
+                    "content": "c1",
+                    "content_html": "<p>c1</p>",
+                },
+                {
+                    "res_no": 4,
+                    "id_hash": "h4",
+                    "poster_name": "P",
+                    "posted_at": "2025-01-01 00:00",
+                    "content": "c4",
+                    "content_html": "<p>c4</p>",
+                },
+            ],
+        )
+        conn.execute("DELETE FROM article_response_stats")
+        conn.commit()
+    finally:
+        conn.close()
+
+    with patch(
+        "sys.argv",
+        ["main.py", "operator", "stats", "rebuild-response-summary",
+         "--db", str(db_path), "--apply"],
+    ):
+        main_module.main()
+
+    out = capsys.readouterr().out
+    assert "Mode: apply" in out
+
+    check = init_db(str(db_path))
+    try:
+        cur = check.cursor()
+        cur.execute(
+            """
+            SELECT saved_response_count, saved_max_res_no
+            FROM article_response_stats
+            WHERE article_id=? AND article_type=?
+            """,
+            ("111", "a"),
+        )
+        assert cur.fetchone() == (2, 4)
+    finally:
+        check.close()
 
 
 @patch("main.run_scrape")
@@ -44643,8 +45657,10 @@ import sqlite3
 import storage
 from storage import (
     append_scrape_run_observation,
+    compute_all_article_response_stats,
     dequeue_canonical_target,
     enqueue_canonical_target,
+    format_response_stats_rebuild_lines,
     format_run_telemetry_csv_wide,
     get_target,
     init_db,
@@ -44652,11 +45668,37 @@ from storage import (
     list_targets,
     mark_target_redirected,
     open_readonly_db,
+    rebuild_article_response_stats,
+    rebuild_article_response_stats_for_db,
     register_target,
     save_json,
     save_to_db,
     set_target_active_state,
 )
+
+
+def _read_stats_row(conn, article_id, article_type):
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT saved_response_count, saved_max_res_no
+        FROM article_response_stats
+        WHERE article_id=? AND article_type=?
+        """,
+        (article_id, article_type),
+    )
+    return cur.fetchone()
+
+
+def _make_response(res_no):
+    return {
+        "res_no": res_no,
+        "id_hash": f"h{res_no}",
+        "poster_name": "P",
+        "posted_at": "2025-01-01 00:00",
+        "content": f"c{res_no}",
+        "content_html": f"<p>c{res_no}</p>",
+    }
 
 
 def _table_names(conn: sqlite3.Connection) -> set[str]:
@@ -44705,8 +45747,239 @@ def test_init_db_creates_data_dir_db_and_tables(tmp_path, monkeypatch):
         assert "queue_requests" in tables
         assert "target" in tables
         assert "scrape_run_observation" in tables
+        assert "article_response_stats" in tables
     finally:
         conn.close()
+
+
+def test_save_to_db_updates_response_summary(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "12345",
+            "a",
+            "Title",
+            "https://dic.nicovideo.jp/a/12345",
+            [_make_response(1), _make_response(2)],
+        )
+        assert _read_stats_row(conn, "12345", "a") == (2, 2)
+    finally:
+        conn.close()
+
+
+def test_save_to_db_summary_grows_with_more_responses(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        url = "https://dic.nicovideo.jp/a/12345"
+        save_to_db(conn, "12345", "a", "Title", url, [_make_response(1)])
+        assert _read_stats_row(conn, "12345", "a") == (1, 1)
+
+        save_to_db(
+            conn,
+            "12345",
+            "a",
+            "Title",
+            url,
+            [_make_response(2), _make_response(3)],
+        )
+        assert _read_stats_row(conn, "12345", "a") == (3, 3)
+    finally:
+        conn.close()
+
+
+def test_save_to_db_summary_does_not_overcount_duplicates(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        url = "https://dic.nicovideo.jp/a/12345"
+        responses = [_make_response(1), _make_response(2)]
+        save_to_db(conn, "12345", "a", "Title", url, responses)
+        save_to_db(conn, "12345", "a", "Title", url, responses)
+        assert _read_stats_row(conn, "12345", "a") == (2, 2)
+    finally:
+        conn.close()
+
+
+def test_save_to_db_summary_zero_response_checked_article(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "7711002",
+            "a",
+            "Checked Zero",
+            "https://dic.nicovideo.jp/a/7711002",
+            [],
+            latest_scraped_at="2026-06-07T08:09:10+00:00",
+        )
+        # Raw summary: count 0, max NULL. The 0-display rule lives in the
+        # read layer (keyed on last_scraped_at), not the stored summary.
+        assert _read_stats_row(conn, "7711002", "a") == (0, None)
+    finally:
+        conn.close()
+
+
+def test_compute_all_article_response_stats_groups_by_identity(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "111",
+            "a",
+            "A",
+            "https://dic.nicovideo.jp/a/111",
+            [_make_response(1), _make_response(2)],
+        )
+        save_to_db(
+            conn,
+            "222",
+            "a",
+            "B",
+            "https://dic.nicovideo.jp/a/222",
+            [_make_response(5)],
+        )
+        computed = dict(
+            ((aid, atype), (count, max_res))
+            for (aid, atype, count, max_res) in (
+                compute_all_article_response_stats(conn)
+            )
+        )
+        assert computed[("111", "a")] == (2, 2)
+        assert computed[("222", "a")] == (1, 5)
+    finally:
+        conn.close()
+
+
+def test_rebuild_article_response_stats_dry_run_does_not_write(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "111",
+            "a",
+            "A",
+            "https://dic.nicovideo.jp/a/111",
+            [_make_response(1)],
+        )
+        conn.execute("DELETE FROM article_response_stats")
+        conn.commit()
+
+        summary = rebuild_article_response_stats(conn, dry_run=True)
+        assert summary["dry_run"] is True
+        assert summary["computed_articles"] == 1
+        assert summary["existing_summary_rows"] == 0
+        assert summary["written_rows"] == 0
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM article_response_stats")
+        assert cur.fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_rebuild_article_response_stats_apply_writes_expected_rows(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "111",
+            "a",
+            "A",
+            "https://dic.nicovideo.jp/a/111",
+            [_make_response(1), _make_response(7)],
+        )
+        conn.execute("DELETE FROM article_response_stats")
+        conn.commit()
+
+        summary = rebuild_article_response_stats(conn, dry_run=False)
+        assert summary["dry_run"] is False
+        assert summary["computed_articles"] == 1
+        assert _read_stats_row(conn, "111", "a") == (2, 7)
+    finally:
+        conn.close()
+
+
+def test_rebuild_article_response_stats_for_db_dry_run_default(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    db_path = tmp_path / "data" / "nicodic.db"
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "111",
+            "a",
+            "A",
+            "https://dic.nicovideo.jp/a/111",
+            [_make_response(1)],
+        )
+        conn.execute("DELETE FROM article_response_stats")
+        conn.commit()
+    finally:
+        conn.close()
+
+    summary = rebuild_article_response_stats_for_db(str(db_path))
+    assert summary["dry_run"] is True
+    assert summary["computed_articles"] == 1
+
+    check = init_db(str(db_path))
+    try:
+        cur = check.cursor()
+        cur.execute("SELECT COUNT(*) FROM article_response_stats")
+        # dry-run wrote nothing; init_db re-open does not backfill
+        assert cur.fetchone()[0] == 0
+    finally:
+        check.close()
+
+    lines = format_response_stats_rebuild_lines(str(db_path), summary)
+    assert any("Mode: dry-run" in line for line in lines)
+
+
+def test_rebuild_article_response_stats_for_db_apply_writes(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    db_path = tmp_path / "data" / "nicodic.db"
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "111",
+            "a",
+            "A",
+            "https://dic.nicovideo.jp/a/111",
+            [_make_response(1), _make_response(2)],
+        )
+        conn.execute("DELETE FROM article_response_stats")
+        conn.commit()
+    finally:
+        conn.close()
+
+    summary = rebuild_article_response_stats_for_db(str(db_path), apply=True)
+    assert summary["dry_run"] is False
+
+    check = init_db(str(db_path))
+    try:
+        assert _read_stats_row(check, "111", "a") == (2, 2)
+    finally:
+        check.close()
 
 
 def test_save_to_db_inserts_article_and_responses_and_mapping(tmp_path, monkeypatch):
@@ -52691,6 +53964,167 @@ Editor AI model/tool information if available
 - Tools used: workspace file reads/search, apply_patch, terminal validation
 
 =============================
+FILE: cursor/MainTask048-materialized-article-response-summary_report.txt
+=============================
+MainTask048-materialized-article-response-summary — implementation report
+
+Editor AI model
+---------------
+Claude (Cursor agent)
+
+Summary
+-------
+Introduced a bounded materialized per-article saved-response summary table,
+`article_response_stats`. Registered Articles now reads saved response stats
+from this summary instead of aggregating the full `responses` table on every
+request. Aggregate sorts (`saved_response_count`, `saved_max_res_no`) read the
+summary directly. Saving responses maintains the summary for the affected
+article. An operator-facing rebuild/backfill command (dry-run by default)
+recomputes the summary from `responses`.
+
+Files changed
+-------------
+- storage.py
+- archive_read.py
+- main.py
+- tests/test_storage.py
+- tests/test_archive_read.py
+- tests/test_main.py
+
+Schema/table design
+-------------------
+New table (created by `init_db`, so existing DBs migrate on next writer open):
+
+  CREATE TABLE IF NOT EXISTS article_response_stats (
+      article_id TEXT NOT NULL,
+      article_type TEXT NOT NULL,
+      saved_response_count INTEGER NOT NULL DEFAULT 0,
+      saved_max_res_no INTEGER,
+      stats_updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+      PRIMARY KEY (article_id, article_type)
+  )
+
+PRIMARY KEY (article_id, article_type) provides the lookup/upsert index. No
+index was added on the 13M-row `responses` table.
+
+Saved response summary semantics
+--------------------------------
+- `saved_response_count` = COUNT of saved response rows for the identity.
+- `saved_max_res_no` = raw MAX(res_no) of saved rows; NULL when no saved rows.
+- Zero-response checked articles: stored as `saved_response_count=0`,
+  `saved_max_res_no=NULL`. The "checked board with 0 posts shows Saved Max Res
+  No = 0" rule remains in the read/display layer, keyed on `last_scraped_at`
+  (unchanged from prior behavior). This keeps the stored summary a faithful
+  reflection of saved rows and avoids baking display policy into storage.
+- Maintenance is recompute-from-responses (bounded to one identity), so
+  duplicate `INSERT OR IGNORE` saves never overcount.
+
+Backfill/rebuild behavior
+--------------------------
+storage.py:
+- `recompute_article_response_stats(conn, article_id, article_type)` — single
+  identity upsert; called by `save_to_db`.
+- `compute_all_article_response_stats(conn)` — full GROUP BY snapshot.
+- `rebuild_article_response_stats(conn, *, dry_run=True)` — rebuild whole table.
+- `rebuild_article_response_stats_for_db(db_path, *, apply=False)` —
+  operator seam; requires explicit existing db_path; dry-run opens read-only
+  (no writes), apply opens via init_db and replaces summary rows.
+- `format_response_stats_rebuild_lines(db_path, summary)` — operator output.
+
+main.py CLI (mirrors `operator merge canonical-url` maintenance pattern):
+  python main.py operator stats rebuild-response-summary --db PATH [--apply]
+- Requires explicit --db (refuses implicit runtime DB).
+- Dry-run by default; `--apply` performs writes.
+- Reports computed articles, existing summary rows, written rows.
+
+Registered Articles query behavior before/after
+------------------------------------------------
+Before: every request joined a global `responses` GROUP BY
+(COUNT(id), MAX(res_no)) before pagination; aggregate sorts ordered on it.
+
+After:
+- Fast-path sorts (created_at, last_scraped_at, title, article_id): paginate
+  targets first, then read summary stats for the page identities via
+  `(article_id, article_type) IN (...)` against `article_response_stats`.
+- Aggregate sorts (saved_response_count, saved_max_res_no): LEFT JOIN
+  `article_response_stats` directly (no responses aggregation) and ORDER BY the
+  summary columns.
+- Neither normal-page render nor aggregate sort performs an unbounded full
+  `responses GROUP BY` once the summary exists.
+
+Compatibility decisions
+------------------------
+- Public result shape unchanged; UI labels `Saved Responses` /
+  `Saved Max Res No` unchanged.
+- Legacy sort alias `latest_scraped_max_res_no` still maps to
+  `saved_max_res_no` (unchanged) and is covered by a test.
+- Missing summary row (not-yet-backfilled identity) on the fast path falls back
+  to a bounded responses aggregation limited to the page identities only.
+- Missing summary table entirely (old DB opened read-only before any writer
+  init): both paths fall back to the previous responses-based aggregation
+  (fast path: page-bounded; aggregate path: target-scoped subquery). No crash.
+
+Tests / validation run
+----------------------
+storage tests: init creates summary table; save updates count/max; more
+responses grow summary; duplicate saves do not overcount; zero-response checked
+stored as (0, NULL); compute_all groups by identity; rebuild dry-run writes
+nothing; rebuild apply writes expected rows; for-db dry-run default and apply.
+
+archive_read tests: fast path reads display stats from summary; aggregate sorts
+read stats from summary; fast path falls back when summary row missing; no crash
+when summary table absent (fast + aggregate). Existing sort/search/zero-board/
+legacy-alias tests retained.
+
+main tests: rebuild requires explicit --db; dry-run reports counts and writes
+nothing; apply writes expected summary rows.
+
+Checks:
+- git diff --check — passed
+- ./validate.sh — passed (484 tests, flake8 clean)
+
+Known limitations
+-----------------
+- Aggregate sort correctness at scale depends on the summary being populated.
+  Going forward `save_to_db` maintains it; existing data needs a one-time
+  backfill (`operator stats rebuild-response-summary --db PATH --apply`).
+  Until backfill, aggregate sorts on a large pre-existing DB without the summary
+  table fall back to the prior bounded target-scoped aggregation (slower but
+  correct); once the table exists but rows are absent, aggregate sort treats
+  missing as 0 (COALESCE) — backfill resolves this.
+- The rebuild itself performs a full `responses` GROUP BY; it is an explicit,
+  operator-controlled maintenance command, not a per-request path.
+- True observed-board Max Res No is still not implemented (deferred).
+
+Runtime apply notes
+-------------------
+1. Copy the runtime DB to a scratch path first.
+2. Dry-run: operator stats rebuild-response-summary --db /path/copy.db
+3. Verify reported counts.
+4. Apply on the copy: add --apply; re-check Registered Articles behavior.
+5. Only after human review, apply to the runtime DB during a safe window.
+   (This task does not modify the runtime DB.)
+
+Non-goals preserved
+-------------------
+- No observed-board Max Res No; no scrape-run identity/mark display.
+- No UI redesign; no removed columns; no Postgres; no ORM.
+- No queue/scheduler/Delete Feeder/scraping policy changes.
+- No runtime DB/checkout/cron/Docker changes; no live scraping.
+- No sibling/root/meta changes.
+- Archive-critical writes remain strict; no responses deleted/rewritten by
+  normal application paths (summary maintenance only reads responses).
+
+Recommended follow-up tasks
+---------------------------
+1. Operator runbook entry + scheduled/periodic summary integrity check.
+2. Optional: maintain summary incrementally on delete/trim paths if any are
+   added later.
+3. Future observed-board max can extend this table with an
+   `observed_board_max_res_no` column and a separate capture path.
+
+
+=============================
 FILE: cursor/Makefile
 =============================
 .PHONY: build run test lint clean inspect
@@ -55539,9 +56973,18 @@ def _registered_build_search_clause(search):
     return where_sql, where_params
 
 
-def _registered_fetch_response_stats(conn, identities):
-    """Read saved COUNT/MAX(res_no) for explicit article identities only."""
+def _registered_has_article_response_stats_table(conn):
+    """Return whether the materialized summary table exists (older DB compat)."""
 
+    cur = conn.cursor()
+    cur.execute(
+        "SELECT name FROM sqlite_master "
+        "WHERE type='table' AND name='article_response_stats'"
+    )
+    return cur.fetchone() is not None
+
+
+def _registered_unique_identities(identities):
     unique = []
     seen = set()
     for article_id, article_type in identities:
@@ -55552,8 +56995,33 @@ def _registered_fetch_response_stats(conn, identities):
             continue
         seen.add(key)
         unique.append(key)
-    if not unique:
-        return {}
+    return unique
+
+
+def _registered_stats_from_summary(conn, unique):
+    placeholders = ",".join(["(?, ?)"] * len(unique))
+    params = [part for pair in unique for part in pair]
+    cur = conn.cursor()
+    cur.execute(
+        f"""
+        SELECT article_id, article_type, saved_response_count, saved_max_res_no
+        FROM article_response_stats
+        WHERE (article_id, article_type) IN ({placeholders})
+        """,
+        params,
+    )
+    return {
+        (row[0], row[1]): {"count": int(row[2]), "max_res": row[3]}
+        for row in cur.fetchall()
+    }
+
+
+def _registered_stats_from_responses(conn, unique):
+    """Bounded fallback: aggregate responses for the given identities only.
+
+    Bounded to the page identities (at most one page worth), so this never
+    performs an unbounded full-table aggregation.
+    """
 
     placeholders = ",".join(["(?, ?)"] * len(unique))
     params = [part for pair in unique for part in pair]
@@ -55571,6 +57039,28 @@ def _registered_fetch_response_stats(conn, identities):
         (row[0], row[1]): {"count": int(row[2]), "max_res": row[3]}
         for row in cur.fetchall()
     }
+
+
+def _registered_fetch_response_stats(conn, identities):
+    """Read saved stats for explicit page identities from the summary table.
+
+    Falls back to a bounded responses aggregation only for identities that are
+    missing from the summary (e.g. a not-yet-backfilled DB).
+    """
+
+    unique = _registered_unique_identities(identities)
+    if not unique:
+        return {}
+
+    if _registered_has_article_response_stats_table(conn):
+        stats = _registered_stats_from_summary(conn, unique)
+    else:
+        stats = {}
+
+    missing = [key for key in unique if key not in stats]
+    if missing:
+        stats.update(_registered_stats_from_responses(conn, missing))
+    return stats
 
 
 def _registered_display_saved_max_res_no(
@@ -55880,7 +57370,12 @@ def query_registered_articles(
                 for shell_row in shell_rows
             ]
         else:
-            stats_sql = _registered_target_scoped_response_stats_sql()
+            if _registered_has_article_response_stats_table(conn):
+                stats_source_sql = "article_response_stats"
+            else:
+                stats_source_sql = (
+                    "(" + _registered_target_scoped_response_stats_sql() + ")"
+                )
             data_sql = base_cte_sql + f"""
                 SELECT
                     rt.target_article_id,
@@ -55892,9 +57387,7 @@ def query_registered_articles(
                     ({max_res_sql}) AS saved_max_res_no,
                     rt.matched_last_scraped_at AS last_scraped_at
                 FROM resolved_targets AS rt
-                LEFT JOIN (
-                    {stats_sql}
-                ) AS rs
+                LEFT JOIN {stats_source_sql} AS rs
                     ON rt.matched_article_id = rs.article_id
                     AND rt.matched_article_type = rs.article_type
                 {where_sql}
@@ -60593,9 +62086,11 @@ from orchestrator import run_scrape
 from storage import (
     DEFAULT_DB_PATH,
     append_scrape_run_observation,
+    format_response_stats_rebuild_lines,
     format_run_telemetry_csv_wide,
     init_db,
     open_readonly_db,
+    rebuild_article_response_stats_for_db,
 )
 from target_ordering import TargetOrderConfig
 from target_ordering import format_target_order_log_line
@@ -62016,6 +63511,10 @@ def _print_operator_usage():
         "  python main.py operator registered-articles export-csv "
         "[--output PATH]"
     )
+    print(
+        "  python main.py operator stats rebuild-response-summary "
+        "--db PATH [--apply]"
+    )
 
 
 def _handle_show_scraped_res(args):
@@ -62280,9 +63779,55 @@ def _handle_operator_cli(args):
     if area == "registered-articles":
         _handle_operator_registered_articles(args[1:])
         return
+    if area == "stats":
+        _handle_operator_stats(args[1:])
+        return
 
     _print_operator_usage()
     sys.exit(1)
+
+
+def _handle_operator_stats(args):
+    usage = (
+        "Usage: operator stats rebuild-response-summary --db PATH [--apply]"
+    )
+    if not args or args[0] != "rebuild-response-summary":
+        print(usage, file=sys.stderr)
+        sys.exit(1)
+
+    try:
+        db_path = _read_optional_flag(args, "--db", None)
+    except ValueError:
+        print(usage, file=sys.stderr)
+        sys.exit(1)
+
+    if not db_path:
+        print(
+            "operator stats rebuild-response-summary requires an explicit "
+            "--db PATH",
+            file=sys.stderr,
+        )
+        print(
+            "Refusing to use the runtime DB as an implicit default.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    apply_flag = "--apply" in args[1:]
+
+    try:
+        summary = rebuild_article_response_stats_for_db(
+            db_path, apply=apply_flag
+        )
+    except FileNotFoundError as exc:
+        print(f"DB path does not exist: {exc}", file=sys.stderr)
+        sys.exit(1)
+    except ValueError as exc:
+        print(f"Invalid input: {exc}", file=sys.stderr)
+        sys.exit(1)
+
+    for line in format_response_stats_rebuild_lines(db_path, summary):
+        print(line)
 
 
 def _handle_operator_registered_articles(args):
@@ -79202,8 +80747,176 @@ def init_db(db_path: str = DEFAULT_DB_PATH):
     )
     """)
 
+    # Materialized per-article saved response summary.
+    # saved_max_res_no stores raw MAX(res_no); NULL when no saved rows.
+    # The checked-zero -> 0 display rule stays in the read layer.
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS article_response_stats (
+        article_id TEXT NOT NULL,
+        article_type TEXT NOT NULL,
+        saved_response_count INTEGER NOT NULL DEFAULT 0,
+        saved_max_res_no INTEGER,
+        stats_updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+        PRIMARY KEY (article_id, article_type)
+    )
+    """)
+
     conn.commit()
     return conn
+
+
+def recompute_article_response_stats(conn, article_id, article_type):
+    """Recompute the saved response summary for one article identity.
+
+    Bounded to a single ``(article_id, article_type)`` so it uses the
+    responses UNIQUE index; safe against duplicate saves (recomputes from
+    the authoritative ``responses`` rows rather than incrementing).
+    """
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT COUNT(id), MAX(res_no)
+        FROM responses
+        WHERE article_id = ? AND article_type = ?
+        """,
+        (article_id, article_type),
+    )
+    count_row = cur.fetchone()
+    saved_response_count = int(count_row[0]) if count_row else 0
+    saved_max_res_no = count_row[1] if count_row else None
+    updated_at = datetime.now(timezone.utc).isoformat()
+
+    cur.execute(
+        """
+        INSERT INTO article_response_stats
+            (article_id, article_type, saved_response_count,
+             saved_max_res_no, stats_updated_at)
+        VALUES (?, ?, ?, ?, ?)
+        ON CONFLICT(article_id, article_type) DO UPDATE SET
+            saved_response_count = excluded.saved_response_count,
+            saved_max_res_no = excluded.saved_max_res_no,
+            stats_updated_at = excluded.stats_updated_at
+        """,
+        (
+            article_id,
+            article_type,
+            saved_response_count,
+            saved_max_res_no,
+            updated_at,
+        ),
+    )
+    return {
+        "saved_response_count": saved_response_count,
+        "saved_max_res_no": saved_max_res_no,
+    }
+
+
+def compute_all_article_response_stats(conn):
+    """Return per-article saved response stats from the responses table."""
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT article_id, article_type, COUNT(id), MAX(res_no)
+        FROM responses
+        GROUP BY article_id, article_type
+        """
+    )
+    return [
+        (row[0], row[1], int(row[2]), row[3])
+        for row in cur.fetchall()
+    ]
+
+
+def rebuild_article_response_stats(conn, *, dry_run=True):
+    """Rebuild the whole summary table from the responses table.
+
+    ``dry_run=True`` computes counts without writing. Returns a summary dict.
+    """
+
+    computed = compute_all_article_response_stats(conn)
+
+    try:
+        existing_row = conn.execute(
+            "SELECT COUNT(*) FROM article_response_stats"
+        ).fetchone()
+        existing_summary_rows = int(existing_row[0]) if existing_row else 0
+    except sqlite3.OperationalError:
+        existing_summary_rows = None
+
+    written_rows = 0
+    if not dry_run:
+        updated_at = datetime.now(timezone.utc).isoformat()
+        cur = conn.cursor()
+        cur.execute("DELETE FROM article_response_stats")
+        cur.executemany(
+            """
+            INSERT INTO article_response_stats
+                (article_id, article_type, saved_response_count,
+                 saved_max_res_no, stats_updated_at)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            [
+                (aid, atype, count, max_res, updated_at)
+                for (aid, atype, count, max_res) in computed
+            ],
+        )
+        written_rows = cur.rowcount if cur.rowcount != -1 else len(computed)
+        conn.commit()
+
+    return {
+        "dry_run": dry_run,
+        "computed_articles": len(computed),
+        "existing_summary_rows": existing_summary_rows,
+        "written_rows": written_rows,
+    }
+
+
+def rebuild_article_response_stats_for_db(db_path, *, apply=False):
+    """Operator-facing seam to rebuild the summary from responses.
+
+    Requires an explicit DB path. ``apply=False`` (default) is a safe dry-run
+    that does not modify the database (opened read-only).
+    """
+
+    if not db_path:
+        raise ValueError(
+            "explicit db_path is required; refusing implicit default"
+        )
+    if not Path(db_path).exists():
+        raise FileNotFoundError(f"db_path does not exist: {db_path}")
+
+    if apply:
+        conn = init_db(db_path)
+        try:
+            return rebuild_article_response_stats(conn, dry_run=False)
+        finally:
+            conn.close()
+
+    conn = open_readonly_db(db_path)
+    if conn is None:
+        raise FileNotFoundError(f"db_path does not exist: {db_path}")
+    try:
+        return rebuild_article_response_stats(conn, dry_run=True)
+    finally:
+        conn.close()
+
+
+def format_response_stats_rebuild_lines(db_path, summary):
+    """Human-readable, line-oriented operator output for the rebuild."""
+
+    mode = "apply" if not summary["dry_run"] else "dry-run"
+    existing = summary["existing_summary_rows"]
+    existing_display = "unknown" if existing is None else str(existing)
+    return [
+        "=== ARTICLE RESPONSE STATS REBUILD ===",
+        f"DB: {db_path}",
+        f"Mode: {mode}",
+        f"Computed articles: {summary['computed_articles']}",
+        f"Existing summary rows: {existing_display}",
+        f"Written rows: {summary['written_rows']}",
+    ]
 
 
 def save_to_db(
@@ -79274,6 +80987,8 @@ def save_to_db(
             r.get("content"),
             r.get("content_html"),
         ))
+
+    recompute_article_response_stats(conn, article_id, article_type)
 
     conn.commit()
 
@@ -81860,6 +83575,107 @@ def test_query_registered_legacy_sort_alias_maps_to_saved_max_res_no(
     ]
 
 
+def test_query_registered_fast_path_reads_display_stats_from_summary(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    conn = init_db()
+    try:
+        conn.execute(
+            """
+            UPDATE article_response_stats
+            SET saved_response_count=99, saved_max_res_no=99
+            WHERE article_id=? AND article_type=?
+            """,
+            ("12345", "a"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    result = query_registered_articles(sort_by="created_at")
+
+    row = result["rows"][0]
+    assert row["saved_response_count"] == 99
+    assert row["saved_max_res_no"] == 99
+
+
+def test_query_registered_aggregate_sort_reads_stats_from_summary(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    conn = init_db()
+    try:
+        conn.execute(
+            """
+            UPDATE article_response_stats
+            SET saved_response_count=77, saved_max_res_no=88
+            WHERE article_id=? AND article_type=?
+            """,
+            ("12345", "a"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    count_sorted = query_registered_articles(
+        sort_by="saved_response_count",
+        paginate=False,
+    )
+    max_sorted = query_registered_articles(
+        sort_by="saved_max_res_no",
+        paginate=False,
+    )
+
+    assert count_sorted["rows"][0]["saved_response_count"] == 77
+    assert max_sorted["rows"][0]["saved_max_res_no"] == 88
+
+
+def test_query_registered_fast_path_falls_back_when_summary_row_missing(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    conn = init_db()
+    try:
+        conn.execute("DELETE FROM article_response_stats")
+        conn.commit()
+    finally:
+        conn.close()
+
+    result = query_registered_articles(sort_by="created_at")
+
+    row = result["rows"][0]
+    assert row["saved_response_count"] == 1
+    assert row["saved_max_res_no"] == 1
+
+
+def test_query_registered_does_not_crash_when_summary_table_absent(
+    tmp_path,
+    monkeypatch,
+):
+    _seed_archive(tmp_path, monkeypatch)
+
+    conn = init_db()
+    try:
+        conn.execute("DROP TABLE article_response_stats")
+        conn.commit()
+    finally:
+        conn.close()
+
+    fast = query_registered_articles(sort_by="created_at")
+    aggregate = query_registered_articles(sort_by="saved_response_count")
+
+    assert fast["rows"][0]["saved_response_count"] == 1
+    assert fast["rows"][0]["saved_max_res_no"] == 1
+    assert aggregate["rows"][0]["saved_response_count"] == 1
+
+
 def test_registered_article_columns_keys_are_consistent():
     keys = [col["key"] for col in REGISTERED_ARTICLE_COLUMNS]
     assert "article_id" in keys
@@ -84110,7 +85926,130 @@ import pytest
 
 import main as main_module
 from orchestrator import ScrapeResult
-from storage import init_db
+from storage import init_db, save_to_db
+
+
+def test_main_operator_stats_rebuild_requires_explicit_db(capsys):
+    with patch("sys.argv", ["main.py", "operator", "stats",
+                            "rebuild-response-summary"]):
+        with pytest.raises(SystemExit) as exc:
+            main_module.main()
+    assert exc.value.code == 1
+    err = capsys.readouterr().err
+    assert "requires an explicit --db PATH" in err
+
+
+def test_main_operator_stats_rebuild_dry_run_reports_counts(
+    tmp_path, monkeypatch, capsys,
+):
+    monkeypatch.chdir(tmp_path)
+    db_path = tmp_path / "data" / "nicodic.db"
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "111",
+            "a",
+            "A",
+            "https://dic.nicovideo.jp/a/111",
+            [
+                {
+                    "res_no": 1,
+                    "id_hash": "h1",
+                    "poster_name": "P",
+                    "posted_at": "2025-01-01 00:00",
+                    "content": "c1",
+                    "content_html": "<p>c1</p>",
+                }
+            ],
+        )
+        conn.execute("DELETE FROM article_response_stats")
+        conn.commit()
+    finally:
+        conn.close()
+
+    with patch(
+        "sys.argv",
+        ["main.py", "operator", "stats", "rebuild-response-summary",
+         "--db", str(db_path)],
+    ):
+        main_module.main()
+
+    out = capsys.readouterr().out
+    assert "ARTICLE RESPONSE STATS REBUILD" in out
+    assert "Mode: dry-run" in out
+    assert "Computed articles: 1" in out
+
+    check = init_db(str(db_path))
+    try:
+        cur = check.cursor()
+        cur.execute("SELECT COUNT(*) FROM article_response_stats")
+        assert cur.fetchone()[0] == 0
+    finally:
+        check.close()
+
+
+def test_main_operator_stats_rebuild_apply_writes_summary(
+    tmp_path, monkeypatch, capsys,
+):
+    monkeypatch.chdir(tmp_path)
+    db_path = tmp_path / "data" / "nicodic.db"
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "111",
+            "a",
+            "A",
+            "https://dic.nicovideo.jp/a/111",
+            [
+                {
+                    "res_no": 1,
+                    "id_hash": "h1",
+                    "poster_name": "P",
+                    "posted_at": "2025-01-01 00:00",
+                    "content": "c1",
+                    "content_html": "<p>c1</p>",
+                },
+                {
+                    "res_no": 4,
+                    "id_hash": "h4",
+                    "poster_name": "P",
+                    "posted_at": "2025-01-01 00:00",
+                    "content": "c4",
+                    "content_html": "<p>c4</p>",
+                },
+            ],
+        )
+        conn.execute("DELETE FROM article_response_stats")
+        conn.commit()
+    finally:
+        conn.close()
+
+    with patch(
+        "sys.argv",
+        ["main.py", "operator", "stats", "rebuild-response-summary",
+         "--db", str(db_path), "--apply"],
+    ):
+        main_module.main()
+
+    out = capsys.readouterr().out
+    assert "Mode: apply" in out
+
+    check = init_db(str(db_path))
+    try:
+        cur = check.cursor()
+        cur.execute(
+            """
+            SELECT saved_response_count, saved_max_res_no
+            FROM article_response_stats
+            WHERE article_id=? AND article_type=?
+            """,
+            ("111", "a"),
+        )
+        assert cur.fetchone() == (2, 4)
+    finally:
+        check.close()
 
 
 @patch("main.run_scrape")
@@ -89710,8 +91649,10 @@ import sqlite3
 import storage
 from storage import (
     append_scrape_run_observation,
+    compute_all_article_response_stats,
     dequeue_canonical_target,
     enqueue_canonical_target,
+    format_response_stats_rebuild_lines,
     format_run_telemetry_csv_wide,
     get_target,
     init_db,
@@ -89719,11 +91660,37 @@ from storage import (
     list_targets,
     mark_target_redirected,
     open_readonly_db,
+    rebuild_article_response_stats,
+    rebuild_article_response_stats_for_db,
     register_target,
     save_json,
     save_to_db,
     set_target_active_state,
 )
+
+
+def _read_stats_row(conn, article_id, article_type):
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT saved_response_count, saved_max_res_no
+        FROM article_response_stats
+        WHERE article_id=? AND article_type=?
+        """,
+        (article_id, article_type),
+    )
+    return cur.fetchone()
+
+
+def _make_response(res_no):
+    return {
+        "res_no": res_no,
+        "id_hash": f"h{res_no}",
+        "poster_name": "P",
+        "posted_at": "2025-01-01 00:00",
+        "content": f"c{res_no}",
+        "content_html": f"<p>c{res_no}</p>",
+    }
 
 
 def _table_names(conn: sqlite3.Connection) -> set[str]:
@@ -89772,8 +91739,239 @@ def test_init_db_creates_data_dir_db_and_tables(tmp_path, monkeypatch):
         assert "queue_requests" in tables
         assert "target" in tables
         assert "scrape_run_observation" in tables
+        assert "article_response_stats" in tables
     finally:
         conn.close()
+
+
+def test_save_to_db_updates_response_summary(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "12345",
+            "a",
+            "Title",
+            "https://dic.nicovideo.jp/a/12345",
+            [_make_response(1), _make_response(2)],
+        )
+        assert _read_stats_row(conn, "12345", "a") == (2, 2)
+    finally:
+        conn.close()
+
+
+def test_save_to_db_summary_grows_with_more_responses(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        url = "https://dic.nicovideo.jp/a/12345"
+        save_to_db(conn, "12345", "a", "Title", url, [_make_response(1)])
+        assert _read_stats_row(conn, "12345", "a") == (1, 1)
+
+        save_to_db(
+            conn,
+            "12345",
+            "a",
+            "Title",
+            url,
+            [_make_response(2), _make_response(3)],
+        )
+        assert _read_stats_row(conn, "12345", "a") == (3, 3)
+    finally:
+        conn.close()
+
+
+def test_save_to_db_summary_does_not_overcount_duplicates(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        url = "https://dic.nicovideo.jp/a/12345"
+        responses = [_make_response(1), _make_response(2)]
+        save_to_db(conn, "12345", "a", "Title", url, responses)
+        save_to_db(conn, "12345", "a", "Title", url, responses)
+        assert _read_stats_row(conn, "12345", "a") == (2, 2)
+    finally:
+        conn.close()
+
+
+def test_save_to_db_summary_zero_response_checked_article(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "7711002",
+            "a",
+            "Checked Zero",
+            "https://dic.nicovideo.jp/a/7711002",
+            [],
+            latest_scraped_at="2026-06-07T08:09:10+00:00",
+        )
+        # Raw summary: count 0, max NULL. The 0-display rule lives in the
+        # read layer (keyed on last_scraped_at), not the stored summary.
+        assert _read_stats_row(conn, "7711002", "a") == (0, None)
+    finally:
+        conn.close()
+
+
+def test_compute_all_article_response_stats_groups_by_identity(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "111",
+            "a",
+            "A",
+            "https://dic.nicovideo.jp/a/111",
+            [_make_response(1), _make_response(2)],
+        )
+        save_to_db(
+            conn,
+            "222",
+            "a",
+            "B",
+            "https://dic.nicovideo.jp/a/222",
+            [_make_response(5)],
+        )
+        computed = dict(
+            ((aid, atype), (count, max_res))
+            for (aid, atype, count, max_res) in (
+                compute_all_article_response_stats(conn)
+            )
+        )
+        assert computed[("111", "a")] == (2, 2)
+        assert computed[("222", "a")] == (1, 5)
+    finally:
+        conn.close()
+
+
+def test_rebuild_article_response_stats_dry_run_does_not_write(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "111",
+            "a",
+            "A",
+            "https://dic.nicovideo.jp/a/111",
+            [_make_response(1)],
+        )
+        conn.execute("DELETE FROM article_response_stats")
+        conn.commit()
+
+        summary = rebuild_article_response_stats(conn, dry_run=True)
+        assert summary["dry_run"] is True
+        assert summary["computed_articles"] == 1
+        assert summary["existing_summary_rows"] == 0
+        assert summary["written_rows"] == 0
+        cur = conn.cursor()
+        cur.execute("SELECT COUNT(*) FROM article_response_stats")
+        assert cur.fetchone()[0] == 0
+    finally:
+        conn.close()
+
+
+def test_rebuild_article_response_stats_apply_writes_expected_rows(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "111",
+            "a",
+            "A",
+            "https://dic.nicovideo.jp/a/111",
+            [_make_response(1), _make_response(7)],
+        )
+        conn.execute("DELETE FROM article_response_stats")
+        conn.commit()
+
+        summary = rebuild_article_response_stats(conn, dry_run=False)
+        assert summary["dry_run"] is False
+        assert summary["computed_articles"] == 1
+        assert _read_stats_row(conn, "111", "a") == (2, 7)
+    finally:
+        conn.close()
+
+
+def test_rebuild_article_response_stats_for_db_dry_run_default(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    db_path = tmp_path / "data" / "nicodic.db"
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "111",
+            "a",
+            "A",
+            "https://dic.nicovideo.jp/a/111",
+            [_make_response(1)],
+        )
+        conn.execute("DELETE FROM article_response_stats")
+        conn.commit()
+    finally:
+        conn.close()
+
+    summary = rebuild_article_response_stats_for_db(str(db_path))
+    assert summary["dry_run"] is True
+    assert summary["computed_articles"] == 1
+
+    check = init_db(str(db_path))
+    try:
+        cur = check.cursor()
+        cur.execute("SELECT COUNT(*) FROM article_response_stats")
+        # dry-run wrote nothing; init_db re-open does not backfill
+        assert cur.fetchone()[0] == 0
+    finally:
+        check.close()
+
+    lines = format_response_stats_rebuild_lines(str(db_path), summary)
+    assert any("Mode: dry-run" in line for line in lines)
+
+
+def test_rebuild_article_response_stats_for_db_apply_writes(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    db_path = tmp_path / "data" / "nicodic.db"
+    conn = init_db()
+    try:
+        save_to_db(
+            conn,
+            "111",
+            "a",
+            "A",
+            "https://dic.nicovideo.jp/a/111",
+            [_make_response(1), _make_response(2)],
+        )
+        conn.execute("DELETE FROM article_response_stats")
+        conn.commit()
+    finally:
+        conn.close()
+
+    summary = rebuild_article_response_stats_for_db(str(db_path), apply=True)
+    assert summary["dry_run"] is False
+
+    check = init_db(str(db_path))
+    try:
+        assert _read_stats_row(check, "111", "a") == (2, 2)
+    finally:
+        check.close()
 
 
 def test_save_to_db_inserts_article_and_responses_and_mapping(tmp_path, monkeypatch):

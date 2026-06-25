@@ -3132,3 +3132,85 @@ What changed:
   - includes explicit warnings for all recently observed mistake patterns
 
 No product code, runtime, DB, cron, or child repo files were modified.
+
+## 2026-06-25 MainTask048 materialized article response summary
+
+MainTask048-materialized-article-response-summary was completed.
+
+Adopted implementation:
+
+- Cursor
+
+Non-adopted implementation:
+
+- Copilot was retained and pushed as comparison evidence.
+
+Hybrid:
+
+- Not selected because the key difference was semantic design, not a narrow
+  isolated implementation detail.
+
+Product behavior:
+
+- added `article_response_stats` as a materialized saved-response summary table
+- Registered Articles reads saved response stats from summary data
+- `saved_response_count` and `saved_max_res_no` sorts use summary data
+- `save_to_db` maintains per-article saved response summary
+- operator rebuild/backfill command added
+
+Operator command:
+
+- `python main.py operator stats rebuild-response-summary --db PATH`
+- `python main.py operator stats rebuild-response-summary --db PATH --apply`
+
+Semantic decision:
+
+- Saved Responses = number of saved response rows
+- Saved Max Res No = raw max saved `res_no`
+- no saved rows means NULL at storage level
+- checked-zero display behavior remains read/display policy
+- true observed-board Max Res No remains deferred
+
+Validation:
+
+- sample DB rebuild dry-run/apply succeeded
+- sample rehearsal DB was removed
+- post-merge `compare_helix.sh --all` passed
+- post-merge `validate_helix.sh` passed
+- copilot: 484 tests passed
+- cursor: 484 tests passed
+
+Runtime:
+
+- runtime reflection completed after confirming no active scrape work
+- runtime checkout fast-forwarded to product main
+- runtime container recreated with `tools/runtime_up.sh`
+- runtime DB rebuild dry-run completed
+- runtime DB rebuild apply completed
+- post-apply summary rows: 12109
+- post-apply articles: 12235
+- post-apply responses: 13131174
+
+Runtime Web result:
+
+- browser verification succeeded for Registered Articles default view
+- browser verification succeeded for Saved Max Res No descending sort
+- local curl with 30 second timeout still timed out
+- browser rendering was roughly 20 to 30 seconds by human observation
+- this is functional for personal use but still a performance follow-up area
+
+Operational note:
+
+- no full runtime DB backup was created for this task
+- the operation wrote derived/rebuildable summary data only
+- no temporary rehearsal DB or backup DB remained after the work
+
+Review log:
+
+- `META/review_log/MainTask048_materialized_article_response_summary_20260625.md`
+
+Follow-up:
+
+- inspect Registered Articles query plan and possible indexes
+- add summary drift diagnostics
+- later implement true observed-board Max Res No persistence
