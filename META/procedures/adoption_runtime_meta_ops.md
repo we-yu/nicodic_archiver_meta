@@ -462,3 +462,31 @@ hang.
 
 A 20GB-class runtime DB backup is not forbidden, but it is not a default safety
 gesture. It is an explicit operational decision.
+
+## Existing runtime DB schema/index application
+
+Runtime container recreation alone does not guarantee that compatibility ALTERs
+or newly added indexes have been applied to an existing runtime SQLite DB.
+
+After reflecting product code that adds schema columns or indexes, explicitly
+run the normal runtime-facing schema initialization seam against the runtime DB:
+
+- `init_db('/app/data/nicodic.db')`
+
+Use the root/meta runtime helper rather than calling a missing helper from the
+runtime checkout itself.
+
+Example:
+
+- run from `/home/manage/product/nicodic_archiver`
+- use `./runtime_exec.sh "python -c \"from storage import init_db; c=init_db('/app/data/nicodic.db'); c.close(); print('init_db_ok')\""`
+
+Then verify the expected columns or indexes with a read-only PRAGMA check.
+
+This is especially important for additive SQLite changes such as:
+
+- `ALTER TABLE ... ADD COLUMN`
+- `CREATE INDEX IF NOT EXISTS ...`
+
+Do not use a full runtime DB copy merely to apply additive schema/index changes.
+Check runtime lock/process state first, apply the schema seam, then verify.

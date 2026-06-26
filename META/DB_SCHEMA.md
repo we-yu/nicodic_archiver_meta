@@ -334,3 +334,56 @@ Operational note:
 - No MainTask049 index was added to the 13M-row `responses` table.
 - Existing runtime DBs may require an explicit `init_db('/app/data/nicodic.db')`
   execution after runtime reflection to create newly added indexes.
+
+## target observed board max response number columns
+
+Introduced by:
+
+- MainTask050-observed-board-max-res-no-persistence-and-display
+
+Columns:
+
+- `observed_max_res_no`
+  - table: `target`
+  - type: `INTEGER`
+  - nullable
+  - meaning: maximum response number observed on the NicoNicoPedia board for this registered target
+
+- `observed_max_res_no_at`
+  - table: `target`
+  - type: `TEXT`
+  - nullable
+  - meaning: timestamp of the observation that set or confirmed the stored observed max value
+
+- `observed_max_res_no_source`
+  - table: `target`
+  - type: `TEXT`
+  - nullable
+  - meaning: source of the observation
+
+Known sources:
+
+- `article_top_preview`
+- `bbs_page_scrape`
+- `saved_rows_fallback`
+
+Semantics:
+
+- This is a board-observed max response number, not a count of locally saved response rows.
+- Response content may be deleted or hidden, but response numbers are treated as monotonic.
+- The stored observed max must never be lowered by a later lower observation.
+- `None` / parse miss / unavailable board state must not overwrite existing values.
+- `0` is allowed only when the implementation can positively identify an observed empty board state.
+
+Relationship to saved response stats:
+
+- `article_response_stats.saved_response_count` remains the number of locally saved response rows.
+- `article_response_stats.saved_max_res_no` remains the raw maximum saved `res_no`.
+- `saved_max_res_no` is internal and not shown in the Registered Articles UI or page CSV after MainTask050.
+- Registered Articles displays `Observed Max Res No` instead.
+
+Operational note:
+
+- Existing runtime DBs require explicit `init_db('/app/data/nicodic.db')` execution after runtime reflection to add these nullable target columns.
+- The schema change is additive and does not require a full runtime DB copy.
+- Existing rows may remain NULL until touched by registration, scraping, or a bounded fallback operator.

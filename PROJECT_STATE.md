@@ -3309,3 +3309,93 @@ Follow-up:
 - true observed-board Max Res No semantics
 - optional operator/runtime schema ensure command for future schema/index changes
 - optional Registered Articles EXPLAIN diagnostics
+
+## 2026-06-26 MainTask050 observed board max response number
+
+MainTask050-observed-board-max-res-no-persistence-and-display was completed.
+
+Adopted implementation:
+
+- Cursor with one hybrid adjustment from Copilot
+
+Non-adopted implementation:
+
+- Copilot was retained and pushed as comparison evidence.
+
+Hybrid adjustment:
+
+- Cursor was used as the base implementation.
+- Copilot's `saved_rows_fallback` behavior was ported into the already-up-to-date scrape path.
+
+Product behavior:
+
+- added target-side observed board max response number persistence
+- added nullable target columns:
+  - `observed_max_res_no`
+  - `observed_max_res_no_at`
+  - `observed_max_res_no_source`
+- article registration can persist observed max from article top preview
+- scrape flow persists observed max from BBS page responses
+- already-up-to-date scrape flow persists saved rows max as a lower-bound observation
+- update rule is monotonic and never lowers stored observed max
+- Registered Articles UI replaced `Saved Max Res No` with `Observed Max Res No`
+- Registered Articles page CSV replaced `saved_max_res_no` with `observed_max_res_no`
+- `saved_max_res_no` remains internal in `article_response_stats`
+- `article_response_stats` saved-response semantics were preserved
+
+Validation:
+
+- Cursor branch validation after hybrid adjustment passed
+  - 513 tests passed
+- post-merge `compare_helix.sh --all` passed
+- post-merge `validate_helix.sh` passed
+  - copilot: 513 tests passed
+  - cursor: 513 tests passed
+
+Runtime reflection:
+
+- runtime reflection completed after confirming no active scrape work
+- runtime checkout fast-forwarded to product main
+- runtime container recreated with `tools/runtime_up.sh`
+- explicit runtime `init_db('/app/data/nicodic.db')` was required to add the new target columns to the existing runtime DB
+
+Runtime schema verification:
+
+- `observed_max_res_no`
+- `observed_max_res_no_at`
+- `observed_max_res_no_source`
+
+Runtime Web verification:
+
+- default Registered Articles returned in about 0.09 seconds
+- `observed_max_res_no` descending sort returned in about 0.09 seconds
+- legacy `saved_max_res_no` sort alias returned in about 0.09 seconds
+- UI displayed `Observed Max Res No`
+- UI no longer displayed `Saved Max Res No`
+- CSV header included `observed_max_res_no`
+- CSV header no longer included `saved_max_res_no`
+
+Runtime data observation:
+
+- existing targets initially had NULL observed max values, as expected
+- a newly registered Linux article immediately showed `Observed Max Res No = 207`
+- this confirmed the article-top preview registration path in practice
+- periodic random-start scraping should gradually populate existing targets
+
+Operational note:
+
+- no full runtime DB backup was created
+- no 20GB-class DB copy was made
+- no `responses` table index was added
+- no archive-critical data rewrite was performed
+- runtime final status had no lock, no soft-stop, and no scrape-like process
+
+Review log:
+
+- `META/review_log/MainTask050_observed_board_max_res_no_20260626.md`
+
+Follow-up:
+
+- after the next periodic scrape cycle, verify that existing target observed values begin filling
+- optional bounded operator to initialize NULL observed max from saved summary rows
+- optional coverage ratio display or operator inspection for observed source/timestamp

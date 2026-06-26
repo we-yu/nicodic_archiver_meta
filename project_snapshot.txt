@@ -4310,6 +4310,96 @@ Follow-up:
 - optional operator/runtime schema ensure command for future schema/index changes
 - optional Registered Articles EXPLAIN diagnostics
 
+## 2026-06-26 MainTask050 observed board max response number
+
+MainTask050-observed-board-max-res-no-persistence-and-display was completed.
+
+Adopted implementation:
+
+- Cursor with one hybrid adjustment from Copilot
+
+Non-adopted implementation:
+
+- Copilot was retained and pushed as comparison evidence.
+
+Hybrid adjustment:
+
+- Cursor was used as the base implementation.
+- Copilot's `saved_rows_fallback` behavior was ported into the already-up-to-date scrape path.
+
+Product behavior:
+
+- added target-side observed board max response number persistence
+- added nullable target columns:
+  - `observed_max_res_no`
+  - `observed_max_res_no_at`
+  - `observed_max_res_no_source`
+- article registration can persist observed max from article top preview
+- scrape flow persists observed max from BBS page responses
+- already-up-to-date scrape flow persists saved rows max as a lower-bound observation
+- update rule is monotonic and never lowers stored observed max
+- Registered Articles UI replaced `Saved Max Res No` with `Observed Max Res No`
+- Registered Articles page CSV replaced `saved_max_res_no` with `observed_max_res_no`
+- `saved_max_res_no` remains internal in `article_response_stats`
+- `article_response_stats` saved-response semantics were preserved
+
+Validation:
+
+- Cursor branch validation after hybrid adjustment passed
+  - 513 tests passed
+- post-merge `compare_helix.sh --all` passed
+- post-merge `validate_helix.sh` passed
+  - copilot: 513 tests passed
+  - cursor: 513 tests passed
+
+Runtime reflection:
+
+- runtime reflection completed after confirming no active scrape work
+- runtime checkout fast-forwarded to product main
+- runtime container recreated with `tools/runtime_up.sh`
+- explicit runtime `init_db('/app/data/nicodic.db')` was required to add the new target columns to the existing runtime DB
+
+Runtime schema verification:
+
+- `observed_max_res_no`
+- `observed_max_res_no_at`
+- `observed_max_res_no_source`
+
+Runtime Web verification:
+
+- default Registered Articles returned in about 0.09 seconds
+- `observed_max_res_no` descending sort returned in about 0.09 seconds
+- legacy `saved_max_res_no` sort alias returned in about 0.09 seconds
+- UI displayed `Observed Max Res No`
+- UI no longer displayed `Saved Max Res No`
+- CSV header included `observed_max_res_no`
+- CSV header no longer included `saved_max_res_no`
+
+Runtime data observation:
+
+- existing targets initially had NULL observed max values, as expected
+- a newly registered Linux article immediately showed `Observed Max Res No = 207`
+- this confirmed the article-top preview registration path in practice
+- periodic random-start scraping should gradually populate existing targets
+
+Operational note:
+
+- no full runtime DB backup was created
+- no 20GB-class DB copy was made
+- no `responses` table index was added
+- no archive-critical data rewrite was performed
+- runtime final status had no lock, no soft-stop, and no scrape-like process
+
+Review log:
+
+- `META/review_log/MainTask050_observed_board_max_res_no_20260626.md`
+
+Follow-up:
+
+- after the next periodic scrape cycle, verify that existing target observed values begin filling
+- optional bounded operator to initialize NULL observed max from saved summary rows
+- optional coverage ratio display or operator inspection for observed source/timestamp
+
 
 ===== WORKSPACE =====
 # Workspace
@@ -5836,6 +5926,239 @@ Recommended follow-up:
 - implement true observed-board Max Res No semantics
 - add an operator/runtime schema ensure command if schema/index changes continue
 - optionally add Registered Articles EXPLAIN diagnostics
+
+
+===== REVIEW LOG: META/review_log/MainTask050_observed_board_max_res_no_20260626.md =====
+# MainTask050: observed board max response number persistence and display
+
+## Task
+
+MainTask050-observed-board-max-res-no-persistence-and-display
+
+## Decision
+
+Adopted: Cursor with one hybrid adjustment from Copilot.
+
+Non-adopted comparison:
+
+- Copilot implementation was retained and pushed as comparison evidence.
+
+Hybrid adjustment:
+
+- Cursor was used as the base implementation.
+- Copilot's saved_rows_fallback behavior was ported into the already-up-to-date scrape path.
+
+## Purpose
+
+Registered Articles previously displayed `Saved Max Res No`, which was the
+maximum response number among locally saved response rows.
+
+The intended user-facing meaning is different:
+
+- `Saved Responses` = number of locally saved response rows
+- `saved_max_res_no` = internal maximum saved response number
+- `Observed Max Res No` = maximum response number observed on the NicoNicoPedia board
+
+NicoNicoPedia board response content may be deleted or hidden, but response
+numbers themselves are not removed. Therefore, the observed board max response
+number can be treated as a monotonic board-level counter.
+
+## Adopted implementation
+
+The adopted implementation added target-side observed max persistence:
+
+- `target.observed_max_res_no`
+- `target.observed_max_res_no_at`
+- `target.observed_max_res_no_source`
+
+The implementation keeps `saved_max_res_no` internally in
+`article_response_stats` and row dictionaries, but removes it from the
+Registered Articles UI and page CSV.
+
+The visible Registered Articles column was changed:
+
+- removed: `Saved Max Res No`
+- added: `Observed Max Res No`
+
+The CSV column was changed consistently:
+
+- removed: `saved_max_res_no`
+- added: `observed_max_res_no`
+
+## Storage semantics
+
+Observed max update rule:
+
+- `None` / parse miss: no write
+- invalid or negative value: ignored safely
+- stored NULL: set value, timestamp, source
+- observed greater than stored: update value, timestamp, source
+- observed equal to stored: refresh timestamp/source
+- observed lower than stored: do not lower or overwrite timestamp/source
+
+This makes partial observations and saved-row fallback safe.
+
+## Observation sources
+
+Implemented sources:
+
+- `article_top_preview`
+  - observed during article registration from the already fetched article top HTML
+- `bbs_page_scrape`
+  - observed during scrape from collected BBS responses
+- `saved_rows_fallback`
+  - used on the already-up-to-date scrape path to populate existing targets from saved rows as a lower-bound observation
+
+The saved rows fallback was the hybrid adjustment adopted from Copilot. It lets
+already fully saved targets gradually populate observed max values during normal
+periodic scraping even when no new responses are fetched.
+
+## Registered Articles behavior
+
+Registered Articles now shows:
+
+- Article ID
+- Type
+- Title
+- Canonical URL
+- Created At
+- Saved Responses
+- Observed Max Res No
+- Last Scraped
+
+Legacy sort aliases were kept compatible:
+
+- `sort_by=saved_max_res_no`
+- `sort_by=latest_scraped_max_res_no`
+
+Both map to the observed max sort for user-facing behavior.
+
+## Validation
+
+Before adoption:
+
+- Cursor implementation passed validation.
+- After the hybrid adjustment, Cursor validation passed:
+  - 513 tests passed
+  - `git diff --check` passed
+
+After GitHub merge and child repo synchronization:
+
+- `compare_helix.sh --all` passed
+- `validate_helix.sh` passed
+- copilot: 513 tests passed
+- cursor: 513 tests passed
+
+## Runtime reflection
+
+Runtime reflection was performed after confirming:
+
+- no periodic lock
+- no soft-stop file
+- no scrape-like process
+
+Runtime checkout was fast-forwarded to product main and runtime container was recreated with:
+
+- `tools/runtime_up.sh`
+
+Because existing runtime DBs do not automatically receive compatibility ALTERs
+only from container recreation, explicit runtime `init_db('/app/data/nicodic.db')`
+was run through the root/meta runtime helper.
+
+Result:
+
+- `init_db_ok`
+
+Runtime target schema then contained:
+
+- `observed_max_res_no`
+- `observed_max_res_no_at`
+- `observed_max_res_no_source`
+
+## Runtime Web and CSV verification
+
+Runtime curl checks:
+
+- `/registered?page=1&per_page=100`
+  - http=200
+  - time=0.093206 seconds
+- `/registered?sort_by=observed_max_res_no&sort_order=desc&page=1&per_page=100`
+  - http=200
+  - time=0.091304 seconds
+- `/registered?sort_by=saved_max_res_no&sort_order=desc&page=1&per_page=100`
+  - http=200
+  - time=0.091318 seconds
+
+HTML header verification:
+
+- `Observed Max Res No` is present
+- `Saved Responses` is present
+- `Saved Max Res No` is no longer present as a visible column
+
+CSV header verification:
+
+- `observed_max_res_no` is present
+- `saved_max_res_no` is no longer present
+
+Runtime browser verification:
+
+- Registered Articles rendered normally
+- `Observed Max Res No` appeared in the intended position
+- A newly registered Linux article showed `Observed Max Res No = 207`
+- This confirmed the registration-time article top preview path in practice
+
+## Existing target state
+
+Immediately after schema addition, existing targets were expected to have NULL observed max values.
+
+Observed check before later registrations/scrapes:
+
+- active targets: 12239
+- observed non-null: 0
+
+This is expected. Existing rows should fill over time through:
+
+- new registration article-top observation
+- periodic scraping
+- already-up-to-date saved_rows_fallback
+
+## Safety notes
+
+No full runtime DB backup was created.
+
+This was intentional because the runtime schema change was additive and nullable:
+
+- no archive-critical rows were rewritten
+- no saved responses were rewritten
+- no `responses` table index was added
+- no 20GB-class runtime DB copy was made
+
+Runtime final status after verification:
+
+- no periodic lock
+- no soft-stop file
+- no scrape-like process
+
+## Known limitations
+
+- Existing targets start with NULL observed max until touched by registration or scrape.
+- Article-top empty-board detection is conservative.
+- `observed_max_res_no_at` and `observed_max_res_no_source` are stored but not yet surfaced in the UI.
+- No full backfill was performed.
+- Verification of periodic random-start filling should be checked after the next scheduled scrape cycle.
+
+## Follow-up candidates
+
+Recommended immediate follow-up:
+
+- after the next periodic scrape cycle, verify that `observed_max_res_no` begins filling for existing targets
+
+Recommended future tasks:
+
+- optional bounded operator to initialize NULL observed max values from `article_response_stats.saved_max_res_no`
+- optional operator view showing `observed_max_res_no_at` and source
+- optional saved/observed coverage ratio display
+- optional article-top HTML fixture hardening for board preview parsing
 
 
 ===== REVIEW LOG: META/review_log/MainTask45_direct_article_title_resolution_20260517.md =====
@@ -14871,7 +15194,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Fri Jun 26 08:34:20 UTC 2026
+generated: Fri Jun 26 16:32:05 UTC 2026
 mode: full
 
 
@@ -16268,6 +16591,59 @@ Operational note:
 - No MainTask049 index was added to the 13M-row `responses` table.
 - Existing runtime DBs may require an explicit `init_db('/app/data/nicodic.db')`
   execution after runtime reflection to create newly added indexes.
+
+## target observed board max response number columns
+
+Introduced by:
+
+- MainTask050-observed-board-max-res-no-persistence-and-display
+
+Columns:
+
+- `observed_max_res_no`
+  - table: `target`
+  - type: `INTEGER`
+  - nullable
+  - meaning: maximum response number observed on the NicoNicoPedia board for this registered target
+
+- `observed_max_res_no_at`
+  - table: `target`
+  - type: `TEXT`
+  - nullable
+  - meaning: timestamp of the observation that set or confirmed the stored observed max value
+
+- `observed_max_res_no_source`
+  - table: `target`
+  - type: `TEXT`
+  - nullable
+  - meaning: source of the observation
+
+Known sources:
+
+- `article_top_preview`
+- `bbs_page_scrape`
+- `saved_rows_fallback`
+
+Semantics:
+
+- This is a board-observed max response number, not a count of locally saved response rows.
+- Response content may be deleted or hidden, but response numbers are treated as monotonic.
+- The stored observed max must never be lowered by a later lower observation.
+- `None` / parse miss / unavailable board state must not overwrite existing values.
+- `0` is allowed only when the implementation can positively identify an observed empty board state.
+
+Relationship to saved response stats:
+
+- `article_response_stats.saved_response_count` remains the number of locally saved response rows.
+- `article_response_stats.saved_max_res_no` remains the raw maximum saved `res_no`.
+- `saved_max_res_no` is internal and not shown in the Registered Articles UI or page CSV after MainTask050.
+- Registered Articles displays `Observed Max Res No` instead.
+
+Operational note:
+
+- Existing runtime DBs require explicit `init_db('/app/data/nicodic.db')` execution after runtime reflection to add these nullable target columns.
+- The schema change is additive and does not require a full runtime DB copy.
+- Existing rows may remain NULL until touched by registration, scraping, or a bounded fallback operator.
 
 
 =============================
@@ -18856,6 +19232,34 @@ hang.
 
 A 20GB-class runtime DB backup is not forbidden, but it is not a default safety
 gesture. It is an explicit operational decision.
+
+## Existing runtime DB schema/index application
+
+Runtime container recreation alone does not guarantee that compatibility ALTERs
+or newly added indexes have been applied to an existing runtime SQLite DB.
+
+After reflecting product code that adds schema columns or indexes, explicitly
+run the normal runtime-facing schema initialization seam against the runtime DB:
+
+- `init_db('/app/data/nicodic.db')`
+
+Use the root/meta runtime helper rather than calling a missing helper from the
+runtime checkout itself.
+
+Example:
+
+- run from `/home/manage/product/nicodic_archiver`
+- use `./runtime_exec.sh "python -c \"from storage import init_db; c=init_db('/app/data/nicodic.db'); c.close(); print('init_db_ok')\""`
+
+Then verify the expected columns or indexes with a read-only PRAGMA check.
+
+This is especially important for additive SQLite changes such as:
+
+- `ALTER TABLE ... ADD COLUMN`
+- `CREATE INDEX IF NOT EXISTS ...`
+
+Do not use a full runtime DB copy merely to apply additive schema/index changes.
+Check runtime lock/process state first, apply the schema seam, then verify.
 
 
 =============================
@@ -22498,6 +22902,252 @@ Explicit environment/ops non-modification statement
 
 
 =============================
+FILE: copilot/MainTask050-observed-board-max-res-no-persistence-and-display_report.txt
+=============================
+MainTask050-observed-board-max-res-no-persistence-and-display — report
+
+Editor AI model
+----------------
+Claude (Cursor agent)
+
+Summary
+-------
+Persisted a board-level "Observed Max Res No" per registered target and made it
+the user-facing max-response-number column in Registered Articles, replacing the
+previously displayed (and misleading) "Saved Max Res No". The observed max is a
+monotonic board counter: response content can be deleted/hidden but response
+numbers are not removed, so the maximum only ever rises.
+
+Three nullable columns were added to the `target` table via the existing
+compatibility-ALTER style. A central monotonic update helper persists observed
+values from two sources: the article-top HTML already fetched during
+registration (`article_top_preview`) and the scrape-time observed max
+(`bbs_page_scrape`). Registered Articles reads the value straight off the target
+row (no extra join, no `responses` scan), keeping the MainTask049 latency win.
+`saved_max_res_no` remains in `article_response_stats` and on the internal row
+dict; it is simply no longer shown in the UI or page CSV.
+
+All 511 tests pass and `./validate.sh` is green. `git diff --check` is clean.
+
+Files changed
+-------------
+Product:
+- storage.py
+  * `_ensure_target_observed_max_res_no_columns()` (additive ALTER helper),
+    wired into `init_db()`.
+  * `update_target_observed_max_res_no(conn, article_id, article_type,
+    observed, source, observed_at=None)` monotonic helper.
+- parser.py
+  * `extract_observed_max_res_no(soup) -> int | None` (+ small private helpers).
+- article_resolver.py
+  * Extract observed max from the already-fetched article-top soup and include
+    `observed_max_res_no` in the success resolution result (no extra fetch).
+- target_list.py
+  * `register_target_url()` persists the resolved observed max to the target via
+    the monotonic helper (source `article_top_preview`).
+- orchestrator.py
+  * After a successful save, `run_scrape()` persists the scrape observed max to
+    the target (source `bbs_page_scrape`).
+- archive_read.py
+  * Sort allowlist + page-first set use `observed_max_res_no`; column config
+    shows "Observed Max Res No"; resolved_targets CTE carries the column; row
+    dicts include `observed_max_res_no`; ORDER BY supports it (NULL-last);
+    legacy sort aliases map to it.
+- web_app.py
+  * Column class/alignment + CSS use `col-observed-max-res`; legacy sort aliases
+    map to `observed_max_res_no`.
+
+Tests:
+- tests/test_storage.py        (schema columns + monotonic update rule cases)
+- tests/test_parser.py         (extract helper: value / empty / unknown / bad)
+- tests/test_target_list.py    (registration persists / leaves NULL)
+- tests/test_orchestrator.py   (autouse mock for the new collaborator)
+- tests/test_orchestrator_observed_max.py  (NEW: real-DB scrape persistence)
+- tests/test_article_resolver.py (success result includes observed key)
+- tests/test_archive_read.py   (rows include observed; sort; alias; CSV header)
+- tests/test_web_app.py        (UI shows Observed not Saved; CSV header; sort)
+
+Schema changes
+--------------
+`target` gains three nullable columns (additive, backward compatible):
+- observed_max_res_no INTEGER
+- observed_max_res_no_at TEXT
+- observed_max_res_no_source TEXT
+
+Added via `_ensure_target_observed_max_res_no_columns()`, called from `init_db()`
+alongside the existing `_ensure_target_*` helpers. Existing rows default to NULL.
+No index was added (target is small; ordering on the column is already cheap, and
+MainTask049 added `idx_target_active_created_at_id`). No change to `responses`,
+`articles`, or `article_response_stats` schema.
+
+Storage / update-rule changes
+------------------------------
+`update_target_observed_max_res_no(...)` behavior:
+- observed is None -> no write (reason "observed_none").
+- observed not int / bool / negative -> ignored safely, no write.
+- stored NULL -> set value + timestamp + source ("advanced").
+- observed > stored -> update value + timestamp + source ("advanced").
+- observed == stored -> keep value, refresh timestamp (+source)
+  ("equal_timestamp_refresh").
+- observed < stored -> never lower; timestamp/source untouched ("not_higher").
+
+Implementation uses a guarded UPDATE (`WHERE observed_max_res_no IS NULL OR
+observed_max_res_no < ?`) for the monotonic raise, then a second UPDATE keyed on
+exact equality for the timestamp refresh — so the raise path is atomic and a
+lower value can never win a race. `observed == 0` is honored (empty-board
+observation) and only ever sets NULL or refreshes an existing 0.
+
+Parser / extraction changes
+----------------------------
+`extract_observed_max_res_no(soup)`:
+- Reads every `data-res_no` attribute (the same signal `parse_responses` uses)
+  and returns the max int when any are present.
+- Returns 0 only when a board area is positively rendered (recognized
+  `st-bbs*`/`bbs*` markers) but no response numbers are present — an observed
+  empty board.
+- Returns None for parse miss, unknown/ambiguous shape, or
+  unavailable/restricted board (no board area detected).
+- Wrapped in a guard so it never raises on unexpected HTML.
+
+Registration-flow changes
+--------------------------
+`article_resolver._resolve_from_article_url()` already fetches the article-top
+soup for identity/title; it now also runs `extract_observed_max_res_no(soup)` on
+that same soup (no duplicate HTTP fetch) and returns `observed_max_res_no` in the
+success dict. This flows through both URL and exact-title registration paths.
+`target_list.register_target_url()` reads it and, when not None, persists it via
+the monotonic helper with source `article_top_preview` immediately after
+`register_target()`. Failure/parse-miss leaves the target observed max NULL.
+
+Scrape-flow changes
+-------------------
+`orchestrator.run_scrape()` computes `_observed_max_res_no(json_responses)` and,
+after the existing `save_to_db(...)` on the open write connection, calls the
+monotonic helper with source `bbs_page_scrape`. Parse-miss/None and lower values
+cannot overwrite a higher stored value (helper guarantees).
+
+Hybrid adjustment (adopted from Copilot): the "already up to date" path
+(`max_saved_res_no` is not None, `responses` empty, `interrupted` False) now also
+persists the saved max as a lower-bound observation. It opens a short write
+connection and calls the monotonic helper with source `saved_rows_fallback`
+before returning. This lets already-fully-saved targets gradually populate
+`target.observed_max_res_no` during periodic random-start scraping, matching the
+intended gradual-fill behavior for existing targets. Because the helper is
+monotonic, this never lowers a higher existing observed max (e.g. one set earlier
+from `article_top_preview`), and it only writes the target row (no response rows,
+no `save_to_db`, no change to `article_response_stats`).
+
+Registered Articles UI/CSV changes
+----------------------------------
+- `REGISTERED_ARTICLE_COLUMNS`: the `saved_max_res_no` entry is replaced (same
+  position) by `observed_max_res_no` (label "Observed Max Res No", csv_header
+  "observed_max_res_no"). Because the HTML table and page CSV both derive from
+  this single list, the UI and CSV stay aligned automatically.
+- `resolved_targets` CTE selects `t.observed_max_res_no` (or NULL on older DBs
+  lacking the column), exposed on each row dict as `observed_max_res_no`.
+- `saved_max_res_no` is still computed and kept on the internal row dict for
+  diagnostics and `write_scrape_targets_txt`, but is not a display/CSV column.
+- web_app column class/alignment + CSS updated to `col-observed-max-res`.
+
+Sort / backward-compatibility behavior
+---------------------------------------
+- `observed_max_res_no` is sortable, added to both the sort allowlist and the
+  page-first sort set (it is a pure target column, so it sorts without touching
+  stats). ORDER BY places NULLs last in both directions.
+- Chosen alias behavior: legacy `sort_by=saved_max_res_no` and
+  `sort_by=latest_scraped_max_res_no` now MAP to `observed_max_res_no` (applied
+  in both `archive_read.query_registered_articles` and
+  `web_app._normalize_registered_sort_by`). Rationale: the user-facing default
+  should prefer the observed max, old bookmarked URLs keep working, and the
+  saved-stat sort is no longer user-exposed.
+
+Tests / validation run
+-----------------------
+- Storage: schema columns created on fresh + legacy DBs; update rule for NULL /
+  greater / equal-refresh / lower-no-downgrade / None / negative / zero.
+- Parser: max when visible, 0 for empty board, None for unknown, ignores bad
+  values.
+- Registration: persists observed max when present; leaves NULL when None.
+- Scrape (real DB): persists observed max (bbs_page_scrape); does not lower an
+  existing higher value.
+- Already-up-to-date path (real DB): persists saved_rows_fallback when no new
+  responses; does not downgrade a higher existing observed max.
+- Read path: rows include observed_max_res_no; sort desc NULL-last; legacy
+  alias maps to observed; CSV export header uses observed not saved.
+- Web: UI shows "Observed Max Res No" and not "Saved Max Res No"; CSV header
+  swap; observed sort link present; normalize maps legacy aliases.
+
+Whether ./validate.sh passed
+----------------------------
+YES. `./validate.sh` exit 0; 513 passed (flake8 + pytest in-container) after the
+hybrid adjustment.
+
+Whether git diff --check passed
+-------------------------------
+YES. `git diff --check` exit 0 (no whitespace/conflict errors).
+
+Runtime reflection notes
+------------------------
+- The display value comes off the target row, so Registered Articles stays fast
+  (no new join, no responses aggregation).
+- Existing targets show NULL observed max until registration re-resolution or a
+  scrape fills them; this is acceptable and self-heals via periodic scraping.
+- A registered-but-unscraped target can now show `Saved Responses = 0` with a
+  positive `Observed Max Res No` (board size seen at registration).
+
+Existing runtime DB note
+------------------------
+Recreating the runtime container does NOT automatically apply the new
+compatibility ALTERs to an already-existing `/app/data/nicodic.db`. The new
+`target` columns are added by `init_db()` only when it runs against that DB.
+A runtime operator should run an explicit `init_db('/app/data/nicodic.db')`
+(e.g. via the normal app startup/CLI path that calls init_db) once so the three
+observed-max columns are added to the existing target table. Until then,
+`archive_read` degrades gracefully: the CTE substitutes NULL for the missing
+column and the page renders blank observed values.
+
+Runtime DB safety notes
+-----------------------
+- All schema changes are additive nullable columns; no data is rewritten,
+  renamed, or dropped. `saved_max_res_no` and `saved_response_count` semantics
+  are unchanged.
+- The monotonic helper never lowers a stored value and never writes NULL over an
+  existing value, so a parse miss or a partial/interrupted scrape cannot corrupt
+  the observed max.
+- No index was added to the 13M-row responses table.
+
+Known limitations
+-----------------
+- The "already up to date" scrape path now writes a saved_rows_fallback lower
+  bound (one bounded target-row UPDATE); the value never regresses.
+- Empty-board detection (returning 0) is heuristic on board-area markers; if the
+  article-top board preview shape differs from expectations it returns None
+  (safe) rather than a wrong number.
+- Article-top preview may not always expose response numbers; in that case
+  observed max is filled by the next scrape.
+- No backfill is performed; existing targets fill in over time.
+
+Recommended follow-up tasks
+---------------------------
+- Optional bounded backfill seam that sets observed max from
+  `article_response_stats.saved_max_res_no` as a lower bound (source
+  `saved_rows_fallback`) for targets currently NULL — bounded, no per-article
+  top crawl.
+- Verify the real article-top board-preview HTML shape against a saved sample
+  and tighten the empty-board markers if needed.
+- Optionally surface `observed_max_res_no_at` / `_source` in an operator
+  inspection view.
+
+Non-modification statement
+--------------------------
+The runtime DB, runtime checkout, cron, Docker configuration, root/meta
+repository, and any sibling repositories were NOT modified. No live scraping was
+run, no runtime DB was copied or backed up, and no PostgreSQL/ORM was introduced.
+Only the allowed product files, their tests, one new focused test file, and this
+report were changed.
+
+
+=============================
 FILE: copilot/Makefile
 =============================
 .PHONY: build run test lint clean inspect
@@ -24561,16 +25211,18 @@ REGISTERED_SORT_ALLOWLIST = frozenset({
     "article_id",
     "created_at",
     "saved_response_count",
-    "saved_max_res_no",
+    "observed_max_res_no",
     "last_scraped_at",
 })
 
 # Sorts that order on target/article fields only; stats are fetched after paging.
+# observed_max_res_no is a plain target column, so it sorts page-first.
 REGISTERED_PAGE_FIRST_SORTS = frozenset({
     "created_at",
     "last_scraped_at",
     "title",
     "article_id",
+    "observed_max_res_no",
 })
 
 # Search only fields users can understand from the visible table.
@@ -24596,9 +25248,10 @@ REGISTERED_ARTICLE_COLUMNS = [
      "csv_header": "created_at"},
     {"key": "saved_response_count", "label": "Saved Responses",
      "csv_header": "saved_response_count"},
-    # saved_max_res_no is MAX(res_no) over saved rows, not live board max.
-    {"key": "saved_max_res_no", "label": "Saved Max Res No",
-     "csv_header": "saved_max_res_no"},
+    # observed_max_res_no is the board-level max observed during registration
+    # or scraping (monotonic). saved_max_res_no is kept internally only.
+    {"key": "observed_max_res_no", "label": "Observed Max Res No",
+     "csv_header": "observed_max_res_no"},
     {"key": "last_scraped_at", "label": "Last Scraped",
      "csv_header": "last_scraped_at"},
 ]
@@ -25273,6 +25926,15 @@ def _registered_has_target_title_column(conn):
     return "title" in cols
 
 
+def _registered_has_observed_max_column(conn):
+    """Return whether optional target.observed_max_res_no exists (DB compat)."""
+
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(target)")
+    cols = {row[1] for row in cur.fetchall()}
+    return "observed_max_res_no" in cols
+
+
 def _registered_fallback_title(article_id, canonical_url):
     parsed = urlparse(canonical_url or "")
     path_parts = [part for part in parsed.path.split("/") if part]
@@ -25296,6 +25958,7 @@ def _registered_build_resolved_targets_cte(
     *,
     matched_title_sql: str,
     matched_last_scraped_expr: str,
+    observed_max_expr: str = "NULL",
 ) -> str:
     return f"""
             WITH url_fallback_articles AS (
@@ -25314,6 +25977,7 @@ def _registered_build_resolved_targets_cte(
                     t.article_type AS target_article_type,
                     t.canonical_url AS target_canonical_url,
                     t.created_at AS target_created_at,
+                    {observed_max_expr} AS observed_max_res_no,
                     COALESCE(a_exact.article_id, a_url.article_id)
                         AS matched_article_id,
                     COALESCE(a_exact.article_type, a_url.article_type)
@@ -25464,6 +26128,7 @@ def _registered_page_shell_row_to_dict(shell_row, stats_map):
         matched_article_id,
         matched_article_type,
         last_scraped_at,
+        observed_max_res_no,
     ) = shell_row
     stat = None
     if matched_article_id is not None and matched_article_type is not None:
@@ -25485,6 +26150,7 @@ def _registered_page_shell_row_to_dict(shell_row, stats_map):
             saved_response_count,
             display_max,
             last_scraped_at,
+            observed_max_res_no,
         )
     )
 
@@ -25554,12 +26220,9 @@ def _registered_order_by_clause(sort_by, order_dir, *, max_res_sql: str):
         "saved_response_count": [
             f"COALESCE(rs.saved_response_count, 0) {order_dir}",
         ],
-        "saved_max_res_no": [
-            (
-                f"CASE WHEN {max_res_sql} IS NULL "
-                "THEN 1 ELSE 0 END ASC"
-            ),
-            f"{max_res_sql} {order_dir}",
+        "observed_max_res_no": [
+            "CASE WHEN rt.observed_max_res_no IS NULL THEN 1 ELSE 0 END ASC",
+            f"rt.observed_max_res_no {order_dir}",
         ],
         "last_scraped_at": [
             "CASE WHEN rt.matched_last_scraped_at IS NULL THEN 1 ELSE 0 END ASC",
@@ -25627,6 +26290,7 @@ def _registered_row_to_dict(row):
         saved_response_count,
         saved_max_res_no,
         last_scraped_at,
+        observed_max_res_no,
     ) = row
     aid = (article_id or "").strip()
     if aid.isdigit():
@@ -25641,7 +26305,9 @@ def _registered_row_to_dict(row):
         "canonical_url": canonical_url or "",
         "created_at": created_at or "",
         "saved_response_count": saved_response_count or 0,
+        # saved_max_res_no is kept internally for diagnostics; not displayed.
         "saved_max_res_no": saved_max_res_no,
+        "observed_max_res_no": observed_max_res_no,
         "last_scraped_at": last_scraped_at,
     }
 
@@ -25663,8 +26329,9 @@ def query_registered_articles(
     Set paginate=False to return all matching rows without LIMIT/OFFSET;
     that is the internal all-records export route.
     """
-    if sort_by == "latest_scraped_max_res_no":
-        sort_by = "saved_max_res_no"
+    # Legacy saved-stat sort aliases now map to the user-facing observed max.
+    if sort_by in ("latest_scraped_max_res_no", "saved_max_res_no"):
+        sort_by = "observed_max_res_no"
     if sort_by not in REGISTERED_SORT_ALLOWLIST:
         sort_by = DEFAULT_REGISTERED_SORT_BY
     order_dir = "ASC" if sort_order == "asc" else "DESC"
@@ -25689,9 +26356,15 @@ def query_registered_articles(
             )
         else:
             matched_title_sql = "COALESCE(a_exact.title, a_url.title)"
+        observed_max_expr = (
+            "t.observed_max_res_no"
+            if _registered_has_observed_max_column(conn)
+            else "NULL"
+        )
         base_cte_sql = _registered_build_resolved_targets_cte(
             matched_title_sql=matched_title_sql,
             matched_last_scraped_expr=matched_last_scraped_expr,
+            observed_max_expr=observed_max_expr,
         )
         where_sql, where_params = _registered_build_search_clause(search)
         max_res_sql = _registered_saved_max_res_no_display_sql()
@@ -25731,7 +26404,8 @@ def query_registered_articles(
                     rt.target_created_at,
                     rt.matched_article_id,
                     rt.matched_article_type,
-                    rt.matched_last_scraped_at
+                    rt.matched_last_scraped_at,
+                    rt.observed_max_res_no
                 FROM resolved_targets AS rt
                 {where_sql}
                 ORDER BY
@@ -25774,7 +26448,8 @@ def query_registered_articles(
                     rt.target_created_at,
                     COALESCE(rs.saved_response_count, 0) AS saved_response_count,
                     ({max_res_sql}) AS saved_max_res_no,
-                    rt.matched_last_scraped_at AS last_scraped_at
+                    rt.matched_last_scraped_at AS last_scraped_at,
+                    rt.observed_max_res_no AS observed_max_res_no
                 FROM resolved_targets AS rt
                 LEFT JOIN {stats_source_sql} AS rs
                     ON rt.matched_article_id = rs.article_id
@@ -26019,6 +26694,7 @@ from article_page_identity import (
     resolve_registration_identity_from_html,
 )
 from http_client import fetch_page
+from parser import extract_observed_max_res_no
 
 
 NICO_TOP_URL = "https://dic.nicovideo.jp"
@@ -26035,6 +26711,7 @@ def _build_success_result(
     title: str,
     matched_by: str,
     normalized_input: str,
+    observed_max_res_no: int | None = None,
 ) -> dict:
     return {
         "ok": True,
@@ -26046,6 +26723,7 @@ def _build_success_result(
         "title": title,
         "matched_by": matched_by,
         "normalized_input": normalized_input,
+        "observed_max_res_no": observed_max_res_no,
     }
 
 
@@ -26121,6 +26799,11 @@ def _resolve_from_article_url(
     except ValueError:
         return _build_failure_result("not_found", normalized_input)
 
+    # Reuse the already-fetched article-top soup to observe the board max
+    # response number without an extra HTTP fetch. Best-effort: None on any
+    # parse miss / unknown shape.
+    observed_max_res_no = extract_observed_max_res_no(soup)
+
     return _build_success_result(
         article_url=canonical_target["article_url"],
         article_id=canonical_target["article_id"],
@@ -26128,6 +26811,7 @@ def _resolve_from_article_url(
         title=title,
         matched_by=matched_by,
         normalized_input=normalized_input,
+        observed_max_res_no=observed_max_res_no,
     )
 
 
@@ -33085,6 +33769,7 @@ from storage import (
     list_queue_requests,
     open_readonly_db,
     save_to_db,
+    update_target_observed_max_res_no,
     validate_saved_article_identity,
 )
 from dicopedia_urls import parse_target_identity
@@ -33794,6 +34479,20 @@ def run_scrape(
         )
 
     if max_saved_res_no is not None and not responses and not interrupted:
+        # No new responses, but still persist the saved max as a lower-bound
+        # observation so already-saved targets gradually fill observed_max_res_no
+        # during periodic scraping. Monotonic: never lowers a higher value.
+        obs_conn = init_db()
+        try:
+            update_target_observed_max_res_no(
+                obs_conn,
+                article_id,
+                article_type,
+                max_saved_res_no,
+                source="saved_rows_fallback",
+            )
+        finally:
+            obs_conn.close()
         if progress_reporter is None:
             print("No new BBS responses found; article already up to date")
         else:
@@ -33866,6 +34565,14 @@ def run_scrape(
         canonical_article_url,
         responses,
         **save_kwargs,
+    )
+    scrape_observed_max = _observed_max_res_no(json_responses)
+    update_target_observed_max_res_no(
+        conn,
+        article_id,
+        article_type,
+        scrape_observed_max,
+        source="bbs_page_scrape",
     )
     conn.close()
 
@@ -33972,6 +34679,89 @@ def drain_queue_requests(max_requests: int | None = None) -> dict:
 FILE: copilot/parser.py
 =============================
 from bs4 import BeautifulSoup
+
+
+# Class/id markers that positively indicate a board area was rendered on the
+# page (article top preview or a board page), used only to distinguish an
+# observed empty board from an unknown/unavailable/restricted shape.
+_BBS_AREA_MARKERS = (
+    "st-bbs_reshead",
+    "st-bbs_resbody",
+    "st-bbsArea",
+    "st-bbs_contents",
+    "bbs_contents",
+)
+_BBS_AREA_ID_MARKERS = ("bbs", "bbs_contents")
+
+
+def _coerce_res_no(raw) -> int | None:
+    if raw is None:
+        return None
+    try:
+        value = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+    if value < 0:
+        return None
+    return value
+
+
+def _board_area_is_present(soup: BeautifulSoup) -> bool:
+    """Return True only when a board area container is clearly rendered."""
+
+    for element in soup.find_all(attrs={"class": True}):
+        class_value = element.get("class") or []
+        if isinstance(class_value, str):
+            class_tokens = class_value.split()
+        else:
+            class_tokens = list(class_value)
+        for token in class_tokens:
+            for marker in _BBS_AREA_MARKERS:
+                if token == marker or token.startswith(marker):
+                    return True
+
+    for element in soup.find_all(attrs={"id": True}):
+        if element.get("id") in _BBS_AREA_ID_MARKERS:
+            return True
+
+    return False
+
+
+def extract_observed_max_res_no(soup: BeautifulSoup) -> int | None:
+    """Extract the observed maximum board response number from page HTML.
+
+    Works on article-top preview soup or board/response-preview soup by
+    reading every ``data-res_no`` attribute (the same signal ``parse_responses``
+    relies on) and returning the maximum.
+
+    Returns:
+      - ``int`` (> 0) when one or more response numbers are visible.
+      - ``0`` only when a board area is positively rendered but contains no
+        response numbers (an observed empty board).
+      - ``None`` for parse miss, unknown/ambiguous shape, or an
+        unavailable/restricted board where no board area is detected.
+
+    Never raises on unexpected HTML shapes.
+    """
+
+    if soup is None:
+        return None
+
+    try:
+        res_numbers = [
+            coerced
+            for element in soup.find_all(attrs={"data-res_no": True})
+            if (coerced := _coerce_res_no(element.get("data-res_no")))
+            is not None
+        ]
+        if res_numbers:
+            return max(res_numbers)
+
+        if _board_area_is_present(soup):
+            return 0
+        return None
+    except Exception:
+        return None
 
 
 def parse_responses(soup: BeautifulSoup) -> list:
@@ -35041,6 +35831,42 @@ def _ensure_target_title_column(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _ensure_target_observed_max_res_no_columns(
+    conn: sqlite3.Connection,
+) -> None:
+    """Add the board-observed max response-number columns to ``target``.
+
+    Additive, nullable columns following the existing compatibility-ALTER
+    style. ``observed_max_res_no`` is the monotonic board-level maximum
+    response number; ``_at`` records when it was last advanced/confirmed and
+    ``_source`` records how it was observed.
+    """
+
+    column_names = _list_column_names(conn, "target")
+    required_columns = {
+        "observed_max_res_no": (
+            "ALTER TABLE target ADD COLUMN observed_max_res_no INTEGER"
+        ),
+        "observed_max_res_no_at": (
+            "ALTER TABLE target ADD COLUMN observed_max_res_no_at TEXT"
+        ),
+        "observed_max_res_no_source": (
+            "ALTER TABLE target ADD COLUMN observed_max_res_no_source TEXT"
+        ),
+    }
+
+    cur = conn.cursor()
+    changed = False
+    for column_name, statement in required_columns.items():
+        if column_name in column_names:
+            continue
+        cur.execute(statement)
+        changed = True
+
+    if changed:
+        conn.commit()
+
+
 def _ensure_article_metadata_columns(conn: sqlite3.Connection) -> None:
     column_names = _list_column_names(conn, "articles")
     required_columns = {
@@ -35171,6 +35997,7 @@ def init_db(db_path: str = DEFAULT_DB_PATH):
     _ensure_article_metadata_columns(conn)
     _ensure_target_redirect_columns(conn)
     _ensure_target_title_column(conn)
+    _ensure_target_observed_max_res_no_columns(conn)
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS scrape_run_observation (
@@ -35684,6 +36511,89 @@ def register_target(
     }
 
 
+def update_target_observed_max_res_no(
+    conn,
+    article_id,
+    article_type,
+    observed,
+    source,
+    observed_at=None,
+):
+    """Monotonically update a target's observed board max response number.
+
+    Behavior:
+      - ``observed is None``: no write.
+      - non-int or negative ``observed``: ignored safely (no write).
+      - stored value NULL: set value, timestamp, source.
+      - ``observed > stored``: update value, timestamp, source.
+      - ``observed == stored``: keep value, refresh timestamp (and source).
+      - ``observed < stored``: never lower; leave timestamp/source untouched.
+
+    A single guarded UPDATE applies the monotonic rule atomically to reduce
+    race risk. Returns a small dict describing the outcome.
+    """
+
+    if observed is None:
+        return {"updated": False, "reason": "observed_none"}
+    if isinstance(observed, bool) or not isinstance(observed, int):
+        return {"updated": False, "reason": "observed_not_int"}
+    if observed < 0:
+        return {"updated": False, "reason": "observed_negative"}
+
+    validate_target_article_identity(article_id, article_type)
+
+    if observed_at is None:
+        observed_at = datetime.now(timezone.utc).isoformat()
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE target
+        SET observed_max_res_no = ?,
+            observed_max_res_no_at = ?,
+            observed_max_res_no_source = ?
+        WHERE article_id = ?
+          AND article_type = ?
+          AND (
+              observed_max_res_no IS NULL
+              OR observed_max_res_no < ?
+          )
+        """,
+        (
+            observed,
+            observed_at,
+            source,
+            article_id,
+            article_type,
+            observed,
+        ),
+    )
+    advanced = cur.rowcount > 0
+
+    if not advanced:
+        # Either no such target, or observed <= stored. Refresh the
+        # timestamp/source only when the value is exactly equal.
+        cur.execute(
+            """
+            UPDATE target
+            SET observed_max_res_no_at = ?,
+                observed_max_res_no_source = ?
+            WHERE article_id = ?
+              AND article_type = ?
+              AND observed_max_res_no = ?
+            """,
+            (observed_at, source, article_id, article_type, observed),
+        )
+        refreshed = cur.rowcount > 0
+        conn.commit()
+        if refreshed:
+            return {"updated": True, "reason": "equal_timestamp_refresh"}
+        return {"updated": False, "reason": "not_higher"}
+
+    conn.commit()
+    return {"updated": True, "reason": "advanced"}
+
+
 def list_targets(conn, active_only=True):
     """Load registered scrape targets in insertion order."""
 
@@ -36068,6 +36978,7 @@ from storage import (
     open_readonly_db,
     register_target,
     set_target_active_state,
+    update_target_observed_max_res_no,
 )
 
 
@@ -36151,6 +37062,7 @@ def register_target_url(article_url: str, target_db_path: str) -> str:
         return "denylisted"
 
     title = resolution.get("title") or ""
+    observed_max_res_no = resolution.get("observed_max_res_no")
 
     conn = init_db(target_db_path)
     try:
@@ -36161,6 +37073,14 @@ def register_target_url(article_url: str, target_db_path: str) -> str:
             canonical_target["article_url"],
             title=title,
         )
+        if observed_max_res_no is not None:
+            update_target_observed_max_res_no(
+                conn,
+                numeric_id,
+                canonical_target["article_type"],
+                observed_max_res_no,
+                source="article_top_preview",
+            )
     finally:
         conn.close()
 
@@ -36644,7 +37564,13 @@ from archive_read import (
     write_scrape_targets_txt,
 )
 import archive_read
-from storage import init_db, open_readonly_db, register_target, save_to_db
+from storage import (
+    init_db,
+    open_readonly_db,
+    register_target,
+    save_to_db,
+    update_target_observed_max_res_no,
+)
 
 
 def _seed_archive(tmp_path, monkeypatch):
@@ -36816,6 +37742,7 @@ def _seed_registered_sort_case(
     created_at,
     response_numbers=None,
     latest_scraped_at=None,
+    observed_max_res_no=None,
 ):
     monkeypatch.chdir(tmp_path)
     conn = init_db()
@@ -36835,6 +37762,14 @@ def _seed_registered_sort_case(
             """,
             (created_at, article_id, "a"),
         )
+        if observed_max_res_no is not None:
+            update_target_observed_max_res_no(
+                conn,
+                article_id,
+                "a",
+                observed_max_res_no,
+                source="article_top_preview",
+            )
         if response_numbers:
             save_to_db(
                 conn,
@@ -37234,11 +38169,26 @@ def test_open_readonly_db_opens_existing_db_read_only(tmp_path, monkeypatch):
         conn.close()
 
 
-def test_registered_articles_column_label_saved_max_res_no():
+def test_registered_articles_column_shows_observed_not_saved_max():
     from archive_read import REGISTERED_ARTICLE_COLUMNS
 
-    col = next(c for c in REGISTERED_ARTICLE_COLUMNS if c["key"] == "saved_max_res_no")
-    assert col["label"] == "Saved Max Res No"
+    keys = [c["key"] for c in REGISTERED_ARTICLE_COLUMNS]
+    assert "saved_max_res_no" not in keys
+    assert "observed_max_res_no" in keys
+    col = next(
+        c for c in REGISTERED_ARTICLE_COLUMNS
+        if c["key"] == "observed_max_res_no"
+    )
+    assert col["label"] == "Observed Max Res No"
+    assert col["csv_header"] == "observed_max_res_no"
+
+
+def test_registered_articles_csv_headers_use_observed_not_saved_max():
+    from archive_read import REGISTERED_ARTICLE_COLUMNS
+
+    headers = [c["csv_header"] for c in REGISTERED_ARTICLE_COLUMNS]
+    assert "observed_max_res_no" in headers
+    assert "saved_max_res_no" not in headers
 
 
 def test_get_saved_article_summary_by_id_returns_first_match(
@@ -37804,6 +38754,7 @@ def test_query_registered_articles_sorts_max_res_no_numerically(
         created_at="2026-01-01T00:00:00+00:00",
         response_numbers=[2],
         latest_scraped_at="2026-01-01T00:00:00+00:00",
+        observed_max_res_no=2,
     )
     _seed_registered_sort_case(
         tmp_path,
@@ -37812,6 +38763,7 @@ def test_query_registered_articles_sorts_max_res_no_numerically(
         created_at="2026-01-01T00:00:00+00:00",
         response_numbers=[10],
         latest_scraped_at="2026-01-01T00:00:00+00:00",
+        observed_max_res_no=10,
     )
     _seed_registered_sort_case(
         tmp_path,
@@ -37820,10 +38772,11 @@ def test_query_registered_articles_sorts_max_res_no_numerically(
         created_at="2026-01-01T00:00:00+00:00",
         response_numbers=[100],
         latest_scraped_at="2026-01-01T00:00:00+00:00",
+        observed_max_res_no=100,
     )
 
     result = query_registered_articles(
-        sort_by="saved_max_res_no",
+        sort_by="observed_max_res_no",
         sort_order="asc",
         paginate=False,
     )
@@ -38488,6 +39441,87 @@ def test_export_registered_articles_csv_decodes_url_encoded_article_id(
     )
 
 
+def _seed_observed_max_targets(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        register_target(conn, "100", "a", "https://dic.nicovideo.jp/a/100")
+        register_target(conn, "200", "a", "https://dic.nicovideo.jp/a/200")
+        register_target(conn, "300", "a", "https://dic.nicovideo.jp/a/300")
+        update_target_observed_max_res_no(
+            conn, "100", "a", 50, source="article_top_preview",
+        )
+        update_target_observed_max_res_no(
+            conn, "200", "a", 900, source="bbs_page_scrape",
+        )
+        # 300 intentionally left with NULL observed max.
+    finally:
+        conn.close()
+
+
+def test_query_registered_rows_include_observed_max_res_no(
+    tmp_path, monkeypatch,
+):
+    _seed_observed_max_targets(tmp_path, monkeypatch)
+
+    result = query_registered_articles(per_page=100, page=1)
+    by_id = {row["article_id"]: row for row in result["rows"]}
+
+    assert by_id["100"]["observed_max_res_no"] == 50
+    assert by_id["200"]["observed_max_res_no"] == 900
+    assert by_id["300"]["observed_max_res_no"] is None
+    # saved_max_res_no remains internally available on the row dict.
+    assert "saved_max_res_no" in by_id["100"]
+
+
+def test_query_registered_sort_by_observed_max_desc_nulls_last(
+    tmp_path, monkeypatch,
+):
+    _seed_observed_max_targets(tmp_path, monkeypatch)
+
+    result = query_registered_articles(
+        sort_by="observed_max_res_no",
+        sort_order="desc",
+        per_page=100,
+        page=1,
+    )
+    ordered_ids = [row["article_id"] for row in result["rows"]]
+
+    assert ordered_ids[0] == "200"
+    assert ordered_ids[1] == "100"
+    assert ordered_ids[-1] == "300"
+
+
+def test_query_registered_legacy_saved_max_sort_alias_maps_to_observed(
+    tmp_path, monkeypatch,
+):
+    _seed_observed_max_targets(tmp_path, monkeypatch)
+
+    result = query_registered_articles(
+        sort_by="saved_max_res_no",
+        sort_order="desc",
+        per_page=100,
+        page=1,
+    )
+    ordered_ids = [row["article_id"] for row in result["rows"]]
+
+    assert ordered_ids[0] == "200"
+    assert ordered_ids[-1] == "300"
+
+
+def test_query_registered_csv_export_uses_observed_header(
+    tmp_path, monkeypatch,
+):
+    from archive_read import export_registered_articles_csv
+
+    _seed_observed_max_targets(tmp_path, monkeypatch)
+
+    csv_text = export_registered_articles_csv()
+    header_line = csv_text.splitlines()[0]
+    assert "observed_max_res_no" in header_line
+    assert "saved_max_res_no" not in header_line
+
+
 =============================
 FILE: copilot/tests/test_article_resolver.py
 =============================
@@ -38525,6 +39559,7 @@ def test_resolve_article_input_succeeds_for_full_article_url():
         "title": "Foo",
         "matched_by": "article_url",
         "normalized_input": "https://dic.nicovideo.jp/a/Foo",
+        "observed_max_res_no": None,
     }
 
 
@@ -43169,6 +44204,16 @@ from orchestrator import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _mock_observed_max_update():
+    """Mock the target observed-max write so MagicMock conns in these unit
+    tests are unaffected. Real persistence is covered in
+    test_orchestrator_observed_max.py against a real DB.
+    """
+    with patch("orchestrator.update_target_observed_max_res_no"):
+        yield
+
+
 # ----- build_bbs_base_url -----
 
 
@@ -44554,7 +45599,9 @@ def test_run_scrape_saved_article_zero_new_is_success_without_writing():
         progress_reporter=None,
     )
     mock_saved.assert_not_called()
-    mock_init.assert_not_called()
+    # init_db is opened only to persist the saved-rows-fallback observed max;
+    # no response rows are written (save_to_db stays uncalled).
+    mock_init.assert_called_once_with()
     mock_save_db.assert_not_called()
     mock_print.assert_any_call(
         "No new BBS responses found; article already up to date"
@@ -44661,13 +45708,183 @@ def test_drain_queue_requests_unexpected_failure_keeps_request_queued():
 
 
 =============================
+FILE: copilot/tests/test_orchestrator_observed_max.py
+=============================
+"""Scrape-flow persistence of the observed board max response number.
+
+These tests exercise the real storage helper against a temp DB (no mocked
+target write), unlike test_orchestrator.py which mocks that collaborator.
+"""
+
+import sqlite3
+from unittest.mock import patch
+
+from orchestrator import ArticleMetadataResult, run_scrape
+from storage import (
+    DEFAULT_DB_PATH,
+    init_db,
+    register_target,
+    update_target_observed_max_res_no,
+)
+
+
+def _read_target_observed_max(article_id, article_type="a"):
+    conn = sqlite3.connect(DEFAULT_DB_PATH)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT observed_max_res_no, observed_max_res_no_source
+            FROM target
+            WHERE article_id=? AND article_type=?
+            """,
+            (article_id, article_type),
+        )
+        return cur.fetchone()
+    finally:
+        conn.close()
+
+
+def test_run_scrape_persists_observed_max_to_target(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    conn = init_db()
+    register_target(
+        conn, "5364158", "a", "https://dic.nicovideo.jp/a/5364158", title="T",
+    )
+    conn.close()
+
+    canonical_url = "https://dic.nicovideo.jp/a/5364158"
+    responses = [{"res_no": 1}, {"res_no": 250}, {"res_no": 37}]
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=ArticleMetadataResult(
+            "5364158", "a", "Title", article_url=canonical_url,
+        ),
+    ):
+        with patch("orchestrator.get_max_saved_res_no", return_value=None):
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=(responses, False, False),
+            ):
+                with patch("orchestrator.print"):
+                    run_scrape(canonical_url)
+
+    row = _read_target_observed_max("5364158")
+    assert row[0] == 250
+    assert row[1] == "bbs_page_scrape"
+
+
+def test_run_scrape_does_not_lower_existing_observed_max(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    conn = init_db()
+    register_target(
+        conn, "5364158", "a", "https://dic.nicovideo.jp/a/5364158", title="T",
+    )
+    update_target_observed_max_res_no(
+        conn, "5364158", "a", 999, source="article_top_preview",
+    )
+    conn.close()
+
+    canonical_url = "https://dic.nicovideo.jp/a/5364158"
+    responses = [{"res_no": 1}, {"res_no": 10}]
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=ArticleMetadataResult(
+            "5364158", "a", "Title", article_url=canonical_url,
+        ),
+    ):
+        with patch("orchestrator.get_max_saved_res_no", return_value=None):
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=(responses, False, False),
+            ):
+                with patch("orchestrator.print"):
+                    run_scrape(canonical_url)
+
+    row = _read_target_observed_max("5364158")
+    assert row[0] == 999
+    assert row[1] == "article_top_preview"
+
+
+def test_run_scrape_already_up_to_date_persists_saved_rows_fallback(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+
+    conn = init_db()
+    register_target(
+        conn, "5364158", "a", "https://dic.nicovideo.jp/a/5364158", title="T",
+    )
+    conn.close()
+
+    canonical_url = "https://dic.nicovideo.jp/a/5364158"
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=ArticleMetadataResult(
+            "5364158", "a", "Title", article_url=canonical_url,
+        ),
+    ):
+        with patch("orchestrator.get_max_saved_res_no", return_value=120):
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=([], False, False),
+            ):
+                with patch("orchestrator.print"):
+                    run_scrape(canonical_url)
+
+    row = _read_target_observed_max("5364158")
+    assert row[0] == 120
+    assert row[1] == "saved_rows_fallback"
+
+
+def test_run_scrape_already_up_to_date_does_not_downgrade_observed(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+
+    conn = init_db()
+    register_target(
+        conn, "5364158", "a", "https://dic.nicovideo.jp/a/5364158", title="T",
+    )
+    update_target_observed_max_res_no(
+        conn, "5364158", "a", 999, source="article_top_preview",
+    )
+    conn.close()
+
+    canonical_url = "https://dic.nicovideo.jp/a/5364158"
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=ArticleMetadataResult(
+            "5364158", "a", "Title", article_url=canonical_url,
+        ),
+    ):
+        with patch("orchestrator.get_max_saved_res_no", return_value=120):
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=([], False, False),
+            ):
+                with patch("orchestrator.print"):
+                    run_scrape(canonical_url)
+
+    row = _read_target_observed_max("5364158")
+    assert row[0] == 999
+    assert row[1] == "article_top_preview"
+
+
+=============================
 FILE: copilot/tests/test_parser.py
 =============================
 """Unit tests for parser.py: current HTML parsing behavior."""
 
 from bs4 import BeautifulSoup
 
-from parser import parse_responses
+from parser import extract_observed_max_res_no, parse_responses
 
 
 def test_parse_responses_normal_case():
@@ -44734,6 +45951,49 @@ def test_parse_responses_partial_html_and_missing_res_no():
     assert response["posted_at"] is None
     assert response["content"] == ""
     assert response["content_html"] == ""
+
+
+def test_extract_observed_max_res_no_returns_max_when_visible():
+    html = """
+    <dl>
+      <dt class="st-bbs_reshead" data-res_no="12"></dt>
+      <dt class="st-bbs_reshead" data-res_no="500"></dt>
+      <dt class="st-bbs_reshead" data-res_no="37"></dt>
+    </dl>
+    """
+    soup = BeautifulSoup(html, "lxml")
+    assert extract_observed_max_res_no(soup) == 500
+
+
+def test_extract_observed_max_res_no_zero_for_empty_board():
+    html = """
+    <div class="st-bbsArea">
+      <p>まだ書き込みがありません</p>
+    </div>
+    """
+    soup = BeautifulSoup(html, "lxml")
+    assert extract_observed_max_res_no(soup) == 0
+
+
+def test_extract_observed_max_res_no_none_for_unknown_shape():
+    html = """
+    <html><body>
+      <h1>An article with no board area at all</h1>
+    </body></html>
+    """
+    soup = BeautifulSoup(html, "lxml")
+    assert extract_observed_max_res_no(soup) is None
+
+
+def test_extract_observed_max_res_no_ignores_bad_values():
+    html = """
+    <dl>
+      <dt class="st-bbs_reshead" data-res_no="not-a-number"></dt>
+      <dt class="st-bbs_reshead" data-res_no="42"></dt>
+    </dl>
+    """
+    soup = BeautifulSoup(html, "lxml")
+    assert extract_observed_max_res_no(soup) == 42
 
 
 =============================
@@ -46199,7 +47459,22 @@ from storage import (
     save_json,
     save_to_db,
     set_target_active_state,
+    update_target_observed_max_res_no,
 )
+
+
+def _read_observed_max_row(conn, article_id, article_type):
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT observed_max_res_no, observed_max_res_no_at,
+               observed_max_res_no_source
+        FROM target
+        WHERE article_id=? AND article_type=?
+        """,
+        (article_id, article_type),
+    )
+    return cur.fetchone()
 
 
 def _read_stats_row(conn, article_id, article_type):
@@ -47171,9 +48446,196 @@ def test_append_scrape_run_observation_csv_wide_has_run_columns(
     assert "skip_denylist" in csv_text
 
 
+def _target_column_names(conn):
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(target)")
+    return {row[1] for row in cur.fetchall()}
+
+
+def test_init_db_creates_target_observed_max_columns(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        cols = _target_column_names(conn)
+        assert "observed_max_res_no" in cols
+        assert "observed_max_res_no_at" in cols
+        assert "observed_max_res_no_source" in cols
+    finally:
+        conn.close()
+
+
+def test_init_db_adds_observed_max_columns_to_existing_target(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    db_path = tmp_path / "data" / "nicodic.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    legacy = sqlite3.connect(str(db_path))
+    legacy.execute(
+        """
+        CREATE TABLE target (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            article_id TEXT NOT NULL,
+            article_type TEXT NOT NULL,
+            canonical_url TEXT NOT NULL,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(article_id, article_type)
+        )
+        """
+    )
+    legacy.commit()
+    legacy.close()
+
+    conn = init_db()
+    try:
+        cols = _target_column_names(conn)
+        assert "observed_max_res_no" in cols
+        assert "observed_max_res_no_at" in cols
+        assert "observed_max_res_no_source" in cols
+    finally:
+        conn.close()
+
+
+def _register_seed_target(conn, article_id="12345"):
+    register_target(
+        conn,
+        article_id,
+        "a",
+        f"https://dic.nicovideo.jp/a/{article_id}",
+        title="T",
+    )
+
+
+def test_update_observed_max_sets_from_null(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        _register_seed_target(conn)
+        result = update_target_observed_max_res_no(
+            conn, "12345", "a", 500, source="article_top_preview",
+        )
+        assert result["updated"] is True
+        row = _read_observed_max_row(conn, "12345", "a")
+        assert row[0] == 500
+        assert row[1] is not None
+        assert row[2] == "article_top_preview"
+    finally:
+        conn.close()
+
+
+def test_update_observed_max_raises_on_greater(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        _register_seed_target(conn)
+        update_target_observed_max_res_no(
+            conn, "12345", "a", 100, source="article_top_preview",
+        )
+        update_target_observed_max_res_no(
+            conn, "12345", "a", 250, source="bbs_page_scrape",
+        )
+        row = _read_observed_max_row(conn, "12345", "a")
+        assert row[0] == 250
+        assert row[2] == "bbs_page_scrape"
+    finally:
+        conn.close()
+
+
+def test_update_observed_max_equal_refreshes_timestamp(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        _register_seed_target(conn)
+        update_target_observed_max_res_no(
+            conn, "12345", "a", 300, source="article_top_preview",
+            observed_at="2025-01-01T00:00:00+00:00",
+        )
+        result = update_target_observed_max_res_no(
+            conn, "12345", "a", 300, source="bbs_page_scrape",
+            observed_at="2025-02-02T00:00:00+00:00",
+        )
+        assert result["updated"] is True
+        row = _read_observed_max_row(conn, "12345", "a")
+        assert row[0] == 300
+        assert row[1] == "2025-02-02T00:00:00+00:00"
+        assert row[2] == "bbs_page_scrape"
+    finally:
+        conn.close()
+
+
+def test_update_observed_max_does_not_lower(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        _register_seed_target(conn)
+        update_target_observed_max_res_no(
+            conn, "12345", "a", 500, source="article_top_preview",
+            observed_at="2025-01-01T00:00:00+00:00",
+        )
+        result = update_target_observed_max_res_no(
+            conn, "12345", "a", 100, source="bbs_page_scrape",
+            observed_at="2025-02-02T00:00:00+00:00",
+        )
+        assert result["updated"] is False
+        row = _read_observed_max_row(conn, "12345", "a")
+        assert row[0] == 500
+        assert row[1] == "2025-01-01T00:00:00+00:00"
+        assert row[2] == "article_top_preview"
+    finally:
+        conn.close()
+
+
+def test_update_observed_max_none_is_noop(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        _register_seed_target(conn)
+        result = update_target_observed_max_res_no(
+            conn, "12345", "a", None, source="article_top_preview",
+        )
+        assert result["updated"] is False
+        row = _read_observed_max_row(conn, "12345", "a")
+        assert row[0] is None
+    finally:
+        conn.close()
+
+
+def test_update_observed_max_negative_is_ignored(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        _register_seed_target(conn)
+        result = update_target_observed_max_res_no(
+            conn, "12345", "a", -5, source="article_top_preview",
+        )
+        assert result["updated"] is False
+        row = _read_observed_max_row(conn, "12345", "a")
+        assert row[0] is None
+    finally:
+        conn.close()
+
+
+def test_update_observed_max_zero_sets_empty_board(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        _register_seed_target(conn)
+        result = update_target_observed_max_res_no(
+            conn, "12345", "a", 0, source="article_top_preview",
+        )
+        assert result["updated"] is True
+        row = _read_observed_max_row(conn, "12345", "a")
+        assert row[0] == 0
+        assert row[2] == "article_top_preview"
+    finally:
+        conn.close()
+
+
 =============================
 FILE: copilot/tests/test_target_list.py
 =============================
+import sqlite3
 from unittest.mock import patch
 
 from target_list import (
@@ -47190,7 +48652,11 @@ from target_list import (
 )
 
 
-def _mock_resolve_for_slug_numeric_pair(canonical_url: str, numeric_id: str):
+def _mock_resolve_for_slug_numeric_pair(
+    canonical_url: str,
+    numeric_id: str,
+    observed_max_res_no=None,
+):
     return {
         "ok": True,
         "canonical_target": {
@@ -47201,7 +48667,67 @@ def _mock_resolve_for_slug_numeric_pair(canonical_url: str, numeric_id: str):
         "title": "Sample",
         "matched_by": "article_url",
         "normalized_input": canonical_url,
+        "observed_max_res_no": observed_max_res_no,
     }
+
+
+def _read_target_observed_max(db_path, article_id, article_type="a"):
+    conn = sqlite3.connect(str(db_path))
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT observed_max_res_no, observed_max_res_no_source
+            FROM target
+            WHERE article_id=? AND article_type=?
+            """,
+            (article_id, article_type),
+        )
+        return cur.fetchone()
+    finally:
+        conn.close()
+
+
+def test_register_target_url_persists_observed_max_when_present(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+
+    with patch(
+        "target_list.resolve_article_input",
+        return_value=_mock_resolve_for_slug_numeric_pair(
+            "https://dic.nicovideo.jp/a/12345",
+            "11111",
+            observed_max_res_no=500,
+        ),
+    ):
+        register_target_url(
+            "https://dic.nicovideo.jp/a/12345",
+            str(target_db_path),
+        )
+
+    row = _read_target_observed_max(target_db_path, "11111")
+    assert row[0] == 500
+    assert row[1] == "article_top_preview"
+
+
+def test_register_target_url_leaves_observed_max_null_when_none(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+
+    with patch(
+        "target_list.resolve_article_input",
+        return_value=_mock_resolve_for_slug_numeric_pair(
+            "https://dic.nicovideo.jp/a/12345",
+            "11111",
+            observed_max_res_no=None,
+        ),
+    ):
+        register_target_url(
+            "https://dic.nicovideo.jp/a/12345",
+            str(target_db_path),
+        )
+
+    row = _read_target_observed_max(target_db_path, "11111")
+    assert row[0] is None
+    assert row[1] is None
 
 
 def test_list_active_target_urls_missing_db_does_not_create_file(tmp_path):
@@ -49254,6 +50780,7 @@ def _make_reg_row(
     canonical_url="https://dic.nicovideo.jp/a/12345",
     saved_response_count=42,
     saved_max_res_no=50,
+    observed_max_res_no=50,
     last_scraped_at="2026-01-01T00:00:00+00:00",
     created_at="2026-01-01T00:00:00+00:00",
 ):
@@ -49264,6 +50791,7 @@ def _make_reg_row(
         "canonical_url": canonical_url,
         "saved_response_count": saved_response_count,
         "saved_max_res_no": saved_max_res_no,
+        "observed_max_res_no": observed_max_res_no,
         "last_scraped_at": last_scraped_at,
         "created_at": created_at,
     }
@@ -49277,7 +50805,8 @@ def test_registered_page_renders_html_table_with_expected_columns():
         response = _run_wsgi_request("GET", path="/registered")
 
     assert response["status"] == "200 OK"
-    assert "Saved Max Res No" in response["body"]
+    assert "Observed Max Res No" in response["body"]
+    assert "Saved Max Res No" not in response["body"]
     assert "<table" in response["body"]
     assert "テスト記事" in response["body"]
     assert "https://dic.nicovideo.jp/a/12345" in response["body"]
@@ -49428,7 +50957,7 @@ def test_registered_page_uses_alignment_classes_for_columns():
     assert 'class="col-created-at align-center"' in response["body"]
     assert 'class="col-last-scraped align-center"' in response["body"]
     assert 'class="col-saved-count align-right"' in response["body"]
-    assert 'class="col-saved-max-res align-right"' in response["body"]
+    assert 'class="col-observed-max-res align-right"' in response["body"]
 
 
 def test_registered_page_uses_wrapping_title_column_styles():
@@ -49628,6 +51157,41 @@ def test_registered_csv_includes_csv_download_link_on_page():
         response = _run_wsgi_request("GET", path="/registered")
 
     assert "/registered/csv" in response["body"]
+
+
+def test_registered_page_csv_uses_observed_not_saved_max_header():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered/csv")
+
+    first_line = response["body"].splitlines()[0]
+    assert "observed_max_res_no" in first_line
+    assert "saved_max_res_no" not in first_line
+
+
+def test_registered_page_shows_observed_max_sort_link():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert "sort_by=observed_max_res_no" in response["body"]
+
+
+def test_normalize_registered_sort_by_maps_legacy_saved_max_to_observed():
+    from web_app import _normalize_registered_sort_by
+
+    assert (
+        _normalize_registered_sort_by("saved_max_res_no")
+        == "observed_max_res_no"
+    )
+    assert (
+        _normalize_registered_sort_by("latest_scraped_max_res_no")
+        == "observed_max_res_no"
+    )
 
 
 =============================
@@ -53235,8 +54799,9 @@ def _render_page(
 
 
 def _normalize_registered_sort_by(value: str) -> str:
-    if value == "latest_scraped_max_res_no":
-        value = "saved_max_res_no"
+    # Legacy saved-stat sort aliases now resolve to the observed board max.
+    if value in ("latest_scraped_max_res_no", "saved_max_res_no"):
+        value = "observed_max_res_no"
     if value in REGISTERED_SORT_ALLOWLIST:
         return value
     return DEFAULT_REGISTERED_SORT_BY
@@ -53282,7 +54847,7 @@ def _registered_column_class(key: str) -> str:
         "canonical_url": "col-canonical-url",
         "created_at": "col-created-at",
         "saved_response_count": "col-saved-count",
-        "saved_max_res_no": "col-saved-max-res",
+        "observed_max_res_no": "col-observed-max-res",
         "last_scraped_at": "col-last-scraped",
     }
     return classes.get(key, "")
@@ -53291,7 +54856,7 @@ def _registered_column_class(key: str) -> str:
 def _registered_align_class(key: str) -> str:
     if key in {"title", "canonical_url"}:
         return "align-left"
-    if key in {"article_id", "saved_response_count", "saved_max_res_no"}:
+    if key in {"article_id", "saved_response_count", "observed_max_res_no"}:
         return "align-right"
     return "align-center"
 
@@ -53608,7 +55173,7 @@ def _render_registered_list_page(query_params: dict) -> bytes:
         .col-title {{ width: 21%; }}
         .col-canonical-url {{ width: 13%; }}
         .col-created-at, .col-last-scraped {{ width: 17ch; }}
-        .col-saved-count, .col-saved-max-res {{ width: 11ch; }}
+        .col-saved-count, .col-observed-max-res {{ width: 11ch; }}
         td.col-title {{
             font-weight: 600;
             white-space: normal;
@@ -54786,6 +56351,252 @@ Explicit environment/ops non-modification statement
 - Cron configuration was not modified.
 - Docker configuration/runtime was not modified.
 - Sibling/root repositories were not modified.
+
+
+=============================
+FILE: cursor/MainTask050-observed-board-max-res-no-persistence-and-display_report.txt
+=============================
+MainTask050-observed-board-max-res-no-persistence-and-display — report
+
+Editor AI model
+----------------
+Claude (Cursor agent)
+
+Summary
+-------
+Persisted a board-level "Observed Max Res No" per registered target and made it
+the user-facing max-response-number column in Registered Articles, replacing the
+previously displayed (and misleading) "Saved Max Res No". The observed max is a
+monotonic board counter: response content can be deleted/hidden but response
+numbers are not removed, so the maximum only ever rises.
+
+Three nullable columns were added to the `target` table via the existing
+compatibility-ALTER style. A central monotonic update helper persists observed
+values from two sources: the article-top HTML already fetched during
+registration (`article_top_preview`) and the scrape-time observed max
+(`bbs_page_scrape`). Registered Articles reads the value straight off the target
+row (no extra join, no `responses` scan), keeping the MainTask049 latency win.
+`saved_max_res_no` remains in `article_response_stats` and on the internal row
+dict; it is simply no longer shown in the UI or page CSV.
+
+All 511 tests pass and `./validate.sh` is green. `git diff --check` is clean.
+
+Files changed
+-------------
+Product:
+- storage.py
+  * `_ensure_target_observed_max_res_no_columns()` (additive ALTER helper),
+    wired into `init_db()`.
+  * `update_target_observed_max_res_no(conn, article_id, article_type,
+    observed, source, observed_at=None)` monotonic helper.
+- parser.py
+  * `extract_observed_max_res_no(soup) -> int | None` (+ small private helpers).
+- article_resolver.py
+  * Extract observed max from the already-fetched article-top soup and include
+    `observed_max_res_no` in the success resolution result (no extra fetch).
+- target_list.py
+  * `register_target_url()` persists the resolved observed max to the target via
+    the monotonic helper (source `article_top_preview`).
+- orchestrator.py
+  * After a successful save, `run_scrape()` persists the scrape observed max to
+    the target (source `bbs_page_scrape`).
+- archive_read.py
+  * Sort allowlist + page-first set use `observed_max_res_no`; column config
+    shows "Observed Max Res No"; resolved_targets CTE carries the column; row
+    dicts include `observed_max_res_no`; ORDER BY supports it (NULL-last);
+    legacy sort aliases map to it.
+- web_app.py
+  * Column class/alignment + CSS use `col-observed-max-res`; legacy sort aliases
+    map to `observed_max_res_no`.
+
+Tests:
+- tests/test_storage.py        (schema columns + monotonic update rule cases)
+- tests/test_parser.py         (extract helper: value / empty / unknown / bad)
+- tests/test_target_list.py    (registration persists / leaves NULL)
+- tests/test_orchestrator.py   (autouse mock for the new collaborator)
+- tests/test_orchestrator_observed_max.py  (NEW: real-DB scrape persistence)
+- tests/test_article_resolver.py (success result includes observed key)
+- tests/test_archive_read.py   (rows include observed; sort; alias; CSV header)
+- tests/test_web_app.py        (UI shows Observed not Saved; CSV header; sort)
+
+Schema changes
+--------------
+`target` gains three nullable columns (additive, backward compatible):
+- observed_max_res_no INTEGER
+- observed_max_res_no_at TEXT
+- observed_max_res_no_source TEXT
+
+Added via `_ensure_target_observed_max_res_no_columns()`, called from `init_db()`
+alongside the existing `_ensure_target_*` helpers. Existing rows default to NULL.
+No index was added (target is small; ordering on the column is already cheap, and
+MainTask049 added `idx_target_active_created_at_id`). No change to `responses`,
+`articles`, or `article_response_stats` schema.
+
+Storage / update-rule changes
+------------------------------
+`update_target_observed_max_res_no(...)` behavior:
+- observed is None -> no write (reason "observed_none").
+- observed not int / bool / negative -> ignored safely, no write.
+- stored NULL -> set value + timestamp + source ("advanced").
+- observed > stored -> update value + timestamp + source ("advanced").
+- observed == stored -> keep value, refresh timestamp (+source)
+  ("equal_timestamp_refresh").
+- observed < stored -> never lower; timestamp/source untouched ("not_higher").
+
+Implementation uses a guarded UPDATE (`WHERE observed_max_res_no IS NULL OR
+observed_max_res_no < ?`) for the monotonic raise, then a second UPDATE keyed on
+exact equality for the timestamp refresh — so the raise path is atomic and a
+lower value can never win a race. `observed == 0` is honored (empty-board
+observation) and only ever sets NULL or refreshes an existing 0.
+
+Parser / extraction changes
+----------------------------
+`extract_observed_max_res_no(soup)`:
+- Reads every `data-res_no` attribute (the same signal `parse_responses` uses)
+  and returns the max int when any are present.
+- Returns 0 only when a board area is positively rendered (recognized
+  `st-bbs*`/`bbs*` markers) but no response numbers are present — an observed
+  empty board.
+- Returns None for parse miss, unknown/ambiguous shape, or
+  unavailable/restricted board (no board area detected).
+- Wrapped in a guard so it never raises on unexpected HTML.
+
+Registration-flow changes
+--------------------------
+`article_resolver._resolve_from_article_url()` already fetches the article-top
+soup for identity/title; it now also runs `extract_observed_max_res_no(soup)` on
+that same soup (no duplicate HTTP fetch) and returns `observed_max_res_no` in the
+success dict. This flows through both URL and exact-title registration paths.
+`target_list.register_target_url()` reads it and, when not None, persists it via
+the monotonic helper with source `article_top_preview` immediately after
+`register_target()`. Failure/parse-miss leaves the target observed max NULL.
+
+Scrape-flow changes
+-------------------
+`orchestrator.run_scrape()` computes `_observed_max_res_no(json_responses)` and,
+after the existing `save_to_db(...)` on the open write connection, calls the
+monotonic helper with source `bbs_page_scrape`. Parse-miss/None and lower values
+cannot overwrite a higher stored value (helper guarantees).
+
+Hybrid adjustment (adopted from Copilot): the "already up to date" path
+(`max_saved_res_no` is not None, `responses` empty, `interrupted` False) now also
+persists the saved max as a lower-bound observation. It opens a short write
+connection and calls the monotonic helper with source `saved_rows_fallback`
+before returning. This lets already-fully-saved targets gradually populate
+`target.observed_max_res_no` during periodic random-start scraping, matching the
+intended gradual-fill behavior for existing targets. Because the helper is
+monotonic, this never lowers a higher existing observed max (e.g. one set earlier
+from `article_top_preview`), and it only writes the target row (no response rows,
+no `save_to_db`, no change to `article_response_stats`).
+
+Registered Articles UI/CSV changes
+----------------------------------
+- `REGISTERED_ARTICLE_COLUMNS`: the `saved_max_res_no` entry is replaced (same
+  position) by `observed_max_res_no` (label "Observed Max Res No", csv_header
+  "observed_max_res_no"). Because the HTML table and page CSV both derive from
+  this single list, the UI and CSV stay aligned automatically.
+- `resolved_targets` CTE selects `t.observed_max_res_no` (or NULL on older DBs
+  lacking the column), exposed on each row dict as `observed_max_res_no`.
+- `saved_max_res_no` is still computed and kept on the internal row dict for
+  diagnostics and `write_scrape_targets_txt`, but is not a display/CSV column.
+- web_app column class/alignment + CSS updated to `col-observed-max-res`.
+
+Sort / backward-compatibility behavior
+---------------------------------------
+- `observed_max_res_no` is sortable, added to both the sort allowlist and the
+  page-first sort set (it is a pure target column, so it sorts without touching
+  stats). ORDER BY places NULLs last in both directions.
+- Chosen alias behavior: legacy `sort_by=saved_max_res_no` and
+  `sort_by=latest_scraped_max_res_no` now MAP to `observed_max_res_no` (applied
+  in both `archive_read.query_registered_articles` and
+  `web_app._normalize_registered_sort_by`). Rationale: the user-facing default
+  should prefer the observed max, old bookmarked URLs keep working, and the
+  saved-stat sort is no longer user-exposed.
+
+Tests / validation run
+-----------------------
+- Storage: schema columns created on fresh + legacy DBs; update rule for NULL /
+  greater / equal-refresh / lower-no-downgrade / None / negative / zero.
+- Parser: max when visible, 0 for empty board, None for unknown, ignores bad
+  values.
+- Registration: persists observed max when present; leaves NULL when None.
+- Scrape (real DB): persists observed max (bbs_page_scrape); does not lower an
+  existing higher value.
+- Already-up-to-date path (real DB): persists saved_rows_fallback when no new
+  responses; does not downgrade a higher existing observed max.
+- Read path: rows include observed_max_res_no; sort desc NULL-last; legacy
+  alias maps to observed; CSV export header uses observed not saved.
+- Web: UI shows "Observed Max Res No" and not "Saved Max Res No"; CSV header
+  swap; observed sort link present; normalize maps legacy aliases.
+
+Whether ./validate.sh passed
+----------------------------
+YES. `./validate.sh` exit 0; 513 passed (flake8 + pytest in-container) after the
+hybrid adjustment.
+
+Whether git diff --check passed
+-------------------------------
+YES. `git diff --check` exit 0 (no whitespace/conflict errors).
+
+Runtime reflection notes
+------------------------
+- The display value comes off the target row, so Registered Articles stays fast
+  (no new join, no responses aggregation).
+- Existing targets show NULL observed max until registration re-resolution or a
+  scrape fills them; this is acceptable and self-heals via periodic scraping.
+- A registered-but-unscraped target can now show `Saved Responses = 0` with a
+  positive `Observed Max Res No` (board size seen at registration).
+
+Existing runtime DB note
+------------------------
+Recreating the runtime container does NOT automatically apply the new
+compatibility ALTERs to an already-existing `/app/data/nicodic.db`. The new
+`target` columns are added by `init_db()` only when it runs against that DB.
+A runtime operator should run an explicit `init_db('/app/data/nicodic.db')`
+(e.g. via the normal app startup/CLI path that calls init_db) once so the three
+observed-max columns are added to the existing target table. Until then,
+`archive_read` degrades gracefully: the CTE substitutes NULL for the missing
+column and the page renders blank observed values.
+
+Runtime DB safety notes
+-----------------------
+- All schema changes are additive nullable columns; no data is rewritten,
+  renamed, or dropped. `saved_max_res_no` and `saved_response_count` semantics
+  are unchanged.
+- The monotonic helper never lowers a stored value and never writes NULL over an
+  existing value, so a parse miss or a partial/interrupted scrape cannot corrupt
+  the observed max.
+- No index was added to the 13M-row responses table.
+
+Known limitations
+-----------------
+- The "already up to date" scrape path now writes a saved_rows_fallback lower
+  bound (one bounded target-row UPDATE); the value never regresses.
+- Empty-board detection (returning 0) is heuristic on board-area markers; if the
+  article-top board preview shape differs from expectations it returns None
+  (safe) rather than a wrong number.
+- Article-top preview may not always expose response numbers; in that case
+  observed max is filled by the next scrape.
+- No backfill is performed; existing targets fill in over time.
+
+Recommended follow-up tasks
+---------------------------
+- Optional bounded backfill seam that sets observed max from
+  `article_response_stats.saved_max_res_no` as a lower bound (source
+  `saved_rows_fallback`) for targets currently NULL — bounded, no per-article
+  top crawl.
+- Verify the real article-top board-preview HTML shape against a saved sample
+  and tighten the empty-board markers if needed.
+- Optionally surface `observed_max_res_no_at` / `_source` in an operator
+  inspection view.
+
+Non-modification statement
+--------------------------
+The runtime DB, runtime checkout, cron, Docker configuration, root/meta
+repository, and any sibling repositories were NOT modified. No live scraping was
+run, no runtime DB was copied or backed up, and no PostgreSQL/ORM was introduced.
+Only the allowed product files, their tests, one new focused test file, and this
+report were changed.
 
 
 =============================
@@ -56852,16 +58663,18 @@ REGISTERED_SORT_ALLOWLIST = frozenset({
     "article_id",
     "created_at",
     "saved_response_count",
-    "saved_max_res_no",
+    "observed_max_res_no",
     "last_scraped_at",
 })
 
 # Sorts that order on target/article fields only; stats are fetched after paging.
+# observed_max_res_no is a plain target column, so it sorts page-first.
 REGISTERED_PAGE_FIRST_SORTS = frozenset({
     "created_at",
     "last_scraped_at",
     "title",
     "article_id",
+    "observed_max_res_no",
 })
 
 # Search only fields users can understand from the visible table.
@@ -56887,9 +58700,10 @@ REGISTERED_ARTICLE_COLUMNS = [
      "csv_header": "created_at"},
     {"key": "saved_response_count", "label": "Saved Responses",
      "csv_header": "saved_response_count"},
-    # saved_max_res_no is MAX(res_no) over saved rows, not live board max.
-    {"key": "saved_max_res_no", "label": "Saved Max Res No",
-     "csv_header": "saved_max_res_no"},
+    # observed_max_res_no is the board-level max observed during registration
+    # or scraping (monotonic). saved_max_res_no is kept internally only.
+    {"key": "observed_max_res_no", "label": "Observed Max Res No",
+     "csv_header": "observed_max_res_no"},
     {"key": "last_scraped_at", "label": "Last Scraped",
      "csv_header": "last_scraped_at"},
 ]
@@ -57564,6 +59378,15 @@ def _registered_has_target_title_column(conn):
     return "title" in cols
 
 
+def _registered_has_observed_max_column(conn):
+    """Return whether optional target.observed_max_res_no exists (DB compat)."""
+
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(target)")
+    cols = {row[1] for row in cur.fetchall()}
+    return "observed_max_res_no" in cols
+
+
 def _registered_fallback_title(article_id, canonical_url):
     parsed = urlparse(canonical_url or "")
     path_parts = [part for part in parsed.path.split("/") if part]
@@ -57587,6 +59410,7 @@ def _registered_build_resolved_targets_cte(
     *,
     matched_title_sql: str,
     matched_last_scraped_expr: str,
+    observed_max_expr: str = "NULL",
 ) -> str:
     return f"""
             WITH url_fallback_articles AS (
@@ -57605,6 +59429,7 @@ def _registered_build_resolved_targets_cte(
                     t.article_type AS target_article_type,
                     t.canonical_url AS target_canonical_url,
                     t.created_at AS target_created_at,
+                    {observed_max_expr} AS observed_max_res_no,
                     COALESCE(a_exact.article_id, a_url.article_id)
                         AS matched_article_id,
                     COALESCE(a_exact.article_type, a_url.article_type)
@@ -57755,6 +59580,7 @@ def _registered_page_shell_row_to_dict(shell_row, stats_map):
         matched_article_id,
         matched_article_type,
         last_scraped_at,
+        observed_max_res_no,
     ) = shell_row
     stat = None
     if matched_article_id is not None and matched_article_type is not None:
@@ -57776,6 +59602,7 @@ def _registered_page_shell_row_to_dict(shell_row, stats_map):
             saved_response_count,
             display_max,
             last_scraped_at,
+            observed_max_res_no,
         )
     )
 
@@ -57845,12 +59672,9 @@ def _registered_order_by_clause(sort_by, order_dir, *, max_res_sql: str):
         "saved_response_count": [
             f"COALESCE(rs.saved_response_count, 0) {order_dir}",
         ],
-        "saved_max_res_no": [
-            (
-                f"CASE WHEN {max_res_sql} IS NULL "
-                "THEN 1 ELSE 0 END ASC"
-            ),
-            f"{max_res_sql} {order_dir}",
+        "observed_max_res_no": [
+            "CASE WHEN rt.observed_max_res_no IS NULL THEN 1 ELSE 0 END ASC",
+            f"rt.observed_max_res_no {order_dir}",
         ],
         "last_scraped_at": [
             "CASE WHEN rt.matched_last_scraped_at IS NULL THEN 1 ELSE 0 END ASC",
@@ -57918,6 +59742,7 @@ def _registered_row_to_dict(row):
         saved_response_count,
         saved_max_res_no,
         last_scraped_at,
+        observed_max_res_no,
     ) = row
     aid = (article_id or "").strip()
     if aid.isdigit():
@@ -57932,7 +59757,9 @@ def _registered_row_to_dict(row):
         "canonical_url": canonical_url or "",
         "created_at": created_at or "",
         "saved_response_count": saved_response_count or 0,
+        # saved_max_res_no is kept internally for diagnostics; not displayed.
         "saved_max_res_no": saved_max_res_no,
+        "observed_max_res_no": observed_max_res_no,
         "last_scraped_at": last_scraped_at,
     }
 
@@ -57954,8 +59781,9 @@ def query_registered_articles(
     Set paginate=False to return all matching rows without LIMIT/OFFSET;
     that is the internal all-records export route.
     """
-    if sort_by == "latest_scraped_max_res_no":
-        sort_by = "saved_max_res_no"
+    # Legacy saved-stat sort aliases now map to the user-facing observed max.
+    if sort_by in ("latest_scraped_max_res_no", "saved_max_res_no"):
+        sort_by = "observed_max_res_no"
     if sort_by not in REGISTERED_SORT_ALLOWLIST:
         sort_by = DEFAULT_REGISTERED_SORT_BY
     order_dir = "ASC" if sort_order == "asc" else "DESC"
@@ -57980,9 +59808,15 @@ def query_registered_articles(
             )
         else:
             matched_title_sql = "COALESCE(a_exact.title, a_url.title)"
+        observed_max_expr = (
+            "t.observed_max_res_no"
+            if _registered_has_observed_max_column(conn)
+            else "NULL"
+        )
         base_cte_sql = _registered_build_resolved_targets_cte(
             matched_title_sql=matched_title_sql,
             matched_last_scraped_expr=matched_last_scraped_expr,
+            observed_max_expr=observed_max_expr,
         )
         where_sql, where_params = _registered_build_search_clause(search)
         max_res_sql = _registered_saved_max_res_no_display_sql()
@@ -58022,7 +59856,8 @@ def query_registered_articles(
                     rt.target_created_at,
                     rt.matched_article_id,
                     rt.matched_article_type,
-                    rt.matched_last_scraped_at
+                    rt.matched_last_scraped_at,
+                    rt.observed_max_res_no
                 FROM resolved_targets AS rt
                 {where_sql}
                 ORDER BY
@@ -58065,7 +59900,8 @@ def query_registered_articles(
                     rt.target_created_at,
                     COALESCE(rs.saved_response_count, 0) AS saved_response_count,
                     ({max_res_sql}) AS saved_max_res_no,
-                    rt.matched_last_scraped_at AS last_scraped_at
+                    rt.matched_last_scraped_at AS last_scraped_at,
+                    rt.observed_max_res_no AS observed_max_res_no
                 FROM resolved_targets AS rt
                 LEFT JOIN {stats_source_sql} AS rs
                     ON rt.matched_article_id = rs.article_id
@@ -58310,6 +60146,7 @@ from article_page_identity import (
     resolve_registration_identity_from_html,
 )
 from http_client import fetch_page
+from parser import extract_observed_max_res_no
 
 
 NICO_TOP_URL = "https://dic.nicovideo.jp"
@@ -58326,6 +60163,7 @@ def _build_success_result(
     title: str,
     matched_by: str,
     normalized_input: str,
+    observed_max_res_no: int | None = None,
 ) -> dict:
     return {
         "ok": True,
@@ -58337,6 +60175,7 @@ def _build_success_result(
         "title": title,
         "matched_by": matched_by,
         "normalized_input": normalized_input,
+        "observed_max_res_no": observed_max_res_no,
     }
 
 
@@ -58412,6 +60251,11 @@ def _resolve_from_article_url(
     except ValueError:
         return _build_failure_result("not_found", normalized_input)
 
+    # Reuse the already-fetched article-top soup to observe the board max
+    # response number without an extra HTTP fetch. Best-effort: None on any
+    # parse miss / unknown shape.
+    observed_max_res_no = extract_observed_max_res_no(soup)
+
     return _build_success_result(
         article_url=canonical_target["article_url"],
         article_id=canonical_target["article_id"],
@@ -58419,6 +60263,7 @@ def _resolve_from_article_url(
         title=title,
         matched_by=matched_by,
         normalized_input=normalized_input,
+        observed_max_res_no=observed_max_res_no,
     )
 
 
@@ -65376,6 +67221,7 @@ from storage import (
     list_queue_requests,
     open_readonly_db,
     save_to_db,
+    update_target_observed_max_res_no,
     validate_saved_article_identity,
 )
 from dicopedia_urls import parse_target_identity
@@ -66085,6 +67931,20 @@ def run_scrape(
         )
 
     if max_saved_res_no is not None and not responses and not interrupted:
+        # No new responses, but still persist the saved max as a lower-bound
+        # observation so already-saved targets gradually fill observed_max_res_no
+        # during periodic scraping. Monotonic: never lowers a higher value.
+        obs_conn = init_db()
+        try:
+            update_target_observed_max_res_no(
+                obs_conn,
+                article_id,
+                article_type,
+                max_saved_res_no,
+                source="saved_rows_fallback",
+            )
+        finally:
+            obs_conn.close()
         if progress_reporter is None:
             print("No new BBS responses found; article already up to date")
         else:
@@ -66157,6 +68017,14 @@ def run_scrape(
         canonical_article_url,
         responses,
         **save_kwargs,
+    )
+    scrape_observed_max = _observed_max_res_no(json_responses)
+    update_target_observed_max_res_no(
+        conn,
+        article_id,
+        article_type,
+        scrape_observed_max,
+        source="bbs_page_scrape",
     )
     conn.close()
 
@@ -66263,6 +68131,89 @@ def drain_queue_requests(max_requests: int | None = None) -> dict:
 FILE: cursor/parser.py
 =============================
 from bs4 import BeautifulSoup
+
+
+# Class/id markers that positively indicate a board area was rendered on the
+# page (article top preview or a board page), used only to distinguish an
+# observed empty board from an unknown/unavailable/restricted shape.
+_BBS_AREA_MARKERS = (
+    "st-bbs_reshead",
+    "st-bbs_resbody",
+    "st-bbsArea",
+    "st-bbs_contents",
+    "bbs_contents",
+)
+_BBS_AREA_ID_MARKERS = ("bbs", "bbs_contents")
+
+
+def _coerce_res_no(raw) -> int | None:
+    if raw is None:
+        return None
+    try:
+        value = int(str(raw).strip())
+    except (TypeError, ValueError):
+        return None
+    if value < 0:
+        return None
+    return value
+
+
+def _board_area_is_present(soup: BeautifulSoup) -> bool:
+    """Return True only when a board area container is clearly rendered."""
+
+    for element in soup.find_all(attrs={"class": True}):
+        class_value = element.get("class") or []
+        if isinstance(class_value, str):
+            class_tokens = class_value.split()
+        else:
+            class_tokens = list(class_value)
+        for token in class_tokens:
+            for marker in _BBS_AREA_MARKERS:
+                if token == marker or token.startswith(marker):
+                    return True
+
+    for element in soup.find_all(attrs={"id": True}):
+        if element.get("id") in _BBS_AREA_ID_MARKERS:
+            return True
+
+    return False
+
+
+def extract_observed_max_res_no(soup: BeautifulSoup) -> int | None:
+    """Extract the observed maximum board response number from page HTML.
+
+    Works on article-top preview soup or board/response-preview soup by
+    reading every ``data-res_no`` attribute (the same signal ``parse_responses``
+    relies on) and returning the maximum.
+
+    Returns:
+      - ``int`` (> 0) when one or more response numbers are visible.
+      - ``0`` only when a board area is positively rendered but contains no
+        response numbers (an observed empty board).
+      - ``None`` for parse miss, unknown/ambiguous shape, or an
+        unavailable/restricted board where no board area is detected.
+
+    Never raises on unexpected HTML shapes.
+    """
+
+    if soup is None:
+        return None
+
+    try:
+        res_numbers = [
+            coerced
+            for element in soup.find_all(attrs={"data-res_no": True})
+            if (coerced := _coerce_res_no(element.get("data-res_no")))
+            is not None
+        ]
+        if res_numbers:
+            return max(res_numbers)
+
+        if _board_area_is_present(soup):
+            return 0
+        return None
+    except Exception:
+        return None
 
 
 def parse_responses(soup: BeautifulSoup) -> list:
@@ -81278,6 +83229,42 @@ def _ensure_target_title_column(conn: sqlite3.Connection) -> None:
     conn.commit()
 
 
+def _ensure_target_observed_max_res_no_columns(
+    conn: sqlite3.Connection,
+) -> None:
+    """Add the board-observed max response-number columns to ``target``.
+
+    Additive, nullable columns following the existing compatibility-ALTER
+    style. ``observed_max_res_no`` is the monotonic board-level maximum
+    response number; ``_at`` records when it was last advanced/confirmed and
+    ``_source`` records how it was observed.
+    """
+
+    column_names = _list_column_names(conn, "target")
+    required_columns = {
+        "observed_max_res_no": (
+            "ALTER TABLE target ADD COLUMN observed_max_res_no INTEGER"
+        ),
+        "observed_max_res_no_at": (
+            "ALTER TABLE target ADD COLUMN observed_max_res_no_at TEXT"
+        ),
+        "observed_max_res_no_source": (
+            "ALTER TABLE target ADD COLUMN observed_max_res_no_source TEXT"
+        ),
+    }
+
+    cur = conn.cursor()
+    changed = False
+    for column_name, statement in required_columns.items():
+        if column_name in column_names:
+            continue
+        cur.execute(statement)
+        changed = True
+
+    if changed:
+        conn.commit()
+
+
 def _ensure_article_metadata_columns(conn: sqlite3.Connection) -> None:
     column_names = _list_column_names(conn, "articles")
     required_columns = {
@@ -81408,6 +83395,7 @@ def init_db(db_path: str = DEFAULT_DB_PATH):
     _ensure_article_metadata_columns(conn)
     _ensure_target_redirect_columns(conn)
     _ensure_target_title_column(conn)
+    _ensure_target_observed_max_res_no_columns(conn)
 
     cur.execute("""
     CREATE TABLE IF NOT EXISTS scrape_run_observation (
@@ -81921,6 +83909,89 @@ def register_target(
     }
 
 
+def update_target_observed_max_res_no(
+    conn,
+    article_id,
+    article_type,
+    observed,
+    source,
+    observed_at=None,
+):
+    """Monotonically update a target's observed board max response number.
+
+    Behavior:
+      - ``observed is None``: no write.
+      - non-int or negative ``observed``: ignored safely (no write).
+      - stored value NULL: set value, timestamp, source.
+      - ``observed > stored``: update value, timestamp, source.
+      - ``observed == stored``: keep value, refresh timestamp (and source).
+      - ``observed < stored``: never lower; leave timestamp/source untouched.
+
+    A single guarded UPDATE applies the monotonic rule atomically to reduce
+    race risk. Returns a small dict describing the outcome.
+    """
+
+    if observed is None:
+        return {"updated": False, "reason": "observed_none"}
+    if isinstance(observed, bool) or not isinstance(observed, int):
+        return {"updated": False, "reason": "observed_not_int"}
+    if observed < 0:
+        return {"updated": False, "reason": "observed_negative"}
+
+    validate_target_article_identity(article_id, article_type)
+
+    if observed_at is None:
+        observed_at = datetime.now(timezone.utc).isoformat()
+
+    cur = conn.cursor()
+    cur.execute(
+        """
+        UPDATE target
+        SET observed_max_res_no = ?,
+            observed_max_res_no_at = ?,
+            observed_max_res_no_source = ?
+        WHERE article_id = ?
+          AND article_type = ?
+          AND (
+              observed_max_res_no IS NULL
+              OR observed_max_res_no < ?
+          )
+        """,
+        (
+            observed,
+            observed_at,
+            source,
+            article_id,
+            article_type,
+            observed,
+        ),
+    )
+    advanced = cur.rowcount > 0
+
+    if not advanced:
+        # Either no such target, or observed <= stored. Refresh the
+        # timestamp/source only when the value is exactly equal.
+        cur.execute(
+            """
+            UPDATE target
+            SET observed_max_res_no_at = ?,
+                observed_max_res_no_source = ?
+            WHERE article_id = ?
+              AND article_type = ?
+              AND observed_max_res_no = ?
+            """,
+            (observed_at, source, article_id, article_type, observed),
+        )
+        refreshed = cur.rowcount > 0
+        conn.commit()
+        if refreshed:
+            return {"updated": True, "reason": "equal_timestamp_refresh"}
+        return {"updated": False, "reason": "not_higher"}
+
+    conn.commit()
+    return {"updated": True, "reason": "advanced"}
+
+
 def list_targets(conn, active_only=True):
     """Load registered scrape targets in insertion order."""
 
@@ -82305,6 +84376,7 @@ from storage import (
     open_readonly_db,
     register_target,
     set_target_active_state,
+    update_target_observed_max_res_no,
 )
 
 
@@ -82388,6 +84460,7 @@ def register_target_url(article_url: str, target_db_path: str) -> str:
         return "denylisted"
 
     title = resolution.get("title") or ""
+    observed_max_res_no = resolution.get("observed_max_res_no")
 
     conn = init_db(target_db_path)
     try:
@@ -82398,6 +84471,14 @@ def register_target_url(article_url: str, target_db_path: str) -> str:
             canonical_target["article_url"],
             title=title,
         )
+        if observed_max_res_no is not None:
+            update_target_observed_max_res_no(
+                conn,
+                numeric_id,
+                canonical_target["article_type"],
+                observed_max_res_no,
+                source="article_top_preview",
+            )
     finally:
         conn.close()
 
@@ -82881,7 +84962,13 @@ from archive_read import (
     write_scrape_targets_txt,
 )
 import archive_read
-from storage import init_db, open_readonly_db, register_target, save_to_db
+from storage import (
+    init_db,
+    open_readonly_db,
+    register_target,
+    save_to_db,
+    update_target_observed_max_res_no,
+)
 
 
 def _seed_archive(tmp_path, monkeypatch):
@@ -83053,6 +85140,7 @@ def _seed_registered_sort_case(
     created_at,
     response_numbers=None,
     latest_scraped_at=None,
+    observed_max_res_no=None,
 ):
     monkeypatch.chdir(tmp_path)
     conn = init_db()
@@ -83072,6 +85160,14 @@ def _seed_registered_sort_case(
             """,
             (created_at, article_id, "a"),
         )
+        if observed_max_res_no is not None:
+            update_target_observed_max_res_no(
+                conn,
+                article_id,
+                "a",
+                observed_max_res_no,
+                source="article_top_preview",
+            )
         if response_numbers:
             save_to_db(
                 conn,
@@ -83471,11 +85567,26 @@ def test_open_readonly_db_opens_existing_db_read_only(tmp_path, monkeypatch):
         conn.close()
 
 
-def test_registered_articles_column_label_saved_max_res_no():
+def test_registered_articles_column_shows_observed_not_saved_max():
     from archive_read import REGISTERED_ARTICLE_COLUMNS
 
-    col = next(c for c in REGISTERED_ARTICLE_COLUMNS if c["key"] == "saved_max_res_no")
-    assert col["label"] == "Saved Max Res No"
+    keys = [c["key"] for c in REGISTERED_ARTICLE_COLUMNS]
+    assert "saved_max_res_no" not in keys
+    assert "observed_max_res_no" in keys
+    col = next(
+        c for c in REGISTERED_ARTICLE_COLUMNS
+        if c["key"] == "observed_max_res_no"
+    )
+    assert col["label"] == "Observed Max Res No"
+    assert col["csv_header"] == "observed_max_res_no"
+
+
+def test_registered_articles_csv_headers_use_observed_not_saved_max():
+    from archive_read import REGISTERED_ARTICLE_COLUMNS
+
+    headers = [c["csv_header"] for c in REGISTERED_ARTICLE_COLUMNS]
+    assert "observed_max_res_no" in headers
+    assert "saved_max_res_no" not in headers
 
 
 def test_get_saved_article_summary_by_id_returns_first_match(
@@ -84041,6 +86152,7 @@ def test_query_registered_articles_sorts_max_res_no_numerically(
         created_at="2026-01-01T00:00:00+00:00",
         response_numbers=[2],
         latest_scraped_at="2026-01-01T00:00:00+00:00",
+        observed_max_res_no=2,
     )
     _seed_registered_sort_case(
         tmp_path,
@@ -84049,6 +86161,7 @@ def test_query_registered_articles_sorts_max_res_no_numerically(
         created_at="2026-01-01T00:00:00+00:00",
         response_numbers=[10],
         latest_scraped_at="2026-01-01T00:00:00+00:00",
+        observed_max_res_no=10,
     )
     _seed_registered_sort_case(
         tmp_path,
@@ -84057,10 +86170,11 @@ def test_query_registered_articles_sorts_max_res_no_numerically(
         created_at="2026-01-01T00:00:00+00:00",
         response_numbers=[100],
         latest_scraped_at="2026-01-01T00:00:00+00:00",
+        observed_max_res_no=100,
     )
 
     result = query_registered_articles(
-        sort_by="saved_max_res_no",
+        sort_by="observed_max_res_no",
         sort_order="asc",
         paginate=False,
     )
@@ -84725,6 +86839,87 @@ def test_export_registered_articles_csv_decodes_url_encoded_article_id(
     )
 
 
+def _seed_observed_max_targets(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        register_target(conn, "100", "a", "https://dic.nicovideo.jp/a/100")
+        register_target(conn, "200", "a", "https://dic.nicovideo.jp/a/200")
+        register_target(conn, "300", "a", "https://dic.nicovideo.jp/a/300")
+        update_target_observed_max_res_no(
+            conn, "100", "a", 50, source="article_top_preview",
+        )
+        update_target_observed_max_res_no(
+            conn, "200", "a", 900, source="bbs_page_scrape",
+        )
+        # 300 intentionally left with NULL observed max.
+    finally:
+        conn.close()
+
+
+def test_query_registered_rows_include_observed_max_res_no(
+    tmp_path, monkeypatch,
+):
+    _seed_observed_max_targets(tmp_path, monkeypatch)
+
+    result = query_registered_articles(per_page=100, page=1)
+    by_id = {row["article_id"]: row for row in result["rows"]}
+
+    assert by_id["100"]["observed_max_res_no"] == 50
+    assert by_id["200"]["observed_max_res_no"] == 900
+    assert by_id["300"]["observed_max_res_no"] is None
+    # saved_max_res_no remains internally available on the row dict.
+    assert "saved_max_res_no" in by_id["100"]
+
+
+def test_query_registered_sort_by_observed_max_desc_nulls_last(
+    tmp_path, monkeypatch,
+):
+    _seed_observed_max_targets(tmp_path, monkeypatch)
+
+    result = query_registered_articles(
+        sort_by="observed_max_res_no",
+        sort_order="desc",
+        per_page=100,
+        page=1,
+    )
+    ordered_ids = [row["article_id"] for row in result["rows"]]
+
+    assert ordered_ids[0] == "200"
+    assert ordered_ids[1] == "100"
+    assert ordered_ids[-1] == "300"
+
+
+def test_query_registered_legacy_saved_max_sort_alias_maps_to_observed(
+    tmp_path, monkeypatch,
+):
+    _seed_observed_max_targets(tmp_path, monkeypatch)
+
+    result = query_registered_articles(
+        sort_by="saved_max_res_no",
+        sort_order="desc",
+        per_page=100,
+        page=1,
+    )
+    ordered_ids = [row["article_id"] for row in result["rows"]]
+
+    assert ordered_ids[0] == "200"
+    assert ordered_ids[-1] == "300"
+
+
+def test_query_registered_csv_export_uses_observed_header(
+    tmp_path, monkeypatch,
+):
+    from archive_read import export_registered_articles_csv
+
+    _seed_observed_max_targets(tmp_path, monkeypatch)
+
+    csv_text = export_registered_articles_csv()
+    header_line = csv_text.splitlines()[0]
+    assert "observed_max_res_no" in header_line
+    assert "saved_max_res_no" not in header_line
+
+
 =============================
 FILE: cursor/tests/test_article_resolver.py
 =============================
@@ -84762,6 +86957,7 @@ def test_resolve_article_input_succeeds_for_full_article_url():
         "title": "Foo",
         "matched_by": "article_url",
         "normalized_input": "https://dic.nicovideo.jp/a/Foo",
+        "observed_max_res_no": None,
     }
 
 
@@ -89406,6 +91602,16 @@ from orchestrator import (
 )
 
 
+@pytest.fixture(autouse=True)
+def _mock_observed_max_update():
+    """Mock the target observed-max write so MagicMock conns in these unit
+    tests are unaffected. Real persistence is covered in
+    test_orchestrator_observed_max.py against a real DB.
+    """
+    with patch("orchestrator.update_target_observed_max_res_no"):
+        yield
+
+
 # ----- build_bbs_base_url -----
 
 
@@ -90791,7 +92997,9 @@ def test_run_scrape_saved_article_zero_new_is_success_without_writing():
         progress_reporter=None,
     )
     mock_saved.assert_not_called()
-    mock_init.assert_not_called()
+    # init_db is opened only to persist the saved-rows-fallback observed max;
+    # no response rows are written (save_to_db stays uncalled).
+    mock_init.assert_called_once_with()
     mock_save_db.assert_not_called()
     mock_print.assert_any_call(
         "No new BBS responses found; article already up to date"
@@ -90898,13 +93106,183 @@ def test_drain_queue_requests_unexpected_failure_keeps_request_queued():
 
 
 =============================
+FILE: cursor/tests/test_orchestrator_observed_max.py
+=============================
+"""Scrape-flow persistence of the observed board max response number.
+
+These tests exercise the real storage helper against a temp DB (no mocked
+target write), unlike test_orchestrator.py which mocks that collaborator.
+"""
+
+import sqlite3
+from unittest.mock import patch
+
+from orchestrator import ArticleMetadataResult, run_scrape
+from storage import (
+    DEFAULT_DB_PATH,
+    init_db,
+    register_target,
+    update_target_observed_max_res_no,
+)
+
+
+def _read_target_observed_max(article_id, article_type="a"):
+    conn = sqlite3.connect(DEFAULT_DB_PATH)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT observed_max_res_no, observed_max_res_no_source
+            FROM target
+            WHERE article_id=? AND article_type=?
+            """,
+            (article_id, article_type),
+        )
+        return cur.fetchone()
+    finally:
+        conn.close()
+
+
+def test_run_scrape_persists_observed_max_to_target(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    conn = init_db()
+    register_target(
+        conn, "5364158", "a", "https://dic.nicovideo.jp/a/5364158", title="T",
+    )
+    conn.close()
+
+    canonical_url = "https://dic.nicovideo.jp/a/5364158"
+    responses = [{"res_no": 1}, {"res_no": 250}, {"res_no": 37}]
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=ArticleMetadataResult(
+            "5364158", "a", "Title", article_url=canonical_url,
+        ),
+    ):
+        with patch("orchestrator.get_max_saved_res_no", return_value=None):
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=(responses, False, False),
+            ):
+                with patch("orchestrator.print"):
+                    run_scrape(canonical_url)
+
+    row = _read_target_observed_max("5364158")
+    assert row[0] == 250
+    assert row[1] == "bbs_page_scrape"
+
+
+def test_run_scrape_does_not_lower_existing_observed_max(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+
+    conn = init_db()
+    register_target(
+        conn, "5364158", "a", "https://dic.nicovideo.jp/a/5364158", title="T",
+    )
+    update_target_observed_max_res_no(
+        conn, "5364158", "a", 999, source="article_top_preview",
+    )
+    conn.close()
+
+    canonical_url = "https://dic.nicovideo.jp/a/5364158"
+    responses = [{"res_no": 1}, {"res_no": 10}]
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=ArticleMetadataResult(
+            "5364158", "a", "Title", article_url=canonical_url,
+        ),
+    ):
+        with patch("orchestrator.get_max_saved_res_no", return_value=None):
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=(responses, False, False),
+            ):
+                with patch("orchestrator.print"):
+                    run_scrape(canonical_url)
+
+    row = _read_target_observed_max("5364158")
+    assert row[0] == 999
+    assert row[1] == "article_top_preview"
+
+
+def test_run_scrape_already_up_to_date_persists_saved_rows_fallback(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+
+    conn = init_db()
+    register_target(
+        conn, "5364158", "a", "https://dic.nicovideo.jp/a/5364158", title="T",
+    )
+    conn.close()
+
+    canonical_url = "https://dic.nicovideo.jp/a/5364158"
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=ArticleMetadataResult(
+            "5364158", "a", "Title", article_url=canonical_url,
+        ),
+    ):
+        with patch("orchestrator.get_max_saved_res_no", return_value=120):
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=([], False, False),
+            ):
+                with patch("orchestrator.print"):
+                    run_scrape(canonical_url)
+
+    row = _read_target_observed_max("5364158")
+    assert row[0] == 120
+    assert row[1] == "saved_rows_fallback"
+
+
+def test_run_scrape_already_up_to_date_does_not_downgrade_observed(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+
+    conn = init_db()
+    register_target(
+        conn, "5364158", "a", "https://dic.nicovideo.jp/a/5364158", title="T",
+    )
+    update_target_observed_max_res_no(
+        conn, "5364158", "a", 999, source="article_top_preview",
+    )
+    conn.close()
+
+    canonical_url = "https://dic.nicovideo.jp/a/5364158"
+
+    with patch(
+        "orchestrator.fetch_article_metadata",
+        return_value=ArticleMetadataResult(
+            "5364158", "a", "Title", article_url=canonical_url,
+        ),
+    ):
+        with patch("orchestrator.get_max_saved_res_no", return_value=120):
+            with patch(
+                "orchestrator.collect_all_responses",
+                return_value=([], False, False),
+            ):
+                with patch("orchestrator.print"):
+                    run_scrape(canonical_url)
+
+    row = _read_target_observed_max("5364158")
+    assert row[0] == 999
+    assert row[1] == "article_top_preview"
+
+
+=============================
 FILE: cursor/tests/test_parser.py
 =============================
 """Unit tests for parser.py: current HTML parsing behavior."""
 
 from bs4 import BeautifulSoup
 
-from parser import parse_responses
+from parser import extract_observed_max_res_no, parse_responses
 
 
 def test_parse_responses_normal_case():
@@ -90971,6 +93349,49 @@ def test_parse_responses_partial_html_and_missing_res_no():
     assert response["posted_at"] is None
     assert response["content"] == ""
     assert response["content_html"] == ""
+
+
+def test_extract_observed_max_res_no_returns_max_when_visible():
+    html = """
+    <dl>
+      <dt class="st-bbs_reshead" data-res_no="12"></dt>
+      <dt class="st-bbs_reshead" data-res_no="500"></dt>
+      <dt class="st-bbs_reshead" data-res_no="37"></dt>
+    </dl>
+    """
+    soup = BeautifulSoup(html, "lxml")
+    assert extract_observed_max_res_no(soup) == 500
+
+
+def test_extract_observed_max_res_no_zero_for_empty_board():
+    html = """
+    <div class="st-bbsArea">
+      <p>まだ書き込みがありません</p>
+    </div>
+    """
+    soup = BeautifulSoup(html, "lxml")
+    assert extract_observed_max_res_no(soup) == 0
+
+
+def test_extract_observed_max_res_no_none_for_unknown_shape():
+    html = """
+    <html><body>
+      <h1>An article with no board area at all</h1>
+    </body></html>
+    """
+    soup = BeautifulSoup(html, "lxml")
+    assert extract_observed_max_res_no(soup) is None
+
+
+def test_extract_observed_max_res_no_ignores_bad_values():
+    html = """
+    <dl>
+      <dt class="st-bbs_reshead" data-res_no="not-a-number"></dt>
+      <dt class="st-bbs_reshead" data-res_no="42"></dt>
+    </dl>
+    """
+    soup = BeautifulSoup(html, "lxml")
+    assert extract_observed_max_res_no(soup) == 42
 
 
 =============================
@@ -92436,7 +94857,22 @@ from storage import (
     save_json,
     save_to_db,
     set_target_active_state,
+    update_target_observed_max_res_no,
 )
+
+
+def _read_observed_max_row(conn, article_id, article_type):
+    cur = conn.cursor()
+    cur.execute(
+        """
+        SELECT observed_max_res_no, observed_max_res_no_at,
+               observed_max_res_no_source
+        FROM target
+        WHERE article_id=? AND article_type=?
+        """,
+        (article_id, article_type),
+    )
+    return cur.fetchone()
 
 
 def _read_stats_row(conn, article_id, article_type):
@@ -93408,9 +95844,196 @@ def test_append_scrape_run_observation_csv_wide_has_run_columns(
     assert "skip_denylist" in csv_text
 
 
+def _target_column_names(conn):
+    cur = conn.cursor()
+    cur.execute("PRAGMA table_info(target)")
+    return {row[1] for row in cur.fetchall()}
+
+
+def test_init_db_creates_target_observed_max_columns(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        cols = _target_column_names(conn)
+        assert "observed_max_res_no" in cols
+        assert "observed_max_res_no_at" in cols
+        assert "observed_max_res_no_source" in cols
+    finally:
+        conn.close()
+
+
+def test_init_db_adds_observed_max_columns_to_existing_target(
+    tmp_path, monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    db_path = tmp_path / "data" / "nicodic.db"
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    legacy = sqlite3.connect(str(db_path))
+    legacy.execute(
+        """
+        CREATE TABLE target (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            article_id TEXT NOT NULL,
+            article_type TEXT NOT NULL,
+            canonical_url TEXT NOT NULL,
+            is_active INTEGER NOT NULL DEFAULT 1,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(article_id, article_type)
+        )
+        """
+    )
+    legacy.commit()
+    legacy.close()
+
+    conn = init_db()
+    try:
+        cols = _target_column_names(conn)
+        assert "observed_max_res_no" in cols
+        assert "observed_max_res_no_at" in cols
+        assert "observed_max_res_no_source" in cols
+    finally:
+        conn.close()
+
+
+def _register_seed_target(conn, article_id="12345"):
+    register_target(
+        conn,
+        article_id,
+        "a",
+        f"https://dic.nicovideo.jp/a/{article_id}",
+        title="T",
+    )
+
+
+def test_update_observed_max_sets_from_null(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        _register_seed_target(conn)
+        result = update_target_observed_max_res_no(
+            conn, "12345", "a", 500, source="article_top_preview",
+        )
+        assert result["updated"] is True
+        row = _read_observed_max_row(conn, "12345", "a")
+        assert row[0] == 500
+        assert row[1] is not None
+        assert row[2] == "article_top_preview"
+    finally:
+        conn.close()
+
+
+def test_update_observed_max_raises_on_greater(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        _register_seed_target(conn)
+        update_target_observed_max_res_no(
+            conn, "12345", "a", 100, source="article_top_preview",
+        )
+        update_target_observed_max_res_no(
+            conn, "12345", "a", 250, source="bbs_page_scrape",
+        )
+        row = _read_observed_max_row(conn, "12345", "a")
+        assert row[0] == 250
+        assert row[2] == "bbs_page_scrape"
+    finally:
+        conn.close()
+
+
+def test_update_observed_max_equal_refreshes_timestamp(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        _register_seed_target(conn)
+        update_target_observed_max_res_no(
+            conn, "12345", "a", 300, source="article_top_preview",
+            observed_at="2025-01-01T00:00:00+00:00",
+        )
+        result = update_target_observed_max_res_no(
+            conn, "12345", "a", 300, source="bbs_page_scrape",
+            observed_at="2025-02-02T00:00:00+00:00",
+        )
+        assert result["updated"] is True
+        row = _read_observed_max_row(conn, "12345", "a")
+        assert row[0] == 300
+        assert row[1] == "2025-02-02T00:00:00+00:00"
+        assert row[2] == "bbs_page_scrape"
+    finally:
+        conn.close()
+
+
+def test_update_observed_max_does_not_lower(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        _register_seed_target(conn)
+        update_target_observed_max_res_no(
+            conn, "12345", "a", 500, source="article_top_preview",
+            observed_at="2025-01-01T00:00:00+00:00",
+        )
+        result = update_target_observed_max_res_no(
+            conn, "12345", "a", 100, source="bbs_page_scrape",
+            observed_at="2025-02-02T00:00:00+00:00",
+        )
+        assert result["updated"] is False
+        row = _read_observed_max_row(conn, "12345", "a")
+        assert row[0] == 500
+        assert row[1] == "2025-01-01T00:00:00+00:00"
+        assert row[2] == "article_top_preview"
+    finally:
+        conn.close()
+
+
+def test_update_observed_max_none_is_noop(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        _register_seed_target(conn)
+        result = update_target_observed_max_res_no(
+            conn, "12345", "a", None, source="article_top_preview",
+        )
+        assert result["updated"] is False
+        row = _read_observed_max_row(conn, "12345", "a")
+        assert row[0] is None
+    finally:
+        conn.close()
+
+
+def test_update_observed_max_negative_is_ignored(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        _register_seed_target(conn)
+        result = update_target_observed_max_res_no(
+            conn, "12345", "a", -5, source="article_top_preview",
+        )
+        assert result["updated"] is False
+        row = _read_observed_max_row(conn, "12345", "a")
+        assert row[0] is None
+    finally:
+        conn.close()
+
+
+def test_update_observed_max_zero_sets_empty_board(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        _register_seed_target(conn)
+        result = update_target_observed_max_res_no(
+            conn, "12345", "a", 0, source="article_top_preview",
+        )
+        assert result["updated"] is True
+        row = _read_observed_max_row(conn, "12345", "a")
+        assert row[0] == 0
+        assert row[2] == "article_top_preview"
+    finally:
+        conn.close()
+
+
 =============================
 FILE: cursor/tests/test_target_list.py
 =============================
+import sqlite3
 from unittest.mock import patch
 
 from target_list import (
@@ -93427,7 +96050,11 @@ from target_list import (
 )
 
 
-def _mock_resolve_for_slug_numeric_pair(canonical_url: str, numeric_id: str):
+def _mock_resolve_for_slug_numeric_pair(
+    canonical_url: str,
+    numeric_id: str,
+    observed_max_res_no=None,
+):
     return {
         "ok": True,
         "canonical_target": {
@@ -93438,7 +96065,67 @@ def _mock_resolve_for_slug_numeric_pair(canonical_url: str, numeric_id: str):
         "title": "Sample",
         "matched_by": "article_url",
         "normalized_input": canonical_url,
+        "observed_max_res_no": observed_max_res_no,
     }
+
+
+def _read_target_observed_max(db_path, article_id, article_type="a"):
+    conn = sqlite3.connect(str(db_path))
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            """
+            SELECT observed_max_res_no, observed_max_res_no_source
+            FROM target
+            WHERE article_id=? AND article_type=?
+            """,
+            (article_id, article_type),
+        )
+        return cur.fetchone()
+    finally:
+        conn.close()
+
+
+def test_register_target_url_persists_observed_max_when_present(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+
+    with patch(
+        "target_list.resolve_article_input",
+        return_value=_mock_resolve_for_slug_numeric_pair(
+            "https://dic.nicovideo.jp/a/12345",
+            "11111",
+            observed_max_res_no=500,
+        ),
+    ):
+        register_target_url(
+            "https://dic.nicovideo.jp/a/12345",
+            str(target_db_path),
+        )
+
+    row = _read_target_observed_max(target_db_path, "11111")
+    assert row[0] == 500
+    assert row[1] == "article_top_preview"
+
+
+def test_register_target_url_leaves_observed_max_null_when_none(tmp_path):
+    target_db_path = tmp_path / "targets.db"
+
+    with patch(
+        "target_list.resolve_article_input",
+        return_value=_mock_resolve_for_slug_numeric_pair(
+            "https://dic.nicovideo.jp/a/12345",
+            "11111",
+            observed_max_res_no=None,
+        ),
+    ):
+        register_target_url(
+            "https://dic.nicovideo.jp/a/12345",
+            str(target_db_path),
+        )
+
+    row = _read_target_observed_max(target_db_path, "11111")
+    assert row[0] is None
+    assert row[1] is None
 
 
 def test_list_active_target_urls_missing_db_does_not_create_file(tmp_path):
@@ -95491,6 +98178,7 @@ def _make_reg_row(
     canonical_url="https://dic.nicovideo.jp/a/12345",
     saved_response_count=42,
     saved_max_res_no=50,
+    observed_max_res_no=50,
     last_scraped_at="2026-01-01T00:00:00+00:00",
     created_at="2026-01-01T00:00:00+00:00",
 ):
@@ -95501,6 +98189,7 @@ def _make_reg_row(
         "canonical_url": canonical_url,
         "saved_response_count": saved_response_count,
         "saved_max_res_no": saved_max_res_no,
+        "observed_max_res_no": observed_max_res_no,
         "last_scraped_at": last_scraped_at,
         "created_at": created_at,
     }
@@ -95514,7 +98203,8 @@ def test_registered_page_renders_html_table_with_expected_columns():
         response = _run_wsgi_request("GET", path="/registered")
 
     assert response["status"] == "200 OK"
-    assert "Saved Max Res No" in response["body"]
+    assert "Observed Max Res No" in response["body"]
+    assert "Saved Max Res No" not in response["body"]
     assert "<table" in response["body"]
     assert "テスト記事" in response["body"]
     assert "https://dic.nicovideo.jp/a/12345" in response["body"]
@@ -95665,7 +98355,7 @@ def test_registered_page_uses_alignment_classes_for_columns():
     assert 'class="col-created-at align-center"' in response["body"]
     assert 'class="col-last-scraped align-center"' in response["body"]
     assert 'class="col-saved-count align-right"' in response["body"]
-    assert 'class="col-saved-max-res align-right"' in response["body"]
+    assert 'class="col-observed-max-res align-right"' in response["body"]
 
 
 def test_registered_page_uses_wrapping_title_column_styles():
@@ -95865,6 +98555,41 @@ def test_registered_csv_includes_csv_download_link_on_page():
         response = _run_wsgi_request("GET", path="/registered")
 
     assert "/registered/csv" in response["body"]
+
+
+def test_registered_page_csv_uses_observed_not_saved_max_header():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered/csv")
+
+    first_line = response["body"].splitlines()[0]
+    assert "observed_max_res_no" in first_line
+    assert "saved_max_res_no" not in first_line
+
+
+def test_registered_page_shows_observed_max_sort_link():
+    with patch(
+        "web_app.query_registered_articles",
+        return_value=_mock_query_result([_make_reg_row()]),
+    ):
+        response = _run_wsgi_request("GET", path="/registered")
+
+    assert "sort_by=observed_max_res_no" in response["body"]
+
+
+def test_normalize_registered_sort_by_maps_legacy_saved_max_to_observed():
+    from web_app import _normalize_registered_sort_by
+
+    assert (
+        _normalize_registered_sort_by("saved_max_res_no")
+        == "observed_max_res_no"
+    )
+    assert (
+        _normalize_registered_sort_by("latest_scraped_max_res_no")
+        == "observed_max_res_no"
+    )
 
 
 =============================
@@ -99472,8 +102197,9 @@ def _render_page(
 
 
 def _normalize_registered_sort_by(value: str) -> str:
-    if value == "latest_scraped_max_res_no":
-        value = "saved_max_res_no"
+    # Legacy saved-stat sort aliases now resolve to the observed board max.
+    if value in ("latest_scraped_max_res_no", "saved_max_res_no"):
+        value = "observed_max_res_no"
     if value in REGISTERED_SORT_ALLOWLIST:
         return value
     return DEFAULT_REGISTERED_SORT_BY
@@ -99519,7 +102245,7 @@ def _registered_column_class(key: str) -> str:
         "canonical_url": "col-canonical-url",
         "created_at": "col-created-at",
         "saved_response_count": "col-saved-count",
-        "saved_max_res_no": "col-saved-max-res",
+        "observed_max_res_no": "col-observed-max-res",
         "last_scraped_at": "col-last-scraped",
     }
     return classes.get(key, "")
@@ -99528,7 +102254,7 @@ def _registered_column_class(key: str) -> str:
 def _registered_align_class(key: str) -> str:
     if key in {"title", "canonical_url"}:
         return "align-left"
-    if key in {"article_id", "saved_response_count", "saved_max_res_no"}:
+    if key in {"article_id", "saved_response_count", "observed_max_res_no"}:
         return "align-right"
     return "align-center"
 
@@ -99845,7 +102571,7 @@ def _render_registered_list_page(query_params: dict) -> bytes:
         .col-title {{ width: 21%; }}
         .col-canonical-url {{ width: 13%; }}
         .col-created-at, .col-last-scraped {{ width: 17ch; }}
-        .col-saved-count, .col-saved-max-res {{ width: 11ch; }}
+        .col-saved-count, .col-observed-max-res {{ width: 11ch; }}
         td.col-title {{
             font-weight: 600;
             white-space: normal;
