@@ -3399,3 +3399,43 @@ Follow-up:
 - after the next periodic scrape cycle, verify that existing target observed values begin filling
 - optional bounded operator to initialize NULL observed max from saved summary rows
 - optional coverage ratio display or operator inspection for observed source/timestamp
+
+## 2026-06-27 SubTask: meta report and snapshot artifact policy cleanup
+
+Purpose:
+
+- make root/meta artifact policy consistent (Option A)
+- raw editor task reports are temporary working artifacts, not long-term memory
+- durable task memory lives in META/review_log, PROJECT_STATE.md, and curated
+  META files
+- generated advisor handoff snapshots remain locally generatable but are no
+  longer Git-tracked
+
+Changes:
+
+- root .gitignore now ignores generated snapshots and root-level raw reports:
+  - /project_snapshot.txt
+  - /project_knowledge_snapshot.txt
+  - /review_snapshot*.txt
+  - /*_report.txt
+  - /*_report.md
+- META/TASK_CYCLE_CHECKLIST.md: added authoritative "Raw report and
+  generated-snapshot artifact policy (Option A)" section
+- META/procedures/adoption_runtime_meta_ops.md: stop instructing humans to
+  commit generated snapshot files; commit only source-of-truth META files
+
+Git tracking cleanup (working tree retained for snapshots only):
+
+- git rm --cached project_snapshot.txt project_knowledge_snapshot.txt
+  (local files kept; now gitignored)
+- git rm of root-level tracked raw reports:
+  - MetaTask-optimizing-metadata_report.md
+  - RuntimeOps-build-dev-sample-db_report.txt
+  - WorkflowTask-editor-agent-validation-and-helper-guidance_report.md
+  - WorkflowTask-streamline-adoption-runtime-meta-ops_report.txt
+
+Boundaries:
+
+- only root/meta files touched
+- copilot/, cursor/, runtime checkout, runtime DB, runtime logs, Docker, and
+  cron were not touched

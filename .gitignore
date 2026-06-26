@@ -2,12 +2,17 @@ copilot/
 cursor/
 example_webpage/
 
-# project_knowledge_snapshot.txt
-# project_snapshot.txt
-review_snapshot.txt
-review_snapshot_*.txt
+# Generated advisor handoff snapshots: locally generatable, not Git-tracked.
+# export_snapshot.sh may still produce these; do not commit them.
+/project_snapshot.txt
+/project_knowledge_snapshot.txt
+/review_snapshot*.txt
 # git_snapshot.txt
 # git_snapshot_*.txt
+
+# Raw editor task reports are temporary working artifacts, not tracked memory.
+/*_report.txt
+/*_report.md
 
 META/out/review_snapshot.txt
 META/out/review_snapshot_*.txt

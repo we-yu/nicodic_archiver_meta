@@ -184,13 +184,18 @@ PROJECT STATE MEMORY
 
 The AI does not retain memory between sessions.
 
-To restore project state, the primary files are:
+To restore project state, the primary tracked source-of-truth files are:
 
 AI_CONTEXT.md
 PROJECT_STATE.md
 WORKSPACE.md
+
+Generated local advisor-handoff snapshots may also be read when available:
+
 project_snapshot.txt
 project_knowledge_snapshot.txt
+
+These snapshot files are generated locally and are not Git-tracked.
 
 These files together form an **external AI memory system**.
 

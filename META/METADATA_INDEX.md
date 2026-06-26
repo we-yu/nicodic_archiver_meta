@@ -52,7 +52,7 @@ Use `META/` files as targeted supplements, not as a default full read.
 | `META/EDITOR_PROMPT_TEMPLATE.md` | Reusable structure for editor-facing implementation prompts. | Reference workflow guidance | Read when drafting prompts for child-repo editor agents. | Yes, when prompt structure needs refinement. |
 | `META/REPO_BOUNDARY_GUARDRAILS.md` | Hard ownership boundaries between root meta repo, child repos, and runtime checkout. | Authoritative guardrail | Read before any task that could confuse root/product/runtime ownership. | Yes, conservatively. |
 | `META/DEVELOPMENT_ENVIRONMENT.md` | Development environment reference for the workspace. | Reference | Read when environment assumptions matter. | Yes, as environment facts change. |
-| Root helper wrappers such as `export_snapshot.sh`, `publish_snapshots.sh`, `compare_helix.sh`, `validate_helix.sh`, `collect_task_review.sh`, `prepare_task_evidence.sh`, `new_task_branches.sh`, `export_open_issues.sh` | Thin root entrypoints for recurring workflow operations. | Operational helper layer | Read or run when performing the corresponding workflow task from the root repo. | Yes, but treat behavior changes as workflow changes, not casual cleanup. |
+| Root helper wrappers such as `export_snapshot.sh`, `compare_helix.sh`, `validate_helix.sh`, `collect_task_review.sh`, `prepare_task_evidence.sh`, `new_task_branches.sh`, `export_open_issues.sh` | Thin root entrypoints for recurring workflow operations. | Operational helper layer | Read or run when performing the corresponding workflow task from the root repo. | Yes, but treat behavior changes as workflow changes, not casual cleanup. |
 | `META/scripts/` | Implementations behind root helper wrappers. Includes snapshot and review export logic. | Operational helper implementation | Read when a wrapper is insufficient and the implementation behavior matters. | Yes, but only for intentional workflow/tooling changes. |
 | `META/scripts/append_project_state_block.py` | Small helper for safely appending headed blocks to `PROJECT_STATE.md` from standard input. Skips duplicate headings by default. | Operational helper implementation | Use when recording bounded root/meta state updates. Regenerate snapshots after use. | Yes, when PROJECT_STATE append practice changes. |
 
@@ -101,7 +101,7 @@ Tracking note:
 - `project_snapshot.txt` is currently tracked and repeatedly referenced as the restore snapshot of record.
 - Because multiple authoritative documents and helper scripts explicitly depend on it, changing tracking policy now would create avoidable inconsistency.
 - Near-term recommendation: keep it tracked for now.
-- Future follow-up should review whether a slimmer authoritative snapshot, partial snapshots, or a clearer regenerate-on-demand policy can reduce churn without breaking restore expectations.
+- Future follow-up should review whether slimmer generated advisor handoff snapshots, partial snapshots, or a clearer regenerate-on-demand policy can reduce churn without breaking advisor handoff usefulness.
 
 ## Practical editing rules by file type
 

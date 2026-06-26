@@ -190,7 +190,7 @@ for `article_type='a'` rows.
 
 ## Snapshot note
 
-When this file changes, regenerate the authoritative snapshot with:
+When this file changes, regenerate local advisor handoff snapshots with:
 
 `./export_snapshot.sh`
 

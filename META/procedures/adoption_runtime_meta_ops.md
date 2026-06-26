@@ -333,16 +333,15 @@ cd /home/manage/product/nicodic_archiver
 ./export_snapshot.sh
 ```
 
-This regenerates `project_snapshot.txt` and `project_knowledge_snapshot.txt`.
+This regenerates `project_snapshot.txt` and `project_knowledge_snapshot.txt`
+as local advisor-handoff files. These generated files are gitignored and must
+NOT be committed; regenerate them as needed instead.
 
 If only root/meta files changed and a faster update is acceptable:
 
 ```
 ./export_snapshot.sh --meta-only
 ```
-
-**If snapshot-only diffs appeared before task work began, decide explicitly
-whether to include them in the task commit or restore them first (see W7).**
 
 ---
 
@@ -360,18 +359,25 @@ git diff --stat
 Confirm:
 - no files under `copilot/` or `cursor/` are staged
 - no runtime files are staged
-- only intended META, PROJECT_STATE, snapshot, and report files are staged
+- only intended source-of-truth META and PROJECT_STATE files are staged
+- generated snapshot files and raw report files are NOT staged
+  (they are gitignored advisor-handoff / working artifacts)
 
-Then commit:
+Then commit (commit only the source-of-truth META files that changed):
 
 ```
 git add META/review_log/<file>.md
 git add META/procedures/<file>.md   # if applicable
 git add PROJECT_STATE.md
-git add project_snapshot.txt project_knowledge_snapshot.txt
 git commit -m "Meta: <concise description>"
 git push origin main
 ```
+
+Note on generated snapshots:
+- run/export snapshots when useful for advisor handoff (`./export_snapshot.sh`)
+- do not commit generated snapshot files
+  (`project_snapshot.txt`, `project_knowledge_snapshot.txt`,
+  `review_snapshot*.txt`); they are local/generated and gitignored
 
 ---
 

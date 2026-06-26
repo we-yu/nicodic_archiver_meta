@@ -221,7 +221,7 @@ append_line "root: ${ROOT_DIR}"
 append_line "output: ${OUT_FILE}"
 append_line ""
 append_line "This file is review-oriented and may include uncommitted changes."
-append_line "Use project_snapshot.txt as the authoritative source-of-truth snapshot."
+append_line "Use curated META files as durable project memory; project_snapshot.txt is a generated local advisor-handoff snapshot."
 
 append_repo_section "copilot" "${COPILOT_DIR}"
 append_repo_section "cursor" "${CURSOR_DIR}"

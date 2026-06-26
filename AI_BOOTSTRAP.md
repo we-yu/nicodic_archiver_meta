@@ -13,9 +13,14 @@ Read the following files in order:
 2. _AI_RULES.md
 3. PROJECT_STATE.md
 4. WORKSPACE.md
-5. project_snapshot.txt (if available)
 
-These files define the authoritative project context.
+If available, also read generated local advisor handoff snapshots:
+
+- project_snapshot.txt
+- project_knowledge_snapshot.txt
+
+The tracked files define durable project context.
+The snapshot files are generated locally and are not Git-tracked.
 
 If relevant supplementary memory exists, the AI may also read:
 
