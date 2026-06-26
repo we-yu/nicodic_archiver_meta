@@ -128,17 +128,42 @@ technical review, validation results, or human judgment.
 
 When editor-AI copy/paste overhead becomes annoying,
 the human + advisor side may instruct the editor AI to write its final report
-to a child-repo-local text file such as:
+to a repo-local text file such as:
 
 - `TASKNNN_report.txt`
+- `MainTaskNNN-<topic>_report.txt`
+- `SubTask-<topic>_report.txt`
 
 This should remain:
 - optional
-- child-repo-local
+- repo-local
 - report-only
 
 Do not treat such files as authoritative project memory.
-Do not instruct editor AIs to write them into root/meta locations.
+
+### Raw report and generated-snapshot artifact policy (Option A)
+
+This is the authoritative artifact policy. It supersedes any older wording
+that implies raw reports or generated snapshots should be committed.
+
+Raw editor task reports:
+- are temporary working artifacts, not long-term memory
+- are not authoritative project memory
+- should not be committed to product repos (`copilot/`, `cursor/`) or to
+  the root/meta repository
+- should not be copied verbatim into `META/review_log/`
+- durable task memory belongs in curated `META/review_log/` entries,
+  `PROJECT_STATE.md`, and other curated META files
+- distill what matters into a review log, then the raw report may be deleted
+
+Generated advisor handoff snapshots:
+- `project_snapshot.txt`, `project_knowledge_snapshot.txt`, and
+  `review_snapshot*.txt` are local/generated files, not Git-tracked
+- `export_snapshot.sh` may still generate them locally for advisor handoff
+- do not add generated snapshot files to future commits
+- commit only the source-of-truth META files that changed
+- root `.gitignore` ignores these generated files and root-level
+  `*_report.txt` / `*_report.md` so they do not dirty Git status
 
 ### Evidence-commit exclusion rule for review/report artifacts
 
@@ -363,12 +388,16 @@ are explicitly included by the workflow helper's supported mechanism.
 - Record why the other option or hybrid was not selected.
 - Record validation and convergence results.
 
-## 12. Regenerate the authoritative snapshot
+## 12. Regenerate local advisor handoff snapshots
 
 - Update root workflow/meta files if the task changed project state.
-- Run `./export_snapshot.sh` from the workspace root.
-- Keep `project_snapshot.txt` as the source-of-truth restore snapshot.
-- Do not rely on review snapshot files for authoritative context restore.
+- Run `./export_snapshot.sh` from the workspace root when an advisor handoff
+  snapshot is useful.
+- `project_snapshot.txt` and `project_knowledge_snapshot.txt` are generated
+  local advisor-handoff files.
+- They are intentionally Git-ignored and must not be committed.
+- Commit only the source-of-truth META files that changed.
+- Do not rely on review snapshot files for durable project memory.
 
 --------------------------------------------------
 
@@ -377,12 +406,12 @@ are explicitly included by the workflow helper's supported mechanism.
 - Branch names do not match the same task number.
 - One repo started from a different baseline than the other.
 - Validation was run in only one repo.
-- Review snapshot was mistaken for the authoritative snapshot.
+- Review snapshot was mistaken for a durable project-memory file.
 - Review log was skipped after adoption.
 - Repos were not realigned after merge.
 - `compare_helix.sh --all` was not rerun after realignment.
 - `PROJECT_STATE.md` or `WORKSPACE.md` was left stale.
-- `project_snapshot.txt` was not regenerated after workflow-memory edits.
+- Local advisor handoff snapshots were not regenerated after workflow-memory edits when they were needed for handoff.
 - The adopted file ownership was not confirmed before integration.
 - The wrong repository `main` was treated as the merge destination.
 - Product files were almost committed into the meta repository.
@@ -399,7 +428,7 @@ Finish the task only after:
 3. both repos are realigned
 4. convergence passes
 5. review memory is updated
-6. authoritative snapshot is regenerated
+6. local advisor handoff snapshots are regenerated when needed
 
 --------------------------------------------------
 

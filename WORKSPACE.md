@@ -41,7 +41,7 @@ The workspace root mainly stores:
 
 • project meta files
 • AI memory files
-• authoritative snapshot outputs
+• local generated advisor handoff snapshots
 • thin wrapper scripts
 
 Operational workflow assets are grouped under:
