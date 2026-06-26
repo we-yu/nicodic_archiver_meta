@@ -3214,3 +3214,98 @@ Follow-up:
 - inspect Registered Articles query plan and possible indexes
 - add summary drift diagnostics
 - later implement true observed-board Max Res No persistence
+
+## 2026-06-26 MainTask049 registered articles latency
+
+MainTask049-registered-articles-latency-index-and-query-shape was completed.
+
+Adopted implementation:
+
+- Copilot
+
+Non-adopted implementation:
+
+- Cursor was retained and pushed as comparison evidence.
+
+Hybrid:
+
+- Not selected.
+
+Product behavior:
+
+- added `idx_articles_type_canonical_url_id`
+  - `articles(article_type, canonical_url, id)`
+- added `idx_target_active_created_at_id`
+  - `target(is_active, created_at, id)`
+- replaced the correlated canonical URL fallback lookup with a
+  `url_fallback_articles` CTE
+- preserved deterministic earliest-row fallback with `MIN(id)`
+- added a no-search count fast path:
+  - `SELECT COUNT(*) FROM target WHERE is_active = 1`
+- preserved Registered Articles labels and public behavior
+- preserved `Saved Responses` / `Saved Max Res No` saved-response semantics
+- did not implement true observed-board Max Res No
+
+Validation:
+
+- pre-adoption Copilot validation passed
+  - 486 tests passed
+- pre-adoption Cursor validation passed
+  - 492 tests passed
+- post-merge `compare_helix.sh --all` passed
+- post-merge `validate_helix.sh` passed
+  - copilot: 486 tests passed
+  - cursor: 486 tests passed
+
+Runtime reflection:
+
+- runtime reflection completed after confirming no active scrape work
+- runtime checkout fast-forwarded to product main
+- runtime container recreated with `tools/runtime_up.sh`
+- explicit runtime `init_db('/app/data/nicodic.db')` was required to create the
+  new indexes on the existing runtime DB
+
+Runtime EXPLAIN result:
+
+- `articles` changed from scan to:
+  - `SEARCH articles USING COVERING INDEX idx_articles_type_canonical_url_id`
+- `target` changed from scan to:
+  - `SEARCH target USING INDEX idx_target_active_created_at_id`
+
+Runtime Web timing after reflection:
+
+- default Registered Articles:
+  - `http=200`
+  - `time=0.106639`
+- Saved Max Res No descending:
+  - `http=200`
+  - `time=0.094546`
+- Saved Responses descending:
+  - `http=200`
+  - `time=0.072703`
+
+Result:
+
+- before MainTask049, Registered Articles took roughly 20 to 30 seconds and
+  curl with a 30 second timeout could fail
+- after MainTask049, default and aggregate sort views returned in about 0.1
+  seconds
+- browser display and sorting were confirmed by the user to feel effectively
+  instant
+
+Operational note:
+
+- no full runtime DB backup was created
+- no `responses` table index was added
+- no archive-critical data rewrite was performed
+- runtime final status had no lock, no soft-stop, and no scrape-like process
+
+Review log:
+
+- `META/review_log/MainTask049_registered_articles_latency_index_and_query_shape_20260626.md`
+
+Follow-up:
+
+- true observed-board Max Res No semantics
+- optional operator/runtime schema ensure command for future schema/index changes
+- optional Registered Articles EXPLAIN diagnostics

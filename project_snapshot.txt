@@ -4215,6 +4215,101 @@ Follow-up:
 - add summary drift diagnostics
 - later implement true observed-board Max Res No persistence
 
+## 2026-06-26 MainTask049 registered articles latency
+
+MainTask049-registered-articles-latency-index-and-query-shape was completed.
+
+Adopted implementation:
+
+- Copilot
+
+Non-adopted implementation:
+
+- Cursor was retained and pushed as comparison evidence.
+
+Hybrid:
+
+- Not selected.
+
+Product behavior:
+
+- added `idx_articles_type_canonical_url_id`
+  - `articles(article_type, canonical_url, id)`
+- added `idx_target_active_created_at_id`
+  - `target(is_active, created_at, id)`
+- replaced the correlated canonical URL fallback lookup with a
+  `url_fallback_articles` CTE
+- preserved deterministic earliest-row fallback with `MIN(id)`
+- added a no-search count fast path:
+  - `SELECT COUNT(*) FROM target WHERE is_active = 1`
+- preserved Registered Articles labels and public behavior
+- preserved `Saved Responses` / `Saved Max Res No` saved-response semantics
+- did not implement true observed-board Max Res No
+
+Validation:
+
+- pre-adoption Copilot validation passed
+  - 486 tests passed
+- pre-adoption Cursor validation passed
+  - 492 tests passed
+- post-merge `compare_helix.sh --all` passed
+- post-merge `validate_helix.sh` passed
+  - copilot: 486 tests passed
+  - cursor: 486 tests passed
+
+Runtime reflection:
+
+- runtime reflection completed after confirming no active scrape work
+- runtime checkout fast-forwarded to product main
+- runtime container recreated with `tools/runtime_up.sh`
+- explicit runtime `init_db('/app/data/nicodic.db')` was required to create the
+  new indexes on the existing runtime DB
+
+Runtime EXPLAIN result:
+
+- `articles` changed from scan to:
+  - `SEARCH articles USING COVERING INDEX idx_articles_type_canonical_url_id`
+- `target` changed from scan to:
+  - `SEARCH target USING INDEX idx_target_active_created_at_id`
+
+Runtime Web timing after reflection:
+
+- default Registered Articles:
+  - `http=200`
+  - `time=0.106639`
+- Saved Max Res No descending:
+  - `http=200`
+  - `time=0.094546`
+- Saved Responses descending:
+  - `http=200`
+  - `time=0.072703`
+
+Result:
+
+- before MainTask049, Registered Articles took roughly 20 to 30 seconds and
+  curl with a 30 second timeout could fail
+- after MainTask049, default and aggregate sort views returned in about 0.1
+  seconds
+- browser display and sorting were confirmed by the user to feel effectively
+  instant
+
+Operational note:
+
+- no full runtime DB backup was created
+- no `responses` table index was added
+- no archive-critical data rewrite was performed
+- runtime final status had no lock, no soft-stop, and no scrape-like process
+
+Review log:
+
+- `META/review_log/MainTask049_registered_articles_latency_index_and_query_shape_20260626.md`
+
+Follow-up:
+
+- true observed-board Max Res No semantics
+- optional operator/runtime schema ensure command for future schema/index changes
+- optional Registered Articles EXPLAIN diagnostics
+
 
 ===== WORKSPACE =====
 # Workspace
@@ -5560,6 +5655,187 @@ Recommended follow-up:
 - add missing indexes if query plan indicates avoidable scans
 - add operator summary drift diagnostics
 - later implement true observed-board Max Res No persistence
+
+
+===== REVIEW LOG: META/review_log/MainTask049_registered_articles_latency_index_and_query_shape_20260626.md =====
+# MainTask049: registered articles latency index and query shape
+
+## Task
+
+MainTask049-registered-articles-latency-index-and-query-shape
+
+## Decision
+
+Adopted: Copilot
+
+Non-adopted comparison:
+
+- Cursor implementation was retained and pushed as comparison evidence.
+
+Hybrid:
+
+- Not selected.
+
+## Purpose
+
+After MainTask048, Registered Articles no longer aggregated the full
+`responses` table for normal display or saved-response aggregate sorts, but the
+runtime page was still slow.
+
+Observed before MainTask049:
+
+- browser render: roughly 20 to 30 seconds
+- local curl with 30 second timeout: timed out
+- saved max response sort also remained slow
+- runtime DB had roughly:
+  - articles: 12235
+  - responses: 13131174
+  - article_response_stats: 12109
+
+A read-only EXPLAIN probe before this task showed:
+
+- SCAN articles
+- SCAN target
+
+This indicated that the remaining bottleneck was not the 13M-row `responses`
+table, but the Registered Articles target/article resolution query.
+
+## Adopted implementation
+
+The adopted Copilot implementation added small-table support indexes:
+
+- `idx_articles_type_canonical_url_id`
+  - on `articles(article_type, canonical_url, id)`
+- `idx_target_active_created_at_id`
+  - on `target(is_active, created_at, id)`
+
+It also changed the Registered Articles query shape:
+
+- replaced the correlated canonical URL fallback lookup with a
+  `url_fallback_articles` CTE
+- selected the deterministic earliest article row with `MIN(id)`
+- joined the selected article row by id
+- added a no-search total-count fast path:
+  - `SELECT COUNT(*) FROM target WHERE is_active = 1`
+
+## Why Copilot was adopted
+
+Copilot was adopted because it directly addressed the suspected bottleneck:
+
+- the unindexed canonical URL fallback path
+- the per-target correlated article lookup
+- duplicate expensive count work for the no-search common path
+
+It also preserved the existing datetime sort semantics by leaving
+`julianday(...)` ordering in place.
+
+## Why Cursor was not adopted
+
+Cursor passed validation and included useful tests.
+
+It was not adopted because its main query change removed `julianday(...)` and
+relied on text ordering for timestamps. That may be reasonable for production
+UTC-like data, but it narrows the previously tested datetime behavior and was
+not necessary to solve the main bottleneck.
+
+## Why Hybrid was not selected
+
+Hybrid was not selected because the adopted Copilot change was sufficient and
+low-risk. Manually mixing Cursor tests into Copilot would add integration churn
+without a clear need.
+
+## Validation
+
+Before adoption:
+
+- Copilot validation passed
+  - 486 tests passed
+- Cursor validation passed
+  - 492 tests passed
+
+After GitHub merge and child repo synchronization:
+
+- `compare_helix.sh --all` passed
+- `validate_helix.sh` passed
+- copilot: 486 tests passed
+- cursor: 486 tests passed
+
+## Runtime reflection
+
+Runtime reflection was performed after confirming:
+
+- no periodic lock
+- no soft-stop file
+- no scrape-like process
+
+Runtime checkout was fast-forwarded to product main and runtime was recreated
+with `tools/runtime_up.sh`.
+
+Important runtime note:
+
+- after `runtime_up.sh`, the new indexes were not present yet
+- explicit `init_db('/app/data/nicodic.db')` was run through runtime execution
+- after that, the indexes were created
+
+This should be remembered for future schema/index additions: runtime recreate
+does not necessarily imply existing-DB `init_db()` side effects have run.
+
+## Runtime index verification
+
+After explicit runtime `init_db`, a read-only EXPLAIN probe changed from full
+scans to index usage:
+
+- `SEARCH articles USING COVERING INDEX idx_articles_type_canonical_url_id`
+- `SEARCH target USING INDEX idx_target_active_created_at_id`
+
+## Runtime Web timing
+
+After runtime reflection and index creation:
+
+- `/registered?page=1&per_page=100`
+  - http=200
+  - time=0.106639 seconds
+- `/registered?sort_by=saved_max_res_no&sort_order=desc&page=1&per_page=100`
+  - http=200
+  - time=0.094546 seconds
+- `/registered?sort_by=saved_response_count&sort_order=desc&page=1&per_page=100`
+  - http=200
+  - time=0.072703 seconds
+
+Browser verification also succeeded. The user reported that display and sorting
+now feel effectively instant.
+
+## Safety notes
+
+No full runtime DB backup was created.
+
+This was intentional because the adopted runtime change only added indexes on
+small tables and did not rewrite archive-critical `articles` or `responses`
+data.
+
+No new index was added to the 13M-row `responses` table.
+
+Runtime final status after verification:
+
+- no periodic lock
+- no soft-stop file
+- no scrape-like process
+
+## Known limitations
+
+- Search-heavy paths may still need separate inspection later.
+- True observed-board Max Res No is still not implemented.
+- The current `Saved Max Res No` remains saved-response max semantics.
+- Runtime schema/index additions may need explicit `init_db()` execution on
+  existing DBs.
+
+## Follow-up candidates
+
+Recommended follow-up:
+
+- implement true observed-board Max Res No semantics
+- add an operator/runtime schema ensure command if schema/index changes continue
+- optionally add Registered Articles EXPLAIN diagnostics
 
 
 ===== REVIEW LOG: META/review_log/MainTask45_direct_article_title_resolution_20260517.md =====
@@ -14595,7 +14871,7 @@ Adopted: **Cursor**
 
 
 ===== PROJECT SNAPSHOT =====
-generated: Thu Jun 25 17:58:01 UTC 2026
+generated: Fri Jun 26 08:34:20 UTC 2026
 mode: full
 
 
@@ -15965,6 +16241,33 @@ Operational note:
   `python main.py operator stats rebuild-response-summary --db PATH --apply`
 - the rebuild is an operator-controlled maintenance action, not a normal
   per-request Web path.
+
+## Registered Articles support indexes
+
+Introduced by:
+
+- MainTask049-registered-articles-latency-index-and-query-shape
+
+Indexes:
+
+- `idx_articles_type_canonical_url_id`
+  - table: `articles`
+  - columns: `(article_type, canonical_url, id)`
+  - purpose: support Registered Articles canonical URL fallback resolution
+    without scanning `articles` for each target row
+
+- `idx_target_active_created_at_id`
+  - table: `target`
+  - columns: `(is_active, created_at, id)`
+  - purpose: support active-target filtering and Registered Articles default
+    created-at ordering workflow
+
+Operational note:
+
+- These indexes are intentionally on small tables.
+- No MainTask049 index was added to the 13M-row `responses` table.
+- Existing runtime DBs may require an explicit `init_db('/app/data/nicodic.db')`
+  execution after runtime reflection to create newly added indexes.
 
 
 =============================
@@ -22079,6 +22382,122 @@ Recommended follow-up tasks
 
 
 =============================
+FILE: copilot/MainTask049-registered-articles-latency-index-and-query-shape_report.txt
+=============================
+Task: MainTask049-registered-articles-latency-index-and-query-shape
+Date: 2026-06-26
+Editor AI model: GPT-5.3-Codex
+
+Summary
+- Implemented bounded Registered Articles latency improvements focused on small-table indexes and query-shape refinement.
+- Added explicit support indexes for canonical URL fallback resolution and active-target ordering.
+- Replaced correlated URL fallback lookup with a non-correlated pre-aggregated CTE path.
+- Added a no-search total-count fast path that avoids running the expensive resolved-targets CTE for count.
+- Preserved existing Registered Articles public behavior, labels, alias compatibility, and summary-first semantics.
+
+Files changed
+- storage.py
+- archive_read.py
+- tests/test_storage.py
+- tests/test_archive_read.py
+- MainTask049-registered-articles-latency-index-and-query-shape_report.txt
+
+Indexes added and rationale
+1) idx_articles_type_canonical_url_id on articles(article_type, canonical_url, id)
+- Rationale:
+  - Supports canonical URL fallback matching by (article_type, canonical_url).
+  - Supports stable earliest-row selection by id (MIN(id) lookup path).
+  - Targets the strongest bottleneck observed in investigation reports.
+
+2) idx_target_active_created_at_id on target(is_active, created_at, id)
+- Rationale:
+  - Supports active-target filtering and default Registered ordering workflow.
+  - Small-table index only (target table), avoids responses table indexing cost.
+
+Notes:
+- No new indexes were added to responses (13M+ rows) to avoid heavy operational cost and because this task focuses on summary-backed reads.
+
+Query-shape changes and rationale
+1) Canonical URL fallback path de-correlated
+- Before:
+  - resolved_targets used a per-target correlated subquery on articles (ORDER BY id LIMIT 1).
+- After:
+  - Added url_fallback_articles CTE:
+    - SELECT article_type, canonical_url, MIN(id)
+    - GROUP BY article_type, canonical_url
+  - resolved_targets joins this CTE once, then joins articles by selected id.
+- Rationale:
+  - Removes repeated correlated lookups and allows better use of the new articles index.
+
+2) No-search count fast path
+- Before:
+  - total count always used resolved_targets CTE count query.
+- After:
+  - if no search filter, count is computed directly:
+    - SELECT COUNT(*) FROM target WHERE is_active = 1
+  - search-present count still uses resolved_targets to preserve filtering behavior.
+- Rationale:
+  - Reduces duplicated expensive work in the common default /registered path.
+
+3) Saved stats source remains summary-first
+- _registered_fetch_response_stats remains summary-first and uses bounded responses fallback only for missing summary identities.
+- Aggregate-sort branch still joins article_response_stats when table exists.
+
+Registered Articles behavior preserved
+- Visible columns unchanged.
+- Labels unchanged:
+  - Saved Responses
+  - Saved Max Res No
+- Legacy sort alias preserved:
+  - latest_scraped_max_res_no -> saved_max_res_no
+- Pending/unsaved active targets still appear.
+- Canonical URL fallback matching still works; added regression test for deterministic earliest-row fallback.
+- Search behavior remains compatible.
+- Summary-backed value display behavior remains compatible with existing tests.
+
+Tests / validation run
+- Validation command:
+  - ./validate.sh
+- Additional check:
+  - git diff --check
+
+Result
+- ./validate.sh: PASSED
+  - 486 passed
+- git diff --check: PASSED
+
+Expected runtime reflection notes
+- Runtime reflection will need application startup/init_db path execution (as existing deployment flow) to create the new indexes.
+- Index creation cost is expected on small tables only (articles/target), bounded compared to responses-table indexing.
+- No runtime DB was modified in this product-code task.
+
+Runtime DB safety notes
+- No responses index was added.
+- No runtime DB data rewrite logic was introduced.
+- No destructive schema operation added (only CREATE INDEX IF NOT EXISTS).
+- Summary table semantics from MainTask048 are preserved.
+
+Known limitations
+- This task does not introduce query-plan instrumentation output in app logs.
+- Search-enabled count path still uses resolved_targets CTE (intentional for behavior compatibility).
+- ORDER BY datetime normalization still uses existing semantics; this task did not alter sort semantics to avoid regressions.
+
+Recommended follow-up tasks
+1) Add optional operator-facing EXPLAIN QUERY PLAN diagnostics for registered query modes.
+2) Measure real runtime improvements after reflection and capture before/after timings for:
+   - /registered default
+   - /registered sort_by=saved_max_res_no desc
+3) If needed, further reduce repeated resolved-target work under search-heavy paths.
+
+Explicit environment/ops non-modification statement
+- Runtime DB was not modified.
+- Runtime checkout was not modified.
+- Cron configuration was not modified.
+- Docker configuration/runtime was not modified.
+- Sibling/root repositories were not modified.
+
+
+=============================
 FILE: copilot/Makefile
 =============================
 .PHONY: build run test lint clean inspect
@@ -24879,7 +25298,16 @@ def _registered_build_resolved_targets_cte(
     matched_last_scraped_expr: str,
 ) -> str:
     return f"""
-            WITH resolved_targets AS (
+            WITH url_fallback_articles AS (
+                SELECT
+                    a.article_type,
+                    a.canonical_url,
+                    MIN(a.id) AS selected_article_row_id
+                FROM articles AS a
+                WHERE a.canonical_url IS NOT NULL
+                GROUP BY a.article_type, a.canonical_url
+            ),
+            resolved_targets AS (
                 SELECT
                     t.id AS target_row_id,
                     t.article_id AS target_article_id,
@@ -24897,16 +25325,12 @@ def _registered_build_resolved_targets_cte(
                 LEFT JOIN articles AS a_exact
                     ON t.article_id = a_exact.article_id
                     AND t.article_type = a_exact.article_type
-                LEFT JOIN articles AS a_url
+                LEFT JOIN url_fallback_articles AS ufa
                     ON a_exact.id IS NULL
-                    AND a_url.id = (
-                        SELECT a2.id
-                        FROM articles AS a2
-                        WHERE a2.article_type = t.article_type
-                          AND a2.canonical_url = t.canonical_url
-                        ORDER BY a2.id ASC
-                        LIMIT 1
-                    )
+                    AND ufa.article_type = t.article_type
+                    AND ufa.canonical_url = t.canonical_url
+                LEFT JOIN articles AS a_url
+                    ON a_url.id = ufa.selected_article_row_id
                 WHERE t.is_active = 1
             )
         """
@@ -25276,15 +25700,26 @@ def query_registered_articles(
         )
 
         cur = conn.cursor()
-        cur.execute(
-            base_cte_sql + f"""
-            SELECT COUNT(*)
-            FROM resolved_targets AS rt
-            {where_sql}
-            """,
-            where_params,
-        )
-        total = cur.fetchone()[0]
+        if where_sql:
+            cur.execute(
+                base_cte_sql + f"""
+                SELECT COUNT(*)
+                FROM resolved_targets AS rt
+                {where_sql}
+                """,
+                where_params,
+            )
+            total = cur.fetchone()[0]
+        else:
+            # Fast path for default no-search page: count active targets directly.
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM target
+                WHERE is_active = 1
+                """
+            )
+            total = cur.fetchone()[0]
 
         if _registered_uses_page_first_sort(sort_by):
             page_sql = base_cte_sql + f"""
@@ -34769,6 +35204,20 @@ def init_db(db_path: str = DEFAULT_DB_PATH):
     )
     """)
 
+    # Registered Articles latency support indexes (small tables only).
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_articles_type_canonical_url_id
+        ON articles(article_type, canonical_url, id)
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_target_active_created_at_id
+        ON target(is_active, created_at, id)
+        """
+    )
+
     conn.commit()
     return conn
 
@@ -37092,6 +37541,82 @@ def test_query_registered_articles_matches_saved_numeric_article_by_canonical_ur
     assert row["saved_response_count"] == 2
     assert row["saved_max_res_no"] == 2
     assert row["last_scraped_at"] == "2026-04-02T00:00:00+00:00"
+
+
+def test_query_registered_articles_canonical_url_fallback_uses_earliest_row(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        canonical_url = "https://dic.nicovideo.jp/a/shared-slug"
+        register_target(
+            conn,
+            "9001001",
+            "a",
+            canonical_url,
+            title="Target Title",
+        )
+
+        # Insert two article rows sharing canonical_url to validate
+        # deterministic fallback to the earliest row id.
+        conn.execute(
+            """
+            INSERT INTO articles (article_id, article_type, title, canonical_url)
+            VALUES (?, ?, ?, ?)
+            """,
+            ("100", "a", "Older Row Title", canonical_url),
+        )
+        conn.execute(
+            """
+            INSERT INTO articles (article_id, article_type, title, canonical_url)
+            VALUES (?, ?, ?, ?)
+            """,
+            ("200", "a", "Newer Row Title", canonical_url),
+        )
+        conn.commit()
+
+        # Keep summary rows explicit so stats source remains materialized.
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO article_response_stats
+            (
+                article_id,
+                article_type,
+                saved_response_count,
+                saved_max_res_no,
+                stats_updated_at
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            ("100", "a", 5, 5, "2026-06-26T00:00:00+00:00"),
+        )
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO article_response_stats
+            (
+                article_id,
+                article_type,
+                saved_response_count,
+                saved_max_res_no,
+                stats_updated_at
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            ("200", "a", 9, 9, "2026-06-26T00:00:00+00:00"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    result = query_registered_articles(paginate=False)
+
+    assert result["total"] == 1
+    row = result["rows"][0]
+    assert row["title"] == "Target Title"
+    assert row["saved_response_count"] == 5
+    assert row["saved_max_res_no"] == 5
 
 
 def test_query_registered_articles_filters_by_search_title(
@@ -45707,6 +46232,12 @@ def _table_names(conn: sqlite3.Connection) -> set[str]:
     return {row[0] for row in cur.fetchall()}
 
 
+def _index_names(conn: sqlite3.Connection, table_name: str) -> set[str]:
+    cur = conn.cursor()
+    cur.execute(f"PRAGMA index_list({table_name})")
+    return {row[1] for row in cur.fetchall()}
+
+
 def test_open_readonly_db_returns_none_without_creating_file(
     tmp_path,
     monkeypatch,
@@ -45748,6 +46279,23 @@ def test_init_db_creates_data_dir_db_and_tables(tmp_path, monkeypatch):
         assert "target" in tables
         assert "scrape_run_observation" in tables
         assert "article_response_stats" in tables
+    finally:
+        conn.close()
+
+
+def test_init_db_creates_registered_articles_support_indexes(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+
+    conn = init_db()
+    try:
+        article_indexes = _index_names(conn, "articles")
+        target_indexes = _index_names(conn, "target")
+
+        assert "idx_articles_type_canonical_url_id" in article_indexes
+        assert "idx_target_active_created_at_id" in target_indexes
     finally:
         conn.close()
 
@@ -54125,6 +54673,122 @@ Recommended follow-up tasks
 
 
 =============================
+FILE: cursor/MainTask049-registered-articles-latency-index-and-query-shape_report.txt
+=============================
+Task: MainTask049-registered-articles-latency-index-and-query-shape
+Date: 2026-06-26
+Editor AI model: GPT-5.3-Codex
+
+Summary
+- Implemented bounded Registered Articles latency improvements focused on small-table indexes and query-shape refinement.
+- Added explicit support indexes for canonical URL fallback resolution and active-target ordering.
+- Replaced correlated URL fallback lookup with a non-correlated pre-aggregated CTE path.
+- Added a no-search total-count fast path that avoids running the expensive resolved-targets CTE for count.
+- Preserved existing Registered Articles public behavior, labels, alias compatibility, and summary-first semantics.
+
+Files changed
+- storage.py
+- archive_read.py
+- tests/test_storage.py
+- tests/test_archive_read.py
+- MainTask049-registered-articles-latency-index-and-query-shape_report.txt
+
+Indexes added and rationale
+1) idx_articles_type_canonical_url_id on articles(article_type, canonical_url, id)
+- Rationale:
+  - Supports canonical URL fallback matching by (article_type, canonical_url).
+  - Supports stable earliest-row selection by id (MIN(id) lookup path).
+  - Targets the strongest bottleneck observed in investigation reports.
+
+2) idx_target_active_created_at_id on target(is_active, created_at, id)
+- Rationale:
+  - Supports active-target filtering and default Registered ordering workflow.
+  - Small-table index only (target table), avoids responses table indexing cost.
+
+Notes:
+- No new indexes were added to responses (13M+ rows) to avoid heavy operational cost and because this task focuses on summary-backed reads.
+
+Query-shape changes and rationale
+1) Canonical URL fallback path de-correlated
+- Before:
+  - resolved_targets used a per-target correlated subquery on articles (ORDER BY id LIMIT 1).
+- After:
+  - Added url_fallback_articles CTE:
+    - SELECT article_type, canonical_url, MIN(id)
+    - GROUP BY article_type, canonical_url
+  - resolved_targets joins this CTE once, then joins articles by selected id.
+- Rationale:
+  - Removes repeated correlated lookups and allows better use of the new articles index.
+
+2) No-search count fast path
+- Before:
+  - total count always used resolved_targets CTE count query.
+- After:
+  - if no search filter, count is computed directly:
+    - SELECT COUNT(*) FROM target WHERE is_active = 1
+  - search-present count still uses resolved_targets to preserve filtering behavior.
+- Rationale:
+  - Reduces duplicated expensive work in the common default /registered path.
+
+3) Saved stats source remains summary-first
+- _registered_fetch_response_stats remains summary-first and uses bounded responses fallback only for missing summary identities.
+- Aggregate-sort branch still joins article_response_stats when table exists.
+
+Registered Articles behavior preserved
+- Visible columns unchanged.
+- Labels unchanged:
+  - Saved Responses
+  - Saved Max Res No
+- Legacy sort alias preserved:
+  - latest_scraped_max_res_no -> saved_max_res_no
+- Pending/unsaved active targets still appear.
+- Canonical URL fallback matching still works; added regression test for deterministic earliest-row fallback.
+- Search behavior remains compatible.
+- Summary-backed value display behavior remains compatible with existing tests.
+
+Tests / validation run
+- Validation command:
+  - ./validate.sh
+- Additional check:
+  - git diff --check
+
+Result
+- ./validate.sh: PASSED
+  - 486 passed
+- git diff --check: PASSED
+
+Expected runtime reflection notes
+- Runtime reflection will need application startup/init_db path execution (as existing deployment flow) to create the new indexes.
+- Index creation cost is expected on small tables only (articles/target), bounded compared to responses-table indexing.
+- No runtime DB was modified in this product-code task.
+
+Runtime DB safety notes
+- No responses index was added.
+- No runtime DB data rewrite logic was introduced.
+- No destructive schema operation added (only CREATE INDEX IF NOT EXISTS).
+- Summary table semantics from MainTask048 are preserved.
+
+Known limitations
+- This task does not introduce query-plan instrumentation output in app logs.
+- Search-enabled count path still uses resolved_targets CTE (intentional for behavior compatibility).
+- ORDER BY datetime normalization still uses existing semantics; this task did not alter sort semantics to avoid regressions.
+
+Recommended follow-up tasks
+1) Add optional operator-facing EXPLAIN QUERY PLAN diagnostics for registered query modes.
+2) Measure real runtime improvements after reflection and capture before/after timings for:
+   - /registered default
+   - /registered sort_by=saved_max_res_no desc
+3) If needed, further reduce repeated resolved-target work under search-heavy paths.
+
+Explicit environment/ops non-modification statement
+- Runtime DB was not modified.
+- Runtime checkout was not modified.
+- Cron configuration was not modified.
+- Docker configuration/runtime was not modified.
+- Sibling/root repositories were not modified.
+
+
+=============================
 FILE: cursor/Makefile
 =============================
 .PHONY: build run test lint clean inspect
@@ -56925,7 +57589,16 @@ def _registered_build_resolved_targets_cte(
     matched_last_scraped_expr: str,
 ) -> str:
     return f"""
-            WITH resolved_targets AS (
+            WITH url_fallback_articles AS (
+                SELECT
+                    a.article_type,
+                    a.canonical_url,
+                    MIN(a.id) AS selected_article_row_id
+                FROM articles AS a
+                WHERE a.canonical_url IS NOT NULL
+                GROUP BY a.article_type, a.canonical_url
+            ),
+            resolved_targets AS (
                 SELECT
                     t.id AS target_row_id,
                     t.article_id AS target_article_id,
@@ -56943,16 +57616,12 @@ def _registered_build_resolved_targets_cte(
                 LEFT JOIN articles AS a_exact
                     ON t.article_id = a_exact.article_id
                     AND t.article_type = a_exact.article_type
-                LEFT JOIN articles AS a_url
+                LEFT JOIN url_fallback_articles AS ufa
                     ON a_exact.id IS NULL
-                    AND a_url.id = (
-                        SELECT a2.id
-                        FROM articles AS a2
-                        WHERE a2.article_type = t.article_type
-                          AND a2.canonical_url = t.canonical_url
-                        ORDER BY a2.id ASC
-                        LIMIT 1
-                    )
+                    AND ufa.article_type = t.article_type
+                    AND ufa.canonical_url = t.canonical_url
+                LEFT JOIN articles AS a_url
+                    ON a_url.id = ufa.selected_article_row_id
                 WHERE t.is_active = 1
             )
         """
@@ -57322,15 +57991,26 @@ def query_registered_articles(
         )
 
         cur = conn.cursor()
-        cur.execute(
-            base_cte_sql + f"""
-            SELECT COUNT(*)
-            FROM resolved_targets AS rt
-            {where_sql}
-            """,
-            where_params,
-        )
-        total = cur.fetchone()[0]
+        if where_sql:
+            cur.execute(
+                base_cte_sql + f"""
+                SELECT COUNT(*)
+                FROM resolved_targets AS rt
+                {where_sql}
+                """,
+                where_params,
+            )
+            total = cur.fetchone()[0]
+        else:
+            # Fast path for default no-search page: count active targets directly.
+            cur.execute(
+                """
+                SELECT COUNT(*)
+                FROM target
+                WHERE is_active = 1
+                """
+            )
+            total = cur.fetchone()[0]
 
         if _registered_uses_page_first_sort(sort_by):
             page_sql = base_cte_sql + f"""
@@ -80761,6 +81441,20 @@ def init_db(db_path: str = DEFAULT_DB_PATH):
     )
     """)
 
+    # Registered Articles latency support indexes (small tables only).
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_articles_type_canonical_url_id
+        ON articles(article_type, canonical_url, id)
+        """
+    )
+    cur.execute(
+        """
+        CREATE INDEX IF NOT EXISTS idx_target_active_created_at_id
+        ON target(is_active, created_at, id)
+        """
+    )
+
     conn.commit()
     return conn
 
@@ -83084,6 +83778,82 @@ def test_query_registered_articles_matches_saved_numeric_article_by_canonical_ur
     assert row["saved_response_count"] == 2
     assert row["saved_max_res_no"] == 2
     assert row["last_scraped_at"] == "2026-04-02T00:00:00+00:00"
+
+
+def test_query_registered_articles_canonical_url_fallback_uses_earliest_row(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+    conn = init_db()
+    try:
+        canonical_url = "https://dic.nicovideo.jp/a/shared-slug"
+        register_target(
+            conn,
+            "9001001",
+            "a",
+            canonical_url,
+            title="Target Title",
+        )
+
+        # Insert two article rows sharing canonical_url to validate
+        # deterministic fallback to the earliest row id.
+        conn.execute(
+            """
+            INSERT INTO articles (article_id, article_type, title, canonical_url)
+            VALUES (?, ?, ?, ?)
+            """,
+            ("100", "a", "Older Row Title", canonical_url),
+        )
+        conn.execute(
+            """
+            INSERT INTO articles (article_id, article_type, title, canonical_url)
+            VALUES (?, ?, ?, ?)
+            """,
+            ("200", "a", "Newer Row Title", canonical_url),
+        )
+        conn.commit()
+
+        # Keep summary rows explicit so stats source remains materialized.
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO article_response_stats
+            (
+                article_id,
+                article_type,
+                saved_response_count,
+                saved_max_res_no,
+                stats_updated_at
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            ("100", "a", 5, 5, "2026-06-26T00:00:00+00:00"),
+        )
+        conn.execute(
+            """
+            INSERT OR REPLACE INTO article_response_stats
+            (
+                article_id,
+                article_type,
+                saved_response_count,
+                saved_max_res_no,
+                stats_updated_at
+            )
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            ("200", "a", 9, 9, "2026-06-26T00:00:00+00:00"),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+    result = query_registered_articles(paginate=False)
+
+    assert result["total"] == 1
+    row = result["rows"][0]
+    assert row["title"] == "Target Title"
+    assert row["saved_response_count"] == 5
+    assert row["saved_max_res_no"] == 5
 
 
 def test_query_registered_articles_filters_by_search_title(
@@ -91699,6 +92469,12 @@ def _table_names(conn: sqlite3.Connection) -> set[str]:
     return {row[0] for row in cur.fetchall()}
 
 
+def _index_names(conn: sqlite3.Connection, table_name: str) -> set[str]:
+    cur = conn.cursor()
+    cur.execute(f"PRAGMA index_list({table_name})")
+    return {row[1] for row in cur.fetchall()}
+
+
 def test_open_readonly_db_returns_none_without_creating_file(
     tmp_path,
     monkeypatch,
@@ -91740,6 +92516,23 @@ def test_init_db_creates_data_dir_db_and_tables(tmp_path, monkeypatch):
         assert "target" in tables
         assert "scrape_run_observation" in tables
         assert "article_response_stats" in tables
+    finally:
+        conn.close()
+
+
+def test_init_db_creates_registered_articles_support_indexes(
+    tmp_path,
+    monkeypatch,
+):
+    monkeypatch.chdir(tmp_path)
+
+    conn = init_db()
+    try:
+        article_indexes = _index_names(conn, "articles")
+        target_indexes = _index_names(conn, "target")
+
+        assert "idx_articles_type_canonical_url_id" in article_indexes
+        assert "idx_target_active_created_at_id" in target_indexes
     finally:
         conn.close()
 

@@ -307,3 +307,30 @@ Operational note:
   `python main.py operator stats rebuild-response-summary --db PATH --apply`
 - the rebuild is an operator-controlled maintenance action, not a normal
   per-request Web path.
+
+## Registered Articles support indexes
+
+Introduced by:
+
+- MainTask049-registered-articles-latency-index-and-query-shape
+
+Indexes:
+
+- `idx_articles_type_canonical_url_id`
+  - table: `articles`
+  - columns: `(article_type, canonical_url, id)`
+  - purpose: support Registered Articles canonical URL fallback resolution
+    without scanning `articles` for each target row
+
+- `idx_target_active_created_at_id`
+  - table: `target`
+  - columns: `(is_active, created_at, id)`
+  - purpose: support active-target filtering and Registered Articles default
+    created-at ordering workflow
+
+Operational note:
+
+- These indexes are intentionally on small tables.
+- No MainTask049 index was added to the 13M-row `responses` table.
+- Existing runtime DBs may require an explicit `init_db('/app/data/nicodic.db')`
+  execution after runtime reflection to create newly added indexes.
