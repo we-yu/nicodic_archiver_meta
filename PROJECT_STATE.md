@@ -3439,3 +3439,30 @@ Boundaries:
 - only root/meta files touched
 - copilot/, cursor/, runtime checkout, runtime DB, runtime logs, Docker, and
   cron were not touched
+
+## 2026-06-27 - SubTask-runtime-batch-log-digest-default
+
+Product main adopted `5039445` / PR #86, making batch run logs digest-first by default.
+
+Operational impact:
+- default batch logs no longer emit per-target `[PROGRESS = i/n]` blocks;
+- `BATCH_LOG_VERBOSE=1` restores legacy verbose progress blocks for debugging;
+- batch digest counters use compact `H/OK0/W/F/S/NEW/UOBS` keys;
+- host_cron `[RUN DIGEST]` now includes `B`, `dur`, `end`, compact counters, and `P/T/R` when totals are available;
+- host_cron OK0 per-target logging, heartbeat behavior, rotation, scraping semantics, and runtime DB behavior were intentionally unchanged.
+
+Validation/adoption:
+- `compare_helix.sh --all`: PASS;
+- `validate_helix.sh`: PASS, 514 tests passed in both child repos;
+- runtime checkout reflected to `5039445`;
+- runtime container rebuilt and restarted;
+- post-reflection runtime status showed no periodic lock and no scrape-like process.
+
+Notes:
+- The host `tools/verify.sh` currently fails with `python: command not found`; this was not considered a blocker for this task because product validation passed through the repo validation path.
+- Existing batch logs generated before reflection still show the old long digest keys; new behavior starts with the next runtime run.
+
+Next likely tasks:
+- `SubTask-runtime-host-cron-ok0-heartbeat`;
+- `SubTask-runtime-batch-runs-retention`;
+- optional `SubTask-runtime-batch-digest-one-line`.
