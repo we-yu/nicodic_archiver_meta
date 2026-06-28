@@ -3466,3 +3466,33 @@ Next likely tasks:
 - `SubTask-runtime-host-cron-ok0-heartbeat`;
 - `SubTask-runtime-batch-runs-retention`;
 - optional `SubTask-runtime-batch-digest-one-line`.
+
+## 2026-06-28 - SubTask-runtime-host-cron-ok0-sum
+
+Product main adopted `2ca9f8c`, summarizing host_cron clean OK0 output by default.
+
+Operational impact:
+- clean host_cron OK0 targets are now emitted as bounded `[OK0 SUM 🟢]` aggregate lines;
+- per-target `[STEP OK0 🟢]` is suppressed by default;
+- `HOST_CRON_OK0_MODE=line` restores legacy per-target OK0 output for debugging;
+- `HOST_CRON_OK0_SUM_EVERY` controls count-based summary flushing and defaults/falls back to `250`;
+- pending OK0 summaries flush before HIT/WARN/FAIL detail and before run end;
+- HIT/WARN/FAIL diagnostic detail remains individually logged;
+- RUN DIGEST counts remain available;
+- batch log behavior, scraping semantics, runtime DB behavior, and host_cron rotation/retention were intentionally unchanged.
+
+Validation/adoption:
+- `compare_helix.sh --all`: PASS;
+- `validate_helix.sh`: PASS;
+- copilot: 519 tests passed;
+- cursor: 519 tests passed;
+- runtime checkout reflected to `2ca9f8c`;
+- runtime container rebuilt/recreated through the standard reflection flow;
+- runtime logs confirmed real `[OK0 SUM 🟢]` output.
+
+Observed behavior:
+- `[OK0 SUM 🟢]` entries may have `cnt` below the configured threshold when flushed before non-OK detail. This is expected and preserves chronological context.
+- recent batch logs are now much smaller after the previous digest-first task, while failure and digest detail remain available.
+
+Next likely task:
+- `SubTask-runtime-batch-runs-retention` to archive/compress historical `runtime/logs/batch_runs/batch_*.log` files by mtime.
