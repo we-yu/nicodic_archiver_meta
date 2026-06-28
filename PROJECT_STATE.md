@@ -3496,3 +3496,45 @@ Observed behavior:
 
 Next likely task:
 - `SubTask-runtime-batch-runs-retention` to archive/compress historical `runtime/logs/batch_runs/batch_*.log` files by mtime.
+
+## 2026-06-28 - SubTask-runtime-batch-runs-retention completed
+
+Product main adopted `20659af`, adding weekly archive/compression for old
+`runtime/logs/batch_runs/batch_*.log` files aligned with the existing
+host_cron log hygiene model.
+
+Operational impact:
+- recent batch run logs remain plain for readability;
+- older batch run logs are grouped by calendar week using file mtime;
+- archives are written as `runtime/logs/batch_runs/batch_runs.YYYYMMDD-YYYYMMDD.tar.gz`;
+- original `.log` files are removed only after successful archive creation;
+- compressed archives are retained indefinitely for now;
+- existing host_cron daily/weekly rotation behavior remains unchanged.
+
+Digest usability:
+- runtime log hygiene now maintains `runtime/logs/README.log`;
+- runtime log hygiene now maintains `runtime/logs/batch_runs/README.log`;
+- these files contain `DIGEST EXP` lines explaining compact keys such as B/dur/end/H/OK0/W/F/S/NEW/UOBS/P/T/R;
+- this keeps `grep DIGEST *.log` useful even after the compact key meanings are forgotten.
+
+Validation/adoption:
+- `compare_helix.sh --all`: PASS;
+- `validate_helix.sh`: PASS;
+- copilot: 526 tests passed;
+- cursor: 526 tests passed;
+- runtime checkout reflected to `20659af`;
+- runtime container rebuilt/recreated through the standard reflection flow;
+- runtime log hygiene confirmed README.log digest explanations after reflection;
+- batch_runs weekly archives were created for eligible historical logs.
+
+Boundaries:
+- no scrape behavior change;
+- no batch log emission behavior change;
+- no host_cron rotation policy change;
+- no cron/Docker config change;
+- no runtime DB or runtime/data cleanup.
+
+Next likely tasks:
+- optional archive-expiry policy for old `.tar.gz` files;
+- zero-page unknown success classification;
+- manual cleanup of stale local/generated root files such as `Issues.txt`.
