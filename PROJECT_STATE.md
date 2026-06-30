@@ -3538,3 +3538,29 @@ Next likely tasks:
 - optional archive-expiry policy for old `.tar.gz` files;
 - zero-page unknown success classification;
 - manual cleanup of stale local/generated root files such as `Issues.txt`.
+
+## 2026-06-30 SubTask-hotword-target-feeder
+
+Purpose:
+- Add a bounded feeder for recent "今週のニコニコ大百科 HOTワード" best3 article URLs.
+
+Adopted behavior:
+- Cursor-only implementation adopted.
+- Adds `hotword_feeder.py`.
+- Extracts only recent best3 data-row rank-cell article links.
+- Uses default recent-week bound of 12.
+- Deduplicates candidates in first-seen order.
+- Reuses the existing target registration boundary.
+- Does not directly insert into target tables.
+- Integrates near the existing Delete Feeder shot-start feeder phase.
+- Adds bounded scan-only inspect command `inspect-hot-word-target-feed`.
+
+Validation:
+- Pre-adoption `./validate_helix.sh cursor`: PASS, 538 passed.
+- Post-adoption convergence/validation: to be filled after main sync.
+
+Runtime reflection:
+- Not yet performed in this step.
+
+Review log:
+- META/review_log/SubTask_hotword_target_feeder_20260630.md
