@@ -46,6 +46,7 @@ elif [[ $# -gt 0 ]]; then
 fi
 
 echo "* META INFO * Say to Advisor-AI [Read this file and understand the project.] with output file."
+echo "* AI-HINT * If task closeout is complete, run ./sweep_report_artifacts.sh and then ./sweep_report_artifacts.sh --apply if the dry-run looks correct."
 
 rm -f "$MAIN_OUT"
 rm -f "$KNOWLEDGE_OUT"

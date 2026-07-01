@@ -3610,3 +3610,31 @@ Notes:
 - No runtime DB schema change.
 - No cron change.
 - No Docker config change beyond normal runtime recreate.
+
+## 2026-07-01 WorkflowTask-report-artifact-sweeper
+
+Purpose:
+- Add a root/meta helper to prevent temporary editor/report artifacts from accumulating.
+
+Added:
+- `sweep_report_artifacts.sh`
+- `META/out/report_archive/` gitignore entry
+- AI-HINT in `META/scripts/export_snapshot.sh`
+
+Behavior:
+- Default dry-run.
+- `--apply` is required to move files.
+- Default threshold is files whose mtime is at least 3 days old.
+- Candidate report/review artifacts are moved to `META/out/report_archive/YYYYMMDD/`.
+- Tracked files are skipped.
+- Product data/config files such as `requirements.txt`, `targets.txt`, and `scrape_targets.txt` are not intended sweep targets.
+
+Validation:
+- `bash -n sweep_report_artifacts.sh`: PASS.
+- Dry-run review is available through `./sweep_report_artifacts.sh --older-than-days 3`.
+
+Runtime:
+- No runtime DB, cron, Docker, or runtime checkout changes.
+
+Review log:
+- `META/review_log/WorkflowTask_report_artifact_sweeper_20260701.md`
