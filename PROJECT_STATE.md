@@ -3591,3 +3591,22 @@ Runtime reflection:
 
 Review log:
 - META/review_log/SubTask_compact_zero_response_bbs_ok0_20260630.md
+
+## 2026-07-01 Runtime reflection for zero-response OK0
+
+Purpose:
+- Reflect `SubTask-compact-zero-response-bbs-ok0` to the runtime checkout.
+
+Runtime reflection:
+- Runtime reflected to product commit `501617a`.
+- Runtime checkout verified with `git log --oneline -1`.
+
+Smoke check:
+- Targeted zero-response BBS check was run with `TARGET_ORDER_START_ARTICLE_ID=5532095`.
+- Expected result: successful zero-response checks fold into OK0 SUM rather than standalone `STEP END OK reason=ok`.
+- No permanent skip behavior was introduced.
+
+Notes:
+- No runtime DB schema change.
+- No cron change.
+- No Docker config change beyond normal runtime recreate.

@@ -82,7 +82,17 @@ Post-adoption convergence:
 
 ## Runtime reflection
 
-Runtime reflection has not yet been performed for this SubTask.
+Runtime reflection was performed after product adoption.
+
+Runtime checkout:
+
+- `501617a` — SubTask: fold zero-response BBS checks into OK0 (#90)
+
+Runtime smoke:
+
+- Targeted zero-response BBS check was run with `TARGET_ORDER_START_ARTICLE_ID=5532095`.
+- Expected behavior: `zero_response_checked` is folded into OK0 SUM instead of emitting a standalone `STEP END OK reason=ok`.
+- No runtime DB schema, cron, or Docker config changes were made beyond normal runtime reflection/recreate.
 
 ## Editor AI
 
