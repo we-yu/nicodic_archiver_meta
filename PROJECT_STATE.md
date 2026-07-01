@@ -3564,3 +3564,30 @@ Runtime reflection:
 
 Review log:
 - META/review_log/SubTask_hotword_target_feeder_20260630.md
+
+## 2026-06-30 SubTask-compact-zero-response-bbs-ok0
+
+Purpose:
+- Reduce host_cron log noise from successful zero-response BBS checks.
+
+Adopted behavior:
+- Cursor-only implementation adopted.
+- Product main commit: 501617a496cff38a3cb2284eddfa2a44070fe32b
+- Adds explicit `zero_response_checked` reason for successful first-time zero-response BBS checks.
+- Folds explicit `zero_response_checked` results into OK0 SUM in host_cron compact mode.
+- Keeps existing `already_up_to_date` strict OK0 behavior unchanged.
+- Keeps generic `reason=ok` visible.
+- Keeps later-page interruption as WARN/partial.
+- Keeps stored_new>0 as HIT.
+- Does not skip future scraping; reopened boards or newly posted responses remain collectible.
+
+Validation:
+- `compare_helix.sh --all`: PASS.
+- `validate_helix.sh`: PASS.
+- Test count: 541 passed for copilot and 541 passed for cursor.
+
+Runtime reflection:
+- Not yet performed for this SubTask.
+
+Review log:
+- META/review_log/SubTask_compact_zero_response_bbs_ok0_20260630.md
